@@ -1,0 +1,216 @@
+/* src/styles.css
+   Общие стили + светлая тема (по умолчанию) с нежно-голубыми акцентами.
+   Также содержатся корректировки для тёмной темы (.theme--dark) с фиолетовыми оттенками.
+   Цель: единый, аккуратный визуальный язык для обеих тем.
+*/
+
+/* -------------------------
+   ЛОКАЛЬНЫЕ ПЕРЕМЕННЫЕ (светлая тема)
+   ------------------------- */
+:root {
+  --accent-blue-50: #f2fbff;
+  --accent-blue-100: #e6f7ff;
+  --accent-blue-200: #cfeeff;
+  --accent-blue-400: #90caf9;
+  --text-primary: #0b2b40;
+  --text-secondary: #415b6b;
+  --surface: #ffffff;
+  --muted: #7a8a93;
+  --border: rgba(11,43,64,0.06);
+  --table-header-bg: linear-gradient(180deg, #e6f7ff, #f9fdff);
+}
+
+/* -------------------------
+   БАЗОВЫЕ СБРОСЫ И ТИПОГРАФИКА
+   ------------------------- */
+html, body, #app {
+  margin: 0;
+  background: var(--accent-blue-50);
+  color: var(--text-primary);
+  font-family: Inter, Roboto, "Helvetica Neue", Arial, system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+/* Упрощённый контейнер для удобства чтения */
+.v-main .v-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* -------------------------
+   КАРТОЧКИ, ХЕДЕР, НАВИГАЦИЯ
+   ------------------------- */
+.v-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(11,43,64,0.04);
+  transition: box-shadow 180ms ease, transform 180ms ease;
+}
+
+.v-app-bar {
+  background: linear-gradient(180deg, #ffffff 0%, var(--accent-blue-50) 100%);
+  border-bottom: 1px solid rgba(11,43,64,0.04);
+}
+
+.v-navigation-drawer {
+  background: #ffffff;
+  border-right: 1px solid rgba(11,43,64,0.04);
+}
+
+/* Списки сайдбара */
+.v-list-item { border-radius: 8px; transition: background .14s ease, transform .14s ease; }
+.v-list-item:hover { background: rgba(144,202,249,0.06); transform: translateY(-2px); }
+
+/* Заголовки и подзаголовки */
+h2 { margin: 0 0 8px; color: #062a4b; font-size: 1.35rem; letter-spacing: -0.2px; }
+.subtitle-1 { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 6px; }
+h3 { margin-top: 12px; margin-bottom: 8px; color: #0b3d66; font-size: 1.05rem; }
+
+/* Текст и списки */
+p { margin: 0 0 12px 0; color: var(--text-primary); font-size: 0.98rem; }
+.lead { margin-bottom: 12px; color: var(--text-secondary); font-size: 1rem; }
+ul, ol { margin: 0 0 12px 18px; color: var(--text-primary); }
+li { margin-bottom: 6px; }
+
+/* Quick-reference карточки */
+.quick-card {
+  background: linear-gradient(180deg, var(--accent-blue-100), #ffffff);
+  border: 1px solid rgba(14,52,90,0.06);
+  padding: 12px;
+  border-radius: 8px;
+}
+.quick-card .card-title { font-weight: 700; color: #06325c; margin-bottom: 6px; }
+
+/* -------------------------
+   ТАБЛИЦЫ: ОБЪЁМ, ЧИТАЕМОСТЬ, АКЦЕНТЫ
+   ------------------------- */
+.table-wrap { overflow-x: auto; border-radius: 8px; margin-top: 8px; }
+
+.magic-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 6px 14px rgba(11,43,64,0.03);
+  border: 1px solid rgba(11,43,64,0.04);
+}
+
+.magic-table caption.table-caption {
+  text-align: left;
+  padding: 10px 14px;
+  font-weight: 700;
+  color: #06325c;
+  background: linear-gradient(90deg, rgba(144,202,249,0.06), transparent);
+}
+
+/* header */
+.magic-table thead th {
+  background: var(--table-header-bg);
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 700;
+  color: #06325c;
+  border-bottom: 1px solid rgba(11,43,64,0.06);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* rows */
+.magic-table tbody tr:nth-child(odd) { background: #fbfdff; }
+.magic-table th, .magic-table td {
+  padding: 12px 16px;
+  vertical-align: middle;
+  color: var(--text-primary);
+  border-bottom: 1px solid rgba(11,43,64,0.04);
+}
+.magic-table tbody tr:hover { background: #eef8ff; transform: translateY(-1px); }
+
+/* -------------------------
+   Вспомогательные UX-правила
+   ------------------------- */
+.touch-target { min-height: 48px; padding: 12px; display: flex; align-items: center; gap: 12px; border-radius: 8px; user-select: none; }
+.touch-target:focus, .v-list-item:focus { outline: none; box-shadow: 0 0 0 4px rgba(144,202,249,0.16); }
+
+.fade-enter-active, .fade-leave-active { transition: opacity .25s ease, transform .18s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(6px); }
+
+/* кнопки/иконки акцентного цвета */
+.v-icon, .v-btn .v-icon { color: var(--accent-blue-400); }
+
+/* -------------------------
+   ТЁМНАЯ ТЕМА (нежно-фиолетовые оттенки)
+   применяется при наличии класса .theme--dark на верхнем контейнере (Vuetify ставит его автоматически)
+   ------------------------- */
+.theme--dark {
+  --dark-bg: #0b0714;       /* очень тёмный фиолетово-чёрный фон */
+  --dark-surface: #1a1226;  /* темно-фиолетовая поверхность карточек */
+  --dark-primary: #b39ddb;  /* лаванда — основной акцент */
+  --dark-secondary: #9575cd;
+  --dark-on-surface: #efe9fb; /* светлый текст на surface */
+  --dark-border: rgba(255,233,251,0.06);
+}
+
+.theme--dark html, .theme--dark body, .theme--dark #app {
+  background: var(--dark-bg);
+  color: var(--dark-on-surface);
+}
+
+/* карточки/поверхность в тёмной теме */
+.theme--dark .v-card {
+  background: var(--dark-surface);
+  border: 1px solid var(--dark-border);
+  box-shadow: 0 6px 18px rgba(7,5,12,0.6);
+}
+
+/* app bar и drawer */
+.theme--dark .v-app-bar { background: linear-gradient(180deg, rgba(26,18,38,0.9), rgba(11,7,20,0.8)); border-bottom: 1px solid rgba(255,233,251,0.03); }
+.theme--dark .v-navigation-drawer { background: #120815; border-right: 1px solid rgba(255,233,251,0.03); }
+
+/* заголовки и текст */
+.theme--dark h2 { color: var(--dark-on-surface); }
+.theme--dark .subtitle-1, .theme--dark .lead { color: rgba(239,233,251,0.86); }
+.theme--dark p, .theme--dark li { color: rgba(239,233,251,0.92); }
+
+/* таблицы в тёмной теме */
+.theme--dark .magic-table {
+  background: var(--dark-surface);
+  border: 1px solid rgba(255,233,251,0.03);
+  box-shadow: 0 6px 18px rgba(7,5,12,0.6);
+}
+.theme--dark .magic-table thead th {
+  background: linear-gradient(180deg, rgba(179,157,219,0.08), rgba(26,18,38,0.02));
+  color: var(--dark-on-surface);
+  border-bottom: 1px solid rgba(255,233,251,0.04);
+}
+.theme--dark .magic-table tbody tr:nth-child(odd) { background: rgba(239,233,251,0.02); }
+.theme--dark .magic-table th, .theme--dark .magic-table td {
+  color: var(--dark-on-surface);
+  border-bottom: 1px solid rgba(255,233,251,0.03);
+}
+.theme--dark .magic-table tbody tr:hover { background: rgba(179,157,219,0.03); transform: translateY(-1px); }
+
+/* иконки/кнопки акцента для тёмной темы */
+.theme--dark .v-icon, .theme--dark .v-btn .v-icon { color: var(--dark-primary); }
+
+/* -------------------------
+   Адаптивность
+   ------------------------- */
+@media (max-width: 900px) {
+  .v-main .v-container { padding-left: 12px; padding-right: 12px; }
+  .magic-table th, .magic-table td { padding: 10px 8px; font-size: 0.94rem; }
+}
+
+@media (max-width: 600px) {
+  .v-navigation-drawer { width: 78% !important; }
+  h2 { font-size: 1.15rem; }
+  .quick-card { padding: 10px; }
+}
