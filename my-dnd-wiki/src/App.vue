@@ -70,6 +70,8 @@ import Sidebar from './components/Sidebar.vue'
 import SearchResults from './components/SearchResults.vue'
 import WikiGeneral from './pages/WikiGeneral.vue'
 import UtilityMagic from './pages/UtilityMagic.vue'
+import SchoolFire from './pages/SchoolFire.vue'
+import SchoolWater from './pages/SchoolWater.vue'
 
 import articles from './data/articles.js' // единый источник текстов для поиска
 
@@ -114,7 +116,9 @@ const themeTitle = computed(() => isDark.value ? 'Включена тёмная 
 */
 const categories = ref([
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
-  { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic }
+  { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
+  { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Полный набор заклинаний школ: Огня и Магмы', component: SchoolFire },
+  { id: 'school-water', title: 'Школа Воды (Льда)', description: 'Полный набор заклинаний школ: Воды и Льда', component: SchoolWater }
 ])
 
 const drawer = ref(false)
