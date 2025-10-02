@@ -72,6 +72,8 @@ import WikiGeneral from './pages/WikiGeneral.vue'
 import UtilityMagic from './pages/UtilityMagic.vue'
 import SchoolFire from './pages/SchoolFire.vue'
 import SchoolWater from './pages/SchoolWater.vue'
+import SchoolAir from './pages/SchoolAir.vue'
+import SchoolEarth from './pages/SchoolEarth.vue'
 
 import articles from './data/articles.js' // единый источник текстов для поиска
 
@@ -118,7 +120,9 @@ const categories = ref([
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
   { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Полный набор заклинаний школ: Огня и Магмы', component: SchoolFire },
-  { id: 'school-water', title: 'Школа Воды (Льда)', description: 'Полный набор заклинаний школ: Воды и Льда', component: SchoolWater }
+  { id: 'school-water', title: 'Школа Воды (Льда)', description: 'Полный набор заклинаний школ: Воды и Льда', component: SchoolWater },
+  { id: 'school-air', title: 'Школа Воздуха (Молний)', description: 'Полный набор заклинаний школ: Воздуха и Молний', component: SchoolAir },
+  { id: 'school-earth', title: 'Школа Земли (Природы)', description: 'Полный набор заклинаний школ: Земли и Природы', component: SchoolEarth }
 ])
 
 const drawer = ref(false)
