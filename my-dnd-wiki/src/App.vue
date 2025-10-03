@@ -3,7 +3,7 @@
     <!-- App Bar -->
     <v-app-bar elevated>
       <v-app-bar-nav-icon @click="drawer = !drawer" aria-label="Открыть меню" />
-      <v-toolbar-title class="ml-2">DD Wiki — Магия</v-toolbar-title>
+      <v-toolbar-title class="ml-2">H&A Wiki</v-toolbar-title>
 
       <v-spacer />
 
