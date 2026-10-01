@@ -41,6 +41,14 @@ function refsOf(str) {
   return out
 }
 
+// Узоры штриховки FMG держит вне общих defs — берём их из tools/fmg-hatching.svg
+const HATCHING = (() => {
+  const file = path.join(__dirname, 'fmg-hatching.svg')
+  if (!fs.existsSync(file)) return []
+  const doc = new DOMParser({ onError: () => {} }).parseFromString(fs.readFileSync(file, 'utf8'), 'image/svg+xml')
+  return [...doc.getElementsByTagName('pattern')]
+})()
+
 function trimSvg(svgText) {
   const doc = new DOMParser({ onError: () => {} }).parseFromString(svgText, 'image/svg+xml')
   const ser = new XMLSerializer()
@@ -56,6 +64,10 @@ function trimSvg(svgText) {
     }
   }
   walk(defs)
+  for (const pat of HATCHING) {
+    const id = pat.getAttribute('id')
+    if (id && !byId.has(id)) byId.set(id, pat)
+  }
   const bodyParts = []
   for (let c = root.firstChild; c; c = c.nextSibling) if (c !== defs && c.nodeType === 1) bodyParts.push(ser.serializeToString(c))
   let body = bodyParts.join('')
@@ -106,6 +118,15 @@ function parsePolys(d) {
     for (let i = 0; i + 1 < nums.length; i += 2) pts.push([r2(nums[i]), r2(nums[i + 1])])
     return pts
   })
+}
+
+function pointInPoly(p, poly) {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j]
+    if ((yi > p[1]) !== (yj > p[1]) && p[0] < ((xj - xi) * (p[1] - yi)) / (yj - yi) + xi) inside = !inside
+  }
+  return inside
 }
 
 function simplify(pts, tol) {
@@ -261,6 +282,37 @@ const states = data.states.filter(s => s.i > 0 && !s.removed && s.name).map(s =>
 const statePaths = data.paths
   .filter(p => /^state\d+$/.test(p.id))
   .map(p => ({ stateId: 's' + p.id.slice(5), d: p.d.replace(/(\d+\.\d{2})\d+/g, '$1') }))
+
+// Свои территории: кусок земли государства из FMG, выделенный в отдельную область.
+// point — любая точка внутри нужного куска (эксклава); кусок отрезается от «from».
+const CUSTOM_TERRITORIES = [
+  { id: 'sres1', name: 'Резервация для гоблинов', from: 's23', point: [1367, 746], labelSize: 2.7 }
+]
+for (const t of CUSTOM_TERRITORIES) {
+  const parent = statePaths.find(sp => sp.stateId === t.from)
+  if (!parent) { console.warn(`! ${t.name}: нет государства ${t.from}`); continue }
+  const parts = parent.d.split(/(?=M)/).filter(x => x.trim())
+  const idx = parts.findIndex(part => {
+    const poly = parsePolys(part)[0]
+    return poly && pointInPoly(t.point, poly)
+  })
+  if (idx === -1) { console.warn(`! ${t.name}: точка не попала ни в один кусок ${t.from}`); continue }
+  const [piece] = parts.splice(idx, 1)
+  parent.d = parts.join('')
+  statePaths.push({ stateId: t.id, d: piece })
+  const poly = parsePolys(piece)[0]
+  // центр рамки участка; подпись в две строки визуально выше базовой линии — сдвигаем вниз
+  const xs = poly.map(p => p[0]), ys = poly.map(p => p[1])
+  const size = t.labelSize || 6
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = (Math.min(...ys) + Math.max(...ys)) / 2 + size * 0.35
+  const parentState = states.find(st => st.id === t.from)
+  states.push({
+    id: t.id, name: t.name, color: parentState?.color || '#8a8a8a', capitalId: null, pole: [r2(cx), r2(cy)],
+    label: { x: r2(cx), y: r2(cy), angle: 0, size, bend: 0, wrap: true },
+    description: '', secret: '', hidden: false
+  })
+  console.log(`  своя территория: ${t.name} (отрезана от ${parentState?.name})`)
+}
 fs.writeFileSync(path.join(outMap, 'states.json'), JSON.stringify(statePaths))
 
 const cities = data.burgs.map(b => {

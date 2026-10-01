@@ -44,6 +44,7 @@ export const POINT_EFFECTS = {
   ruins: { label: 'Руины', img: 'ancient-ruins', color: '#f5a623', group: 'Места' },
   battle: { label: 'Место сражения', img: 'crossed-swords', color: '#f5a623', group: 'Места' },
   worldTree: { label: 'Мировое древо', img: 'oak', color: '#7ed321', group: 'Места' },
+  island: { label: 'Остров', img: 'island', color: '#7ed321', group: 'Места' },
   farms: { label: 'Фермы', img: 'herbs-bundle', color: '#4a90e2', group: 'Места' },
   mines: { label: 'Шахты', img: 'mining', color: '#4a90e2', group: 'Места' },
   hunting: { label: 'Охотничьи угодья', img: 'hunting-horn', color: '#4a90e2', group: 'Места' },

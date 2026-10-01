@@ -39,6 +39,9 @@ function migrate(d) {
   if (d.settings.worldName === 'Анакария') { d.settings.worldName = seed.settings.worldName; changed = true }
   if (d.settings.kmPerPx === 1 && seed.settings.kmPerPx !== 1) { d.settings.kmPerPx = seed.settings.kmPerPx; changed = true }
   const seedStates = new Map(seed.states.map(s => [s.id, s]))
+  // новые территории из seed (например, выделенная резервация) — дописываем
+  const have = new Set(d.states.map(s => s.id))
+  for (const st of seed.states) if (!have.has(st.id)) { d.states.push(st); changed = true }
   for (const s of d.states) {
     if (s.label === undefined && seedStates.get(s.id)?.label) { s.label = seedStates.get(s.id).label; changed = true }
   }

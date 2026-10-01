@@ -17,6 +17,9 @@
   const svg = document.getElementById('map')
   const defs = svg.querySelector('defs').cloneNode(true)
   defs.querySelector('#defs-emblems')?.remove()
+  // узоры штриховки (у «???» и «Военной интервенции») лежат вне svg#map
+  const hatching = document.getElementById('defs-hatching')
+  if (hatching && !defs.querySelector('#defs-hatching')) defs.appendChild(hatching.cloneNode(true))
   const ser = new XMLSerializer()
   const defsStr = ser.serializeToString(defs)
   const W = 2048, H = 1024

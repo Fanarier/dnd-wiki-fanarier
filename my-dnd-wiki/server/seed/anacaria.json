@@ -883,6 +883,27 @@
    "description": "",
    "secret": "",
    "hidden": false
+  },
+  {
+   "id": "sres1",
+   "name": "Резервация для гоблинов",
+   "color": "#23e697",
+   "capitalId": null,
+   "pole": [
+    1367.55,
+    747.16
+   ],
+   "label": {
+    "x": 1367.55,
+    "y": 747.16,
+    "angle": 0,
+    "size": 2.7,
+    "bend": 0,
+    "wrap": true
+   },
+   "description": "",
+   "secret": "",
+   "hidden": false
   }
  ],
  "cities": [
@@ -5851,8 +5872,8 @@
    "radius": 24,
    "toX": 960,
    "toY": 450,
-   "activeFrom": 1790887808126,
-   "activeTo": 1791492608126,
+   "activeFrom": 1790896170351,
+   "activeTo": 1791500970351,
    "secret": "",
    "hidden": true,
    "id": "a4",
