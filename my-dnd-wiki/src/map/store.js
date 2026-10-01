@@ -171,7 +171,7 @@ function connect() {
 
 export async function init() {
   try {
-    const [state, paths] = await Promise.all([api('GET', '/api/state'), fetch('/map/states.json').then(r => r.json())])
+    const [state, paths] = await Promise.all([api('GET', '/api/state'), fetch(`/map/states.json?v=${__BUILD__}`).then(r => r.json())])
     store.statePaths = paths
     applyState(state)
   } catch (e) {

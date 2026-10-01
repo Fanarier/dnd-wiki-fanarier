@@ -53,13 +53,13 @@
 
       <g :transform="`translate(${view.x},${view.y}) scale(${view.k})`">
         <!-- Базовые слои из FMG -->
-        <image href="/map/base.svg" :width="W" :height="H" />
-        <image v-if="L.heights" href="/map/heights.svg" :width="W" :height="H" opacity="0.85" />
-        <image v-if="L.biomes" href="/map/biomes.svg" :width="W" :height="H" opacity="0.8" />
-        <image v-if="L.rivers" href="/map/rivers.svg" :width="W" :height="H" />
-        <image v-if="L.relief" href="/map/relief.svg" :width="W" :height="H" />
-        <image v-if="L.states" href="/map/states.svg" :width="W" :height="H" />
-        <image v-if="L.borders" href="/map/borders.svg" :width="W" :height="H" />
+        <image :href="`/map/base.svg?v=${BUILD}`" :width="W" :height="H" />
+        <image v-if="L.heights" :href="`/map/heights.svg?v=${BUILD}`" :width="W" :height="H" opacity="0.85" />
+        <image v-if="L.biomes" :href="`/map/biomes.svg?v=${BUILD}`" :width="W" :height="H" opacity="0.8" />
+        <image v-if="L.rivers" :href="`/map/rivers.svg?v=${BUILD}`" :width="W" :height="H" />
+        <image v-if="L.relief" :href="`/map/relief.svg?v=${BUILD}`" :width="W" :height="H" />
+        <image v-if="L.states" :href="`/map/states.svg?v=${BUILD}`" :width="W" :height="H" />
+        <image v-if="L.borders" :href="`/map/borders.svg?v=${BUILD}`" :width="W" :height="H" />
 
         <!-- Государства: невидимые области для наведения и клика -->
         <g class="state-hits">
@@ -268,6 +268,8 @@ const hoverState = ref(null)
 const gesture = ref(null)
 const frameNow = ref(Date.now())
 const fogTex = fogTexture()
+// eslint-disable-next-line no-undef
+const BUILD = __BUILD__
 
 const W = computed(() => store.data.settings.width || 2048)
 const H = computed(() => store.data.settings.height || 1024)
