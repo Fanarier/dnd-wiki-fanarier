@@ -4,7 +4,7 @@
       <div v-if="hint" class="mt-hint ui-panel">{{ hint }}</div>
     </transition>
 
-    <div v-if="isFogTool" class="fog-bar ui-panel">
+    <div v-if="isFogTool && master" class="fog-bar ui-panel">
       <label v-if="isBrushTool" class="brush">
         <span class="ui-kicker">Кисть</span>
         <input v-model.number="store.brush" type="range" min="5" max="160" />
@@ -17,7 +17,7 @@
     </div>
 
     <div class="mt-bar ui-panel" role="toolbar" aria-label="Инструменты мастера">
-      <template v-for="(g, gi) in GROUPS" :key="gi">
+      <template v-for="(g, gi) in groups" :key="gi">
         <i v-if="gi" class="sep" />
         <button v-for="t in g" :key="t.id" class="tool" :class="{ active: store.tool === t.id }" :title="t.label + (t.key ? ` (${t.key})` : '')" @click="setTool(t.id)">
           <Icon :name="t.icon" :size="20" />
@@ -31,15 +31,24 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount } from 'vue'
 import Icon from './Icon.vue'
-import { store, act, fmtKm } from './store.js'
+import { store, act, fmtKm, isMaster } from './store.js'
 
+const master = isMaster
+
+// Первая группа — для всех (игроки тоже меряют и пингуют), остальное — только мастеру
+const COMMON = [
+  { id: 'select', icon: 'select', short: 'Выбор', label: 'Выбор и перемещение', key: 'V' },
+  { id: 'ruler', icon: 'ruler', short: 'Линейка', label: 'Линейка', key: 'M' },
+  { id: 'ping', icon: 'pingTool', short: 'Пинг', label: 'Пинг для всех (или Alt+клик / долгое нажатие)', key: 'G' }
+]
 const GROUPS = [
-  [{ id: 'select', icon: 'select', short: 'Выбор', label: 'Выбор и перемещение', key: 'V' }],
+  COMMON,
   [
     { id: 'city', icon: 'cityAdd', short: 'Город', label: 'Поставить город', key: 'C' },
+    { id: 'label', icon: 'label', short: 'Подпись', label: 'Подпись на карте (море, горы, регион)', key: 'T' },
     { id: 'road', icon: 'road', short: 'Дорога', label: 'Проложить дорогу', key: 'R' },
     { id: 'zone', icon: 'zone', short: 'Зона', label: 'Аномалия-зона', key: 'A' },
-    { id: 'point', icon: 'anomaly', short: 'Место', label: 'Аномалия-точка / место', key: 'P' },
+    { id: 'point', icon: 'anomaly', short: 'Метка', label: 'Метка: задание, подземелье, порт…', key: 'P' },
     { id: 'party', icon: 'party', short: 'Отряд', label: 'Новый отряд' }
   ],
   [
@@ -50,11 +59,16 @@ const GROUPS = [
   ]
 ]
 
+const groups = computed(() => (master.value ? GROUPS : [COMMON]))
+
 const HINTS = {
+  ruler: 'Кликай точки — длина пути. Протяни — замер по прямой. Двойной клик или Enter — готово, Esc — убрать',
+  ping: 'Кликни — пинг увидят все. Ещё: Alt+клик (Alt+Shift — «опасность») или долгое нажатие',
+  label: 'Кликни, где поставить подпись',
   city: 'Кликни по карте, чтобы поставить город',
   road: 'Кликай точки дороги. Двойной клик или Enter — готово, Backspace — шаг назад, Esc — отмена',
   zone: 'Кликни, где возникнет аномалия',
-  point: 'Кликни, где находится место',
+  point: 'Кликни, где поставить метку',
   party: 'Кликни, где стоит отряд',
   fogBrush: 'Рисуй, чтобы скрыть земли от игроков',
   fogErase: 'Рисуй, чтобы открыть земли',
@@ -93,13 +107,16 @@ async function clearFog() {
 }
 const toggleFog = on => act('PATCH', '/api/settings', { fogEnabled: on }, on ? 'Туман включён' : 'Туман выключен для всех').catch(() => {})
 
-const KEYS = { v: 'select', c: 'city', r: 'road', a: 'zone', p: 'point', f: 'fogBrush', e: 'fogErase' }
+const KEYS = { v: 'select', m: 'ruler', g: 'ping', c: 'city', t: 'label', r: 'road', a: 'zone', p: 'point', f: 'fogBrush', e: 'fogErase' }
+const RU = { м: 'v', ь: 'm', п: 'g', с: 'c', е: 't', к: 'r', ф: 'a', з: 'p', а: 'f', у: 'e' }
+const PLAYER_TOOLS = ['select', 'ruler', 'ping']
 function onKey(e) {
   if (e.target.closest?.('input, textarea, select') || e.altKey || e.metaKey) return
-  if (e.ctrlKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoFog(); return }
+  if (e.ctrlKey && e.key.toLowerCase() === 'z' && master.value) { e.preventDefault(); undoFog(); return }
   if (e.ctrlKey) return
-  const t = KEYS[e.key.toLowerCase()] || KEYS[{ м: 'v', с: 'c', к: 'r', ф: 'a', з: 'p', а: 'f', у: 'e' }[e.key.toLowerCase()]]
-  if (t) setTool(t)
+  const k = e.key.toLowerCase()
+  const t = KEYS[k] || KEYS[RU[k]]
+  if (t && (master.value || PLAYER_TOOLS.includes(t))) setTool(t)
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))

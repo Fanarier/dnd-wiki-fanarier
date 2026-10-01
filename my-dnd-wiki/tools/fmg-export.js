@@ -1,5 +1,5 @@
 /*
-  Экспорт карты из Azgaar Fantasy Map Generator для сайта Анакарии.
+  Экспорт карты из Azgaar Fantasy Map Generator для сайта Анкарии.
 
   Как пользоваться:
   1. Открой карту в FMG (azgaar.github.io/Fantasy-Map-Generator), дождись загрузки.

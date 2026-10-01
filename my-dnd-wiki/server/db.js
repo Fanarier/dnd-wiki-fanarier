@@ -8,7 +8,7 @@ const DB_FILE = path.join(DATA_DIR, 'db.json')
 const SEED_FILE = path.resolve(import.meta.dirname, 'seed', 'anacaria.json')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
 
-export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog']
+export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels']
 
 let db = null
 let saveTimer = null
@@ -21,7 +21,27 @@ export function loadDb() {
   }
   db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))
   for (const c of COLLECTIONS) db[c] ||= []
+  if (migrate(db)) writeNow()
   return db
+}
+
+// Новые поля из seed дописываем в живой мир, ничего из правок мастера не перезаписывая
+function migrate(d) {
+  const seed = JSON.parse(fs.readFileSync(SEED_FILE, 'utf8'))
+  let changed = false
+  for (const [k, v] of Object.entries(seed.settings)) {
+    if (!(k in d.settings)) { d.settings[k] = v; changed = true }
+  }
+  if (!d.hud && seed.hud) { d.hud = seed.hud; changed = true }
+  // разовые поправки: мир переименован в «Анкарию»; масштаб 1 км/px был заглушкой до калибровки (Марико — Сиратори = 30 км)
+  if (d.settings.worldName === 'Анакария') { d.settings.worldName = seed.settings.worldName; changed = true }
+  if (d.settings.kmPerPx === 1 && seed.settings.kmPerPx !== 1) { d.settings.kmPerPx = seed.settings.kmPerPx; changed = true }
+  const seedStates = new Map(seed.states.map(s => [s.id, s]))
+  for (const s of d.states) {
+    if (s.label === undefined && seedStates.get(s.id)?.label) { s.label = seedStates.get(s.id).label; changed = true }
+  }
+  if (changed) console.log('[db] мир дополнен новыми полями из seed')
+  return changed
 }
 
 export function getDb() {

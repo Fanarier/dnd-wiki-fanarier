@@ -9,7 +9,7 @@
       @pointermove="onMove"
       @pointerup="onUp"
       @pointercancel="onCancel"
-      @pointerleave="cursor = null"
+      @pointerleave="onLeave"
       @wheel.prevent="onWheel"
       @dblclick.prevent="onDblClick"
       @contextmenu.prevent
@@ -43,6 +43,12 @@
             </template>
           </g>
         </mask>
+        <pattern v-if="gridOn && grid.type !== 'hex'" id="grid-pat" patternUnits="userSpaceOnUse" :width="gridPx" :height="gridPx">
+          <path :d="`M${gridPx},0 L0,0 0,${gridPx}`" fill="none" class="grid-line" :stroke-width="1.2 / view.k" />
+        </pattern>
+        <pattern v-if="gridOn && grid.type === 'hex'" id="grid-pat" patternUnits="userSpaceOnUse" :width="hex.w" :height="hex.h">
+          <path :d="hex.d" fill="none" class="grid-line" :stroke-width="1.2 / view.k" />
+        </pattern>
       </defs>
 
       <g :transform="`translate(${view.x},${view.y}) scale(${view.k})`">
@@ -84,8 +90,16 @@
           </template>
         </g>
 
-        <!-- Подписи регионов -->
-        <image v-if="L.labels" href="/map/labels.svg" :width="W" :height="H" class="labels-img" />
+        <!-- Подписи: народы (из FMG) и свои подписи мастера — всё редактируется -->
+        <g v-if="L.labels" class="labels">
+          <MapLabel v-for="st in stateLabels" :key="'sl' + st.id" :id="'s-' + st.id" :l="st.label" :text="st.name" kind="state"
+                    :selected="isSel('states', st.id)" :faded="st.hidden" :data-obj="'statelabel:' + st.id" />
+          <MapLabel v-for="lb in store.data.labels" :key="lb.id" :id="lb.id" :l="lb" :text="lb.text" :kind="lb.style"
+                    :selected="isSel('labels', lb.id)" :faded="lb.hidden" :data-obj="'labels:' + lb.id" />
+        </g>
+
+        <!-- Сетка для расчёта расстояний (видит только мастер) -->
+        <rect v-if="gridOn" :x="0" :y="0" :width="W" :height="H" fill="url(#grid-pat)" class="grid" />
 
         <!-- Туман войны -->
         <g v-if="fogVisible" mask="url(#fog-mask)" :class="['fog', master ? 'fog-master' : 'fog-player']">
@@ -98,8 +112,7 @@
           <g v-for="c in visibleCities" :key="c.id" :transform="`translate(${c.x},${c.y}) scale(${iconScale / view.k})`"
              :class="['city', 'city-' + c.type, { 'is-hidden': c.hidden, selected: isSel('cities', c.id) }]" :data-obj="'cities:' + c.id">
             <template v-if="c.type === 'capital'">
-              <circle r="9" class="city-ring" />
-              <path :d="ICONS.crown" transform="translate(-6,-6) scale(0.5)" class="city-glyph" />
+              <image href="/icons/elven-castle.png" x="-12" y="-12" width="24" height="24" />
             </template>
             <template v-else-if="c.type === 'city' || c.type === 'fort'">
               <rect x="-5" y="-5" width="10" height="10" rx="2" class="city-ring" :transform="c.type === 'fort' ? 'rotate(45)' : ''" />
@@ -118,11 +131,10 @@
           <g v-for="p in points" :key="p.id" :transform="`translate(${p.st.x},${p.st.y}) scale(${iconScale / view.k})`"
              :class="['poi', { faded: !p.st.active || p.hidden, selected: isSel('anomalies', p.id) }]"
              :style="{ color: p.fx.color }" :data-obj="'anomalies:' + p.id">
-            <circle r="22" fill="url(#pt-glow)" class="poi-glow" />
-            <circle r="12" class="poi-bg" />
-            <path :d="ICONS[p.fx.icon]" transform="translate(-8,-8) scale(0.667)" fill="currentColor" />
-            <circle v-if="isSel('anomalies', p.id)" r="17" class="sel-ring" />
-            <text v-if="view.k > 1.3 || isSel('anomalies', p.id)" y="26" class="lbl lbl-poi">{{ p.name }}</text>
+            <circle r="20" fill="url(#pt-glow)" class="poi-glow" />
+            <image :href="`/icons/${p.fx.img}.png`" x="-13" y="-13" width="26" height="26" />
+            <circle v-if="isSel('anomalies', p.id)" r="19" class="sel-ring" />
+            <text v-if="view.k > 1.3 || isSel('anomalies', p.id)" y="28" class="lbl lbl-poi">{{ p.name }}</text>
           </g>
         </g>
 
@@ -174,6 +186,40 @@
           <line v-if="cursor && store.pick" :x1="pickFrom[0]" :y1="pickFrom[1]" :x2="cursor[0]" :y2="cursor[1]" class="pick-line" vector-effect="non-scaling-stroke" />
         </g>
 
+        <!-- Линейки: своя и линейки мастеров -->
+        <g v-for="r in rulers" :key="r.key" class="ruler" :style="{ color: r.color }" pointer-events="none">
+          <path :d="toPath(r.points)" class="ruler-casing" vector-effect="non-scaling-stroke" />
+          <path :d="toPath(r.points)" class="ruler-line" vector-effect="non-scaling-stroke" />
+          <circle v-for="(pt, i) in r.points" :key="i" :cx="pt[0]" :cy="pt[1]" :r="3.5 / view.k" class="ruler-pt" />
+          <g :transform="`translate(${r.end[0]},${r.end[1]}) scale(${1 / view.k})`">
+            <rect x="10" y="-30" :width="r.labelW" height="38" rx="8" class="ruler-tag" />
+            <text x="20" y="-14" class="ruler-km">{{ r.km }}</text>
+            <text x="20" y="1" class="ruler-sub">{{ r.sub }}</text>
+          </g>
+        </g>
+
+        <!-- Пинги -->
+        <g v-for="p in store.presence.pings" :key="p.key" :transform="`translate(${p.x},${p.y}) scale(${1 / view.k})`"
+           :class="['ping', 'ping-' + p.kind]" :style="{ color: p.kind === 'danger' ? '#ff4a3d' : p.color }" pointer-events="none">
+          <circle r="12" class="ping-ring" />
+          <circle r="12" class="ping-ring d2" />
+          <circle r="12" class="ping-ring d3" />
+          <g class="ping-drop">
+            <path :d="p.kind === 'danger' ? ICONS.danger : ICONS.ping" transform="translate(-11,-36) scale(0.92)" class="ping-icon" />
+          </g>
+          <circle r="4.5" class="ping-dot" />
+          <text y="24" class="ping-name">{{ p.name }}</text>
+        </g>
+
+        <!-- Курсоры мастеров -->
+        <template v-if="L.cursors">
+          <g v-for="c in cursors" :key="c.id" :transform="`translate(${c.x},${c.y}) scale(${1 / view.k})`" class="rcursor" :style="{ color: c.color }" pointer-events="none">
+            <path d="M0,0 L0,18 L4.8,13.6 L8,21 L11,19.7 L7.8,12.6 L14,12.6 Z" class="rcursor-arrow" />
+            <rect x="13" y="15" :width="c.name.length * 7.2 + 14" height="19" rx="6" class="rcursor-tag" />
+            <text x="20" y="28.5" class="rcursor-name">{{ c.name }}</text>
+          </g>
+        </template>
+
         <!-- Ручки редактирования выбранного объекта -->
         <g v-if="master && store.tool === 'select'" class="handles">
           <template v-if="selRoad">
@@ -189,11 +235,12 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import AnomalyZone from './AnomalyZone.vue'
+import MapLabel from './MapLabel.vue'
 import { ICONS } from './icons.js'
 import { fogTexture } from './fogTexture.js'
-import { store, isMaster, act, toast, planPath } from './store.js'
+import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm } from './store.js'
 import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS } from '../shared/catalog.js'
-import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist } from '../shared/geo.js'
+import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength } from '../shared/geo.js'
 
 const wrap = ref(null)
 const svg = ref(null)
@@ -242,7 +289,7 @@ const visibleCities = computed(() => {
 const anomalies = computed(() => store.data.anomalies.map(a => ({ ...a, st: anomalyState(a, now.value) })))
 const zones = computed(() => anomalies.value.filter(a => a.kind === 'zone'))
 const movingZones = computed(() => zones.value.filter(z => z.toX != null && z.toY != null))
-const points = computed(() => anomalies.value.filter(a => a.kind === 'point').map(a => ({ ...a, fx: POINT_EFFECTS[a.effect] || POINT_EFFECTS.portal })))
+const points = computed(() => anomalies.value.filter(a => a.kind === 'point').map(a => ({ ...a, fx: POINT_EFFECTS[a.effect] || POINT_EFFECTS.unknown })))
 
 const parties = computed(() => store.data.parties.map(p => {
   const pos = partyPosition(p, now.value)
@@ -255,6 +302,59 @@ const parties = computed(() => store.data.parties.map(p => {
   }
   return out
 }))
+
+/* ---------------- Подписи, сетка, линейки, курсоры ---------------- */
+const stateLabels = computed(() => store.data.states.filter(s => s.label && s.name))
+
+const grid = computed(() => store.data.settings.grid || { cellKm: 10, type: 'square' })
+const gridPx = computed(() => Math.max(1, grid.value.cellKm / (store.data.settings.kmPerPx || 1)))
+const gridOn = computed(() => master.value && L.value.grid)
+// шестиугольники «острым углом вверх»: ширина клетки (между гранями) = размер клетки
+const hex = computed(() => {
+  const w = gridPx.value, r = w / Math.sqrt(3)
+  return {
+    w, h: 3 * r,
+    d: `M${w / 2},0 L${w},${r / 2} L${w},${1.5 * r} L${w / 2},${2 * r} L0,${1.5 * r} L0,${r / 2} Z M${w / 2},${2 * r} L${w / 2},${3 * r}`
+  }
+})
+
+const travelText = px => {
+  const days = km(px) / (store.data.settings.paceKmPerDay || 38)
+  return days < 1 ? `${Math.max(1, Math.round(days * 24))} ч` : `${days.toFixed(1)} дн.`
+}
+
+function rulerInfo(points, color, key) {
+  const len = polyLength(points)
+  const kmText = fmtKm(len)
+  const sub = (points.length > 2 ? `${points.length - 1} отр. · ` : '') + `≈ ${travelText(len)} пути`
+  return { key, color, points, end: points[points.length - 1], km: kmText, sub, labelW: Math.max(kmText.length * 9, sub.length * 6.4) + 22 }
+}
+
+// своя линейка: зафиксированные точки + текущая позиция курсора
+const ownRulerPoints = computed(() => {
+  const r = store.ruler
+  if (!r) return null
+  const pts = !r.done && !r.drag && cursor.value && store.tool === 'ruler' ? [...r.points, cursor.value] : r.points
+  return pts.length > 1 ? pts : null
+})
+const rulers = computed(() => {
+  const out = []
+  if (ownRulerPoints.value) out.push(rulerInfo(ownRulerPoints.value, '#ffe08a', 'own'))
+  for (const [id, r] of Object.entries(store.presence.rulers)) if (r.points?.length > 1) out.push(rulerInfo(r.points, r.color, id))
+  return out
+})
+
+// линейку мастера видят все — отправляем не чаще ~12 раз в секунду
+let rulerTimer = null
+watch(ownRulerPoints, () => {
+  if (rulerTimer) return
+  rulerTimer = setTimeout(() => {
+    rulerTimer = null
+    sendRuler(ownRulerPoints.value)
+  }, 80)
+})
+
+const cursors = computed(() => Object.entries(store.presence.cursors).map(([id, c]) => ({ id, ...c })))
 
 const fogShapes = computed(() => store.data.fog.map(f => ({
   ...f,
@@ -368,7 +468,15 @@ function hitInfo(target) {
   return {}
 }
 
-const DRAGGABLE = ['cities', 'anomalies', 'parties']
+const DRAGGABLE = ['cities', 'anomalies', 'parties', 'labels', 'statelabel']
+const LONG_PRESS = 550
+let pressTimer = null
+const clearPress = () => { clearTimeout(pressTimer); pressTimer = null }
+
+function itemFor(hit) {
+  if (hit.type === 'statelabel') return store.data.states.find(s => s.id === hit.id)
+  return store.data[hit.type]?.find(x => x.id === hit.id)
+}
 
 function onDown(e) {
   svg.value.setPointerCapture(e.pointerId)
@@ -382,6 +490,27 @@ function onDown(e) {
   const w = toWorld(e)
   const hit = hitInfo(e.target)
   const base = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, w, hit, moved: false }
+
+  // Alt+клик — пинг (Alt+Shift — «опасность»)
+  if (e.button === 0 && e.altKey) {
+    ping(w[0], w[1], e.shiftKey ? 'danger' : 'look')
+    return
+  }
+  if (e.button === 0 && store.tool === 'ruler' && !store.journeyPlan && !store.pick) {
+    gesture.value = { ...base, mode: 'ruler' }
+    return
+  }
+  // долгое нажатие — пинг (удобно с телефона)
+  clearPress()
+  if (e.button === 0) {
+    pressTimer = setTimeout(() => {
+      const g = gesture.value
+      if (g && !g.moved && ['pan', 'maybeDrag'].includes(g.mode)) {
+        ping(g.w[0], g.w[1])
+        g.mode = 'pinged'
+      }
+    }, LONG_PRESS)
+  }
 
   if (e.button === 1 || e.button === 2) {
     gesture.value = { ...base, mode: 'pan' }
@@ -403,7 +532,7 @@ function onDown(e) {
       return
     }
     if (store.tool === 'select' && DRAGGABLE.includes(hit.type)) {
-      const item = store.data[hit.type].find(x => x.id === hit.id)
+      const item = itemFor(hit)
       const canDrag = item && !(hit.type === 'parties' && item.journey)
       gesture.value = { ...base, mode: canDrag ? 'maybeDrag' : 'pan', item }
       return
@@ -412,10 +541,16 @@ function onDown(e) {
   gesture.value = { ...base, mode: 'pan' }
 }
 
+function onLeave() {
+  cursor.value = null
+  sendCursorLeave()
+}
+
 function onMove(e) {
   if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   const w = toWorld(e)
   cursor.value = w
+  if (master.value && e.pointerType !== 'touch') sendCursor(w[0], w[1])
   const g = gesture.value
   if (!g) return
 
@@ -435,7 +570,10 @@ function onMove(e) {
   const dx = e.clientX - g.lx, dy = e.clientY - g.ly
   g.lx = e.clientX
   g.ly = e.clientY
-  if (!g.moved && Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > 4) g.moved = true
+  if (!g.moved && Math.hypot(e.clientX - g.sx, e.clientY - g.sy) > 4) {
+    g.moved = true
+    clearPress()
+  }
 
   if (g.mode === 'pan' && g.moved) {
     view.x += dx
@@ -447,12 +585,22 @@ function onMove(e) {
   } else if (g.mode === 'lasso') {
     const pts = store.draft.points
     if (dist(pts[pts.length - 1], w) > 3 / view.k) pts.push(w)
+  } else if (g.mode === 'ruler' && g.moved) {
+    // протяжка — быстрый замер по прямой
+    if (!g.dragRuler) {
+      g.dragRuler = true
+      store.ruler = { points: [g.w, w], done: false, drag: true }
+    } else store.ruler.points[1] = w
   } else if (g.mode === 'maybeDrag' && g.moved) {
     g.mode = 'drag'
+    // тянем за то место, где схватили, а не за центр
+    const target = g.hit.type === 'statelabel' ? g.item.label : g.item
+    g.off = [target.x - g.w[0], target.y - g.w[1]]
   }
   if (g.mode === 'drag') {
-    g.item.x = Math.round(w[0] * 10) / 10
-    g.item.y = Math.round(w[1] * 10) / 10
+    const target = g.hit.type === 'statelabel' ? g.item.label : g.item
+    target.x = Math.round((w[0] + g.off[0]) * 10) / 10
+    target.y = Math.round((w[1] + g.off[1]) * 10) / 10
   } else if (g.mode === 'handle' && g.moved) {
     if (g.hit.handle.startsWith('vertex:') && selRoad.value) {
       selRoad.value.points[Number(g.hit.handle.slice(7))] = [Math.round(w[0] * 10) / 10, Math.round(w[1] * 10) / 10]
@@ -464,6 +612,7 @@ function onMove(e) {
 
 function onUp(e) {
   pointers.delete(e.pointerId)
+  clearPress()
   const g = gesture.value
   if (!g) return
   if (g.mode === 'pinch') {
@@ -473,9 +622,16 @@ function onUp(e) {
   gesture.value = null
 
   if (g.mode === 'brush' || g.mode === 'lasso') return finishFog(g.mode)
+  if (g.mode === 'pinged') return
+  if (g.mode === 'ruler') {
+    if (g.dragRuler) store.ruler.done = true
+    else onRulerClick(toWorld(e))
+    return
+  }
   if (g.mode === 'drag') {
     const { item, hit } = g
-    act('PATCH', `/api/${hit.type}/${item.id}`, { x: item.x, y: item.y }).catch(() => {})
+    if (hit.type === 'statelabel') act('PATCH', `/api/states/${item.id}`, { label: item.label }).catch(() => {})
+    else act('PATCH', `/api/${hit.type}/${item.id}`, { x: item.x, y: item.y }).catch(() => {})
     return
   }
   if (g.mode === 'handle') {
@@ -500,6 +656,16 @@ function onWheel(e) {
 
 function onDblClick() {
   if (store.draft?.kind === 'road') finishRoad()
+  if (store.tool === 'ruler' && store.ruler && !store.ruler.done) {
+    // второй клик двойного клика добавил лишнюю точку — убираем её
+    if (store.ruler.points.length > 2) store.ruler.points.pop()
+    store.ruler.done = true
+  }
+}
+
+function onRulerClick(w) {
+  if (!store.ruler || store.ruler.done) store.ruler = { points: [w], done: false }
+  else store.ruler.points.push(w)
 }
 
 /* ---------------- Действия ---------------- */
@@ -518,6 +684,10 @@ async function onClick(w, hit) {
     await act('PATCH', `/api/anomalies/${id}`, { toX: r1(w)[0], toY: r1(w)[1] }, 'Направление движения задано').catch(() => {})
     return
   }
+  if (store.tool === 'ping') {
+    ping(w[0], w[1])
+    return
+  }
   if (master.value) {
     const [x, y] = r1(w)
     const create = async (col, body, text) => {
@@ -531,6 +701,7 @@ async function onClick(w, hit) {
       case 'city': return create('cities', { name: 'Новый город', x, y, type: 'town', stateId: hit.type === 'states' ? hit.id : null }, 'Город добавлен')
       case 'zone': return create('anomalies', { kind: 'zone', effect: 'storm', name: 'Новая аномалия', x, y, radius: 25 }, 'Аномалия добавлена')
       case 'point': return create('anomalies', { kind: 'point', effect: 'portal', name: 'Новое место', x, y }, 'Место добавлено')
+      case 'label': return create('labels', { text: 'Новая подпись', x, y, size: 18, style: 'land' }, 'Подпись добавлена')
       case 'party': return create('parties', { name: 'Новый отряд', x, y, color: PARTY_COLORS[store.data.parties.length % PARTY_COLORS.length] }, 'Отряд добавлен')
       case 'road':
         if (!store.draft || store.draft.kind !== 'road') store.draft = { kind: 'road', points: [] }
@@ -538,7 +709,8 @@ async function onClick(w, hit) {
         return
     }
   }
-  store.selection = hit.type ? { type: hit.type, id: hit.id } : null
+  if (hit.type === 'statelabel') store.selection = { type: 'states', id: hit.id }
+  else store.selection = hit.type ? { type: hit.type, id: hit.id } : null
 }
 
 async function finishRoad() {
@@ -572,11 +744,14 @@ async function finishFog(mode) {
 function onKey(e) {
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return
   if (e.key === 'Escape') {
+    if (store.ruler) { store.ruler = null; return }
     if (store.draft) store.draft = null
     else if (store.pick) store.pick = null
     else if (store.journeyPlan) store.journeyPlan = null
     else if (store.tool !== 'select') store.tool = 'select'
     else store.selection = null
+  } else if (e.key === 'Enter' && store.ruler && !store.ruler.done) {
+    store.ruler.done = true
   } else if (e.key === 'Enter' && store.draft?.kind === 'road') {
     finishRoad()
   } else if (e.key === 'Backspace' && store.draft?.kind === 'road') {
@@ -611,7 +786,10 @@ onBeforeUnmount(() => {
 })
 
 // при смене инструмента сбрасываем незавершённый черновик
-watch(() => store.tool, () => { store.draft = null })
+watch(() => store.tool, t => {
+  store.draft = null
+  if (t !== 'ruler' && store.ruler && !store.ruler.done) store.ruler = null
+})
 </script>
 
 <style scoped>
@@ -679,6 +857,32 @@ watch(() => store.tool, () => { store.draft = null })
 .handle { fill: #ffe08a; stroke: #2a1d12; stroke-width: 0.6; cursor: move; }
 .handle-radius { fill: #fff; cursor: ew-resize; }
 
+.grid { pointer-events: none; }
+.grid-line { stroke: rgba(255, 255, 255, 0.55); }
+
+.ruler-casing { fill: none; stroke: rgba(11, 15, 23, 0.7); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.ruler-line { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-dasharray: 8 5; stroke-linecap: round; stroke-linejoin: round; }
+.ruler-pt { fill: currentColor; stroke: #0b0f17; stroke-width: 0.6; }
+.ruler-tag { fill: rgba(13, 16, 23, 0.9); stroke: currentColor; stroke-width: 1.2; }
+.ruler-km { font: 800 15px Manrope, sans-serif; fill: currentColor; }
+.ruler-sub { font: 600 11px Manrope, sans-serif; fill: #c9c2b4; }
+
+.ping-ring { fill: none; stroke: currentColor; stroke-width: 3; animation: ping-ring 1.4s ease-out 3; }
+.ping-ring.d2 { animation-delay: .35s; opacity: 0; }
+.ping-ring.d3 { animation-delay: .7s; opacity: 0; }
+.ping-dot { fill: currentColor; stroke: #0b0f17; stroke-width: 2; }
+.ping-icon { fill: currentColor; stroke: #0b0f17; stroke-width: 1.4; paint-order: stroke; }
+.ping-drop { animation: ping-drop .45s cubic-bezier(.3, 1.6, .5, 1); }
+.ping-name { font: 800 12px Manrope, sans-serif; text-anchor: middle; fill: #fff; stroke: #0b0f17; stroke-width: 3.5px; paint-order: stroke; }
+.ping { animation: ping-fade 4.2s ease-in forwards; }
+
+.rcursor-arrow { fill: currentColor; stroke: #0b0f17; stroke-width: 1.4; stroke-linejoin: round; }
+.rcursor-tag { fill: currentColor; }
+.rcursor-name { font: 800 11.5px Manrope, sans-serif; fill: #0b0f17; }
+
+@keyframes ping-ring { from { transform: scale(0.4); opacity: 1; } to { transform: scale(4); opacity: 0; } }
+@keyframes ping-drop { from { transform: translateY(-14px) scale(1.3); opacity: 0; } }
+@keyframes ping-fade { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { from { transform: scale(0.8); opacity: 1; } to { transform: scale(1.9); opacity: 0; } }
 @keyframes glow { 50% { opacity: 0.45; } }

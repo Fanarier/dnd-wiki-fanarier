@@ -1,4 +1,5 @@
-// Вход мастера: логин + пароль (scrypt-хэш) из server/data/config.json, токен — HMAC-подпись.
+// Вход мастеров: логины + пароли (scrypt-хэши) в server/data/config.json, токен — HMAC-подпись.
+// Мастеров может быть несколько: { users: { login: { hash, v } }, secret }.
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
@@ -13,35 +14,51 @@ export function hashPassword(password, salt = crypto.randomBytes(16).toString('h
 
 export function readConfig() {
   if (!fs.existsSync(CONFIG_FILE)) return null
-  return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))
+  const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))
+  // старый формат: один мастер { login, passwordHash, tokenVersion }
+  if (!cfg.users && cfg.login) {
+    cfg.users = { [cfg.login]: { hash: cfg.passwordHash, v: cfg.tokenVersion || 1 } }
+    delete cfg.login
+    delete cfg.passwordHash
+    delete cfg.tokenVersion
+  }
+  cfg.users ||= {}
+  return cfg
 }
 
 export function writeConfig(cfg) {
   fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true })
+  // доступ ограничивает сама папка data (750, владелец — пользователь службы)
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(cfg, null, 2))
 }
 
+export function hasMasters() {
+  const cfg = readConfig()
+  return !!cfg && Object.keys(cfg.users).length > 0
+}
+
 function safeEqual(a, b) {
-  const A = Buffer.from(a), B = Buffer.from(b)
+  const A = Buffer.from(String(a)), B = Buffer.from(String(b))
   return A.length === B.length && crypto.timingSafeEqual(A, B)
 }
+
+// Пустышка, чтобы проверка несуществующего логина шла столько же времени
+const DUMMY = hashPassword('dummy-password')
 
 export function checkCredentials(login, password) {
   const cfg = readConfig()
   if (!cfg || typeof login !== 'string' || typeof password !== 'string') return false
-  const [salt, hash] = cfg.passwordHash.split(':')
+  const user = Object.hasOwn(cfg.users, login) ? cfg.users[login] : null
+  const [salt, hash] = (user ? user.hash : DUMMY).split(':')
   const candidate = hashPassword(password, salt).split(':')[1]
-  // обе проверки выполняются всегда — чтобы по времени ответа нельзя было угадать логин
-  const loginOk = safeEqual(login, cfg.login)
-  const passwordOk = safeEqual(candidate, hash)
-  return loginOk && passwordOk
+  return safeEqual(candidate, hash) && !!user
 }
 
 const b64 = s => Buffer.from(s).toString('base64url')
 
 export function issueToken(login) {
   const cfg = readConfig()
-  const payload = b64(JSON.stringify({ sub: login, role: 'master', exp: Date.now() + TOKEN_TTL, v: cfg.tokenVersion || 1 }))
+  const payload = b64(JSON.stringify({ sub: login, role: 'master', exp: Date.now() + TOKEN_TTL, v: cfg.users[login].v }))
   const sig = crypto.createHmac('sha256', cfg.secret).update(payload).digest('base64url')
   return `${payload}.${sig}`
 }
@@ -54,7 +71,9 @@ export function verifyToken(token) {
   if (!safeEqual(sig, expected)) return null
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString())
-    if (data.exp < Date.now() || data.v !== (cfg.tokenVersion || 1)) return null
+    const user = Object.hasOwn(cfg.users, data.sub) ? cfg.users[data.sub] : null
+    // старые токены (до перехода на нескольких мастеров) могли не содержать v
+    if (!user || data.exp < Date.now() || (data.v ?? 1) !== user.v) return null
     return data
   } catch {
     return null

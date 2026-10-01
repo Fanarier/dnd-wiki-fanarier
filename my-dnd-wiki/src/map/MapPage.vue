@@ -11,7 +11,7 @@
           <path d="M3 16 L16 13.5 L29 16 L16 18.5 Z" fill="currentColor" opacity=".55" />
         </svg>
         <div class="brand-text">
-          <div class="ui-title brand-name">{{ s.worldName || 'Анакария' }}</div>
+          <div class="ui-title brand-name">{{ s.worldName || 'Анкария' }}</div>
           <div class="brand-date">{{ s.worldDate }}</div>
         </div>
       </div>
@@ -60,7 +60,8 @@
       <InfoPanel v-else-if="store.selection" :key="store.selection.type + store.selection.id" />
     </transition>
 
-    <MasterToolbar v-if="master" />
+    <MasterToolbar />
+    <HudPanel />
 
     <!-- Зум и масштаб -->
     <div class="zoom ui-panel" :class="{ shifted: store.selection || store.journeyPlan }">
@@ -76,7 +77,7 @@
     <!-- Загрузка -->
     <transition name="fade">
       <div v-if="!store.ready" class="loading">
-        <div class="ui-title">Разворачиваем карту Анакарии…</div>
+        <div class="ui-title">Разворачиваем карту Анкарии…</div>
       </div>
     </transition>
 
@@ -111,6 +112,26 @@
         <label class="ui-field"><span>1 игровой день = сколько реальных часов</span><input v-model.number="sf.realHoursPerGameDay" type="number" step="0.1" min="0.01" class="ui-input" /></label>
         <p class="ui-muted small">Например, 24 — время в мире идёт как в жизни; 1 — день похода длится реальный час.</p>
         <label class="ui-check"><input v-model="sf.fogEnabled" type="checkbox" /> Туман войны включён</label>
+        <label class="ui-check"><input v-model="sf.playerPings" type="checkbox" /> Игроки могут ставить пинги</label>
+
+        <div class="ui-kicker sec">Сетка мастера</div>
+        <div class="ui-row">
+          <label class="ui-field"><span>Клетка, км</span><input v-model.number="sf.grid.cellKm" type="number" step="0.5" min="0.1" class="ui-input" /></label>
+          <label class="ui-field"><span>Форма</span>
+            <select v-model="sf.grid.type" class="ui-input"><option value="square">Квадраты</option><option value="hex">Шестиугольники</option></select>
+          </label>
+        </div>
+
+        <div class="ui-kicker sec">Калибровка масштаба</div>
+        <p class="ui-muted small">Выбери два города и настоящее расстояние между ними — км на пиксель посчитаются сами.</p>
+        <div class="ui-row">
+          <select v-model="cal.a" class="ui-input"><option v-for="c in citiesSorted" :key="c.id" :value="c.id">{{ c.name }}</option></select>
+          <select v-model="cal.b" class="ui-input"><option v-for="c in citiesSorted" :key="c.id" :value="c.id">{{ c.name }}</option></select>
+        </div>
+        <div class="ui-row cal-row">
+          <label class="ui-field"><span>Расстояние, км</span><input v-model.number="cal.km" type="number" min="0.1" step="0.1" class="ui-input" /></label>
+          <button type="button" class="ui-btn small" :disabled="!calResult" @click="sf.kmPerPx = calResult">Применить: {{ calResult ? calResult + ' км/px' : '—' }}</button>
+        </div>
         <hr class="ui-divider" />
         <a class="ui-btn small" href="#" @click.prevent="exportDb"><Icon name="download" :size="16" /> Скачать резервную копию мира</a>
         <div class="dialog-actions">
@@ -138,6 +159,7 @@ import LegendPanel from './LegendPanel.vue'
 import InfoPanel from './InfoPanel.vue'
 import JourneyPanel from './JourneyPanel.vue'
 import MasterToolbar from './MasterToolbar.vue'
+import HudPanel from './HudPanel.vue'
 import { store, isMaster, init, login, logout, api, act, km, toast } from './store.js'
 import { CITY_TYPES, ZONE_EFFECTS, POINT_EFFECTS } from '../shared/catalog.js'
 import { partyPosition, anomalyState } from '../shared/geo.js'
@@ -229,11 +251,22 @@ async function doLogin() {
 /* ---------- Настройки ---------- */
 const settingsOpen = ref(false)
 const sf = reactive({})
-watch(settingsOpen, open => { if (open) Object.assign(sf, store.data.settings) })
+watch(settingsOpen, open => {
+  if (open) Object.assign(sf, JSON.parse(JSON.stringify(store.data.settings)), { grid: { cellKm: 10, type: 'square', ...store.data.settings.grid } })
+})
+
+// калибровка: Марико — Сиратори по умолчанию (так её задал мастер)
+const cal = reactive({ a: 'c9', b: 'c1', km: 30 })
+const citiesSorted = computed(() => [...store.data.cities].sort((x, y) => x.name.localeCompare(y.name, 'ru')))
+const calResult = computed(() => {
+  const a = store.data.cities.find(c => c.id === cal.a), b = store.data.cities.find(c => c.id === cal.b)
+  const d = a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0
+  return d > 0 && cal.km > 0 ? Math.round((cal.km / d) * 1000) / 1000 : null
+})
 async function saveSettings() {
-  const { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled } = sf
+  const { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled, playerPings, grid } = sf
   try {
-    await act('PATCH', '/api/settings', { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled }, 'Настройки сохранены')
+    await act('PATCH', '/api/settings', { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled, playerPings, grid }, 'Настройки сохранены')
     settingsOpen.value = false
   } catch { /* тост */ }
 }
@@ -283,12 +316,15 @@ async function exportDb() {
 .loading .ui-title { font-size: 28px; animation: glow 1.6s ease-in-out infinite; }
 
 .modal { position: absolute; inset: 0; background: rgba(5, 7, 11, 0.6); display: grid; place-items: center; z-index: 60; padding: 16px; backdrop-filter: blur(3px); }
-.dialog { width: 100%; max-width: 360px; padding: 22px 22px 18px; }
+.dialog { width: 100%; max-width: 360px; max-height: calc(100vh - 32px); overflow-y: auto; padding: 22px 22px 18px; }
 .dialog.wide { max-width: 520px; }
 .dialog h2 { margin: 2px 0 16px; font-size: 30px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
 .err { color: var(--danger); font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .small { font-size: 12.5px; margin-top: -6px; }
+.sec { margin: 16px 0 8px; color: var(--gold); }
+.cal-row { align-items: flex-end; }
+.cal-row .ui-btn { margin-bottom: 12px; flex: none; }
 
 .toasts { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 70; pointer-events: none; }
 .toast { padding: 9px 16px; font-size: 13px; font-weight: 600; text-align: center; }

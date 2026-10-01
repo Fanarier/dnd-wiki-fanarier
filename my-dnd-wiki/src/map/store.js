@@ -4,6 +4,8 @@ import { buildRoadGraph, findRoute, partyPosition, polyLength } from '../shared/
 
 const TOKEN_KEY = 'anacaria-token'
 const LAYERS_KEY = 'anacaria-layers'
+const NICK_KEY = 'anacaria-nick'
+const SOUND_KEY = 'anacaria-sound'
 
 function lsGet(key) {
   try { return localStorage.getItem(key) } catch { return null }
@@ -14,7 +16,7 @@ function lsSet(key, val) {
 
 const DEFAULT_LAYERS = {
   states: true, borders: true, rivers: true, labels: true, relief: false, biomes: false, heights: false,
-  roads: true, cities: true, towns: true, anomalies: true, parties: true, fog: true
+  roads: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
 }
 
 let savedLayers = {}
@@ -27,11 +29,11 @@ export const store = reactive({
   token: lsGet(TOKEN_KEY),
   clockOffset: 0,
   now: Date.now(),
-  data: { settings: { width: 2048, height: 1024, kmPerPx: 1 }, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [] },
+  data: { settings: { width: 2048, height: 1024, kmPerPx: 1, grid: { cellKm: 10, type: 'square' } }, hud: null, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [], labels: [] },
   statePaths: [],
 
   layers: { ...DEFAULT_LAYERS, ...savedLayers },
-  tool: 'select', // select | city | road | zone | point | party | fogBrush | fogErase | fogLasso | fogLassoErase
+  tool: 'select', // select | ruler | ping | city | road | label | zone | point | party | fogBrush | fogErase | fogLasso | fogLassoErase
   brush: 30,
   selection: null, // { type, id }
   hover: null,
@@ -40,7 +42,11 @@ export const store = reactive({
   pick: null, // { purpose, id } — ждём клик по карте
   replay: null, // { path, t0, duration, color }
   toasts: [],
-  fogUndo: []
+  fogUndo: [],
+  ruler: null, // { points: [[x,y]], done } — своя линейка
+  nick: lsGet(NICK_KEY) || '',
+  sound: lsGet(SOUND_KEY) !== 'off',
+  presence: { id: null, color: '#ffd166', cursors: {}, rulers: {}, pings: [] }
 })
 
 export const isMaster = computed(() => store.role === 'master')
@@ -143,10 +149,14 @@ function connect() {
     store.connected = true
     retry = 0
     if (store.token) ws.send(JSON.stringify({ type: 'auth', token: store.token }))
+    if (store.nick) ws.send(JSON.stringify({ type: 'nick', name: store.nick }))
+    store.presence.cursors = {}
+    store.presence.rulers = {}
   }
   ws.onmessage = e => {
     const msg = JSON.parse(e.data)
     if (msg.type === 'state') applyState(msg.state)
+    else onPresence(msg)
   }
   ws.onclose = () => {
     store.connected = false
@@ -208,4 +218,115 @@ export function fmtDuration(ms) {
 export function fmtDateTime(ms) {
   if (ms == null) return '—'
   return new Date(ms).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+}
+
+/* ---------------- Присутствие: курсоры, пинги, линейки ---------------- */
+function wsSend(msg) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg))
+}
+
+function onPresence(msg) {
+  const P = store.presence
+  switch (msg.type) {
+    case 'hello':
+      P.id = msg.id
+      P.color = msg.color
+      break
+    case 'cursor':
+      P.cursors[msg.id] = { name: msg.name, color: msg.color, x: msg.x, y: msg.y, t: Date.now() }
+      break
+    case 'cursorLeave':
+      delete P.cursors[msg.id]
+      break
+    case 'gone':
+      delete P.cursors[msg.id]
+      delete P.rulers[msg.id]
+      break
+    case 'ruler':
+      if (msg.points) P.rulers[msg.id] = { name: msg.name, color: msg.color, points: msg.points }
+      else delete P.rulers[msg.id]
+      break
+    case 'ping':
+      addPing(msg)
+      break
+  }
+}
+
+// старые курсоры (мастер ушёл со вкладки) гасим через 15 секунд
+setInterval(() => {
+  const now = Date.now()
+  for (const [id, c] of Object.entries(store.presence.cursors)) if (now - c.t > 15000) delete store.presence.cursors[id]
+}, 5000)
+
+let cursorTimer = null
+let pendingCursor = null
+export function sendCursor(x, y) {
+  if (store.role !== 'master') return
+  pendingCursor = [x, y]
+  if (cursorTimer) return
+  cursorTimer = setTimeout(() => {
+    cursorTimer = null
+    if (pendingCursor) wsSend({ type: 'cursor', x: pendingCursor[0], y: pendingCursor[1] })
+  }, 50)
+}
+export function sendCursorLeave() {
+  pendingCursor = null
+  if (store.role === 'master') wsSend({ type: 'cursorLeave' })
+}
+
+export function sendRuler(points) {
+  if (store.role === 'master') wsSend({ type: 'ruler', points })
+}
+
+const PING_TTL = 4200
+function addPing(p) {
+  const ping = { key: Math.random(), x: p.x, y: p.y, name: p.name, color: p.color, kind: p.kind || 'look', t: Date.now() }
+  store.presence.pings.push(ping)
+  setTimeout(() => {
+    const i = store.presence.pings.indexOf(ping)
+    if (i !== -1) store.presence.pings.splice(i, 1)
+  }, PING_TTL)
+  playPing(ping.kind)
+}
+
+export function ping(x, y, kind = 'look') {
+  if (store.role !== 'master' && !store.data.settings.playerPings) {
+    toast('Мастер выключил пинги игроков', 'error')
+    return
+  }
+  addPing({ x, y, kind, name: store.role === 'master' ? 'Вы' : (store.nick || 'Вы'), color: store.presence.color })
+  wsSend({ type: 'ping', x, y, kind })
+}
+
+export function setNick(name) {
+  store.nick = String(name || '').trim().slice(0, 24)
+  lsSet(NICK_KEY, store.nick || null)
+  wsSend({ type: 'nick', name: store.nick })
+}
+
+export function setSound(on) {
+  store.sound = on
+  lsSet(SOUND_KEY, on ? null : 'off')
+}
+
+// Короткий «дзынь» без файлов — WebAudio
+let audio = null
+function playPing(kind) {
+  if (!store.sound) return
+  try {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)()
+    const t = audio.currentTime
+    const notes = kind === 'danger' ? [660, 440] : kind === 'go' ? [520, 780] : [880, 1320]
+    notes.forEach((f, i) => {
+      const o = audio.createOscillator(), g = audio.createGain()
+      o.type = kind === 'danger' ? 'triangle' : 'sine'
+      o.frequency.value = f
+      g.gain.setValueAtTime(0.0001, t + i * 0.09)
+      g.gain.exponentialRampToValueAtTime(0.12, t + i * 0.09 + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + i * 0.09 + 0.25)
+      o.connect(g).connect(audio.destination)
+      o.start(t + i * 0.09)
+      o.stop(t + i * 0.09 + 0.3)
+    })
+  } catch { /* браузер не дал звук — не страшно */ }
 }

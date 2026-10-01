@@ -38,11 +38,11 @@ const vuetify = createVuetify({
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'map', component: () => import('./map/MapPage.vue'), meta: { title: 'Анакария — карта мира' } },
-    { path: '/wiki', name: 'wiki', component: () => import('./wiki/WikiApp.vue'), meta: { title: 'Анакария — вики' } },
+    { path: '/', name: 'map', component: () => import('./map/MapPage.vue'), meta: { title: 'Анкария — карта мира' } },
+    { path: '/wiki', name: 'wiki', component: () => import('./wiki/WikiApp.vue'), meta: { title: 'Анкария — вики' } },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
 })
-router.afterEach(to => { document.title = to.meta.title || 'Анакария' })
+router.afterEach(to => { document.title = to.meta.title || 'Анкария' })
 
 createApp(App).use(vuetify).use(router).mount('#app')

@@ -8,7 +8,7 @@
           <path d="M16 3 L19 16 L16 29 L13 16 Z" fill="currentColor" />
           <path d="M3 16 L16 13.5 L29 16 L16 18.5 Z" fill="currentColor" opacity=".55" />
         </svg>
-        <span>Анакария</span>
+        <span>Анкария</span>
       </router-link>
       <nav class="w-tabs">
         <router-link to="/" class="w-tab">Карта</router-link>

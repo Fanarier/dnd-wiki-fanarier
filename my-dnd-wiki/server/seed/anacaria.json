@@ -1,18 +1,59 @@
 {
  "version": 1,
  "settings": {
-  "worldName": "Анакария",
+  "worldName": "Анкария",
   "worldDate": "214 г. Эры Удалин",
   "width": 2048,
   "height": 1024,
-  "kmPerPx": 1,
+  "kmPerPx": 3.109,
   "paceKmPerDay": 38,
   "realHoursPerGameDay": 24,
-  "fogEnabled": true
+  "fogEnabled": true,
+  "playerPings": true,
+  "grid": {
+   "cellKm": 10,
+   "type": "square"
+  }
+ },
+ "hud": {
+  "weather": {
+   "location": "Море Солдалла",
+   "tempDay": "+18",
+   "tempNight": "+6",
+   "wind": "Умеренный",
+   "clouds": "Кучевые облака",
+   "precipitation": "Нет"
+  },
+  "moon": {
+   "cycle": 364,
+   "seasonDay": 16,
+   "seasonLength": 90,
+   "north": "Весна",
+   "south": "Осень",
+   "meters": [
+    {
+     "name": "Угроза разлома бездны",
+     "level": 1
+    },
+    {
+     "name": "Пиратство",
+     "level": 4
+    }
+   ]
+  },
+  "visible": true
  },
  "states": [
   {
    "id": "s1",
+   "label": {
+    "x": 502,
+    "y": 628,
+    "angle": 17.97,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Кицунэ",
    "color": "#ff833e",
    "capitalId": "c1",
@@ -26,6 +67,14 @@
   },
   {
    "id": "s2",
+   "label": {
+    "x": 422,
+    "y": 692,
+    "angle": 0,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Фенрисы",
    "color": "#833eb0",
    "capitalId": "c56",
@@ -39,6 +88,14 @@
   },
   {
    "id": "s3",
+   "label": {
+    "x": 474,
+    "y": 812,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Котовцы",
    "color": "#b03cb2",
    "capitalId": "c21",
@@ -52,6 +109,14 @@
   },
   {
    "id": "s4",
+   "label": {
+    "x": 585,
+    "y": 625,
+    "angle": -53.97,
+    "size": 15.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Зайцегоны",
    "color": "#1cdca8",
    "capitalId": "c22",
@@ -65,6 +130,14 @@
   },
   {
    "id": "s5",
+   "label": {
+    "x": 572,
+    "y": 866,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Нэко",
    "color": "#dc451c",
    "capitalId": "c23",
@@ -78,6 +151,14 @@
   },
   {
    "id": "s6",
+   "label": {
+    "x": 609,
+    "y": 819,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Людоящеры",
    "color": "#48f56d",
    "capitalId": "c24",
@@ -91,6 +172,14 @@
   },
   {
    "id": "s7",
+   "label": {
+    "x": 596,
+    "y": 735,
+    "angle": 0,
+    "size": 31.9,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Табакси",
    "color": "#dcc11c",
    "capitalId": "c25",
@@ -104,6 +193,14 @@
   },
   {
    "id": "s8",
+   "label": {
+    "x": 657,
+    "y": 479,
+    "angle": -63.02,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Кентавры",
    "color": "#be3caf",
    "capitalId": "c26",
@@ -117,6 +214,14 @@
   },
   {
    "id": "s9",
+   "label": {
+    "x": 748,
+    "y": 415,
+    "angle": 0,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Леонины",
    "color": "#ff4f7b",
    "capitalId": "c27",
@@ -130,6 +235,14 @@
   },
   {
    "id": "s10",
+   "label": {
+    "x": 417,
+    "y": 437,
+    "angle": -54.01,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Дракониды",
    "color": "#000000",
    "capitalId": "c28",
@@ -143,6 +256,14 @@
   },
   {
    "id": "s11",
+   "label": {
+    "x": 1011,
+    "y": 670,
+    "angle": -45,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Они",
    "color": "#6826db",
    "capitalId": "c29",
@@ -156,6 +277,14 @@
   },
   {
    "id": "s12",
+   "label": {
+    "x": 1105,
+    "y": 660,
+    "angle": -18.04,
+    "size": 16.06,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Тифлинги",
    "color": "#da26d8",
    "capitalId": "c30",
@@ -169,6 +298,14 @@
   },
   {
    "id": "s13",
+   "label": {
+    "x": 1180,
+    "y": 722,
+    "angle": 1.69,
+    "size": 19.36,
+    "bend": 0.00563,
+    "wrap": false
+   },
    "name": "Вампиры",
    "color": "#ba0000",
    "capitalId": "c31",
@@ -182,6 +319,14 @@
   },
   {
    "id": "s14",
+   "label": {
+    "x": 975,
+    "y": 518,
+    "angle": 0,
+    "size": 15.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Акваны",
    "color": "#58caff",
    "capitalId": "c32",
@@ -195,6 +340,14 @@
   },
   {
    "id": "s15",
+   "label": {
+    "x": 1335.4,
+    "y": 740.6,
+    "angle": 60.39,
+    "size": 28.16,
+    "bend": 0.00249,
+    "wrap": false
+   },
    "name": "Мышинцы",
    "color": "#ffc88d",
    "capitalId": "c33",
@@ -208,6 +361,14 @@
   },
   {
    "id": "s16",
+   "label": {
+    "x": 1360,
+    "y": 592,
+    "angle": 36,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Гиффы",
    "color": "#e7b12e",
    "capitalId": "c34",
@@ -221,6 +382,14 @@
   },
   {
    "id": "s17",
+   "label": {
+    "x": 1541,
+    "y": 793,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Дварфы",
    "color": "#6771ff",
    "capitalId": "c35",
@@ -234,6 +403,14 @@
   },
   {
    "id": "s18",
+   "label": {
+    "x": 1633,
+    "y": 702,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Гномы",
    "color": "#46f5ba",
    "capitalId": "c36",
@@ -247,6 +424,14 @@
   },
   {
    "id": "s19",
+   "label": {
+    "x": 1408,
+    "y": 732,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Хоб.Гоблины",
    "color": "#4ff669",
    "capitalId": "c65",
@@ -260,6 +445,14 @@
   },
   {
    "id": "s20",
+   "label": {
+    "x": 1762,
+    "y": 593,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Полурослики",
    "color": "#654ec1",
    "capitalId": "c38",
@@ -273,6 +466,14 @@
   },
   {
    "id": "s21",
+   "label": {
+    "x": 1455,
+    "y": 496,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Флорэны",
    "color": "#dcbf30",
    "capitalId": "c39",
@@ -286,6 +487,14 @@
   },
   {
    "id": "s22",
+   "label": {
+    "x": 1361,
+    "y": 439,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Лесные Эльфы",
    "color": "#ff4c82",
    "capitalId": "c40",
@@ -299,6 +508,14 @@
   },
   {
    "id": "s23",
+   "label": {
+    "x": 1197,
+    "y": 484,
+    "angle": -18.01,
+    "size": 30.8,
+    "bend": 0,
+    "wrap": true
+   },
    "name": "Высшие Эльфы",
    "color": "#23e697",
    "capitalId": "c41",
@@ -312,6 +529,14 @@
   },
   {
    "id": "s24",
+   "label": {
+    "x": 1401,
+    "y": 321,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Лунные Эльфы",
    "color": "#6f1cdd",
    "capitalId": "c42",
@@ -325,6 +550,14 @@
   },
   {
    "id": "s25",
+   "label": {
+    "x": 1254,
+    "y": 264,
+    "angle": 0,
+    "size": 35.86,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Юанти",
    "color": "#c3da3f",
    "capitalId": "c43",
@@ -338,6 +571,14 @@
   },
   {
    "id": "s26",
+   "label": {
+    "x": 1174,
+    "y": 210,
+    "angle": -17.99,
+    "size": 37.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Орки",
    "color": "#7a0900",
    "capitalId": "c44",
@@ -351,6 +592,14 @@
   },
   {
    "id": "s27",
+   "label": {
+    "x": 1510,
+    "y": 306,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Хадози",
    "color": "#dcbe30",
    "capitalId": "c45",
@@ -364,6 +613,14 @@
   },
   {
    "id": "s28",
+   "label": {
+    "x": 1539,
+    "y": 458,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Минотавры",
    "color": "#4479df",
    "capitalId": "c46",
@@ -377,6 +634,14 @@
   },
   {
    "id": "s29",
+   "label": {
+    "x": 1164,
+    "y": 360,
+    "angle": 4.65,
+    "size": 15.4,
+    "bend": 0.0021,
+    "wrap": true
+   },
    "name": "Военная интервенция землян!",
    "color": "#8a8a8a",
    "capitalId": "c47",
@@ -390,6 +655,14 @@
   },
   {
    "id": "s30",
+   "label": {
+    "x": 1592,
+    "y": 184,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Кованные",
    "color": "#000000",
    "capitalId": "c48",
@@ -403,6 +676,14 @@
   },
   {
    "id": "s31",
+   "label": {
+    "x": 1559,
+    "y": 252,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Голиафы",
    "color": "#29ea8c",
    "capitalId": "c49",
@@ -416,6 +697,14 @@
   },
   {
    "id": "s32",
+   "label": {
+    "x": 1626,
+    "y": 311,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Арахниды",
    "color": "#6561ee",
    "capitalId": "c50",
@@ -429,6 +718,14 @@
   },
   {
    "id": "s33",
+   "label": {
+    "x": 1715,
+    "y": 399,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Гитты",
    "color": "#f55857",
    "capitalId": "c51",
@@ -442,6 +739,14 @@
   },
   {
    "id": "s34",
+   "label": {
+    "x": 944,
+    "y": 366,
+    "angle": 0,
+    "size": 24.64,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Аурэны",
    "color": "#ae3cb2",
    "capitalId": "c52",
@@ -455,6 +760,14 @@
   },
   {
    "id": "s35",
+   "label": {
+    "x": 957,
+    "y": 452,
+    "angle": 0,
+    "size": 23.32,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Фэйри",
    "color": "#ffbafa",
    "capitalId": "c53",
@@ -468,6 +781,14 @@
   },
   {
    "id": "s36",
+   "label": {
+    "x": 1642,
+    "y": 523,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "???",
    "color": "#21b1d5",
    "capitalId": "c54",
@@ -481,6 +802,14 @@
   },
   {
    "id": "s37",
+   "label": {
+    "x": 1475,
+    "y": 577,
+    "angle": 0,
+    "size": 18,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "Дроу",
    "color": "#ffffff",
    "capitalId": "c55",
@@ -494,6 +823,14 @@
   },
   {
    "id": "s39",
+   "label": {
+    "x": 454,
+    "y": 266,
+    "angle": 0,
+    "size": 15.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "???",
    "color": "#8a8a8a",
    "capitalId": "c134",
@@ -507,6 +844,14 @@
   },
   {
    "id": "s40",
+   "label": {
+    "x": 615,
+    "y": 138,
+    "angle": 17.9,
+    "size": 15.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "???",
    "color": "#8a8a8a",
    "capitalId": "c135",
@@ -520,6 +865,14 @@
   },
   {
    "id": "s41",
+   "label": {
+    "x": 920,
+    "y": 270,
+    "angle": 0,
+    "size": 15.4,
+    "bend": 0,
+    "wrap": false
+   },
    "name": "???",
    "color": "#8a8a8a",
    "capitalId": "c136",
@@ -5498,8 +5851,8 @@
    "radius": 24,
    "toX": 960,
    "toY": 450,
-   "activeFrom": 1790870352745,
-   "activeTo": 1791475152745,
+   "activeFrom": 1790887808126,
+   "activeTo": 1791492608126,
    "secret": "",
    "hidden": true,
    "id": "a4",
@@ -6665,5 +7018,6 @@
     ]
    ]
   }
- ]
+ ],
+ "labels": []
 }

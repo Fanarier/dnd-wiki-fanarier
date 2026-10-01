@@ -1,4 +1,4 @@
-// Сервер карты Анакарии: REST API + WebSocket (живые обновления) + раздача собранного сайта.
+// Сервер карты Анкарии: REST API + WebSocket (живые обновления) + раздача собранного сайта.
 //   npm run server            — только API (для разработки вместе с `npm run dev`)
 //   npm start                 — собрать сайт и запустить всё на одном порту
 import fs from 'node:fs'
@@ -8,9 +8,9 @@ import express from 'express'
 import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId } from './db.js'
-import { checkCredentials, issueToken, verifyToken, readConfig, loginAllowed, recordFailure } from './auth.js'
+import { checkCredentials, issueToken, verifyToken, hasMasters, loginAllowed, recordFailure } from './auth.js'
 import { isFogged, anomalyState, partyPosition, journeyState } from '../src/shared/geo.js'
-import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS } from '../src/shared/catalog.js'
+import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS } from '../src/shared/catalog.js'
 
 const PORT = Number(process.env.PORT) || 3001
 // На сервере за туннелем ставим HOST=127.0.0.1, чтобы порт не был виден снаружи
@@ -19,7 +19,7 @@ const DIST = path.resolve(import.meta.dirname, '..', 'dist')
 
 loadDb()
 backupDb()
-if (!readConfig()) {
+if (!hasMasters()) {
   console.warn('\n⚠  Мастер ещё не создан. Выполни:  npm run set-password -- <логин> <пароль>\n')
 }
 
@@ -53,12 +53,32 @@ const T = {
   }
 }
 
+// Подпись на карте: центр, наклон, размер шрифта, изгиб дуги, перенос на две строки
+T.label = () => v => {
+  if (v === null) return null
+  if (typeof v !== 'object') throw new Error('некорректная подпись')
+  return {
+    x: T.num(-500, 3000)(v.x), y: T.num(-500, 3000)(v.y),
+    angle: T.num(-360, 360)(v.angle ?? 0), size: T.num(3, 200)(v.size ?? 18),
+    bend: T.num(-0.05, 0.05)(v.bend ?? 0), wrap: !!v.wrap
+  }
+}
+
 const COORD = T.num(-500, 3000)
 const TEXT = T.str(20000)
 const SCHEMAS = {
   states: {
     noCreate: true,
-    fields: { name: T.str(80), color: T.color(), description: TEXT, secret: TEXT, hidden: T.bool() }
+    fields: { name: T.str(80), color: T.color(), label: T.label(), description: TEXT, secret: TEXT, hidden: T.bool() }
+  },
+  labels: {
+    prefix: 'l',
+    defaults: { angle: 0, size: 18, bend: 0, wrap: false, style: 'land', hidden: false },
+    required: ['text', 'x', 'y'],
+    fields: {
+      text: T.str(120), x: COORD, y: COORD, angle: T.num(-360, 360), size: T.num(3, 200), bend: T.num(-0.05, 0.05),
+      wrap: T.bool(), style: T.oneOf(['land', 'sea', 'region', 'danger']), hidden: T.bool()
+    }
   },
   cities: {
     prefix: 'c',
@@ -107,7 +127,25 @@ const SCHEMAS = {
 
 const SETTINGS = {
   worldName: T.str(60), worldDate: T.str(120), kmPerPx: T.num(0.001, 1000),
-  paceKmPerDay: T.num(1, 2000), realHoursPerGameDay: T.num(0.01, 10000), fogEnabled: T.bool()
+  paceKmPerDay: T.num(1, 2000), realHoursPerGameDay: T.num(0.01, 10000), fogEnabled: T.bool(),
+  playerPings: T.bool(),
+  grid: v => ({ cellKm: T.num(0.1, 5000)(v?.cellKm), type: T.oneOf(['square', 'hex'])(v?.type) })
+}
+
+const S = T.str(80)
+const HUD = {
+  weather: v => ({
+    location: S(v?.location), tempDay: T.str(20)(v?.tempDay), tempNight: T.str(20)(v?.tempNight),
+    wind: S(v?.wind), clouds: S(v?.clouds), precipitation: S(v?.precipitation)
+  }),
+  moon: v => ({
+    cycle: T.num(0, 1e6)(v?.cycle ?? 0), seasonDay: T.num(0, 1000)(v?.seasonDay ?? 0),
+    seasonLength: T.num(1, 1000)(v?.seasonLength ?? 90), north: S(v?.north), south: S(v?.south),
+    meters: (Array.isArray(v?.meters) ? v.meters : []).slice(0, 8).map(m => ({
+      name: S(m?.name), level: Math.round(T.num(0, HUD_LEVELS.length - 1)(m?.level ?? 0))
+    }))
+  }),
+  visible: T.bool()
 }
 
 function sanitize(fields, body, partial) {
@@ -155,6 +193,8 @@ function viewFor(role, now = Date.now()) {
       })
       .map(strip),
     parties: db.parties.filter(p => !p.hidden).map(strip),
+    labels: db.labels.filter(l => !l.hidden && !fogged(l.x, l.y)),
+    hud: db.hud?.visible ? db.hud : null,
     fog
   }
 }
@@ -231,7 +271,7 @@ function requireMaster(req, res, next) {
 
 app.post('/api/login', (req, res) => {
   const ip = req.ip
-  if (!readConfig()) return res.status(503).json({ error: 'Мастер ещё не настроен на сервере (npm run set-password)' })
+  if (!hasMasters()) return res.status(503).json({ error: 'Мастер ещё не настроен на сервере (npm run set-password)' })
   if (!loginAllowed(ip)) return res.status(429).json({ error: 'Слишком много попыток. Подожди 10 минут.' })
   const { login, password } = req.body || {}
   if (!checkCredentials(login, password)) {
@@ -249,6 +289,14 @@ app.patch('/api/settings', requireMaster, (req, res) => {
   saveDb()
   broadcast()
   res.json(db.settings)
+})
+
+app.patch('/api/hud', requireMaster, (req, res) => {
+  const db = getDb()
+  db.hud = { ...(db.hud || {}), ...sanitize(HUD, req.body || {}, false) }
+  saveDb()
+  broadcast()
+  res.json(db.hud)
 })
 
 app.post('/api/fog/clear', requireMaster, (req, res) => {
@@ -357,23 +405,90 @@ if (fs.existsSync(DIST)) {
 const server = http.createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 64 * 1024 })
 
+/* ---------- Присутствие: курсоры мастеров, пинги, линейки (ничего не сохраняется) ---------- */
+const CURSOR_COLORS = ['#ffd166', '#ff7ac0', '#4fd8ff', '#7ee06a', '#c47aff', '#ff9a4e', '#f2f2f2', '#2fd6b4']
+let nextClientId = 1
+
+function relay(from, msg) {
+  const data = JSON.stringify({ ...msg, id: from.id, name: from.name, color: from.color })
+  for (const c of clients) if (c !== from && c.ws.readyState === 1) c.ws.send(data)
+}
+
+const num = v => (Number.isFinite(Number(v)) ? Math.round(Number(v) * 10) / 10 : null)
+
 wss.on('connection', ws => {
-  const client = { ws, role: 'player' }
+  const id = nextClientId++
+  const client = { ws, role: 'player', id, name: 'Игрок', color: CURSOR_COLORS[id % CURSOR_COLORS.length], pings: [] }
   clients.add(client)
   send(client, viewFor('player'))
+  ws.send(JSON.stringify({ type: 'hello', id, color: client.color }))
+  // новому клиенту — текущие курсоры и линейки мастеров
+  for (const c of clients) {
+    if (c === client || c.role !== 'master') continue
+    if (c.cursor) ws.send(JSON.stringify({ type: 'cursor', id: c.id, name: c.name, color: c.color, ...c.cursor }))
+    if (c.ruler) ws.send(JSON.stringify({ type: 'ruler', id: c.id, name: c.name, color: c.color, points: c.ruler }))
+  }
+
   ws.on('message', raw => {
     let msg
     try { msg = JSON.parse(raw) } catch { return }
-    if (msg.type === 'auth') {
-      client.role = verifyToken(msg.token) ? 'master' : 'player'
-      send(client, viewFor(client.role))
-    } else if (msg.type === 'ping') {
-      ws.send(JSON.stringify({ type: 'pong', serverTime: Date.now() }))
+    switch (msg.type) {
+      case 'auth': {
+        const tok = verifyToken(msg.token)
+        const wasMaster = client.role === 'master'
+        client.role = tok ? 'master' : 'player'
+        if (tok) client.name = tok.sub
+        else if (wasMaster) {
+          client.name = 'Игрок'
+          client.cursor = client.ruler = null
+          relay(client, { type: 'gone' })
+        }
+        send(client, viewFor(client.role))
+        break
+      }
+      case 'nick':
+        if (client.role !== 'master') client.name = String(msg.name || '').trim().slice(0, 24) || 'Игрок'
+        break
+      case 'cursor': {
+        if (client.role !== 'master') return
+        const x = num(msg.x), y = num(msg.y)
+        if (x === null || y === null) return
+        client.cursor = { x, y }
+        relay(client, { type: 'cursor', x, y })
+        break
+      }
+      case 'cursorLeave':
+        if (client.role !== 'master') return
+        client.cursor = null
+        relay(client, { type: 'cursorLeave' })
+        break
+      case 'ruler': {
+        if (client.role !== 'master') return
+        const pts = Array.isArray(msg.points) ? msg.points.slice(0, 50).map(p => [num(p?.[0]), num(p?.[1])]).filter(p => p[0] !== null && p[1] !== null) : null
+        client.ruler = pts && pts.length > 1 ? pts : null
+        relay(client, { type: 'ruler', points: client.ruler })
+        break
+      }
+      case 'ping': {
+        const x = num(msg.x), y = num(msg.y)
+        if (x === null || y === null) return
+        if (client.role !== 'master' && !getDb().settings.playerPings) return
+        // не чаще раза в 0.7 с и не больше 20 в минуту
+        const now = Date.now()
+        client.pings = client.pings.filter(t => now - t < 60000)
+        if (client.pings.length >= 20 || now - (client.pings[client.pings.length - 1] || 0) < 700) return
+        client.pings.push(now)
+        relay(client, { type: 'ping', x, y, kind: ['look', 'danger', 'go'].includes(msg.kind) ? msg.kind : 'look' })
+        break
+      }
     }
   })
-  ws.on('close', () => clients.delete(client))
+  ws.on('close', () => {
+    clients.delete(client)
+    if (client.role === 'master') relay(client, { type: 'gone' })
+  })
 })
 
-server.listen(PORT, HOST, () => console.log(`Анакария: http://${HOST || 'localhost'}:${PORT}`))
+server.listen(PORT, HOST, () => console.log(`Анкария: http://${HOST || 'localhost'}:${PORT}`))
 
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); process.exit(0) })

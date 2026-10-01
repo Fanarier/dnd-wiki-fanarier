@@ -1,10 +1,13 @@
 <template>
   <aside class="info ui-panel" v-if="item">
     <header class="info-head">
-      <div class="info-badge" :style="{ color: accent }"><Icon :name="headIcon" :size="22" /></div>
+      <div class="info-badge" :style="{ color: accent }">
+        <img v-if="headImg" :src="headImg" alt="" class="badge-img" />
+        <Icon v-else :name="headIcon" :size="22" />
+      </div>
       <div class="info-titles">
         <div class="ui-kicker">{{ kindLabel }}</div>
-        <h2 class="ui-title">{{ item.name || 'Без названия' }}</h2>
+        <h2 class="ui-title">{{ (type === 'labels' ? item.text : item.name) || 'Без названия' }}</h2>
       </div>
       <button class="ui-btn icon ghost" title="Закрыть (Esc)" @click="store.selection = null"><Icon name="close" /></button>
     </header>
@@ -72,7 +75,32 @@
         <hr class="ui-divider" />
         <div class="ui-kicker editor-title"><Icon name="edit" :size="14" /> Редактирование</div>
 
-        <label class="ui-field"><span>Название</span><input v-model="form.name" class="ui-input" maxlength="80" /></label>
+        <label v-if="type !== 'labels'" class="ui-field"><span>Название</span><input v-model="form.name" class="ui-input" maxlength="80" /></label>
+
+        <!-- Подпись: свободная (labels) или подпись территории (states.label) -->
+        <template v-if="type === 'labels'">
+          <label class="ui-field"><span>Текст</span><input v-model="form.text" class="ui-input" maxlength="120" /></label>
+          <label class="ui-field"><span>Стиль</span>
+            <select v-model="form.style" class="ui-input">
+              <option value="land">Суша (тёмный)</option><option value="sea">Море (светлый курсив)</option>
+              <option value="region">Регион (разрядка)</option><option value="danger">Опасность (красный)</option>
+            </select>
+          </label>
+        </template>
+        <div v-if="lab" class="label-box">
+          <div class="ui-kicker">{{ type === 'states' ? 'Подпись территории на карте' : 'Вид подписи' }}</div>
+          <label class="ui-field"><span>Размер: {{ Math.round(lab.size) }}</span>
+            <input v-model.number="lab.size" type="range" min="4" max="80" step="0.5" @input="preview" @change="saveLabel" />
+          </label>
+          <label class="ui-field"><span>Наклон: {{ Math.round(lab.angle) }}°</span>
+            <input v-model.number="lab.angle" type="range" min="-180" max="180" @input="preview" @change="saveLabel" />
+          </label>
+          <label class="ui-field"><span>Изгиб: {{ bendText }}</span>
+            <input v-model.number="lab.bend" type="range" min="-0.012" max="0.012" step="0.0002" @input="preview" @change="saveLabel" />
+          </label>
+          <label class="ui-check"><input v-model="lab.wrap" type="checkbox" @change="preview(); saveLabel()" /> В две строки</label>
+          <div class="hint"><Icon name="help" :size="14" /> Подпись можно перетащить мышью прямо на карте. Ползунки сохраняются сразу.</div>
+        </div>
 
         <template v-if="type === 'cities'">
           <div class="ui-row">
@@ -105,13 +133,20 @@
         <template v-if="type === 'anomalies'">
           <div class="ui-row">
             <label class="ui-field"><span>Вид</span>
-              <select v-model="form.kind" class="ui-input" @change="form.effect = form.kind === 'zone' ? 'storm' : 'portal'">
-                <option value="zone">Зона</option><option value="point">Точка</option>
+              <select v-model="form.kind" class="ui-input" @change="form.effect = form.kind === 'zone' ? 'storm' : 'quest'">
+                <option value="zone">Зона-аномалия</option><option value="point">Метка</option>
               </select>
             </label>
-            <label class="ui-field"><span>Эффект</span>
+            <label class="ui-field"><span>{{ form.kind === 'zone' ? 'Эффект' : 'Тип метки' }}</span>
               <select v-model="form.effect" class="ui-input">
-                <option v-for="(e, k) in (form.kind === 'zone' ? ZONE_EFFECTS : POINT_EFFECTS)" :key="k" :value="k">{{ e.label }}</option>
+                <template v-if="form.kind === 'zone'">
+                  <option v-for="(e, k) in ZONE_EFFECTS" :key="k" :value="k">{{ e.label }}</option>
+                </template>
+                <template v-else>
+                  <optgroup v-for="(list, g) in pointGroups" :key="g" :label="g">
+                    <option v-for="[k, e] in list" :key="k" :value="k">{{ e.label }}</option>
+                  </optgroup>
+                </template>
               </select>
             </label>
           </div>
@@ -149,8 +184,8 @@
           </div>
         </template>
 
-        <label class="ui-field"><span>Описание (видят все)</span><textarea v-model="form.description" class="ui-input" rows="4" /></label>
-        <label class="ui-field"><span><Icon name="lock" :size="12" /> Заметки мастера (игроки не видят)</span><textarea v-model="form.secret" class="ui-input" rows="3" /></label>
+        <label v-if="type !== 'labels'" class="ui-field"><span>Описание (видят все)</span><textarea v-model="form.description" class="ui-input" rows="4" /></label>
+        <label v-if="type !== 'labels'" class="ui-field"><span><Icon name="lock" :size="12" /> Заметки мастера (игроки не видят)</span><textarea v-model="form.secret" class="ui-input" rows="3" /></label>
         <label class="ui-check"><input v-model="form.hidden" type="checkbox" /> Скрыть от игроков</label>
 
         <div class="editor-actions">
@@ -175,7 +210,19 @@ const item = computed(() => findSelected())
 const type = computed(() => store.selection?.type)
 const select = (t, id) => { store.selection = { type: t, id } }
 
-const KIND = { cities: 'Поселение', states: 'Народ / государство', roads: 'Дорога', anomalies: 'Аномалия', parties: 'Отряд' }
+const KIND = { cities: 'Поселение', states: 'Народ / государство', roads: 'Дорога', anomalies: 'Аномалия', parties: 'Отряд', labels: 'Подпись' }
+
+// метки по разделам легенды
+const pointGroups = Object.entries(POINT_EFFECTS).reduce((acc, [k, e]) => {
+  (acc[e.group] ||= []).push([k, e])
+  return acc
+}, {})
+const headImg = computed(() => {
+  const it = item.value
+  if (type.value === 'anomalies' && it.kind === 'point') return `/icons/${(POINT_EFFECTS[it.effect] || POINT_EFFECTS.unknown).img}.png`
+  if (type.value === 'cities' && it.type === 'capital') return '/icons/elven-castle.png'
+  return null
+})
 const kindLabel = computed(() => {
   const it = item.value
   if (type.value === 'cities') return CITY_TYPES[it.type]?.label || 'Поселение'
@@ -190,6 +237,7 @@ const headIcon = computed(() => {
   if (type.value === 'roads') return 'roadType'
   if (type.value === 'anomalies') return it.kind === 'zone' ? 'zone' : POINT_EFFECTS[it.effect]?.icon || 'anomaly'
   if (type.value === 'parties') return it.icon || 'sword'
+  if (type.value === 'labels') return 'label'
   return 'map'
 })
 const accent = computed(() => {
@@ -227,7 +275,38 @@ const FIELDS = {
   states: ['name', 'color', 'description', 'secret', 'hidden'],
   roads: ['name', 'type', 'description', 'hidden'],
   anomalies: ['name', 'kind', 'effect', 'radius', 'description', 'secret', 'hidden'],
-  parties: ['name', 'color', 'icon', 'description', 'secret', 'hidden']
+  parties: ['name', 'color', 'icon', 'description', 'secret', 'hidden'],
+  labels: ['text', 'style', 'hidden']
+}
+
+/* ---------------- Подписи: ползунки меняют карту сразу и сохраняются при отпускании ---------------- */
+const lab = ref(null)
+const LABEL_KEYS = ['size', 'angle', 'bend', 'wrap']
+watch(() => [store.selection?.type, store.selection?.id, master.value], () => {
+  const it = item.value
+  if (!it || !master.value) { lab.value = null; return }
+  if (type.value === 'states') lab.value = it.label ? { ...it.label } : null
+  else if (type.value === 'labels') lab.value = Object.fromEntries(LABEL_KEYS.map(k => [k, it[k] ?? 0]))
+  else lab.value = null
+}, { immediate: true })
+
+const bendText = computed(() => {
+  const b = lab.value?.bend || 0
+  return Math.abs(b) < 0.0002 ? 'прямая' : (b > 0 ? 'дугой вверх ' : 'дугой вниз ') + Math.round(Math.abs(b) * 10000)
+})
+
+function preview() {
+  const it = item.value
+  if (!it || !lab.value) return
+  if (type.value === 'states') it.label = { ...it.label, ...lab.value }
+  else Object.assign(it, lab.value)
+}
+
+async function saveLabel() {
+  const it = item.value
+  if (!it || !lab.value) return
+  const body = type.value === 'states' ? { label: it.label } : { ...lab.value }
+  await act('PATCH', `/api/${type.value}/${it.id}`, body).catch(() => {})
 }
 
 function resetForm() {
@@ -312,6 +391,9 @@ function replay() {
 .move-row > * { flex: 0 1 auto; }
 .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .sw { width: 28px; height: 28px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; display: grid; place-items: center; background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.badge-img { width: 30px; height: 30px; }
+.label-box { padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-2); margin-bottom: 14px; }
+.label-box .ui-kicker { margin-bottom: 10px; color: var(--gold); }
 .sw.on { border-color: #fff; box-shadow: 0 0 0 2px rgba(231, 197, 111, 0.5); }
 
 @media (max-width: 760px) {

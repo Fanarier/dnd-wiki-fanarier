@@ -206,12 +206,49 @@ function routeType(n) {
   return 'road'
 }
 
+/* ---------------- Подписи территорий: вынимаем из labels.svg, чтобы их можно было править ---------------- */
+// FMG: группа labels 100px × группа state 22% × textPath N% = размер шрифта в px
+// Подпись храним как { x, y, angle, size, bend, wrap }: центр, наклон, размер, изгиб (кривизна дуги), две строки
+function extractStateLabels(svg) {
+  const out = {}
+  if (!svg) return out
+  const groupPct = Number((svg.match(/data-group="state"[^>]*font-size="([\d.]+)%"/) || [])[1] || 22)
+  for (const m of svg.matchAll(/<path id="textPath_stateLabel(\d+)"[^>]*d="([^"]+)"/g)) {
+    const id = m[1]
+    const nums = m[2].match(/-?\d+(\.\d+)?/g).map(Number)
+    const pts = []
+    for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]])
+    const textEl = (svg.match(new RegExp(`<text id="stateLabel${id}"[^>]*>[\\s\\S]*?</text>`)) || [''])[0]
+    const tr = textEl.match(/translate\(([-\d.]+),\s*([-\d.]+)\)/)
+    const [tx, ty] = tr ? [Number(tr[1]), Number(tr[2])] : [0, 0]
+    const pct = Number((textEl.match(/font-size="([\d.]+)%"/) || [])[1] || 100)
+    const p0 = pts[0], p1 = pts[pts.length - 1]
+    const pm = pts.length >= 7 ? pts[3] : [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2]
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1]
+    const c = Math.hypot(dx, dy) || 1
+    // смещение середины дуги от хорды (в локальной системе подписи, ось y вниз)
+    const mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2]
+    const localY = ((pm[0] - mid[0]) * -dy + (pm[1] - mid[1]) * dx) / c
+    const bend = Math.abs(localY) < 0.5 ? 0 : (-8 * localY) / (c * c)
+    out['s' + id] = {
+      x: r2(pm[0] + tx), y: r2(pm[1] + ty),
+      angle: r2((Math.atan2(dy, dx) * 180) / Math.PI),
+      size: r2((100 * groupPct / 100) * pct / 100),
+      bend: Math.round(bend * 1e5) / 1e5,
+      wrap: /<tspan/.test(textEl)
+    }
+  }
+  return out
+}
+
 /* ---------------- Seed DB ---------------- */
 // Регионы, которые прячем под туман по умолчанию (сюжетные «???» на исходной карте)
 const FOGGED_STATES = [36, 39, 40, 41]
 
+const stateLabels = extractStateLabels(files['labels.svg'])
 const states = data.states.filter(s => s.i > 0 && !s.removed && s.name).map(s => ({
   id: 's' + s.i,
+  label: stateLabels['s' + s.i] || (s.pole ? { x: r2(s.pole[0]), y: r2(s.pole[1]), angle: 0, size: 18, bend: 0, wrap: false } : null),
   name: s.name,
   color: /^#/.test(s.color || '') ? s.color : '#8a8a8a',
   capitalId: s.capital ? 'c' + s.capital : null,
@@ -283,24 +320,44 @@ const parties = [{
   x: shiratori.x, y: shiratori.y, journey: null, hidden: true
 }]
 
+// Калибровка масштаба по известному расстоянию между двумя городами (со слов мастера)
+const CALIBRATION = { a: 'c9', b: 'c1', km: 30 } // Марико — Сиратори = 30 км
+const ca = cities.find(c => c.id === CALIBRATION.a), cb = cities.find(c => c.id === CALIBRATION.b)
+const kmPerPx = ca && cb ? Math.round((CALIBRATION.km / Math.hypot(ca.x - cb.x, ca.y - cb.y)) * 1000) / 1000 : 1
+
+// Панели «Погода» и «Лунный виток» — заполняются мастером на сайте
+const hud = {
+  weather: { location: 'Море Солдалла', tempDay: '+18', tempNight: '+6', wind: 'Умеренный', clouds: 'Кучевые облака', precipitation: 'Нет' },
+  moon: {
+    cycle: 364, seasonDay: 16, seasonLength: 90, north: 'Весна', south: 'Осень',
+    meters: [{ name: 'Угроза разлома бездны', level: 1 }, { name: 'Пиратство', level: 4 }]
+  },
+  visible: true
+}
+
 const seed = {
   version: 1,
   settings: {
-    worldName: 'Анакария',
+    worldName: 'Анкария',
     worldDate: '214 г. Эры Удалин',
     width: data.meta.W || 2048,
     height: data.meta.H || 1024,
-    kmPerPx: 1,
+    kmPerPx,
     paceKmPerDay: 38,
     realHoursPerGameDay: 24,
-    fogEnabled: true
+    fogEnabled: true,
+    playerPings: true,
+    grid: { cellKm: 10, type: 'square' }
   },
-  states, cities, roads, anomalies, parties, fog
+  hud,
+  states, cities, roads, anomalies, parties, fog,
+  labels: []
 }
 
 const seedDir = path.join(ROOT, 'server', 'seed')
 fs.mkdirSync(seedDir, { recursive: true })
 fs.writeFileSync(path.join(seedDir, 'anacaria.json'), JSON.stringify(seed, null, 1))
+console.log(`масштаб: ${kmPerPx} км/px (по ${CALIBRATION.km} км между ${ca?.name} и ${cb?.name})`)
 console.log(`seed: ${states.length} государств, ${cities.length} городов, ${roads.length} дорог, ${fog.length} фигур тумана`)
 if (missing.size) console.log('Без перевода (оставлены как есть):', [...missing].join(', '))
 

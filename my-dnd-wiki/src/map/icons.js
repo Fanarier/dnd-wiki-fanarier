@@ -9,7 +9,8 @@ import {
   mdiDownload, mdiMapMarkerPath, mdiAccountGroup, mdiCloud, mdiCloudOff, mdiFormatColorFill, mdiChevronLeft,
   mdiChevronRight, mdiPencil, mdiFitToScreen, mdiWeatherWindy, mdiRoadVariant, mdiAnchor, mdiCheck, mdiTimerSand,
   mdiArrowRightBold, mdiNoteText, mdiLock, mdiMenu, mdiStarFourPoints, mdiMapMarkerPlus, mdiCreation, mdiShape,
-  mdiHelpCircleOutline
+  mdiHelpCircleOutline, mdiMapMarker, mdiRuler, mdiFormatText, mdiGrid, mdiVolumeHigh, mdiVolumeOff,
+  mdiWeatherPartlyCloudy, mdiMoonWaningCrescent, mdiThermometer, mdiBullseyeArrow, mdiCursorDefaultOutline
 } from '@mdi/js'
 
 export const ICONS = {
@@ -31,5 +32,8 @@ export const ICONS = {
   fog: mdiCloud, fogOff: mdiCloudOff, fill: mdiFormatColorFill, left: mdiChevronLeft, right: mdiChevronRight,
   edit: mdiPencil, fit: mdiFitToScreen, zone: mdiWeatherWindy, anchor: mdiAnchor, check: mdiCheck, timer: mdiTimerSand,
   arrow: mdiArrowRightBold, note: mdiNoteText, lock: mdiLock, menu: mdiMenu, star: mdiStarFourPoints,
-  cityAdd: mdiMapMarkerPlus, anomaly: mdiCreation, shape: mdiShape, help: mdiHelpCircleOutline
+  cityAdd: mdiMapMarkerPlus, anomaly: mdiCreation, shape: mdiShape, help: mdiHelpCircleOutline,
+  ping: mdiMapMarker, ruler: mdiRuler, label: mdiFormatText, grid: mdiGrid, soundOn: mdiVolumeHigh, soundOff: mdiVolumeOff,
+  weather: mdiWeatherPartlyCloudy, moon: mdiMoonWaningCrescent, temp: mdiThermometer, pingTool: mdiBullseyeArrow,
+  cursors: mdiCursorDefaultOutline
 }
