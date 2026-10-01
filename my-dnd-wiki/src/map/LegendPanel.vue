@@ -137,6 +137,7 @@ const OBJ = [
   { key: 'cities', label: 'Города', icon: 'castle' },
   { key: 'towns', label: 'Поселения', icon: 'home' },
   { key: 'roads', label: 'Дороги', icon: 'roadType' },
+  { key: 'routes', label: 'Маршруты', icon: 'ship' },
   { key: 'anomalies', label: 'Аномалии', icon: 'anomaly' },
   { key: 'parties', label: 'Отряды', icon: 'party' }
 ]

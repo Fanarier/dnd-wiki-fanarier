@@ -47,6 +47,7 @@ const GROUPS = [
     { id: 'city', icon: 'cityAdd', short: 'Город', label: 'Поставить город', key: 'C' },
     { id: 'label', icon: 'label', short: 'Подпись', label: 'Подпись на карте (море, горы, регион)', key: 'T' },
     { id: 'road', icon: 'road', short: 'Дорога', label: 'Проложить дорогу', key: 'R' },
+    { id: 'route', icon: 'ship', short: 'Маршрут', label: 'Маршрут с остановками (морской путь)', key: 'W' },
     { id: 'zone', icon: 'zone', short: 'Зона', label: 'Аномалия-зона', key: 'A' },
     { id: 'point', icon: 'anomaly', short: 'Метка', label: 'Метка: задание, подземелье, порт…', key: 'P' },
     { id: 'party', icon: 'party', short: 'Отряд', label: 'Новый отряд' }
@@ -66,6 +67,7 @@ const HINTS = {
   ping: 'Кликни — пинг увидят все. Ещё: Alt+клик (Alt+Shift — «опасность») или долгое нажатие',
   label: 'Кликни, где поставить подпись',
   city: 'Кликни по карте, чтобы поставить город',
+  route: 'Кликай точки маршрута (по морю — вдоль берега). Двойной клик или Enter — готово, потом добавь остановки',
   road: 'Кликай точки дороги. Двойной клик или Enter — готово, Backspace — шаг назад, Esc — отмена',
   zone: 'Кликни, где возникнет аномалия',
   point: 'Кликни, где поставить метку',
@@ -107,8 +109,8 @@ async function clearFog() {
 }
 const toggleFog = on => act('PATCH', '/api/settings', { fogEnabled: on }, on ? 'Туман включён' : 'Туман выключен для всех').catch(() => {})
 
-const KEYS = { v: 'select', m: 'ruler', g: 'ping', c: 'city', t: 'label', r: 'road', a: 'zone', p: 'point', f: 'fogBrush', e: 'fogErase' }
-const RU = { м: 'v', ь: 'm', п: 'g', с: 'c', е: 't', к: 'r', ф: 'a', з: 'p', а: 'f', у: 'e' }
+const KEYS = { v: 'select', m: 'ruler', g: 'ping', c: 'city', t: 'label', r: 'road', w: 'route', a: 'zone', p: 'point', f: 'fogBrush', e: 'fogErase' }
+const RU = { м: 'v', ь: 'm', п: 'g', с: 'c', е: 't', к: 'r', ц: 'w', ф: 'a', з: 'p', а: 'f', у: 'e' }
 const PLAYER_TOOLS = ['select', 'ruler', 'ping']
 function onKey(e) {
   if (e.target.closest?.('input, textarea, select') || e.altKey || e.metaKey) return

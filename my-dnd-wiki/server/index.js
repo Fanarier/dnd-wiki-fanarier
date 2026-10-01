@@ -7,9 +7,9 @@ import http from 'node:http'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 
-import { loadDb, getDb, saveDb, flushDb, backupDb, newId } from './db.js'
+import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR } from './db.js'
 import { checkCredentials, issueToken, verifyToken, hasMasters, loginAllowed, recordFailure } from './auth.js'
-import { isFogged, anomalyState, partyPosition, journeyState } from '../src/shared/geo.js'
+import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS } from '../src/shared/catalog.js'
 
 const PORT = Number(process.env.PORT) || 3001
@@ -64,6 +64,25 @@ T.label = () => v => {
   }
 }
 
+// Тип метки: встроенный ключ или своя иконка из библиотеки «u:<id>»
+const MARK_KEYS = [...Object.keys(ZONE_EFFECTS), ...Object.keys(POINT_EFFECTS)]
+T.mark = () => v => {
+  if (MARK_KEYS.includes(v)) return v
+  if (typeof v === 'string' && /^u:[a-z0-9]{4,20}$/.test(v)) return v
+  throw new Error('недопустимый тип метки: ' + v)
+}
+T.stops = () => v => {
+  if (!Array.isArray(v) || v.length > 200) throw new Error('некорректный список остановок')
+  return v.map(st => ({
+    id: String(st?.id || newId('st')).slice(0, 24),
+    name: T.str(80)(st?.name),
+    s: T.num(0, 1)(st?.s),
+    icon: st?.icon ? T.mark()(st.icon) : 'unknown',
+    description: T.str(4000)(st?.description),
+    hidden: !!st?.hidden
+  })).sort((a, b) => a.s - b.s)
+}
+
 const COORD = T.num(-500, 3000)
 const TEXT = T.str(20000)
 const SCHEMAS = {
@@ -97,11 +116,11 @@ const SCHEMAS = {
   },
   anomalies: {
     prefix: 'a',
-    defaults: { kind: 'zone', effect: 'storm', radius: 25, toX: null, toY: null, activeFrom: null, activeTo: null, description: '', secret: '', hidden: false },
+    defaults: { kind: 'zone', effect: 'storm', size: 1, radius: 25, toX: null, toY: null, activeFrom: null, activeTo: null, description: '', secret: '', hidden: false },
     required: ['name', 'x', 'y'],
     fields: {
       kind: T.oneOf(['zone', 'point']),
-      effect: T.oneOf([...Object.keys(ZONE_EFFECTS), ...Object.keys(POINT_EFFECTS)]),
+      effect: T.mark(), size: T.num(0.3, 8),
       name: T.str(80), x: COORD, y: COORD, radius: T.num(2, 600),
       toX: T.numOrNull(-500, 3000), toY: T.numOrNull(-500, 3000),
       activeFrom: T.numOrNull(0, 1e14), activeTo: T.numOrNull(0, 1e14),
@@ -110,11 +129,20 @@ const SCHEMAS = {
   },
   parties: {
     prefix: 'p',
-    defaults: { color: '#e8b04a', icon: 'sword', description: '', secret: '', hidden: false, journey: null },
+    defaults: { color: '#e8b04a', icon: 'sword', pace: null, route: null, description: '', secret: '', hidden: false, journey: null },
     required: ['name', 'x', 'y'],
     fields: {
       name: T.str(80), color: T.color(), icon: T.oneOf(PARTY_ICONS), x: COORD, y: COORD,
-      description: TEXT, secret: TEXT, hidden: T.bool()
+      pace: T.numOrNull(1, 5000), description: TEXT, secret: TEXT, hidden: T.bool()
+    }
+  },
+  routes: {
+    prefix: 'w',
+    defaults: { name: '', color: '#ff4a3d', kind: 'sea', stops: [], description: '', hidden: false },
+    required: ['points'],
+    fields: {
+      name: T.str(80), color: T.color(), kind: T.oneOf(['sea', 'land']), points: T.points(), stops: T.stops(),
+      description: TEXT, hidden: T.bool()
     }
   },
   fog: {
@@ -194,6 +222,8 @@ function viewFor(role, now = Date.now()) {
       .map(strip),
     parties: db.parties.filter(p => !p.hidden).map(strip),
     labels: db.labels.filter(l => !l.hidden && !fogged(l.x, l.y)),
+    routes: db.routes.filter(r => !r.hidden).map(r => ({ ...r, stops: r.stops.filter(st => !st.hidden) })),
+    icons: db.icons,
     hud: db.hud?.visible ? db.hud : null,
     fog
   }
@@ -334,6 +364,40 @@ app.post('/api/parties/:id/journey', requireMaster, (req, res) => {
   res.json(p)
 })
 
+// Шаг отряда по маршруту: от текущей остановки к другой; follow — камера всех игроков следит
+app.post('/api/parties/:id/route-step', requireMaster, (req, res) => {
+  const db = getDb()
+  const p = db.parties.find(x => x.id === req.params.id)
+  const body = req.body || {}
+  const route = db.routes.find(r => r.id === body.routeId)
+  if (!p || !route) return res.status(404).json({ error: 'Отряд или маршрут не найден' })
+  const to = route.stops.find(st => st.id === body.toStop)
+  if (!to) return res.status(400).json({ error: 'Нет такой остановки' })
+  const from = p.route?.routeId === route.id ? route.stops.find(st => st.id === p.route.stop) : null
+  const durationMs = T.num(500, 1e11)(body.durationMs ?? 5000)
+  const now = Date.now()
+  if (from) {
+    const path = subPath(route.points, from.s, to.s)
+    if (polyLength(path) > 0.5) p.journey = { path, startAt: now, endAt: now + durationMs, label: `${from.name || 'Остановка'} → ${to.name || 'остановка'}`, createdAt: now }
+  }
+  if (!p.journey || !from) {
+    // отряд ещё не на маршруте — просто ставим на остановку
+    const path = subPath(route.points, to.s, to.s)
+    p.x = path[0][0]
+    p.y = path[0][1]
+    p.journey = null
+  }
+  p.route = { routeId: route.id, stop: to.id }
+  saveDb()
+  broadcast()
+  if (body.follow) {
+    const by = verifyToken((req.headers.authorization || '').slice(7))?.sub || 'Мастер'
+    const msg = JSON.stringify({ type: 'follow', mode: 'party', partyId: p.id, until: p.journey ? p.journey.endAt + 1500 : now + 3000, by })
+    for (const c of clients) if (c.ws.readyState === 1) c.ws.send(msg)
+  }
+  res.json(p)
+})
+
 app.post('/api/parties/:id/stop', requireMaster, (req, res) => {
   const db = getDb()
   const p = db.parties.find(x => x.id === req.params.id)
@@ -346,6 +410,64 @@ app.post('/api/parties/:id/stop', requireMaster, (req, res) => {
   broadcast()
   res.json(p)
 })
+
+/* ---------- Свои иконки мастера: картинка как есть, без обрезки ---------- */
+const IMAGE_TYPES = {
+  png: b => b.length > 8 && b.readUInt32BE(0) === 0x89504e47,
+  jpg: b => b.length > 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  gif: b => b.length > 6 && b.toString('ascii', 0, 4) === 'GIF8',
+  webp: b => b.length > 12 && b.toString('ascii', 0, 4) === 'RIFF' && b.toString('ascii', 8, 12) === 'WEBP'
+}
+
+app.post('/api/icons', requireMaster, express.raw({ type: () => true, limit: '3mb' }), (req, res) => {
+  const buf = req.body
+  if (!Buffer.isBuffer(buf) || !buf.length) return res.status(400).json({ error: 'Пустой файл' })
+  // тип определяем по содержимому, а не по имени файла (SVG и прочее не пускаем)
+  const ext = Object.keys(IMAGE_TYPES).find(k => IMAGE_TYPES[k](buf))
+  if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  const db = getDb()
+  if (db.icons.length >= 500) return res.status(400).json({ error: 'Библиотека переполнена (500 иконок)' })
+  const id = newId('i').slice(1)
+  const file = `${id}.${ext}`
+  fs.mkdirSync(ICON_DIR, { recursive: true })
+  fs.writeFileSync(path.join(ICON_DIR, file), buf)
+  const icon = {
+    id, file,
+    name: T.str(60)(req.query.name || 'Иконка'),
+    w: Math.round(T.num(1, 4096)(req.query.w || 128)),
+    h: Math.round(T.num(1, 4096)(req.query.h || 128)),
+    createdAt: Date.now()
+  }
+  db.icons.push(icon)
+  saveDb()
+  broadcast()
+  res.json(icon)
+})
+
+app.patch('/api/icons/:id', requireMaster, (req, res) => {
+  const icon = getDb().icons.find(i => i.id === req.params.id)
+  if (!icon) return res.status(404).json({ error: 'Иконка не найдена' })
+  icon.name = T.str(60)(req.body?.name || icon.name)
+  saveDb()
+  broadcast()
+  res.json(icon)
+})
+
+app.delete('/api/icons/:id', requireMaster, (req, res) => {
+  const db = getDb()
+  const i = db.icons.findIndex(x => x.id === req.params.id)
+  if (i === -1) return res.status(404).json({ error: 'Иконка не найдена' })
+  const [icon] = db.icons.splice(i, 1)
+  try { fs.unlinkSync(path.join(ICON_DIR, icon.file)) } catch { /* уже нет */ }
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+
+app.use('/usericons', express.static(ICON_DIR, {
+  maxAge: '30d', immutable: true, index: false,
+  setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff')
+}))
 
 app.get('/api/export', requireMaster, (req, res) => {
   flushDb()
@@ -467,6 +589,17 @@ wss.on('connection', ws => {
         const pts = Array.isArray(msg.points) ? msg.points.slice(0, 50).map(p => [num(p?.[0]), num(p?.[1])]).filter(p => p[0] !== null && p[1] !== null) : null
         client.ruler = pts && pts.length > 1 ? pts : null
         relay(client, { type: 'ruler', points: client.ruler })
+        break
+      }
+      case 'follow': {
+        if (client.role !== 'master') return
+        if (msg.mode === 'view') {
+          const x = num(msg.x), y = num(msg.y), span = num(msg.span)
+          if (x === null || y === null || !span) return
+          relay(client, { type: 'follow', mode: 'view', x, y, span, by: client.name })
+        } else if (msg.mode === 'party' && typeof msg.partyId === 'string') {
+          relay(client, { type: 'follow', mode: 'party', partyId: msg.partyId.slice(0, 40), until: num(msg.until), by: client.name })
+        }
         break
       }
       case 'ping': {

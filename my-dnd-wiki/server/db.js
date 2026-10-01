@@ -8,7 +8,9 @@ const DB_FILE = path.join(DATA_DIR, 'db.json')
 const SEED_FILE = path.resolve(import.meta.dirname, 'seed', 'anacaria.json')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
 
-export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels']
+export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels', 'routes', 'icons']
+// Свои иконки мастера лежат рядом с базой (служба может писать только в data)
+export const ICON_DIR = path.join(DATA_DIR, 'icons')
 
 let db = null
 let saveTimer = null

@@ -60,6 +60,12 @@
       <InfoPanel v-else-if="store.selection" :key="store.selection.type + store.selection.id" />
     </transition>
 
+    <transition name="fade">
+      <button v-if="store.follow && !master" class="follow-chip ui-panel" @click="store.follow = null">
+        <Icon name="eye" :size="16" /> {{ store.follow.by || 'Мастер' }} показывает карту · выйти
+      </button>
+    </transition>
+
     <MasterToolbar />
     <HudPanel />
 
@@ -68,6 +74,7 @@
       <button class="ui-btn icon ghost" title="Приблизить (+)" @click="canvas.zoomBy(1.5)"><Icon name="plus" /></button>
       <button class="ui-btn icon ghost" title="Отдалить (−)" @click="canvas.zoomBy(1 / 1.5)"><Icon name="minus" /></button>
       <button class="ui-btn icon ghost" title="Вся карта" @click="canvas.fit()"><Icon name="fit" :size="18" /></button>
+      <button v-if="master" class="ui-btn icon ghost show-view" title="Показать всем мой вид — камеры игроков прилетят сюда" @click="showMyView"><Icon name="eye" :size="18" /></button>
     </div>
     <div class="scale" :class="{ shifted: store.selection || store.journeyPlan }">
       <div class="scale-bar" :style="{ width: scale.px + 'px' }" />
@@ -160,7 +167,7 @@ import InfoPanel from './InfoPanel.vue'
 import JourneyPanel from './JourneyPanel.vue'
 import MasterToolbar from './MasterToolbar.vue'
 import HudPanel from './HudPanel.vue'
-import { store, isMaster, init, login, logout, api, act, km, toast } from './store.js'
+import { store, isMaster, init, login, logout, api, act, km, toast, sendFollow } from './store.js'
 import { CITY_TYPES, ZONE_EFFECTS, POINT_EFFECTS } from '../shared/catalog.js'
 import { partyPosition, anomalyState } from '../shared/geo.js'
 
@@ -198,6 +205,7 @@ const results = computed(() => {
   for (const a of store.data.anomalies) push('anomalies', a, 'аномалия', a.kind === 'zone' ? 'zone' : POINT_EFFECTS[a.effect]?.icon, (a.kind === 'zone' ? ZONE_EFFECTS : POINT_EFFECTS)[a.effect]?.color)
   for (const p of store.data.parties) push('parties', p, 'отряд', p.icon, p.color)
   for (const r of store.data.roads) if (r.name) push('roads', r, 'дорога', 'roadType', '#c8743a')
+  for (const r of store.data.routes) push('routes', r, 'маршрут', 'ship', r.color)
   return out.sort((a, b) => b.starts - a.starts || a.name.localeCompare(b.name, 'ru')).slice(0, 9)
 })
 watch(query, () => { hl.value = 0 })
@@ -207,7 +215,7 @@ function locate(type, o) {
   if (type === 'cities') return [o.x, o.y, 4]
   if (type === 'parties') { const p = partyPosition(o, store.now); return [p.x, p.y, 3.5] }
   if (type === 'anomalies') { const a = anomalyState(o, store.now); return [a.x, a.y, 3] }
-  if (type === 'roads') { const m = o.points[Math.floor(o.points.length / 2)]; return [m[0], m[1], 3] }
+  if (type === 'roads' || type === 'routes') { const m = o.points[Math.floor(o.points.length / 2)]; return [m[0], m[1], 3] }
   if (type === 'states') {
     const cap = store.data.cities.find(c => c.id === o.capitalId)
     const p = o.pole || (cap && [cap.x, cap.y])
@@ -224,6 +232,11 @@ function go(r) {
   onFocus(r.type, o)
   query.value = ''
   searchOpen.value = false
+}
+
+function showMyView() {
+  sendFollow({ mode: 'view', ...canvas.value.currentView() })
+  toast('Игроки смотрят туда же, куда и ты')
 }
 
 /* ---------- Вход ---------- */
@@ -326,6 +339,7 @@ async function exportDb() {
 .cal-row { align-items: flex-end; }
 .cal-row .ui-btn { margin-bottom: 12px; flex: none; }
 
+.follow-chip { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); z-index: 25; display: flex; align-items: center; gap: 8px; padding: 8px 14px; font: 700 13px var(--sans); color: var(--gold-2); cursor: pointer; }
 .toasts { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 70; pointer-events: none; }
 .toast { padding: 9px 16px; font-size: 13px; font-weight: 600; text-align: center; }
 .toast.error { border-color: rgba(255, 107, 94, 0.5); color: #ffc2bb; }

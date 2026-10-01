@@ -54,6 +54,34 @@ export function remainingPath(pts, frac) {
   return [cut, ...pts.slice(done.length - 1)].filter((p, i, arr) => i === 0 || p !== arr[i - 1])
 }
 
+// Ближайшая точка ломаной к p: доля пути s (0..1), координаты и расстояние
+export function projectOnPath(pts, p) {
+  const total = polyLength(pts) || 1
+  let best = { s: 0, x: pts[0][0], y: pts[0][1], d: Infinity }
+  let acc = 0
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i]
+    const dx = b[0] - a[0], dy = b[1] - a[1]
+    const len2 = dx * dx + dy * dy
+    const t = len2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0
+    const x = a[0] + dx * t, y = a[1] + dy * t
+    const d = Math.hypot(p[0] - x, p[1] - y)
+    if (d < best.d) best = { s: (acc + Math.sqrt(len2) * t) / total, x, y, d }
+    acc += Math.sqrt(len2)
+  }
+  return best
+}
+
+// Кусок ломаной между долями s0 и s1 (если s1 < s0 — в обратную сторону)
+export function subPath(pts, s0, s1) {
+  if (s1 < s0) return subPath(pts, s1, s0).slice().reverse()
+  const head = remainingPath(pts, s0)
+  const total = polyLength(pts)
+  const restLen = polyLength(head)
+  const frac = restLen ? ((s1 - s0) * total) / restLen : 1
+  return slicePath(head, Math.min(1, frac))
+}
+
 export function segDist(p, a, b) {
   let x = a[0], y = a[1]
   const dx = b[0] - x, dy = b[1] - y

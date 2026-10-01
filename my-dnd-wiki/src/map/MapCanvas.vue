@@ -79,6 +79,22 @@
           </g>
         </g>
 
+        <!-- Маршруты (морские пути) с остановками -->
+        <g v-if="L.routes" class="routes">
+          <g v-for="r in routesView" :key="r.id" :class="{ 'is-hidden': r.hidden }">
+            <path :d="r.d" class="road-hit" :data-obj="'routes:' + r.id" />
+            <path :d="r.d" class="route-casing" vector-effect="non-scaling-stroke" />
+            <path :d="r.d" class="route-line" :stroke="r.color" vector-effect="non-scaling-stroke" />
+            <path v-if="isSel('routes', r.id)" :d="r.d" class="road-sel" vector-effect="non-scaling-stroke" />
+            <g v-for="st in r.stopsView" :key="st.id" :transform="`translate(${st.x},${st.y}) scale(${iconScale / view.k})`"
+               :class="['stop', { faded: st.hidden, current: st.current, picked: store.selectedStop === st.id }]" :data-obj="`routestop:${r.id}:${st.id}`">
+              <rect x="-11" y="-11" width="22" height="22" rx="5" class="stop-bg" :stroke="r.color" />
+              <image :href="st.img.src" x="-8.5" y="-8.5" width="17" height="17" />
+              <text v-if="st.name && (view.k > 1.8 || st.current || store.selectedStop === st.id)" y="-16" class="lbl lbl-stop">{{ st.name }}</text>
+            </g>
+          </g>
+        </g>
+
         <!-- Аномалии-зоны -->
         <g v-if="L.anomalies">
           <AnomalyZone v-for="z in zones" :key="z.id" :a="z" :x="z.st.x" :y="z.st.y"
@@ -99,7 +115,7 @@
         </g>
 
         <!-- Сетка для расчёта расстояний (видит только мастер) -->
-        <rect v-if="gridOn" :x="0" :y="0" :width="W" :height="H" fill="url(#grid-pat)" class="grid" />
+        <rect v-if="gridOn && gridOpacity > 0" :x="0" :y="0" :width="W" :height="H" fill="url(#grid-pat)" class="grid" :opacity="gridOpacity" />
 
         <!-- Туман войны -->
         <g v-if="fogVisible" mask="url(#fog-mask)" :class="['fog', master ? 'fog-master' : 'fog-player']">
@@ -131,10 +147,10 @@
           <g v-for="p in points" :key="p.id" :transform="`translate(${p.st.x},${p.st.y}) scale(${iconScale / view.k})`"
              :class="['poi', { faded: !p.st.active || p.hidden, selected: isSel('anomalies', p.id) }]"
              :style="{ color: p.fx.color }" :data-obj="'anomalies:' + p.id">
-            <circle r="20" fill="url(#pt-glow)" class="poi-glow" />
-            <image :href="`/icons/${p.fx.img}.png`" x="-13" y="-13" width="26" height="26" />
-            <circle v-if="isSel('anomalies', p.id)" r="19" class="sel-ring" />
-            <text v-if="view.k > 1.3 || isSel('anomalies', p.id)" y="28" class="lbl lbl-poi">{{ p.name }}</text>
+            <circle v-if="!p.img.custom" r="20" fill="url(#pt-glow)" class="poi-glow" />
+            <image :href="p.img.src" :x="-p.dw / 2" :y="-p.dh / 2" :width="p.dw" :height="p.dh" />
+            <circle v-if="isSel('anomalies', p.id)" :r="Math.max(p.dw, p.dh) / 2 + 6" class="sel-ring" />
+            <text v-if="view.k > 1.3 || isSel('anomalies', p.id)" :y="p.dh / 2 + 15" class="lbl lbl-poi">{{ p.name }}</text>
           </g>
         </g>
 
@@ -174,7 +190,7 @@
             <text y="4" class="wp-n">{{ i + 1 }}</text>
           </g>
 
-          <template v-if="store.draft?.kind === 'road'">
+          <template v-if="store.draft?.kind === 'road' || store.draft?.kind === 'route'">
             <path :d="toPath(cursor ? [...store.draft.points, cursor] : store.draft.points)" class="draft-road" vector-effect="non-scaling-stroke" />
             <circle v-for="(pt, i) in store.draft.points" :key="'d' + i" :cx="pt[0]" :cy="pt[1]" :r="3 / view.k" class="draft-pt" />
           </template>
@@ -183,7 +199,8 @@
                 :stroke-width="store.brush * 2" :class="store.draft.mode" />
 
           <circle v-if="cursor && isBrush" :cx="cursor[0]" :cy="cursor[1]" :r="store.brush" class="brush-cursor" vector-effect="non-scaling-stroke" />
-          <line v-if="cursor && store.pick" :x1="pickFrom[0]" :y1="pickFrom[1]" :x2="cursor[0]" :y2="cursor[1]" class="pick-line" vector-effect="non-scaling-stroke" />
+          <circle v-if="stopPreview" :cx="stopPreview.x" :cy="stopPreview.y" :r="7 / view.k" class="stop-preview" vector-effect="non-scaling-stroke" />
+          <line v-if="cursor && store.pick?.purpose === 'anomalyTarget'" :x1="pickFrom[0]" :y1="pickFrom[1]" :x2="cursor[0]" :y2="cursor[1]" class="pick-line" vector-effect="non-scaling-stroke" />
         </g>
 
         <!-- Линейки: своя и линейки мастеров -->
@@ -238,9 +255,9 @@ import AnomalyZone from './AnomalyZone.vue'
 import MapLabel from './MapLabel.vue'
 import { ICONS } from './icons.js'
 import { fogTexture } from './fogTexture.js'
-import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm } from './store.js'
-import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS } from '../shared/catalog.js'
-import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength } from '../shared/geo.js'
+import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm, markIcon } from './store.js'
+import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS, ROUTE_COLORS } from '../shared/catalog.js'
+import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength, projectOnPath } from '../shared/geo.js'
 
 const wrap = ref(null)
 const svg = ref(null)
@@ -289,7 +306,34 @@ const visibleCities = computed(() => {
 const anomalies = computed(() => store.data.anomalies.map(a => ({ ...a, st: anomalyState(a, now.value) })))
 const zones = computed(() => anomalies.value.filter(a => a.kind === 'zone'))
 const movingZones = computed(() => zones.value.filter(z => z.toX != null && z.toY != null))
-const points = computed(() => anomalies.value.filter(a => a.kind === 'point').map(a => ({ ...a, fx: POINT_EFFECTS[a.effect] || POINT_EFFECTS.unknown })))
+// размер метки: встроенные — квадрат 26px, свои — с сохранением пропорций картинки
+const points = computed(() => anomalies.value.filter(a => a.kind === 'point').map(a => {
+  const img = markIcon(a.effect)
+  const base = 26 * (a.size || 1)
+  const r = img.w / img.h
+  return { ...a, img, fx: POINT_EFFECTS[a.effect] || POINT_EFFECTS.unknown, dw: r >= 1 ? base : base * r, dh: r >= 1 ? base / r : base }
+}))
+
+// маршрут: где на нём стоит отряд (текущая остановка подсвечивается)
+const routesView = computed(() => {
+  const here = new Set(store.data.parties.filter(p => p.route).map(p => p.route.stop))
+  return store.data.routes.map(r => {
+    const total = polyLength(r.points)
+    return {
+      ...r,
+      d: toPath(r.points),
+      stopsView: r.stops.map(st => ({ ...st, ...pointAt(r.points, st.s), img: markIcon(st.icon), current: here.has(st.id) })),
+      total
+    }
+  })
+})
+
+// куда встанет новая остановка — точка на линии под курсором
+const stopPreview = computed(() => {
+  if (store.pick?.purpose !== 'routeStop' || !cursor.value) return null
+  const r = store.data.routes.find(x => x.id === store.pick.id)
+  return r ? projectOnPath(r.points, cursor.value) : null
+})
 
 const parties = computed(() => store.data.parties.map(p => {
   const pos = partyPosition(p, now.value)
@@ -309,6 +353,8 @@ const stateLabels = computed(() => store.data.states.filter(s => s.label && s.na
 const grid = computed(() => store.data.settings.grid || { cellKm: 10, type: 'square' })
 const gridPx = computed(() => Math.max(1, grid.value.cellKm / (store.data.settings.kmPerPx || 1)))
 const gridOn = computed(() => master.value && L.value.grid)
+// мелкая сетка на общем плане сливается в штриховку — плавно гасим её
+const gridOpacity = computed(() => Math.max(0, Math.min(1, (gridPx.value * view.k - 6) / 14)))
 // шестиугольники «острым углом вверх»: ширина клетки (между гранями) = размер клетки
 const hex = computed(() => {
   const w = gridPx.value, r = w / Math.sqrt(3)
@@ -363,7 +409,10 @@ const fogShapes = computed(() => store.data.fog.map(f => ({
 })))
 const fogVisible = computed(() => store.data.settings.fogEnabled && L.value.fog && store.data.fog.length)
 
-const selRoad = computed(() => (store.selection?.type === 'roads' ? store.data.roads.find(r => r.id === store.selection.id) : null))
+const selRoad = computed(() => {
+  const t = store.selection?.type
+  return t === 'roads' || t === 'routes' ? store.data[t].find(r => r.id === store.selection.id) : null
+})
 const selZone = computed(() => {
   if (store.selection?.type !== 'anomalies') return null
   const a = store.data.anomalies.find(x => x.id === store.selection.id)
@@ -386,8 +435,50 @@ const replayPos = computed(() => {
 /* ---------------- Анимация: обновляем время чаще, когда что-то движется ---------------- */
 let raf = 0
 let lastFrame = 0
+function followStep() {
+  const f = store.follow
+  if (!f) return
+  if (f.mode !== 'party') return
+  const p = parties.value.find(x => x.id === f.partyId)
+  if (!p || (f.until && Date.now() + store.clockOffset > f.until)) { store.follow = null; return }
+  // пока летим к отряду — не мешаем анимации; потом мягко держим его в центре
+  if (anim && performance.now() - followStart < 800) return
+  const tx = size.w / 2 - p.pos.x * view.k, ty = size.h / 2 - p.pos.y * view.k
+  view.x += (tx - view.x) * 0.15
+  view.y += (ty - view.y) * 0.15
+}
+let followStart = 0
+watch(() => store.follow, f => { if (f) followStart = performance.now() })
+
+// Начало показа: летим к цели; если анимация не идёт (свёрнутая вкладка) — просто встаём на место
+watch(() => store.follow, (f, old) => {
+  if (!f || f === old) return
+  let target
+  if (f.mode === 'view') {
+    const k = Math.max(fitScale() * 0.7, Math.min(24, Math.min(size.w, size.h) / f.span))
+    target = { k, x: size.w / 2 - f.x * k, y: size.h / 2 - f.y * k }
+    store.follow = null
+  } else {
+    const p = parties.value.find(x => x.id === f.partyId)
+    if (!p) return
+    const k = Math.max(view.k, 2.6)
+    target = { k, x: size.w / 2 - p.pos.x * k, y: size.h / 2 - p.pos.y * k }
+  }
+  animateTo(target, 700)
+  setTimeout(() => {
+    if (Math.abs(view.k - target.k) > 0.05 || Math.hypot(view.x - target.x, view.y - target.y) > 30) {
+      cancelAnimationFrame(anim)
+      Object.assign(view, target)
+    }
+  }, 900)
+})
+
 function loop(ts) {
   raf = requestAnimationFrame(loop)
+  if (store.follow) {
+    frameNow.value = Date.now()
+    followStep()
+  }
   const moving = store.replay || parties.value.some(p => p.moving)
   if (!moving) return
   const interval = store.replay ? 16 : 200
@@ -447,7 +538,10 @@ function zoomBy(f) {
   zoomAt(size.w / 2, size.h / 2, f)
 }
 
-defineExpose({ fit, flyTo, zoomBy, view })
+// центр и охват текущего вида — чтобы «показать всем»
+const currentView = () => ({ x: (size.w / 2 - view.x) / view.k, y: (size.h / 2 - view.y) / view.k, span: Math.min(size.w, size.h) / view.k })
+
+defineExpose({ fit, flyTo, zoomBy, view, currentView })
 
 function toWorld(e) {
   const rect = svg.value.getBoundingClientRect()
@@ -462,8 +556,8 @@ function hitInfo(target) {
   if (handle) return { handle: handle.getAttribute('data-handle') }
   const obj = target.closest?.('[data-obj]')
   if (obj) {
-    const [type, id] = obj.getAttribute('data-obj').split(':')
-    return { type, id }
+    const [type, id, sub] = obj.getAttribute('data-obj').split(':')
+    return { type, id, sub }
   }
   return {}
 }
@@ -576,6 +670,7 @@ function onMove(e) {
   }
 
   if (g.mode === 'pan' && g.moved) {
+    if (store.follow) store.follow = null // сам двигает карту — выходим из показа
     view.x += dx
     view.y += dy
     clampView()
@@ -636,7 +731,7 @@ function onUp(e) {
   }
   if (g.mode === 'handle') {
     if (!g.moved) return
-    if (selRoad.value && g.hit.handle.startsWith('vertex:')) act('PATCH', `/api/roads/${selRoad.value.id}`, { points: selRoad.value.points }).catch(() => {})
+    if (selRoad.value && g.hit.handle.startsWith('vertex:')) act('PATCH', `/api/${store.selection.type}/${selRoad.value.id}`, { points: selRoad.value.points }).catch(() => {})
     if (selZone.value && g.hit.handle === 'radius') act('PATCH', `/api/anomalies/${selZone.value.id}`, { radius: selZone.value.radius }).catch(() => {})
     return
   }
@@ -650,12 +745,13 @@ function onCancel(e) {
 }
 
 function onWheel(e) {
+  store.follow = null
   const rect = svg.value.getBoundingClientRect()
   zoomAt(e.clientX - rect.left, e.clientY - rect.top, Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)))
 }
 
 function onDblClick() {
-  if (store.draft?.kind === 'road') finishRoad()
+  if (store.draft?.kind === 'road' || store.draft?.kind === 'route') finishRoad()
   if (store.tool === 'ruler' && store.ruler && !store.ruler.done) {
     // второй клик двойного клика добавил лишнюю точку — убираем её
     if (store.ruler.points.length > 2) store.ruler.points.pop()
@@ -675,6 +771,17 @@ async function onClick(w, hit) {
   // Планирование пути отряда
   if (store.journeyPlan) {
     store.journeyPlan.waypoints.push(r1(w))
+    return
+  }
+  // Новая остановка на маршруте — ставится в ближайшую точку линии
+  if (store.pick?.purpose === 'routeStop') {
+    const route = store.data.routes.find(r => r.id === store.pick.id)
+    if (!route) { store.pick = null; return }
+    const pr = projectOnPath(route.points, w)
+    if (pr.d * view.k > 40) return toast('Кликни ближе к линии маршрута', 'error')
+    const stop = { id: 'st' + Math.random().toString(36).slice(2, 9), name: `Остановка ${route.stops.length + 1}`, s: Math.round(pr.s * 1e5) / 1e5, icon: store.lastMark || 'unknown', description: '' }
+    store.selectedStop = stop.id
+    await act('PATCH', `/api/routes/${route.id}`, { stops: [...route.stops, stop] }, 'Остановка добавлена').catch(() => {})
     return
   }
   // Выбор точки для аномалии (куда движется)
@@ -700,26 +807,34 @@ async function onClick(w, hit) {
     switch (store.tool) {
       case 'city': return create('cities', { name: 'Новый город', x, y, type: 'town', stateId: hit.type === 'states' ? hit.id : null }, 'Город добавлен')
       case 'zone': return create('anomalies', { kind: 'zone', effect: 'storm', name: 'Новая аномалия', x, y, radius: 25 }, 'Аномалия добавлена')
-      case 'point': return create('anomalies', { kind: 'point', effect: 'portal', name: 'Новое место', x, y }, 'Место добавлено')
+      case 'point': return create('anomalies', { kind: 'point', effect: store.lastMark || 'quest', name: markIcon(store.lastMark || 'quest').label, x, y }, 'Метка добавлена')
       case 'label': return create('labels', { text: 'Новая подпись', x, y, size: 18, style: 'land' }, 'Подпись добавлена')
       case 'party': return create('parties', { name: 'Новый отряд', x, y, color: PARTY_COLORS[store.data.parties.length % PARTY_COLORS.length] }, 'Отряд добавлен')
       case 'road':
-        if (!store.draft || store.draft.kind !== 'road') store.draft = { kind: 'road', points: [] }
+      case 'route':
+        if (!store.draft || store.draft.kind !== store.tool) store.draft = { kind: store.tool, points: [] }
         store.draft.points.push([x, y])
         return
     }
   }
+  store.selectedStop = null
   if (hit.type === 'statelabel') store.selection = { type: 'states', id: hit.id }
-  else store.selection = hit.type ? { type: hit.type, id: hit.id } : null
+  else if (hit.type === 'routestop') {
+    store.selection = { type: 'routes', id: hit.id }
+    store.selectedStop = hit.sub
+  } else store.selection = hit.type ? { type: hit.type, id: hit.id } : null
 }
 
 async function finishRoad() {
+  const kind = store.draft.kind
   const pts = store.draft.points.filter((p, i, arr) => i === 0 || dist(p, arr[i - 1]) > 0.5)
   store.draft = null
-  if (pts.length < 2) return toast('Дорога — минимум две точки', 'error')
+  if (pts.length < 2) return toast('Нужно минимум две точки', 'error')
   try {
-    const road = await act('POST', '/api/roads', { points: pts, type: 'road', name: '' }, 'Дорога проложена')
-    store.selection = { type: 'roads', id: road.id }
+    const item = kind === 'route'
+      ? await act('POST', '/api/routes', { points: pts, name: 'Новый маршрут', color: ROUTE_COLORS[store.data.routes.length % ROUTE_COLORS.length], kind: 'sea' }, 'Маршрут проложен — добавь остановки')
+      : await act('POST', '/api/roads', { points: pts, type: 'road', name: '' }, 'Дорога проложена')
+    store.selection = { type: kind === 'route' ? 'routes' : 'roads', id: item.id }
     store.tool = 'select'
   } catch { /* тост */ }
 }
@@ -752,9 +867,9 @@ function onKey(e) {
     else store.selection = null
   } else if (e.key === 'Enter' && store.ruler && !store.ruler.done) {
     store.ruler.done = true
-  } else if (e.key === 'Enter' && store.draft?.kind === 'road') {
+  } else if (e.key === 'Enter' && (store.draft?.kind === 'road' || store.draft?.kind === 'route')) {
     finishRoad()
-  } else if (e.key === 'Backspace' && store.draft?.kind === 'road') {
+  } else if (e.key === 'Backspace' && (store.draft?.kind === 'road' || store.draft?.kind === 'route')) {
     store.draft.points.pop()
   } else if (e.key === 'Backspace' && store.journeyPlan) {
     store.journeyPlan.waypoints.pop()
@@ -775,6 +890,10 @@ onMounted(() => {
     } else clampView()
   })
   ro.observe(wrap.value)
+  // размер сразу, не дожидаясь первого кадра (ResizeObserver срабатывает только при отрисовке)
+  size.w = wrap.value.clientWidth || size.w
+  size.h = wrap.value.clientHeight || size.h
+  if (!fitted && size.w > 0) { fit(false); fitted = true }
   window.addEventListener('keydown', onKey)
   raf = requestAnimationFrame(loop)
 })
@@ -795,7 +914,7 @@ watch(() => store.tool, t => {
 <style scoped>
 .canvas-wrap { position: absolute; inset: 0; overflow: hidden; background: #466eab radial-gradient(ellipse at center, transparent 55%, rgba(8, 14, 30, .45)); touch-action: none; user-select: none; cursor: grab; }
 .canvas-wrap.panning { cursor: grabbing; }
-.tool-city, .tool-zone, .tool-point, .tool-party, .tool-road, .tool-journey, .tool-pick, .tool-fogLasso, .tool-fogLassoErase { cursor: crosshair; }
+.tool-city, .tool-zone, .tool-point, .tool-party, .tool-road, .tool-route, .tool-label, .tool-ruler, .tool-ping, .tool-journey, .tool-pick, .tool-fogLasso, .tool-fogLassoErase { cursor: crosshair; }
 .tool-fogBrush, .tool-fogErase { cursor: none; }
 .map-svg { display: block; }
 
@@ -857,6 +976,15 @@ watch(() => store.tool, t => {
 .handle { fill: #ffe08a; stroke: #2a1d12; stroke-width: 0.6; cursor: move; }
 .handle-radius { fill: #fff; cursor: ew-resize; }
 
+.route-casing { fill: none; stroke: rgba(11, 15, 23, 0.35); stroke-width: 5.5; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.route-line { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.stop { cursor: pointer; }
+.stop.faded { opacity: .45; }
+.stop-bg { fill: #f8e71c; stroke-width: 2; }
+.stop.current .stop-bg { fill: #fff; stroke-width: 3; }
+.stop.picked .stop-bg { stroke: #ffe08a; stroke-width: 3; }
+.lbl-stop { font-size: 12px; }
+.stop-preview { fill: rgba(255, 224, 138, .5); stroke: #ffe08a; stroke-width: 2; }
 .grid { pointer-events: none; }
 .grid-line { stroke: rgba(255, 255, 255, 0.55); }
 

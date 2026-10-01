@@ -1,6 +1,7 @@
 // Общее состояние карты: данные мира с сервера, роль, инструменты, выбор.
 import { reactive, computed, watch } from 'vue'
 import { buildRoadGraph, findRoute, partyPosition, polyLength } from '../shared/geo.js'
+import { POINT_EFFECTS } from '../shared/catalog.js'
 
 const TOKEN_KEY = 'anacaria-token'
 const LAYERS_KEY = 'anacaria-layers'
@@ -16,7 +17,7 @@ function lsSet(key, val) {
 
 const DEFAULT_LAYERS = {
   states: true, borders: true, rivers: true, labels: true, relief: false, biomes: false, heights: false,
-  roads: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
+  roads: true, routes: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
 }
 
 let savedLayers = {}
@@ -29,7 +30,7 @@ export const store = reactive({
   token: lsGet(TOKEN_KEY),
   clockOffset: 0,
   now: Date.now(),
-  data: { settings: { width: 2048, height: 1024, kmPerPx: 1, grid: { cellKm: 10, type: 'square' } }, hud: null, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [], labels: [] },
+  data: { settings: { width: 2048, height: 1024, kmPerPx: 1, grid: { cellKm: 10, type: 'square' } }, hud: null, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [], labels: [], routes: [], icons: [] },
   statePaths: [],
 
   layers: { ...DEFAULT_LAYERS, ...savedLayers },
@@ -46,14 +47,18 @@ export const store = reactive({
   ruler: null, // { points: [[x,y]], done } — своя линейка
   nick: lsGet(NICK_KEY) || '',
   sound: lsGet(SOUND_KEY) !== 'off',
-  presence: { id: null, color: '#ffd166', cursors: {}, rulers: {}, pings: [] }
+  presence: { id: null, color: '#ffd166', cursors: {}, rulers: {}, pings: [] },
+  follow: null, // { mode: 'party', partyId, until, by } | { mode: 'view', x, y, span, by } — камера идёт за мастером
+  lastMark: 'quest', // какой тип метки ставить следующим
+  selectedStop: null // выбранная остановка маршрута
 })
 
 export const isMaster = computed(() => store.role === 'master')
 
 watch(() => ({ ...store.layers }), v => lsSet(LAYERS_KEY, JSON.stringify(v)))
 
-export const roadGraph = computed(() => buildRoadGraph(store.data.roads))
+// маршруты (в том числе морские) тоже годятся для прокладки пути отряда
+export const roadGraph = computed(() => buildRoadGraph([...store.data.roads, ...store.data.routes.map(r => ({ points: r.points, type: 'sea' }))]))
 
 // Планируемый маршрут отряда: от текущей позиции через все точки, по дорогам или напрямик
 export const planPath = computed(() => {
@@ -249,7 +254,53 @@ function onPresence(msg) {
     case 'ping':
       addPing(msg)
       break
+    case 'follow':
+      // мастер показывает всем: свой вид или едущий отряд
+      if (store.role === 'master') return
+      store.follow = { ...msg }
+      toast(`${msg.by || 'Мастер'} показывает карту — двиньте карту, чтобы выйти`)
+      break
   }
+}
+
+export function sendFollow(msg) {
+  if (store.role === 'master') wsSend({ type: 'follow', ...msg })
+}
+
+/* ---------------- Свои иконки ---------------- */
+// Картинка метки: встроенная из легенды или своя «u:<id>» из библиотеки мастера
+export function markIcon(effect) {
+  if (typeof effect === 'string' && effect.startsWith('u:')) {
+    const ic = store.data.icons.find(i => i.id === effect.slice(2))
+    if (ic) return { src: `/usericons/${ic.file}`, w: ic.w, h: ic.h, label: ic.name, custom: true }
+  }
+  const e = POINT_EFFECTS[effect] || POINT_EFFECTS.unknown
+  return { src: `/icons/${e.img}.png`, w: 1, h: 1, label: e.label, custom: false }
+}
+
+// Загрузка: уменьшаем на клиенте до 512px по большей стороне, прозрачность сохраняется
+export async function uploadIcon(file) {
+  if (!file.type.startsWith('image/') || file.type.includes('svg')) throw new Error('Нужна картинка PNG, JPG, GIF или WebP')
+  const bmp = await createImageBitmap(file)
+  const k = Math.min(1, 512 / Math.max(bmp.width, bmp.height))
+  const w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k))
+  let blob = file
+  if (k < 1 || file.size > 1.5e6) {
+    const c = document.createElement('canvas')
+    c.width = w
+    c.height = h
+    c.getContext('2d').drawImage(bmp, 0, 0, w, h)
+    blob = await new Promise(r => c.toBlob(r, 'image/webp', 0.9))
+  }
+  const name = file.name.replace(/\.[^.]+$/, '').slice(0, 60)
+  const res = await fetch(`/api/icons?name=${encodeURIComponent(name)}&w=${w}&h=${h}`, {
+    method: 'POST',
+    headers: { 'content-type': blob.type || 'application/octet-stream', authorization: 'Bearer ' + store.token },
+    body: blob
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Не удалось загрузить')
+  return json
 }
 
 // старые курсоры (мастер ушёл со вкладки) гасим через 15 секунд

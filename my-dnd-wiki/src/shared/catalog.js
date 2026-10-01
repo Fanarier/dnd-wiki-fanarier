@@ -85,3 +85,17 @@ export const HUD_LEVELS = [
 export const PARTY_ICONS = ['sword', 'shield', 'horse', 'ship', 'flag', 'paw', 'skull', 'wizard']
 
 export const PARTY_COLORS = ['#e8b04a', '#e8604a', '#4ac0e8', '#7ee06a', '#c47aff', '#ff7ac0', '#f2f2f2', '#2fd6b4']
+
+// Темп в км за игровой день (ориентир — D&D 5e: обычный 24 мили ≈ 38 км)
+export const PACE_PRESETS = [
+  { label: 'Скрытно', km: 29 },
+  { label: 'Пешком', km: 38 },
+  { label: 'Форсированный марш', km: 48 },
+  { label: 'Повозка / караван', km: 30 },
+  { label: 'Верхом', km: 60 },
+  { label: 'Парусный корабль', km: 77 },
+  { label: 'Галера', km: 154 },
+  { label: 'Полёт', km: 130 }
+]
+
+export const ROUTE_COLORS = ['#ff4a3d', '#ffb02e', '#4fd8ff', '#7ee06a', '#c47aff', '#f2f2f2']
