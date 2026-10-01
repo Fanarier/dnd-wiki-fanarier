@@ -13,6 +13,8 @@ import { isFogged, anomalyState, partyPosition, journeyState } from '../src/shar
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS } from '../src/shared/catalog.js'
 
 const PORT = Number(process.env.PORT) || 3001
+// На сервере за туннелем ставим HOST=127.0.0.1, чтобы порт не был виден снаружи
+const HOST = process.env.HOST || undefined
 const DIST = path.resolve(import.meta.dirname, '..', 'dist')
 
 loadDb()
@@ -372,6 +374,6 @@ wss.on('connection', ws => {
   ws.on('close', () => clients.delete(client))
 })
 
-server.listen(PORT, () => console.log(`Анакария: http://localhost:${PORT}`))
+server.listen(PORT, HOST, () => console.log(`Анакария: http://${HOST || 'localhost'}:${PORT}`))
 
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); process.exit(0) })
