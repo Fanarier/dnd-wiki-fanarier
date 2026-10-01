@@ -1,0 +1,6669 @@
+{
+ "version": 1,
+ "settings": {
+  "worldName": "Анакария",
+  "worldDate": "214 г. Эры Удалин",
+  "width": 2048,
+  "height": 1024,
+  "kmPerPx": 1,
+  "paceKmPerDay": 38,
+  "realHoursPerGameDay": 24,
+  "fogEnabled": true
+ },
+ "states": [
+  {
+   "id": "s1",
+   "name": "Кицунэ",
+   "color": "#ff833e",
+   "capitalId": "c1",
+   "pole": [
+    502,
+    628
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s2",
+   "name": "Фенрисы",
+   "color": "#833eb0",
+   "capitalId": "c56",
+   "pole": [
+    422,
+    692
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s3",
+   "name": "Котовцы",
+   "color": "#b03cb2",
+   "capitalId": "c21",
+   "pole": [
+    474,
+    812
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s4",
+   "name": "Зайцегоны",
+   "color": "#1cdca8",
+   "capitalId": "c22",
+   "pole": [
+    585,
+    625
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s5",
+   "name": "Нэко",
+   "color": "#dc451c",
+   "capitalId": "c23",
+   "pole": [
+    572,
+    866
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s6",
+   "name": "Людоящеры",
+   "color": "#48f56d",
+   "capitalId": "c24",
+   "pole": [
+    609,
+    819
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s7",
+   "name": "Табакси",
+   "color": "#dcc11c",
+   "capitalId": "c25",
+   "pole": [
+    596,
+    735
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s8",
+   "name": "Кентавры",
+   "color": "#be3caf",
+   "capitalId": "c26",
+   "pole": [
+    657,
+    479
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s9",
+   "name": "Леонины",
+   "color": "#ff4f7b",
+   "capitalId": "c27",
+   "pole": [
+    748,
+    415
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s10",
+   "name": "Дракониды",
+   "color": "#000000",
+   "capitalId": "c28",
+   "pole": [
+    417,
+    437
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s11",
+   "name": "Они",
+   "color": "#6826db",
+   "capitalId": "c29",
+   "pole": [
+    1011,
+    670
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s12",
+   "name": "Тифлинги",
+   "color": "#da26d8",
+   "capitalId": "c30",
+   "pole": [
+    1105,
+    660
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s13",
+   "name": "Вампиры",
+   "color": "#ba0000",
+   "capitalId": "c31",
+   "pole": [
+    1180,
+    722
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s14",
+   "name": "Акваны",
+   "color": "#58caff",
+   "capitalId": "c32",
+   "pole": [
+    975,
+    518
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s15",
+   "name": "Мышинцы",
+   "color": "#ffc88d",
+   "capitalId": "c33",
+   "pole": [
+    1305,
+    692
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s16",
+   "name": "Гиффы",
+   "color": "#e7b12e",
+   "capitalId": "c34",
+   "pole": [
+    1360,
+    592
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s17",
+   "name": "Дварфы",
+   "color": "#6771ff",
+   "capitalId": "c35",
+   "pole": [
+    1541,
+    793
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s18",
+   "name": "Гномы",
+   "color": "#46f5ba",
+   "capitalId": "c36",
+   "pole": [
+    1633,
+    702
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s19",
+   "name": "Хоб.Гоблины",
+   "color": "#4ff669",
+   "capitalId": "c65",
+   "pole": [
+    1408,
+    732
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s20",
+   "name": "Полурослики",
+   "color": "#654ec1",
+   "capitalId": "c38",
+   "pole": [
+    1762,
+    593
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s21",
+   "name": "Флорэны",
+   "color": "#dcbf30",
+   "capitalId": "c39",
+   "pole": [
+    1455,
+    496
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s22",
+   "name": "Лесные Эльфы",
+   "color": "#ff4c82",
+   "capitalId": "c40",
+   "pole": [
+    1361,
+    439
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s23",
+   "name": "Высшие Эльфы",
+   "color": "#23e697",
+   "capitalId": "c41",
+   "pole": [
+    1201,
+    488
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s24",
+   "name": "Лунные Эльфы",
+   "color": "#6f1cdd",
+   "capitalId": "c42",
+   "pole": [
+    1401,
+    321
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s25",
+   "name": "Юанти",
+   "color": "#c3da3f",
+   "capitalId": "c43",
+   "pole": [
+    1254,
+    264
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s26",
+   "name": "Орки",
+   "color": "#7a0900",
+   "capitalId": "c44",
+   "pole": [
+    1174,
+    210
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s27",
+   "name": "Хадози",
+   "color": "#dcbe30",
+   "capitalId": "c45",
+   "pole": [
+    1510,
+    306
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s28",
+   "name": "Минотавры",
+   "color": "#4479df",
+   "capitalId": "c46",
+   "pole": [
+    1539,
+    458
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s29",
+   "name": "Военная интервенция землян!",
+   "color": "#8a8a8a",
+   "capitalId": "c47",
+   "pole": [
+    1164,
+    360
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s30",
+   "name": "Кованные",
+   "color": "#000000",
+   "capitalId": "c48",
+   "pole": [
+    1592,
+    184
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s31",
+   "name": "Голиафы",
+   "color": "#29ea8c",
+   "capitalId": "c49",
+   "pole": [
+    1559,
+    252
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s32",
+   "name": "Арахниды",
+   "color": "#6561ee",
+   "capitalId": "c50",
+   "pole": [
+    1626,
+    311
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s33",
+   "name": "Гитты",
+   "color": "#f55857",
+   "capitalId": "c51",
+   "pole": [
+    1715,
+    399
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s34",
+   "name": "Аурэны",
+   "color": "#ae3cb2",
+   "capitalId": "c52",
+   "pole": [
+    944,
+    366
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s35",
+   "name": "Фэйри",
+   "color": "#ffbafa",
+   "capitalId": "c53",
+   "pole": [
+    957,
+    452
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s36",
+   "name": "???",
+   "color": "#21b1d5",
+   "capitalId": "c54",
+   "pole": [
+    1642,
+    523
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s37",
+   "name": "Дроу",
+   "color": "#ffffff",
+   "capitalId": "c55",
+   "pole": [
+    1475,
+    577
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s39",
+   "name": "???",
+   "color": "#8a8a8a",
+   "capitalId": "c134",
+   "pole": [
+    421,
+    292
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s40",
+   "name": "???",
+   "color": "#8a8a8a",
+   "capitalId": "c135",
+   "pole": [
+    596,
+    160
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "s41",
+   "name": "???",
+   "color": "#8a8a8a",
+   "capitalId": "c136",
+   "pole": [
+    913,
+    273
+   ],
+   "description": "",
+   "secret": "",
+   "hidden": false
+  }
+ ],
+ "cities": [
+  {
+   "id": "c1",
+   "name": "Сиратори",
+   "x": 514.65,
+   "y": 627.14,
+   "type": "capital",
+   "port": false,
+   "stateId": "s1",
+   "population": 3000,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c2",
+   "name": "Канодзё",
+   "x": 541.95,
+   "y": 618.81,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 300,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c3",
+   "name": "Тасэко",
+   "x": 505.23,
+   "y": 593.99,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 1500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c4",
+   "name": "Мидзуи",
+   "x": 533.11,
+   "y": 657.22,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 150,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c5",
+   "name": "Уити",
+   "x": 444.99,
+   "y": 600.53,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 200,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c6",
+   "name": "Арисуи",
+   "x": 425.61,
+   "y": 616.66,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 7400,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c7",
+   "name": "Хаси",
+   "x": 475.86,
+   "y": 646.41,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 300,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c8",
+   "name": "Урюпинск",
+   "x": 514.23,
+   "y": 609.03,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 90,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c9",
+   "name": "Марико",
+   "x": 505.29,
+   "y": 629.49,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 1500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c10",
+   "name": "Асахи",
+   "x": 490.91,
+   "y": 670.65,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 3542,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c11",
+   "name": "Тоёкава",
+   "x": 512.11,
+   "y": 660.74,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 2500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c12",
+   "name": "Киёмидзу",
+   "x": 535.96,
+   "y": 643.2,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 2,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c13",
+   "name": "Хино",
+   "x": 555.79,
+   "y": 630.04,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 1348,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c15",
+   "name": "Мисоно",
+   "x": 546.75,
+   "y": 598.76,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 1390,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c16",
+   "name": "Югэн",
+   "x": 518.56,
+   "y": 598.52,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 1389,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c17",
+   "name": "Мацусита",
+   "x": 453.71,
+   "y": 608.09,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 386,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c18",
+   "name": "Фудзиноки",
+   "x": 472.18,
+   "y": 614.74,
+   "type": "town",
+   "port": false,
+   "stateId": "s1",
+   "population": 415,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c21",
+   "name": "???",
+   "x": 438.29,
+   "y": 850.62,
+   "type": "capital",
+   "port": false,
+   "stateId": "s3",
+   "population": 3000,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c22",
+   "name": "Бельшой",
+   "x": 588.14,
+   "y": 606.77,
+   "type": "capital",
+   "port": false,
+   "stateId": "s4",
+   "population": 15000,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c23",
+   "name": "Нири",
+   "x": 544.95,
+   "y": 772.47,
+   "type": "capital",
+   "port": false,
+   "stateId": "s5",
+   "population": 2100,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c24",
+   "name": "Грунгроик",
+   "x": 613.4,
+   "y": 829.19,
+   "type": "capital",
+   "port": false,
+   "stateId": "s6",
+   "population": 1600,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c25",
+   "name": "Антинида",
+   "x": 585.2,
+   "y": 687.23,
+   "type": "capital",
+   "port": false,
+   "stateId": "s7",
+   "population": 3000,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c26",
+   "name": "Цилирен",
+   "x": 636.14,
+   "y": 534.6,
+   "type": "capital",
+   "port": false,
+   "stateId": "s8",
+   "population": 2500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c27",
+   "name": "Энмунет",
+   "x": 756.46,
+   "y": 409.84,
+   "type": "capital",
+   "port": false,
+   "stateId": "s9",
+   "population": 1200,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c28",
+   "name": "Лаграсс",
+   "x": 396.75,
+   "y": 526.54,
+   "type": "capital",
+   "port": false,
+   "stateId": "s10",
+   "population": 2700,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c29",
+   "name": "Эгру-о-Сате",
+   "x": 1006.02,
+   "y": 702.64,
+   "type": "capital",
+   "port": false,
+   "stateId": "s11",
+   "population": 5765,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c30",
+   "name": "Фэссет",
+   "x": 1121.12,
+   "y": 688.56,
+   "type": "capital",
+   "port": false,
+   "stateId": "s12",
+   "population": 3752,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c31",
+   "name": "Мунлихт",
+   "x": 1198.76,
+   "y": 760.02,
+   "type": "capital",
+   "port": false,
+   "stateId": "s13",
+   "population": 4043,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c32",
+   "name": "Левитрия",
+   "x": 978.11,
+   "y": 518.27,
+   "type": "capital",
+   "port": false,
+   "stateId": "s14",
+   "population": 6070,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c33",
+   "name": "Джерри",
+   "x": 1296.36,
+   "y": 720.29,
+   "type": "capital",
+   "port": false,
+   "stateId": "s15",
+   "population": 5036,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c34",
+   "name": "Момото",
+   "x": 1369.63,
+   "y": 587.7,
+   "type": "capital",
+   "port": false,
+   "stateId": "s16",
+   "population": 441,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c35",
+   "name": "Ядир",
+   "x": 1615.95,
+   "y": 736.07,
+   "type": "capital",
+   "port": false,
+   "stateId": "s17",
+   "population": 1069,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c36",
+   "name": "Тарбент",
+   "x": 1600.04,
+   "y": 731.47,
+   "type": "capital",
+   "port": false,
+   "stateId": "s18",
+   "population": 402,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c38",
+   "name": "Раханта",
+   "x": 1742.84,
+   "y": 619.2,
+   "type": "capital",
+   "port": false,
+   "stateId": "s20",
+   "population": 3765,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c39",
+   "name": "Ирфалона",
+   "x": 1438.03,
+   "y": 503.59,
+   "type": "capital",
+   "port": false,
+   "stateId": "s21",
+   "population": 1772,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c40",
+   "name": "Энель-Алари",
+   "x": 1368.58,
+   "y": 470.4,
+   "type": "capital",
+   "port": false,
+   "stateId": "s22",
+   "population": 6062,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c41",
+   "name": "Галсетир",
+   "x": 1140.59,
+   "y": 515.93,
+   "type": "capital",
+   "port": false,
+   "stateId": "s23",
+   "population": 3431,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c42",
+   "name": "Фелидорей",
+   "x": 1367.15,
+   "y": 262.82,
+   "type": "capital",
+   "port": false,
+   "stateId": "s24",
+   "population": 4395,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c43",
+   "name": "Цешхайст",
+   "x": 1212.11,
+   "y": 265.64,
+   "type": "capital",
+   "port": false,
+   "stateId": "s25",
+   "population": 10051,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c44",
+   "name": "Зедгрул",
+   "x": 1161.35,
+   "y": 261.7,
+   "type": "capital",
+   "port": false,
+   "stateId": "s26",
+   "population": 10807,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c45",
+   "name": "Дангуан",
+   "x": 1496.92,
+   "y": 321.05,
+   "type": "capital",
+   "port": false,
+   "stateId": "s27",
+   "population": 3766,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c46",
+   "name": "Мурдрар",
+   "x": 1574.73,
+   "y": 456.65,
+   "type": "capital",
+   "port": false,
+   "stateId": "s28",
+   "population": 1400,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c47",
+   "name": "Гейт",
+   "x": 1163.61,
+   "y": 325.82,
+   "type": "capital",
+   "port": false,
+   "stateId": "s29",
+   "population": 3411,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c48",
+   "name": "Рэдкод-0",
+   "x": 1513.52,
+   "y": 125.44,
+   "type": "capital",
+   "port": false,
+   "stateId": "s30",
+   "population": 6718,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c49",
+   "name": "Сараг",
+   "x": 1522.99,
+   "y": 239.16,
+   "type": "capital",
+   "port": false,
+   "stateId": "s31",
+   "population": 5396,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c50",
+   "name": "Ревел",
+   "x": 1617.53,
+   "y": 265.07,
+   "type": "capital",
+   "port": false,
+   "stateId": "s32",
+   "population": 10090,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c51",
+   "name": "Йоркар",
+   "x": 1743.25,
+   "y": 464.69,
+   "type": "capital",
+   "port": false,
+   "stateId": "s33",
+   "population": 16084,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c52",
+   "name": "Эвсин",
+   "x": 966.85,
+   "y": 415.88,
+   "type": "capital",
+   "port": false,
+   "stateId": "s34",
+   "population": 3746,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c53",
+   "name": "Никсид",
+   "x": 942.64,
+   "y": 465.3,
+   "type": "capital",
+   "port": false,
+   "stateId": "s35",
+   "population": 5464,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c54",
+   "name": "???",
+   "x": 1601.64,
+   "y": 562.91,
+   "type": "capital",
+   "port": false,
+   "stateId": "s36",
+   "population": 6418,
+   "description": "",
+   "secret": "",
+   "hidden": true
+  },
+  {
+   "id": "c55",
+   "name": "Фелдон",
+   "x": 1515.14,
+   "y": 557.2,
+   "type": "capital",
+   "port": false,
+   "stateId": "s37",
+   "population": 1413,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c56",
+   "name": "Везгаксур",
+   "x": 405.54,
+   "y": 697.77,
+   "type": "capital",
+   "port": false,
+   "stateId": "s2",
+   "population": 3500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c57",
+   "name": "Креневент",
+   "x": 426.99,
+   "y": 745.18,
+   "type": "town",
+   "port": true,
+   "stateId": "s2",
+   "population": 1200,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c58",
+   "name": "Гилдиар",
+   "x": 397.34,
+   "y": 630.93,
+   "type": "town",
+   "port": false,
+   "stateId": "s2",
+   "population": 100,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c59",
+   "name": "Логред",
+   "x": 472.05,
+   "y": 687.56,
+   "type": "town",
+   "port": false,
+   "stateId": "s2",
+   "population": 500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c60",
+   "name": "Фардор",
+   "x": 528.48,
+   "y": 686.64,
+   "type": "town",
+   "port": false,
+   "stateId": "s2",
+   "population": 150,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c61",
+   "name": "Эророг",
+   "x": 516.73,
+   "y": 720.99,
+   "type": "town",
+   "port": false,
+   "stateId": "s2",
+   "population": 10,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c62",
+   "name": "Орус",
+   "x": 420.53,
+   "y": 661.06,
+   "type": "town",
+   "port": false,
+   "stateId": "s2",
+   "population": 12,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c63",
+   "name": "Артенар",
+   "x": 451.62,
+   "y": 704.24,
+   "type": "town",
+   "port": false,
+   "stateId": "s2",
+   "population": 16,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c64",
+   "name": "Элден",
+   "x": 470.15,
+   "y": 734.49,
+   "type": "town",
+   "port": false,
+   "stateId": "s2",
+   "population": 8,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c65",
+   "name": "Тор'гаш",
+   "x": 1450.17,
+   "y": 792.19,
+   "type": "capital",
+   "port": false,
+   "stateId": "s19",
+   "population": 5090,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c67",
+   "name": "Суван",
+   "x": 571.5,
+   "y": 633.43,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 1764,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c68",
+   "name": "Хамрам",
+   "x": 564.69,
+   "y": 655.65,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 1803,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c69",
+   "name": "Кудди",
+   "x": 593.5,
+   "y": 645.25,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 1768,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c70",
+   "name": "Фави",
+   "x": 584.82,
+   "y": 614.23,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 1809,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c71",
+   "name": "Хаджат",
+   "x": 584.69,
+   "y": 623.93,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 1742,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c72",
+   "name": "Лафеб",
+   "x": 581.5,
+   "y": 633.77,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 1742,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c73",
+   "name": "Сурин",
+   "x": 594.26,
+   "y": 637.85,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 1745,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c74",
+   "name": "Мубиир",
+   "x": 589.92,
+   "y": 656.49,
+   "type": "town",
+   "port": false,
+   "stateId": "s4",
+   "population": 3477,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c75",
+   "name": "Вархур",
+   "x": 691.9,
+   "y": 467.9,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 800,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c76",
+   "name": "Осмарн",
+   "x": 656.75,
+   "y": 431.18,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 400,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c77",
+   "name": "Шолцен",
+   "x": 616.04,
+   "y": 624.78,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 200,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c78",
+   "name": "Рунн",
+   "x": 584.49,
+   "y": 573.37,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 100,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c79",
+   "name": "Эбербах",
+   "x": 681.17,
+   "y": 496.36,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 90,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c80",
+   "name": "Колбарн",
+   "x": 647.89,
+   "y": 501.33,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 75,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c81",
+   "name": "Цайклин",
+   "x": 640.47,
+   "y": 479.74,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 60,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c82",
+   "name": "Арвенц",
+   "x": 661.5,
+   "y": 473.89,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 40,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c83",
+   "name": "Штокмен",
+   "x": 611.09,
+   "y": 540.18,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 35,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c84",
+   "name": "Бёлли",
+   "x": 606.19,
+   "y": 580.36,
+   "type": "town",
+   "port": false,
+   "stateId": "s8",
+   "population": 25,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c85",
+   "name": "Шебу",
+   "x": 782.18,
+   "y": 474.49,
+   "type": "town",
+   "port": true,
+   "stateId": "s9",
+   "population": 1000,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c86",
+   "name": "Некха",
+   "x": 743.83,
+   "y": 337.62,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 700,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c87",
+   "name": "Кутудет",
+   "x": 736.74,
+   "y": 395.46,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 450,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c88",
+   "name": "Фанонис",
+   "x": 711.7,
+   "y": 397.92,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 100,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c89",
+   "name": "Немуфу",
+   "x": 739.52,
+   "y": 489.52,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 400,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c90",
+   "name": "Аксети",
+   "x": 800.24,
+   "y": 421.66,
+   "type": "town",
+   "port": true,
+   "stateId": "s9",
+   "population": 220,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c91",
+   "name": "Гесо",
+   "x": 742.65,
+   "y": 465.44,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 20,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c92",
+   "name": "Кусфу",
+   "x": 764.46,
+   "y": 431.12,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 15,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c93",
+   "name": "Фарре",
+   "x": 749.02,
+   "y": 382.52,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 15,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c94",
+   "name": "Бесси",
+   "x": 773.38,
+   "y": 368.81,
+   "type": "town",
+   "port": false,
+   "stateId": "s9",
+   "population": 45,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c95",
+   "name": "Амарана",
+   "x": 541.83,
+   "y": 678.83,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 1500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c96",
+   "name": "Рокка",
+   "x": 553.41,
+   "y": 699.87,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 750,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c97",
+   "name": "Ковирес",
+   "x": 556.72,
+   "y": 742.87,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 1300,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c98",
+   "name": "Дальцис",
+   "x": 606.71,
+   "y": 712.7,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c99",
+   "name": "Герсала",
+   "x": 621.38,
+   "y": 748.84,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 250,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c100",
+   "name": "Миссолаос",
+   "x": 675.86,
+   "y": 747.99,
+   "type": "town",
+   "port": true,
+   "stateId": "s7",
+   "population": 300,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c101",
+   "name": "Каско",
+   "x": 619.06,
+   "y": 778.22,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 100,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c102",
+   "name": "Альбура",
+   "x": 639.13,
+   "y": 832.99,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 75,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c103",
+   "name": "Галеро",
+   "x": 661.26,
+   "y": 864.36,
+   "type": "town",
+   "port": false,
+   "stateId": "s7",
+   "population": 90,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c104",
+   "name": "Пералора",
+   "x": 523.22,
+   "y": 827.29,
+   "type": "town",
+   "port": true,
+   "stateId": "s5",
+   "population": 1300,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c105",
+   "name": "Намрье",
+   "x": 569.47,
+   "y": 823.56,
+   "type": "town",
+   "port": false,
+   "stateId": "s5",
+   "population": 950,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c106",
+   "name": "Чекесен",
+   "x": 590.97,
+   "y": 879.97,
+   "type": "town",
+   "port": false,
+   "stateId": "s5",
+   "population": 500,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c107",
+   "name": "Кизад",
+   "x": 592.52,
+   "y": 814.56,
+   "type": "town",
+   "port": false,
+   "stateId": "s6",
+   "population": 400,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c108",
+   "name": "Бусолик",
+   "x": 603.59,
+   "y": 792.5,
+   "type": "town",
+   "port": false,
+   "stateId": "s6",
+   "population": 200,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c109",
+   "name": "Аррад",
+   "x": 571.2,
+   "y": 791.16,
+   "type": "town",
+   "port": false,
+   "stateId": "s6",
+   "population": 200,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c110",
+   "name": "Цалаг",
+   "x": 624.43,
+   "y": 859.2,
+   "type": "town",
+   "port": false,
+   "stateId": "s6",
+   "population": 100,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c111",
+   "name": "Бербаг",
+   "x": 626.51,
+   "y": 840.91,
+   "type": "town",
+   "port": false,
+   "stateId": "s6",
+   "population": 150,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c112",
+   "name": "Калдон",
+   "x": 454.5,
+   "y": 870.62,
+   "type": "town",
+   "port": true,
+   "stateId": "s3",
+   "population": 1000,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c113",
+   "name": "Татфорд",
+   "x": 479.3,
+   "y": 828.89,
+   "type": "town",
+   "port": false,
+   "stateId": "s3",
+   "population": 770,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c114",
+   "name": "Нику",
+   "x": 483.66,
+   "y": 795.82,
+   "type": "town",
+   "port": false,
+   "stateId": "s3",
+   "population": 490,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c115",
+   "name": "Малсес",
+   "x": 458.88,
+   "y": 809.21,
+   "type": "town",
+   "port": false,
+   "stateId": "s3",
+   "population": 600,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c116",
+   "name": "Даньян",
+   "x": 459.52,
+   "y": 784.12,
+   "type": "town",
+   "port": false,
+   "stateId": "s3",
+   "population": 280,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c117",
+   "name": "Хентон",
+   "x": 433,
+   "y": 769.45,
+   "type": "town",
+   "port": false,
+   "stateId": "s3",
+   "population": 140,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c118",
+   "name": "Шён",
+   "x": 463.98,
+   "y": 846.96,
+   "type": "town",
+   "port": false,
+   "stateId": "s3",
+   "population": 120,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c119",
+   "name": "Солдалла",
+   "x": 246.92,
+   "y": 679.32,
+   "type": "town",
+   "port": true,
+   "stateId": "s10",
+   "population": 1100,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c120",
+   "name": "Вендрет",
+   "x": 380.67,
+   "y": 559.77,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 800,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c121",
+   "name": "Захрет",
+   "x": 336.27,
+   "y": 570.24,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 750,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c122",
+   "name": "Лерастао",
+   "x": 373.9,
+   "y": 592.74,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 450,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c123",
+   "name": "Гнок",
+   "x": 394.02,
+   "y": 617.61,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 200,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c124",
+   "name": "Гет",
+   "x": 335.14,
+   "y": 614.35,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 150,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c125",
+   "name": "Индандейр",
+   "x": 300.2,
+   "y": 589.86,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 250,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c126",
+   "name": "Олукан",
+   "x": 252.15,
+   "y": 647.57,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 75,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c127",
+   "name": "Ксарвил",
+   "x": 282.06,
+   "y": 620.22,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 85,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c128",
+   "name": "Уристар",
+   "x": 274.65,
+   "y": 649.84,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 40,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c129",
+   "name": "Блус",
+   "x": 352.25,
+   "y": 501.96,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 150,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c130",
+   "name": "Гаурот",
+   "x": 405.18,
+   "y": 481.53,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 80,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c131",
+   "name": "Мурдум",
+   "x": 445.77,
+   "y": 412.68,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 150,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c132",
+   "name": "Вунг",
+   "x": 385.92,
+   "y": 375.84,
+   "type": "town",
+   "port": false,
+   "stateId": "s10",
+   "population": 250,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c134",
+   "name": "???",
+   "x": 460.5,
+   "y": 267.78,
+   "type": "capital",
+   "port": false,
+   "stateId": "s39",
+   "population": 1851,
+   "description": "",
+   "secret": "",
+   "hidden": true
+  },
+  {
+   "id": "c135",
+   "name": "???",
+   "x": 617.78,
+   "y": 130.79,
+   "type": "capital",
+   "port": false,
+   "stateId": "s40",
+   "population": 7162,
+   "description": "",
+   "secret": "",
+   "hidden": true
+  },
+  {
+   "id": "c136",
+   "name": "???",
+   "x": 916.34,
+   "y": 266.42,
+   "type": "capital",
+   "port": false,
+   "stateId": "s41",
+   "population": 3882,
+   "description": "",
+   "secret": "",
+   "hidden": true
+  },
+  {
+   "id": "c137",
+   "name": "Рован",
+   "x": 1105.48,
+   "y": 756.21,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 4137,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c138",
+   "name": "Сангвин",
+   "x": 1148.65,
+   "y": 721.02,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 3472,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c139",
+   "name": "Ашарт",
+   "x": 1155.44,
+   "y": 739.85,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 3808,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c140",
+   "name": "Анелея",
+   "x": 1194.91,
+   "y": 725.27,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 3477,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c141",
+   "name": "Лезия",
+   "x": 1169.71,
+   "y": 696.41,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 3555,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c142",
+   "name": "Магра",
+   "x": 1151.94,
+   "y": 678.65,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 3844,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c143",
+   "name": "Омен",
+   "x": 1173.36,
+   "y": 677.39,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 4180,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  },
+  {
+   "id": "c144",
+   "name": "Калглер",
+   "x": 1235.6,
+   "y": 747.19,
+   "type": "town",
+   "port": false,
+   "stateId": "s13",
+   "population": 3827,
+   "description": "",
+   "secret": "",
+   "hidden": false
+  }
+ ],
+ "roads": [
+  {
+   "id": "r0",
+   "name": "Перевал Уити",
+   "type": "trail",
+   "points": [
+    [
+     514.23,
+     609.03
+    ],
+    [
+     514.65,
+     627.14
+    ],
+    [
+     506.43,
+     631.55
+    ],
+    [
+     496.5,
+     639.12
+    ],
+    [
+     481.63,
+     644.91
+    ],
+    [
+     475.86,
+     646.41
+    ],
+    [
+     465.39,
+     642.25
+    ],
+    [
+     464.6,
+     641.87
+    ],
+    [
+     452.53,
+     631.64
+    ],
+    [
+     451.68,
+     620.54
+    ],
+    [
+     454.37,
+     609.14
+    ],
+    [
+     444.99,
+     600.53
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r1",
+   "name": "Урюпинский перевал",
+   "type": "trail",
+   "points": [
+    [
+     505.23,
+     593.99
+    ],
+    [
+     509.44,
+     592.71
+    ],
+    [
+     514.14,
+     593.85
+    ],
+    [
+     518.67,
+     598.3
+    ],
+    [
+     514.23,
+     609.03
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r2",
+   "name": "Перевал Мидзуи",
+   "type": "trail",
+   "points": [
+    [
+     514.65,
+     627.14
+    ],
+    [
+     519.13,
+     640.4
+    ],
+    [
+     523.62,
+     643.63
+    ],
+    [
+     533.11,
+     657.22
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r3",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     541.95,
+     618.81
+    ],
+    [
+     530.38,
+     618.57
+    ],
+    [
+     514.65,
+     627.14
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r4",
+   "name": "Перевал Арисуи",
+   "type": "trail",
+   "points": [
+    [
+     505.23,
+     593.99
+    ],
+    [
+     487.85,
+     595.33
+    ],
+    [
+     473.52,
+     602.9
+    ],
+    [
+     456.84,
+     603.95
+    ],
+    [
+     444.99,
+     600.53
+    ],
+    [
+     434.42,
+     605.07
+    ],
+    [
+     425.61,
+     616.66
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r5",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     405.58,
+     697.84
+    ],
+    [
+     431.98,
+     698.74
+    ],
+    [
+     449.08,
+     699.04
+    ],
+    [
+     460.58,
+     695.74
+    ],
+    [
+     471.48,
+     688.24
+    ],
+    [
+     479.98,
+     677.84
+    ],
+    [
+     490.7,
+     670.61
+    ],
+    [
+     490.69,
+     658.97
+    ],
+    [
+     486.04,
+     643.52
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r6",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     512.11,
+     660.74
+    ],
+    [
+     524.36,
+     644.63
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r7",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     535.96,
+     643.2
+    ],
+    [
+     533.11,
+     657.22
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r8",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     555.79,
+     630.04
+    ],
+    [
+     535.96,
+     643.2
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r9",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     542.1,
+     618.71
+    ],
+    [
+     555.79,
+     630.04
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r10",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     546.75,
+     598.76
+    ],
+    [
+     541.95,
+     618.81
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r16",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     425.73,
+     616.44
+    ],
+    [
+     441.48,
+     615.14
+    ],
+    [
+     453.63,
+     608.14
+    ],
+    [
+     462.43,
+     612.79
+    ],
+    [
+     471.98,
+     614.59
+    ],
+    [
+     479.53,
+     605.04
+    ],
+    [
+     482.63,
+     601.74
+    ],
+    [
+     487.85,
+     595.33
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r17",
+   "name": "Тропа Арисуи",
+   "type": "trail",
+   "points": [
+    [
+     388.52,
+     653.64
+    ],
+    [
+     394.31,
+     646.19
+    ],
+    [
+     397.16,
+     630.81
+    ],
+    [
+     418.48,
+     625.45
+    ],
+    [
+     425.61,
+     616.66
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r18",
+   "name": "Антинидский тракт",
+   "type": "road",
+   "points": [
+    [
+     438.29,
+     850.62
+    ],
+    [
+     449.3,
+     841.9
+    ],
+    [
+     457.91,
+     834.15
+    ],
+    [
+     463.2,
+     826.66
+    ],
+    [
+     462.93,
+     816.71
+    ],
+    [
+     458.32,
+     808.77
+    ],
+    [
+     451.3,
+     797.8
+    ],
+    [
+     444.2,
+     786.88
+    ],
+    [
+     436.9,
+     779.1
+    ],
+    [
+     433.28,
+     771.13
+    ],
+    [
+     433.3,
+     762.9
+    ],
+    [
+     434.61,
+     754.12
+    ],
+    [
+     427.05,
+     745.22
+    ],
+    [
+     425.36,
+     735.16
+    ],
+    [
+     416.6,
+     731.6
+    ],
+    [
+     411.94,
+     723.55
+    ],
+    [
+     411.38,
+     711.08
+    ],
+    [
+     408.7,
+     701.51
+    ],
+    [
+     404.46,
+     696.49
+    ],
+    [
+     399,
+     686.74
+    ],
+    [
+     399.94,
+     675.14
+    ],
+    [
+     388.52,
+     653.64
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r19",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     588.14,
+     606.77
+    ],
+    [
+     573.4,
+     610.11
+    ],
+    [
+     555.79,
+     630.04
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r20",
+   "name": "Нирийский путь",
+   "type": "trail",
+   "points": [
+    [
+     544.95,
+     772.47
+    ],
+    [
+     530.93,
+     777.68
+    ],
+    [
+     523.07,
+     786.62
+    ],
+    [
+     512.01,
+     787.95
+    ],
+    [
+     501.02,
+     788.04
+    ],
+    [
+     483.69,
+     795.85
+    ],
+    [
+     479.81,
+     806.49
+    ],
+    [
+     465.1,
+     815.7
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r21",
+   "name": "Нирийская тропа",
+   "type": "trail",
+   "points": [
+    [
+     613.4,
+     829.19
+    ],
+    [
+     609.4,
+     816.4
+    ],
+    [
+     602.34,
+     805.75
+    ],
+    [
+     589.49,
+     797.19
+    ],
+    [
+     572.73,
+     791.64
+    ],
+    [
+     560.75,
+     786.43
+    ],
+    [
+     544.95,
+     772.47
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r23",
+   "name": "Бельшойский тракт",
+   "type": "road",
+   "points": [
+    [
+     636.14,
+     534.6
+    ],
+    [
+     629.39,
+     543.11
+    ],
+    [
+     624.77,
+     550.79
+    ],
+    [
+     621.18,
+     554.55
+    ],
+    [
+     620.11,
+     566.75
+    ],
+    [
+     613.36,
+     576.59
+    ],
+    [
+     606.56,
+     580.19
+    ],
+    [
+     597.79,
+     589.97
+    ],
+    [
+     594.83,
+     600.19
+    ],
+    [
+     588.14,
+     606.77
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r24",
+   "name": "Цилиренская тропа",
+   "type": "trail",
+   "points": [
+    [
+     756.46,
+     409.84
+    ],
+    [
+     743,
+     423.53
+    ],
+    [
+     731.54,
+     431.91
+    ],
+    [
+     716.83,
+     440.78
+    ],
+    [
+     708.18,
+     446.45
+    ],
+    [
+     702.4,
+     455.75
+    ],
+    [
+     698.67,
+     464.52
+    ],
+    [
+     691.9,
+     468
+    ],
+    [
+     684.14,
+     481.85
+    ],
+    [
+     674.86,
+     486.47
+    ],
+    [
+     668.83,
+     493.94
+    ],
+    [
+     663.65,
+     514.2
+    ],
+    [
+     657.6,
+     520.81
+    ],
+    [
+     646.82,
+     525.79
+    ],
+    [
+     636.14,
+     534.6
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r25",
+   "name": "Лаграсская тропа",
+   "type": "trail",
+   "points": [
+    [
+     396.75,
+     526.54
+    ],
+    [
+     391.5,
+     532.54
+    ],
+    [
+     391.38,
+     539.66
+    ],
+    [
+     395.41,
+     547.34
+    ],
+    [
+     395.11,
+     558.22
+    ],
+    [
+     399.75,
+     568.95
+    ],
+    [
+     403.78,
+     579
+    ],
+    [
+     410.68,
+     584.58
+    ],
+    [
+     419.83,
+     595.16
+    ],
+    [
+     444.35,
+     600.49
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r26",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     472,
+     687.78
+    ],
+    [
+     504.14,
+     690.96
+    ],
+    [
+     513.98,
+     698.27
+    ],
+    [
+     524.52,
+     700.97
+    ],
+    [
+     528.96,
+     687.22
+    ],
+    [
+     520.86,
+     674.24
+    ],
+    [
+     512.11,
+     660.74
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r27",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     516.73,
+     720.99
+    ],
+    [
+     519.3,
+     711.66
+    ],
+    [
+     518.54,
+     706.21
+    ],
+    [
+     517.67,
+     700
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r28",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     420.53,
+     661.06
+    ],
+    [
+     412.83,
+     665.12
+    ],
+    [
+     407.83,
+     672.52
+    ],
+    [
+     399.94,
+     675.14
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r29",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     451.62,
+     704.24
+    ],
+    [
+     444.93,
+     703.61
+    ],
+    [
+     439.78,
+     701.06
+    ],
+    [
+     431.56,
+     699.14
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r30",
+   "name": "Логредская тропа",
+   "type": "trail",
+   "points": [
+    [
+     426.7,
+     745.4
+    ],
+    [
+     432.6,
+     747.37
+    ],
+    [
+     440.37,
+     745.17
+    ],
+    [
+     445.4,
+     741.2
+    ],
+    [
+     453.92,
+     739.95
+    ],
+    [
+     464.38,
+     737.71
+    ],
+    [
+     470.29,
+     734.49
+    ],
+    [
+     472.58,
+     723.73
+    ],
+    [
+     473.15,
+     715.31
+    ],
+    [
+     471.66,
+     705.04
+    ],
+    [
+     472.05,
+     687.56
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r32",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     564.69,
+     655.65
+    ],
+    [
+     580.81,
+     643.91
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r33",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     593.5,
+     645.25
+    ],
+    [
+     580.81,
+     643.91
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r36",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     594.26,
+     637.85
+    ],
+    [
+     593.5,
+     645.25
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r38",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     584.66,
+     624.12
+    ],
+    [
+     581.68,
+     633.61
+    ],
+    [
+     571.39,
+     633.61
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r39",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     588.28,
+     606.99
+    ],
+    [
+     584.9,
+     614.06
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r40",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     584.9,
+     614.15
+    ],
+    [
+     584.66,
+     623.8
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r41",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     593.75,
+     645.31
+    ],
+    [
+     590.05,
+     656.49
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r42",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     571.47,
+     633.25
+    ],
+    [
+     580.72,
+     643.95
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r43",
+   "name": "Хамрамский путь",
+   "type": "trail",
+   "points": [
+    [
+     544.84,
+     772.28
+    ],
+    [
+     574.34,
+     771.64
+    ],
+    [
+     585.32,
+     747.77
+    ],
+    [
+     583.91,
+     729.64
+    ],
+    [
+     572.55,
+     713.68
+    ],
+    [
+     568.34,
+     700.78
+    ],
+    [
+     585.06,
+     687.25
+    ],
+    [
+     569.75,
+     674.91
+    ],
+    [
+     564.65,
+     655.63
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r44",
+   "name": "Тропа Берпорпор",
+   "type": "trail",
+   "points": [
+    [
+     656.75,
+     431.18
+    ],
+    [
+     659.77,
+     444.71
+    ],
+    [
+     668.9,
+     451.62
+    ],
+    [
+     676.65,
+     458.44
+    ],
+    [
+     685.83,
+     479.27
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r45",
+   "name": "Старая Прескастбуанская тропа",
+   "type": "trail",
+   "points": [
+    [
+     616.11,
+     624.74
+    ],
+    [
+     608.3,
+     614.29
+    ],
+    [
+     618.64,
+     595.63
+    ],
+    [
+     605.9,
+     580.4
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r46",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     584.49,
+     573.37
+    ],
+    [
+     606.29,
+     580.57
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r47",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     681.17,
+     496.36
+    ],
+    [
+     682.77,
+     483.35
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r48",
+   "name": "Эхо-дорога Цилирена",
+   "type": "road",
+   "points": [
+    [
+     636.12,
+     534.45
+    ],
+    [
+     634.61,
+     517.69
+    ],
+    [
+     640.53,
+     501.69
+    ],
+    [
+     647.84,
+     501.31
+    ],
+    [
+     668.37,
+     494.38
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r49",
+   "name": "Колбарнский тракт",
+   "type": "road",
+   "points": [
+    [
+     656.61,
+     431.06
+    ],
+    [
+     644.15,
+     446.53
+    ],
+    [
+     642.96,
+     454.71
+    ],
+    [
+     648.83,
+     460.98
+    ],
+    [
+     656.69,
+     465.34
+    ],
+    [
+     661.53,
+     473.84
+    ],
+    [
+     658.67,
+     480.03
+    ],
+    [
+     651.77,
+     485.43
+    ],
+    [
+     649.07,
+     493.05
+    ],
+    [
+     647.8,
+     501.06
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r50",
+   "name": "Арвенцкий тракт",
+   "type": "road",
+   "points": [
+    [
+     640.42,
+     479.55
+    ],
+    [
+     647.16,
+     472.17
+    ],
+    [
+     653.28,
+     471.46
+    ],
+    [
+     661.45,
+     474
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r51",
+   "name": "Цилиренская тропа",
+   "type": "trail",
+   "points": [
+    [
+     606.15,
+     580.33
+    ],
+    [
+     602.82,
+     566.84
+    ],
+    [
+     608.93,
+     552.32
+    ],
+    [
+     611.1,
+     540.31
+    ],
+    [
+     615.12,
+     531.13
+    ],
+    [
+     624.33,
+     530.89
+    ],
+    [
+     636.08,
+     534.54
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r52",
+   "name": "Энмунетская тропа",
+   "type": "trail",
+   "points": [
+    [
+     756.28,
+     409.7
+    ],
+    [
+     758.67,
+     423.81
+    ],
+    [
+     754.64,
+     438.56
+    ],
+    [
+     758.04,
+     453.04
+    ],
+    [
+     759.66,
+     467.57
+    ],
+    [
+     767.65,
+     474.87
+    ],
+    [
+     782.75,
+     474.46
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r53",
+   "name": "Энмунетский перевал",
+   "type": "trail",
+   "points": [
+    [
+     743.78,
+     337.67
+    ],
+    [
+     752.5,
+     347.09
+    ],
+    [
+     757.89,
+     360.94
+    ],
+    [
+     758.49,
+     371.11
+    ],
+    [
+     761.76,
+     388.44
+    ],
+    [
+     762.81,
+     392.83
+    ],
+    [
+     756.46,
+     409.84
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r54",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     736.74,
+     395.46
+    ],
+    [
+     750.3,
+     398.51
+    ],
+    [
+     756.46,
+     409.84
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r55",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     711.7,
+     397.92
+    ],
+    [
+     721.04,
+     394.06
+    ],
+    [
+     736.74,
+     395.46
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r56",
+   "name": "Гранская дорога",
+   "type": "road",
+   "points": [
+    [
+     739.57,
+     489.4
+    ],
+    [
+     745.29,
+     485.43
+    ],
+    [
+     752.27,
+     480.51
+    ],
+    [
+     756.24,
+     473.29
+    ],
+    [
+     756,
+     462.26
+    ],
+    [
+     758.46,
+     458.21
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r57",
+   "name": "Затитаханская тропа",
+   "type": "trail",
+   "points": [
+    [
+     800.18,
+     421.79
+    ],
+    [
+     791.05,
+     428.61
+    ],
+    [
+     786.6,
+     436.66
+    ],
+    [
+     778.87,
+     440.79
+    ],
+    [
+     758.34,
+     426.4
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r58",
+   "name": "Скандская тропа",
+   "type": "trail",
+   "points": [
+    [
+     675.86,
+     747.99
+    ],
+    [
+     672.9,
+     734.3
+    ],
+    [
+     665.71,
+     728.14
+    ],
+    [
+     654.5,
+     725.1
+    ],
+    [
+     639.21,
+     725.08
+    ],
+    [
+     633.79,
+     722.45
+    ],
+    [
+     626.17,
+     719.66
+    ],
+    [
+     616.97,
+     718.54
+    ],
+    [
+     606.71,
+     712.7
+    ],
+    [
+     581.13,
+     724.7
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r59",
+   "name": "Цветочный большак",
+   "type": "highway",
+   "points": [
+    [
+     553.32,
+     699.66
+    ],
+    [
+     560.47,
+     694.42
+    ],
+    [
+     567.53,
+     690.61
+    ],
+    [
+     577.37,
+     687.2
+    ],
+    [
+     585.23,
+     687.12
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r60",
+   "name": "Ковиресская дорога",
+   "type": "road",
+   "points": [
+    [
+     553.38,
+     699.78
+    ],
+    [
+     558.62,
+     707.55
+    ],
+    [
+     559.25,
+     720.73
+    ],
+    [
+     562.27,
+     728.77
+    ],
+    [
+     565.02,
+     736.82
+    ],
+    [
+     563.72,
+     741.82
+    ],
+    [
+     556.72,
+     742.77
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r61",
+   "name": "Безмятежный путь",
+   "type": "road",
+   "points": [
+    [
+     528.59,
+     686.59
+    ],
+    [
+     541.74,
+     678.89
+    ],
+    [
+     550.64,
+     679.24
+    ],
+    [
+     555.09,
+     684.42
+    ],
+    [
+     550.69,
+     692.09
+    ],
+    [
+     553.39,
+     699.89
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r62",
+   "name": "Плавленый путь",
+   "type": "road",
+   "points": [
+    [
+     585.15,
+     686.84
+    ],
+    [
+     593.09,
+     696.92
+    ],
+    [
+     603.8,
+     704.1
+    ],
+    [
+     606.57,
+     712.41
+    ],
+    [
+     604.93,
+     726.9
+    ],
+    [
+     610.35,
+     734.71
+    ],
+    [
+     614.13,
+     744.29
+    ],
+    [
+     621.56,
+     748.7
+    ],
+    [
+     619.3,
+     767.35
+    ],
+    [
+     619.17,
+     778.18
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r63",
+   "name": "Галеровский путь",
+   "type": "road",
+   "points": [
+    [
+     618.92,
+     778.05
+    ],
+    [
+     618.16,
+     786.37
+    ],
+    [
+     621.94,
+     797.08
+    ],
+    [
+     630.76,
+     805.65
+    ],
+    [
+     638.82,
+     814.72
+    ],
+    [
+     641.97,
+     825.43
+    ],
+    [
+     639.2,
+     833.11
+    ],
+    [
+     647.64,
+     838.53
+    ],
+    [
+     653.61,
+     843.99
+    ],
+    [
+     658.3,
+     853.92
+    ],
+    [
+     661.3,
+     864.22
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r64",
+   "name": "Золочёная дорога",
+   "type": "road",
+   "points": [
+    [
+     516.77,
+     720.91
+    ],
+    [
+     513.62,
+     726.71
+    ],
+    [
+     516.72,
+     737.11
+    ],
+    [
+     524.52,
+     746.96
+    ],
+    [
+     528.21,
+     756.08
+    ],
+    [
+     537.81,
+     768.7
+    ],
+    [
+     544.72,
+     772.28
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r65",
+   "name": "Дорога Священного Инея",
+   "type": "road",
+   "points": [
+    [
+     523.21,
+     827.12
+    ],
+    [
+     532.35,
+     817.7
+    ],
+    [
+     539.28,
+     811.78
+    ],
+    [
+     542.93,
+     805.61
+    ],
+    [
+     544.7,
+     788.6
+    ],
+    [
+     544.7,
+     772.1
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r66",
+   "name": "Дорога Туманного Терна",
+   "type": "road",
+   "points": [
+    [
+     569.42,
+     823.55
+    ],
+    [
+     564.36,
+     818.21
+    ],
+    [
+     557.69,
+     808.84
+    ],
+    [
+     550.78,
+     800.43
+    ],
+    [
+     544.35,
+     793.76
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r67",
+   "name": "Намрьенская дорога",
+   "type": "road",
+   "points": [
+    [
+     590.8,
+     879.64
+    ],
+    [
+     586.27,
+     870.31
+    ],
+    [
+     585.64,
+     859.1
+    ],
+    [
+     584,
+     845.87
+    ],
+    [
+     576.69,
+     834.41
+    ],
+    [
+     569.38,
+     823.57
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r68",
+   "name": "Посеребрённый путь",
+   "type": "road",
+   "points": [
+    [
+     590.84,
+     879.78
+    ],
+    [
+     594.33,
+     874.3
+    ],
+    [
+     598.7,
+     859.94
+    ],
+    [
+     610.28,
+     848.27
+    ],
+    [
+     613.3,
+     829.14
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r69",
+   "name": "Старая Проклятая дорога",
+   "type": "road",
+   "points": [
+    [
+     523.05,
+     827
+    ],
+    [
+     533.38,
+     828.39
+    ],
+    [
+     544.72,
+     829.65
+    ],
+    [
+     557.45,
+     834.81
+    ],
+    [
+     567.4,
+     840.61
+    ],
+    [
+     576.72,
+     844.14
+    ],
+    [
+     584.54,
+     848.42
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r70",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     613.24,
+     829.18
+    ],
+    [
+     624.27,
+     832.28
+    ],
+    [
+     639.11,
+     833.07
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r71",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     592.5,
+     814.41
+    ],
+    [
+     601.47,
+     815.68
+    ],
+    [
+     609.64,
+     817.35
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r72",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     603.53,
+     792.35
+    ],
+    [
+     600.99,
+     798.06
+    ],
+    [
+     599.96,
+     803.54
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r73",
+   "name": "Цалагский большак",
+   "type": "highway",
+   "points": [
+    [
+     624.47,
+     858.98
+    ],
+    [
+     619.47,
+     853.26
+    ],
+    [
+     615.42,
+     846.83
+    ],
+    [
+     612.09,
+     841.43
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r74",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     626.38,
+     840.88
+    ],
+    [
+     631.62,
+     837.55
+    ],
+    [
+     639.08,
+     832.94
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r75",
+   "name": "Ветреный Лунный путь",
+   "type": "road",
+   "points": [
+    [
+     624.31,
+     859.13
+    ],
+    [
+     625.5,
+     852.86
+    ],
+    [
+     626.22,
+     846.12
+    ],
+    [
+     626.46,
+     840.72
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r76",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     454.5,
+     870.62
+    ],
+    [
+     439.39,
+     860.75
+    ],
+    [
+     438.29,
+     850.62
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r77",
+   "name": "",
+   "type": "road",
+   "points": [
+    [
+     438.42,
+     850.66
+    ],
+    [
+     450.24,
+     850.03
+    ],
+    [
+     464.21,
+     847.01
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r78",
+   "name": "Железный тракт",
+   "type": "road",
+   "points": [
+    [
+     454.45,
+     870.35
+    ],
+    [
+     457.23,
+     860.42
+    ],
+    [
+     461.28,
+     852.8
+    ],
+    [
+     463.97,
+     847.01
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r79",
+   "name": "Обсидиановая дорога",
+   "type": "road",
+   "points": [
+    [
+     463.97,
+     846.69
+    ],
+    [
+     468.1,
+     841.38
+    ],
+    [
+     471.91,
+     837.72
+    ],
+    [
+     476.91,
+     834.47
+    ],
+    [
+     479.29,
+     828.68
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r80",
+   "name": "Морозная Никуанская дорога",
+   "type": "road",
+   "points": [
+    [
+     479.17,
+     828.68
+    ],
+    [
+     481.27,
+     819.89
+    ],
+    [
+     483.49,
+     809.97
+    ],
+    [
+     483.73,
+     795.76
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r81",
+   "name": "Даньянский путь",
+   "type": "road",
+   "points": [
+    [
+     458.89,
+     809.02
+    ],
+    [
+     462.06,
+     799.49
+    ],
+    [
+     462.78,
+     791.16
+    ],
+    [
+     459.6,
+     784.02
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r82",
+   "name": "Никуанский большак",
+   "type": "highway",
+   "points": [
+    [
+     433.09,
+     769.57
+    ],
+    [
+     444.05,
+     773.7
+    ],
+    [
+     453.89,
+     777.19
+    ],
+    [
+     459.76,
+     784.18
+    ],
+    [
+     469.44,
+     788.06
+    ],
+    [
+     478.97,
+     789.41
+    ],
+    [
+     483.81,
+     795.92
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r83",
+   "name": "Дикий большак",
+   "type": "highway",
+   "points": [
+    [
+     396.52,
+     526.36
+    ],
+    [
+     393.25,
+     515.02
+    ],
+    [
+     394.38,
+     499.65
+    ],
+    [
+     401.06,
+     490.33
+    ],
+    [
+     405.09,
+     481.26
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r84",
+   "name": "Путь Рассвета",
+   "type": "road",
+   "points": [
+    [
+     405.09,
+     481.13
+    ],
+    [
+     411.26,
+     466.77
+    ],
+    [
+     414.54,
+     455.43
+    ],
+    [
+     423.49,
+     451.15
+    ],
+    [
+     427.77,
+     443.97
+    ],
+    [
+     438.48,
+     441.57
+    ],
+    [
+     447.93,
+     434.01
+    ],
+    [
+     448.31,
+     420.28
+    ],
+    [
+     445.91,
+     412.34
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r85",
+   "name": "Вунгский путь",
+   "type": "road",
+   "points": [
+    [
+     445.66,
+     412.59
+    ],
+    [
+     433.44,
+     406.55
+    ],
+    [
+     417.82,
+     401.76
+    ],
+    [
+     409.88,
+     393.32
+    ],
+    [
+     397.53,
+     385.38
+    ],
+    [
+     387.7,
+     384.37
+    ],
+    [
+     385.81,
+     375.43
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r86",
+   "name": "Вендретский путь",
+   "type": "road",
+   "points": [
+    [
+     380.57,
+     559.54
+    ],
+    [
+     386.04,
+     562.16
+    ],
+    [
+     391.12,
+     565.1
+    ],
+    [
+     395.73,
+     569.31
+    ],
+    [
+     401.76,
+     574.23
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r87",
+   "name": "Ветреный Дикий путь",
+   "type": "road",
+   "points": [
+    [
+     397.2,
+     630.74
+    ],
+    [
+     397.2,
+     623.52
+    ],
+    [
+     394.1,
+     617.49
+    ],
+    [
+     385.61,
+     611.7
+    ],
+    [
+     379.9,
+     605.66
+    ],
+    [
+     373.39,
+     600.42
+    ],
+    [
+     373.7,
+     592.88
+    ],
+    [
+     375.47,
+     580.86
+    ],
+    [
+     379.3,
+     568.64
+    ],
+    [
+     380.33,
+     560.07
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r88",
+   "name": "Дорога Рассвета",
+   "type": "road",
+   "points": [
+    [
+     396.89,
+     526.16
+    ],
+    [
+     386.05,
+     529.81
+    ],
+    [
+     375.47,
+     537.5
+    ],
+    [
+     365.52,
+     543.42
+    ],
+    [
+     353.3,
+     554.63
+    ],
+    [
+     340.57,
+     558.41
+    ],
+    [
+     337.67,
+     566.48
+    ],
+    [
+     335.91,
+     570.38
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r89",
+   "name": "Великая дорога",
+   "type": "road",
+   "points": [
+    [
+     352.04,
+     501.47
+    ],
+    [
+     362.12,
+     499.45
+    ],
+    [
+     369.55,
+     494.91
+    ],
+    [
+     380.89,
+     485.72
+    ],
+    [
+     392.98,
+     481.06
+    ],
+    [
+     404.95,
+     481.31
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r90",
+   "name": "Эбеновый путь",
+   "type": "road",
+   "points": [
+    [
+     351.91,
+     501.72
+    ],
+    [
+     359.09,
+     509.03
+    ],
+    [
+     361.99,
+     518.6
+    ],
+    [
+     365.01,
+     526.92
+    ],
+    [
+     371.31,
+     539.52
+    ],
+    [
+     375.35,
+     547.71
+    ],
+    [
+     380.64,
+     559.42
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r91",
+   "name": "Сумрачный путь",
+   "type": "road",
+   "points": [
+    [
+     336.04,
+     569.75
+    ],
+    [
+     327.72,
+     574.92
+    ],
+    [
+     317.51,
+     578.95
+    ],
+    [
+     307.81,
+     587.14
+    ],
+    [
+     299.88,
+     589.79
+    ],
+    [
+     295.47,
+     598.86
+    ],
+    [
+     293.58,
+     606.67
+    ],
+    [
+     286.14,
+     619.52
+    ],
+    [
+     281.99,
+     620.4
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r92",
+   "name": "Лерастаоский путь",
+   "type": "road",
+   "points": [
+    [
+     335.41,
+     614.36
+    ],
+    [
+     343.85,
+     611.58
+    ],
+    [
+     352.04,
+     605.41
+    ],
+    [
+     361.61,
+     599.99
+    ],
+    [
+     369.55,
+     596.46
+    ],
+    [
+     373.83,
+     592.94
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r93",
+   "name": "Ветреный Сумеречный путь",
+   "type": "road",
+   "points": [
+    [
+     281.73,
+     620.02
+    ],
+    [
+     287.65,
+     623.8
+    ],
+    [
+     298.99,
+     623.43
+    ],
+    [
+     308.82,
+     621.79
+    ],
+    [
+     317.77,
+     617.51
+    ],
+    [
+     322.68,
+     614.3
+    ],
+    [
+     335.09,
+     614.64
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r94",
+   "name": "Священная Солдаллская дорога",
+   "type": "road",
+   "points": [
+    [
+     282.13,
+     620.14
+    ],
+    [
+     279.43,
+     628.63
+    ],
+    [
+     276.97,
+     635.85
+    ],
+    [
+     276.02,
+     643.31
+    ],
+    [
+     274.36,
+     649.98
+    ],
+    [
+     265.94,
+     659.83
+    ],
+    [
+     264.99,
+     666.66
+    ],
+    [
+     257.29,
+     672.69
+    ],
+    [
+     246.99,
+     679.09
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r95",
+   "name": "Дикая дорога",
+   "type": "road",
+   "points": [
+    [
+     252.14,
+     647.54
+    ],
+    [
+     256.44,
+     644.39
+    ],
+    [
+     260.69,
+     642.99
+    ],
+    [
+     264.74,
+     643.54
+    ],
+    [
+     268.99,
+     643.04
+    ],
+    [
+     273.84,
+     642.69
+    ],
+    [
+     276.44,
+     640.54
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r96",
+   "name": "Сумрачный путь",
+   "type": "road",
+   "points": [
+    [
+     1105.49,
+     756.3
+    ],
+    [
+     1113.35,
+     746.93
+    ],
+    [
+     1122.71,
+     742.88
+    ],
+    [
+     1129.46,
+     731.29
+    ],
+    [
+     1138.98,
+     729.31
+    ],
+    [
+     1151.29,
+     733.36
+    ],
+    [
+     1155.41,
+     740.02
+    ],
+    [
+     1160.81,
+     744.39
+    ],
+    [
+     1166.68,
+     744.55
+    ],
+    [
+     1173.27,
+     744.79
+    ],
+    [
+     1182.79,
+     746.14
+    ],
+    [
+     1189.78,
+     750.82
+    ],
+    [
+     1196.13,
+     753.91
+    ],
+    [
+     1198.75,
+     759.95
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r97",
+   "name": "Дорога Эха",
+   "type": "road",
+   "points": [
+    [
+     1198.91,
+     759.93
+    ],
+    [
+     1198.83,
+     749.29
+    ],
+    [
+     1196.61,
+     741.27
+    ],
+    [
+     1195.9,
+     736.2
+    ],
+    [
+     1195.9,
+     730.64
+    ],
+    [
+     1195.02,
+     725.4
+    ],
+    [
+     1187.5,
+     716.43
+    ],
+    [
+     1181.79,
+     711.35
+    ],
+    [
+     1173.06,
+     703.97
+    ],
+    [
+     1169.57,
+     696.35
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r98",
+   "name": "Дорога Великой Луны",
+   "type": "road",
+   "points": [
+    [
+     1198.87,
+     759.92
+    ],
+    [
+     1206.82,
+     754.52
+    ],
+    [
+     1213.72,
+     752.47
+    ],
+    [
+     1219.97,
+     749.22
+    ],
+    [
+     1224.17,
+     746.07
+    ],
+    [
+     1229.17,
+     745.67
+    ],
+    [
+     1235.62,
+     747.12
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r99",
+   "name": "Платиновая дорога",
+   "type": "road",
+   "points": [
+    [
+     1148.8,
+     721.14
+    ],
+    [
+     1151.5,
+     723.84
+    ],
+    [
+     1157.53,
+     726.62
+    ],
+    [
+     1160.46,
+     732.25
+    ],
+    [
+     1160.15,
+     735.51
+    ],
+    [
+     1155.39,
+     739.87
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r100",
+   "name": "Магрский путь",
+   "type": "road",
+   "points": [
+    [
+     1169.65,
+     696.47
+    ],
+    [
+     1162.91,
+     692.58
+    ],
+    [
+     1158.78,
+     688.61
+    ],
+    [
+     1154.89,
+     682.81
+    ],
+    [
+     1151.95,
+     678.92
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r101",
+   "name": "Оменская дорога",
+   "type": "road",
+   "points": [
+    [
+     1169.89,
+     696.47
+    ],
+    [
+     1170.53,
+     691.39
+    ],
+    [
+     1172.27,
+     686.46
+    ],
+    [
+     1172.35,
+     682.5
+    ],
+    [
+     1173.22,
+     677.42
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r102",
+   "name": "Сангвинская дорога",
+   "type": "road",
+   "points": [
+    [
+     1120.94,
+     688.39
+    ],
+    [
+     1125.07,
+     693.55
+    ],
+    [
+     1128,
+     697.84
+    ],
+    [
+     1130.14,
+     704.19
+    ],
+    [
+     1134.27,
+     707.76
+    ],
+    [
+     1140.46,
+     712.05
+    ],
+    [
+     1140.86,
+     715.3
+    ],
+    [
+     1148.64,
+     720.94
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r103",
+   "name": "Сумрачная дорога",
+   "type": "road",
+   "points": [
+    [
+     1121.12,
+     688.56
+    ],
+    [
+     1132.07,
+     687.06
+    ],
+    [
+     1139.06,
+     684.28
+    ],
+    [
+     1147.07,
+     681.26
+    ],
+    [
+     1151.84,
+     678.72
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  },
+  {
+   "id": "r104",
+   "name": "Безмятежная дорога",
+   "type": "road",
+   "points": [
+    [
+     1120.99,
+     688.43
+    ],
+    [
+     1109.28,
+     684.02
+    ],
+    [
+     1099.2,
+     678.35
+    ],
+    [
+     1089.87,
+     683.14
+    ],
+    [
+     1066.94,
+     688.94
+    ],
+    [
+     1048.67,
+     686.92
+    ],
+    [
+     1037.71,
+     688.05
+    ],
+    [
+     1026.5,
+     693.47
+    ],
+    [
+     1017.93,
+     699.39
+    ],
+    [
+     1008.1,
+     703.8
+    ],
+    [
+     1005.84,
+     702.8
+    ]
+   ],
+   "description": "",
+   "hidden": false
+  }
+ ],
+ "anomalies": [
+  {
+   "radius": 42,
+   "toX": null,
+   "toY": null,
+   "activeFrom": null,
+   "activeTo": null,
+   "secret": "",
+   "hidden": true,
+   "id": "a1",
+   "kind": "zone",
+   "effect": "storm",
+   "name": "Буря Безмолвия",
+   "x": 905,
+   "y": 640,
+   "description": "Пример аномалии (видна только мастеру). Отредактируй, открой игрокам или удали."
+  },
+  {
+   "radius": 30,
+   "toX": null,
+   "toY": null,
+   "activeFrom": null,
+   "activeTo": null,
+   "secret": "",
+   "hidden": true,
+   "id": "a2",
+   "kind": "zone",
+   "effect": "rift",
+   "name": "Разлом Удалин",
+   "x": 640,
+   "y": 300,
+   "description": "Пример аномалии (видна только мастеру). Отредактируй, открой игрокам или удали."
+  },
+  {
+   "radius": 48,
+   "toX": null,
+   "toY": null,
+   "activeFrom": null,
+   "activeTo": null,
+   "secret": "",
+   "hidden": true,
+   "id": "a3",
+   "kind": "zone",
+   "effect": "mist",
+   "name": "Серый туман",
+   "x": 1060,
+   "y": 880,
+   "description": "Пример аномалии (видна только мастеру). Отредактируй, открой игрокам или удали."
+  },
+  {
+   "radius": 24,
+   "toX": 960,
+   "toY": 450,
+   "activeFrom": 1790870352745,
+   "activeTo": 1791475152745,
+   "secret": "",
+   "hidden": true,
+   "id": "a4",
+   "kind": "zone",
+   "effect": "arcane",
+   "name": "Блуждающий всплеск арканы",
+   "x": 820,
+   "y": 560,
+   "description": "Пример аномалии (видна только мастеру). Отредактируй, открой игрокам или удали. Движется по карте неделю, потом исчезнет."
+  },
+  {
+   "radius": 0,
+   "toX": null,
+   "toY": null,
+   "activeFrom": null,
+   "activeTo": null,
+   "secret": "",
+   "hidden": true,
+   "id": "a5",
+   "kind": "point",
+   "effect": "portal",
+   "name": "Древний портал",
+   "x": 560,
+   "y": 420,
+   "description": "Пример аномалии (видна только мастеру). Отредактируй, открой игрокам или удали."
+  },
+  {
+   "radius": 0,
+   "toX": null,
+   "toY": null,
+   "activeFrom": null,
+   "activeTo": null,
+   "secret": "",
+   "hidden": true,
+   "id": "a6",
+   "kind": "point",
+   "effect": "ruins",
+   "name": "Руины забытой башни",
+   "x": 720,
+   "y": 250,
+   "description": "Пример аномалии (видна только мастеру). Отредактируй, открой игрокам или удали."
+  },
+  {
+   "radius": 26,
+   "toX": null,
+   "toY": null,
+   "activeFrom": null,
+   "activeTo": null,
+   "secret": "",
+   "hidden": true,
+   "id": "a7",
+   "kind": "zone",
+   "effect": "blight",
+   "name": "Порча",
+   "x": 1330,
+   "y": 880,
+   "description": "Пример аномалии (видна только мастеру). Отредактируй, открой игрокам или удали."
+  }
+ ],
+ "parties": [
+  {
+   "id": "p1",
+   "name": "Отряд героев",
+   "color": "#e8b04a",
+   "icon": "sword",
+   "description": "Пример отряда. Переименуй и открой игрокам.",
+   "x": 514.65,
+   "y": 627.14,
+   "journey": null,
+   "hidden": true
+  }
+ ],
+ "fog": [
+  {
+   "id": "f-s36-0",
+   "mode": "add",
+   "shape": "poly",
+   "r": 6,
+   "points": [
+    [
+     1594.54,
+     454.47
+    ],
+    [
+     1598.82,
+     447.79
+    ],
+    [
+     1602.5,
+     446.66
+    ],
+    [
+     1613.37,
+     448.51
+    ],
+    [
+     1614.69,
+     451.9
+    ],
+    [
+     1629.29,
+     464.26
+    ],
+    [
+     1630.75,
+     464.04
+    ],
+    [
+     1638.24,
+     469.8
+    ],
+    [
+     1641.79,
+     475.89
+    ],
+    [
+     1651.44,
+     480.43
+    ],
+    [
+     1653.72,
+     488.78
+    ],
+    [
+     1666.29,
+     490.54
+    ],
+    [
+     1671.42,
+     481.8
+    ],
+    [
+     1678.65,
+     479.17
+    ],
+    [
+     1680.01,
+     495.53
+    ],
+    [
+     1692.08,
+     498.3
+    ],
+    [
+     1680.85,
+     517.23
+    ],
+    [
+     1683.27,
+     534.41
+    ],
+    [
+     1694.85,
+     537.37
+    ],
+    [
+     1697.35,
+     541.68
+    ],
+    [
+     1696.25,
+     547.92
+    ],
+    [
+     1686.48,
+     554.49
+    ],
+    [
+     1679.75,
+     555.48
+    ],
+    [
+     1677.02,
+     552.16
+    ],
+    [
+     1663.29,
+     548.99
+    ],
+    [
+     1658.05,
+     550.09
+    ],
+    [
+     1651.66,
+     554.3
+    ],
+    [
+     1649.09,
+     564.56
+    ],
+    [
+     1639.73,
+     568.99
+    ],
+    [
+     1632.01,
+     565.22
+    ],
+    [
+     1627.67,
+     566.9
+    ],
+    [
+     1626.2,
+     576.69
+    ],
+    [
+     1618.41,
+     583.39
+    ],
+    [
+     1619,
+     591.18
+    ],
+    [
+     1611.66,
+     593.66
+    ],
+    [
+     1606.36,
+     602.28
+    ],
+    [
+     1599.6,
+     602.06
+    ],
+    [
+     1591.86,
+     615.29
+    ],
+    [
+     1578.54,
+     604.66
+    ],
+    [
+     1564.35,
+     611.09
+    ],
+    [
+     1549.41,
+     606.93
+    ],
+    [
+     1546.84,
+     623.22
+    ],
+    [
+     1544.17,
+     626.5
+    ],
+    [
+     1532.61,
+     621.32
+    ],
+    [
+     1532.08,
+     611.1
+    ],
+    [
+     1521.6,
+     607.07
+    ],
+    [
+     1524.09,
+     584.73
+    ],
+    [
+     1534.8,
+     580.59
+    ],
+    [
+     1529.23,
+     564.54
+    ],
+    [
+     1535.62,
+     561.11
+    ],
+    [
+     1534.56,
+     554.26
+    ],
+    [
+     1541.07,
+     545.6
+    ],
+    [
+     1544.18,
+     546.21
+    ],
+    [
+     1551.55,
+     552.67
+    ],
+    [
+     1558.14,
+     549.55
+    ],
+    [
+     1559.17,
+     547.7
+    ],
+    [
+     1571.7,
+     544.11
+    ],
+    [
+     1579.99,
+     556.72
+    ],
+    [
+     1592.92,
+     546.26
+    ],
+    [
+     1593.16,
+     536.66
+    ],
+    [
+     1604.62,
+     531.61
+    ],
+    [
+     1610.33,
+     522.16
+    ],
+    [
+     1601,
+     508.73
+    ],
+    [
+     1598.09,
+     506.85
+    ],
+    [
+     1605.59,
+     494.3
+    ],
+    [
+     1607.93,
+     493.23
+    ],
+    [
+     1607.83,
+     477.57
+    ],
+    [
+     1606.89,
+     470.33
+    ],
+    [
+     1595.46,
+     464.22
+    ],
+    [
+     1592.84,
+     459.36
+    ],
+    [
+     1594.54,
+     454.47
+    ]
+   ]
+  },
+  {
+   "id": "f-s39-1",
+   "mode": "add",
+   "shape": "poly",
+   "r": 6,
+   "points": [
+    [
+     479.27,
+     199.24
+    ],
+    [
+     478.98,
+     196.66
+    ],
+    [
+     485.51,
+     188.19
+    ],
+    [
+     490.5,
+     185.28
+    ],
+    [
+     508.65,
+     185.49
+    ],
+    [
+     510.26,
+     187.7
+    ],
+    [
+     521.84,
+     185.72
+    ],
+    [
+     523.18,
+     187.62
+    ],
+    [
+     517.94,
+     196.14
+    ],
+    [
+     521.76,
+     204.59
+    ],
+    [
+     520.57,
+     209.61
+    ],
+    [
+     526.03,
+     217.03
+    ],
+    [
+     528.59,
+     228.02
+    ],
+    [
+     522.87,
+     232.15
+    ],
+    [
+     522.54,
+     244.15
+    ],
+    [
+     520.12,
+     246.57
+    ],
+    [
+     508.84,
+     239.71
+    ],
+    [
+     498.2,
+     249.69
+    ],
+    [
+     506.79,
+     259.79
+    ],
+    [
+     501.4,
+     266.45
+    ],
+    [
+     496.34,
+     266.61
+    ],
+    [
+     489.74,
+     280.88
+    ],
+    [
+     489.27,
+     283.46
+    ],
+    [
+     494.03,
+     290.79
+    ],
+    [
+     486.69,
+     304.44
+    ],
+    [
+     478.71,
+     302.67
+    ],
+    [
+     471.99,
+     306.05
+    ],
+    [
+     467.06,
+     315.46
+    ],
+    [
+     476.89,
+     330.98
+    ],
+    [
+     476.92,
+     332.64
+    ],
+    [
+     459.05,
+     342.45
+    ],
+    [
+     468.25,
+     352.22
+    ],
+    [
+     461.95,
+     360.13
+    ],
+    [
+     454.03,
+     358.75
+    ],
+    [
+     448.19,
+     363.29
+    ],
+    [
+     434.15,
+     362.05
+    ],
+    [
+     419.73,
+     358.37
+    ],
+    [
+     405.41,
+     365.51
+    ],
+    [
+     403.09,
+     363.86
+    ],
+    [
+     386.13,
+     366.07
+    ],
+    [
+     375.42,
+     357.63
+    ],
+    [
+     359.93,
+     363
+    ],
+    [
+     357.63,
+     344.6
+    ],
+    [
+     359.82,
+     340.4
+    ],
+    [
+     359.16,
+     334.35
+    ],
+    [
+     360.94,
+     331.86
+    ],
+    [
+     361.95,
+     325.44
+    ],
+    [
+     365.12,
+     322.86
+    ],
+    [
+     366.74,
+     318.56
+    ],
+    [
+     366.03,
+     311.23
+    ],
+    [
+     362.88,
+     306.53
+    ],
+    [
+     361.34,
+     300.07
+    ],
+    [
+     363.29,
+     293.95
+    ],
+    [
+     375.31,
+     285.28
+    ],
+    [
+     378.06,
+     275.81
+    ],
+    [
+     381.06,
+     274.65
+    ],
+    [
+     386.98,
+     265.99
+    ],
+    [
+     388.73,
+     265.58
+    ],
+    [
+     393.27,
+     260.09
+    ],
+    [
+     397.2,
+     259.15
+    ],
+    [
+     400.99,
+     252.73
+    ],
+    [
+     406.71,
+     252.23
+    ],
+    [
+     408.45,
+     243.67
+    ],
+    [
+     415.23,
+     241.24
+    ],
+    [
+     415.96,
+     238.23
+    ],
+    [
+     420.33,
+     233.89
+    ],
+    [
+     418.83,
+     226.03
+    ],
+    [
+     423.5,
+     219.46
+    ],
+    [
+     427.26,
+     219.15
+    ],
+    [
+     432.35,
+     221.52
+    ],
+    [
+     434.54,
+     225.4
+    ],
+    [
+     440.75,
+     227.22
+    ],
+    [
+     443.94,
+     232.53
+    ],
+    [
+     446.74,
+     231.79
+    ],
+    [
+     456.55,
+     234.08
+    ],
+    [
+     458.46,
+     231.06
+    ],
+    [
+     468.93,
+     228.93
+    ],
+    [
+     475.22,
+     222.5
+    ],
+    [
+     474.36,
+     213.31
+    ],
+    [
+     479.27,
+     199.24
+    ]
+   ]
+  },
+  {
+   "id": "f-s40-2",
+   "mode": "add",
+   "shape": "poly",
+   "r": 6,
+   "points": [
+    [
+     637.29,
+     116.95
+    ],
+    [
+     630.03,
+     116.52
+    ],
+    [
+     625.75,
+     113.18
+    ],
+    [
+     622.3,
+     112.75
+    ],
+    [
+     618.29,
+     110.12
+    ],
+    [
+     608.06,
+     111.99
+    ],
+    [
+     604.98,
+     115.92
+    ],
+    [
+     600.5,
+     117.44
+    ],
+    [
+     597.82,
+     120.51
+    ],
+    [
+     596.97,
+     124.25
+    ],
+    [
+     589.75,
+     131.02
+    ],
+    [
+     567.67,
+     133.55
+    ],
+    [
+     555.55,
+     143.39
+    ],
+    [
+     554.98,
+     148.91
+    ],
+    [
+     548.97,
+     152.44
+    ],
+    [
+     549.69,
+     157.61
+    ],
+    [
+     545.16,
+     161.63
+    ],
+    [
+     538.09,
+     154.7
+    ],
+    [
+     534.2,
+     164.25
+    ],
+    [
+     537,
+     168.88
+    ],
+    [
+     535.07,
+     175.38
+    ],
+    [
+     538.19,
+     181.05
+    ],
+    [
+     537.34,
+     188.4
+    ],
+    [
+     535.91,
+     191.07
+    ],
+    [
+     537.87,
+     200.43
+    ],
+    [
+     535.07,
+     215.42
+    ],
+    [
+     526.03,
+     217.03
+    ],
+    [
+     528.59,
+     228.02
+    ],
+    [
+     536.38,
+     232.5
+    ],
+    [
+     541.98,
+     230.98
+    ],
+    [
+     547.85,
+     232.77
+    ],
+    [
+     552.12,
+     221.17
+    ],
+    [
+     561.57,
+     215.34
+    ],
+    [
+     561.89,
+     211.29
+    ],
+    [
+     566.92,
+     207.89
+    ],
+    [
+     578.63,
+     208.96
+    ],
+    [
+     581.24,
+     206.45
+    ],
+    [
+     579.7,
+     190.53
+    ],
+    [
+     591.03,
+     191.58
+    ],
+    [
+     596.57,
+     187.24
+    ],
+    [
+     606.92,
+     193.4
+    ],
+    [
+     616.46,
+     188.42
+    ],
+    [
+     627.22,
+     174.14
+    ],
+    [
+     635.02,
+     173.16
+    ],
+    [
+     637.66,
+     161.22
+    ],
+    [
+     651.74,
+     158.73
+    ],
+    [
+     657.05,
+     162.06
+    ],
+    [
+     661.3,
+     163.13
+    ],
+    [
+     667.48,
+     156.87
+    ],
+    [
+     668.53,
+     153.31
+    ],
+    [
+     663.25,
+     146.65
+    ],
+    [
+     669.91,
+     132.79
+    ],
+    [
+     666.46,
+     127.32
+    ],
+    [
+     669.94,
+     112.49
+    ],
+    [
+     669.27,
+     110.9
+    ],
+    [
+     660.44,
+     107.08
+    ],
+    [
+     650.19,
+     105.38
+    ],
+    [
+     641.47,
+     108.4
+    ],
+    [
+     637.29,
+     116.95
+    ]
+   ]
+  },
+  {
+   "id": "f-s41-3",
+   "mode": "add",
+   "shape": "poly",
+   "r": 6,
+   "points": [
+    [
+     894.25,
+     206.5
+    ],
+    [
+     895.49,
+     206.08
+    ],
+    [
+     899.57,
+     198.19
+    ],
+    [
+     905.55,
+     206.5
+    ],
+    [
+     903.05,
+     211.78
+    ],
+    [
+     906.49,
+     216.14
+    ],
+    [
+     906.35,
+     218.66
+    ],
+    [
+     909.51,
+     223.92
+    ],
+    [
+     921.3,
+     229.46
+    ],
+    [
+     926.98,
+     241.09
+    ],
+    [
+     935.49,
+     242.7
+    ],
+    [
+     939.37,
+     246.55
+    ],
+    [
+     939.63,
+     254.17
+    ],
+    [
+     938.48,
+     255.97
+    ],
+    [
+     937.54,
+     269.07
+    ],
+    [
+     944.44,
+     274.52
+    ],
+    [
+     951.4,
+     271.98
+    ],
+    [
+     954.98,
+     275.01
+    ],
+    [
+     960.18,
+     273.64
+    ],
+    [
+     962.17,
+     274.9
+    ],
+    [
+     964.58,
+     281.83
+    ],
+    [
+     963.88,
+     284.58
+    ],
+    [
+     954.86,
+     287.62
+    ],
+    [
+     956.74,
+     301.81
+    ],
+    [
+     947.92,
+     302.24
+    ],
+    [
+     937.61,
+     310.2
+    ],
+    [
+     931.89,
+     306.04
+    ],
+    [
+     922.74,
+     315.27
+    ],
+    [
+     912.51,
+     318.54
+    ],
+    [
+     909.09,
+     316.78
+    ],
+    [
+     901.48,
+     324.55
+    ],
+    [
+     900.33,
+     329.48
+    ],
+    [
+     888.6,
+     332.88
+    ],
+    [
+     884.75,
+     322.13
+    ],
+    [
+     883.31,
+     321.66
+    ],
+    [
+     879.44,
+     312.06
+    ],
+    [
+     879.88,
+     310.59
+    ],
+    [
+     886.56,
+     308.51
+    ],
+    [
+     890.31,
+     303.18
+    ],
+    [
+     884.61,
+     294.26
+    ],
+    [
+     886.13,
+     290.7
+    ],
+    [
+     885.6,
+     282.74
+    ],
+    [
+     882.62,
+     271.64
+    ],
+    [
+     883.19,
+     264.37
+    ],
+    [
+     886.12,
+     259.71
+    ],
+    [
+     885.92,
+     251.6
+    ],
+    [
+     881.65,
+     245.92
+    ],
+    [
+     883.6,
+     235.62
+    ],
+    [
+     885.48,
+     234.87
+    ],
+    [
+     888.39,
+     227.63
+    ],
+    [
+     894.49,
+     225.58
+    ],
+    [
+     895.06,
+     224.2
+    ],
+    [
+     894.25,
+     216.19
+    ],
+    [
+     893.19,
+     215.23
+    ],
+    [
+     894.25,
+     206.5
+    ]
+   ]
+  }
+ ]
+}

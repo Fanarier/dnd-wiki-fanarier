@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Данные мира и пароль мастера (на сервере)
+server/data/
