@@ -20,6 +20,7 @@
           <stop offset="0.55" :stop-color="fx.glow" stop-opacity="0.45" />
           <stop offset="1" :stop-color="fx.glow" stop-opacity="0" />
         </radialGradient>
+        <clipPath id="round-clip" clipPathUnits="objectBoundingBox"><circle cx="0.5" cy="0.5" r="0.5" /></clipPath>
         <radialGradient id="pt-glow">
           <stop offset="0" stop-color="currentColor" stop-opacity="0.7" />
           <stop offset="1" stop-color="currentColor" stop-opacity="0" />
@@ -169,8 +170,20 @@
             <line x1="0" y1="-8" x2="0" y2="0" class="qpin-stick" />
             <circle cx="0" cy="-31" r="2.6" class="qpin-pin" />
             <text v-if="q.hot" x="9" y="-26" class="qpin-hot">!</text>
-            <circle v-if="isSel('quests', q.id)" cy="-18" r="20" class="sel-ring" />
+            <g v-if="isSel('quests', q.id)" transform="translate(0,-18)"><circle r="21" class="sel-ring" /></g>
             <text v-if="view.k > 1.6 || isSel('quests', q.id)" y="14" class="lbl lbl-quest">{{ q.type }}</text>
+          </g>
+        </g>
+
+        <!-- Личные заметки (свои и отряда) -->
+        <g v-if="L.notes && store.me">
+          <g v-for="n in store.data.notes" :key="n.id" :transform="`translate(${n.x},${n.y}) scale(${iconScale / view.k})`"
+             :class="['unote', { selected: isSel('notes', n.id), mine: n.ownerId === store.me.id }]" :data-obj="'notes:' + n.id">
+            <path d="M-8,-24 h12 l4,4 v16 h-16 Z" :fill="n.color" class="unote-paper" />
+            <path d="M4,-24 v4 h4" class="unote-fold" />
+            <line x1="0" y1="-4" x2="0" y2="0" class="unote-stick" />
+            <g v-if="isSel('notes', n.id)" transform="translate(0,-14)"><circle r="17" class="sel-ring" /></g>
+            <text v-if="n.text && (view.k > 2 || isSel('notes', n.id))" y="12" class="lbl lbl-note">{{ n.text.length > 26 ? n.text.slice(0, 25) + '…' : n.text }}</text>
           </g>
         </g>
 
@@ -252,8 +265,9 @@
         <template v-if="L.cursors">
           <g v-for="c in cursors" :key="c.id" :transform="`translate(${c.x},${c.y}) scale(${1 / view.k})`" class="rcursor" :style="{ color: c.color }" pointer-events="none">
             <path d="M0,0 L0,18 L4.8,13.6 L8,21 L11,19.7 L7.8,12.6 L14,12.6 Z" class="rcursor-arrow" />
-            <rect x="13" y="15" :width="c.name.length * 7.2 + 14" height="19" rx="6" class="rcursor-tag" />
-            <text x="20" y="28.5" class="rcursor-name">{{ c.name }}</text>
+            <rect x="13" y="15" :width="c.name.length * 7.2 + (c.avatar ? 34 : 14)" height="19" rx="6" class="rcursor-tag" />
+            <image v-if="c.avatar" :href="'/avatars/' + c.avatar" x="15" y="16.5" width="16" height="16" clip-path="url(#round-clip)" />
+            <text :x="c.avatar ? 36 : 20" y="28.5" class="rcursor-name">{{ c.name }}</text>
           </g>
         </template>
 
@@ -818,7 +832,10 @@ async function onClick(w, hit) {
     const { id } = store.pick
     store.pick = null
     try {
-      await act('PATCH', `/api/quests/${id}`, { loc: { x: r1(w)[0], y: r1(w)[1] } }, 'Место заказа отмечено')
+      const q = await act('PATCH', `/api/quests/${id}`, { loc: { x: r1(w)[0], y: r1(w)[1] } }, 'Место заказа отмечено')
+      // сразу кладём обновлённый заказ — иначе редактор откроется со старой копией без места и сотрёт его при сохранении
+      const i = store.data.quests.findIndex(x => x.id === id)
+      if (i !== -1) store.data.quests[i] = { ...store.data.quests[i], ...q }
       router.push({ path: '/wiki', query: { quest: id } })
     } catch { /* тост */ }
     return
@@ -832,6 +849,14 @@ async function onClick(w, hit) {
   }
   if (store.tool === 'ping') {
     ping(w[0], w[1])
+    return
+  }
+  if (store.tool === 'note' && store.me) {
+    try {
+      const n = await act('POST', '/api/notes', { text: '', x: r1(w)[0], y: r1(w)[1] }, 'Заметка поставлена — напиши текст')
+      store.selection = { type: 'notes', id: n.id }
+      store.tool = 'select'
+    } catch { /* тост */ }
     return
   }
   if (master.value) {
@@ -1025,6 +1050,11 @@ watch(() => store.tool, t => {
 .stop.picked .stop-bg { stroke: #ffe08a; stroke-width: 3; }
 .lbl-stop { font-size: 12px; }
 .stop-preview { fill: rgba(255, 224, 138, .5); stroke: #ffe08a; stroke-width: 2; }
+.unote { cursor: pointer; }
+.unote-paper { stroke: rgba(40, 25, 10, .7); stroke-width: 1.2; }
+.unote-fold { fill: rgba(255, 255, 255, .5); stroke: rgba(40, 25, 10, .7); stroke-width: 1; }
+.unote-stick { stroke: #3a2410; stroke-width: 1.4; }
+.lbl-note { font-size: 11.5px; font-style: italic; }
 .qpin { cursor: pointer; }
 .qpin.qs-done, .qpin.qs-failed, .qpin.qs-closed { opacity: .45; }
 .qpin-paper { fill: #efe0bb; stroke: #6b4b1e; stroke-width: 1; }

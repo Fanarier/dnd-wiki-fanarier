@@ -34,8 +34,12 @@
       <section class="me">
         <div class="ui-kicker sec">Пинги</div>
         <div class="me-row">
-          <input :value="store.nick" class="ui-input" maxlength="24" :placeholder="master ? 'Ты — мастер' : 'Твоё имя для пингов'" :disabled="master"
-                 @change="setNick($event.target.value)" />
+          <div v-if="store.me" class="me-who">
+            <img v-if="store.me.avatar" :src="avatarUrl(store.me.avatar)" alt="" />
+            <i v-else :style="{ background: store.me.color }" />
+            пингуешь как <b>{{ store.me.name }}</b>
+          </div>
+          <button v-else class="ui-btn small me-who" @click="store.gate = 'choose'">Войди, чтобы пинговать</button>
           <button class="ui-btn icon" :title="store.sound ? 'Звук пингов включён' : 'Звук пингов выключен'" @click="setSound(!store.sound)">
             <Icon :name="store.sound ? 'soundOn' : 'soundOff'" :size="18" />
           </button>
@@ -107,7 +111,7 @@
 import { computed, ref } from 'vue'
 import Icon from './Icon.vue'
 import { ICONS } from './icons.js'
-import { store, isMaster, fmtDuration, fmtDateTime, setNick, setSound } from './store.js'
+import { store, isMaster, fmtDuration, fmtDateTime, setSound, avatarUrl } from './store.js'
 import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS } from '../shared/catalog.js'
 import { journeyState } from '../shared/geo.js'
 
@@ -189,7 +193,9 @@ function focus(type, obj) {
 .link { background: none; border: 0; color: var(--gold-2); font: 700 11px var(--sans); cursor: pointer; text-transform: none; letter-spacing: 0; }
 .credit { margin-top: 10px; font-size: 10.5px; color: var(--muted); }
 .me-row { display: flex; gap: 6px; margin-bottom: 6px; }
-.me-row .ui-input { min-height: 34px; }
+.me-who { flex: 1; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.me-who b { color: var(--text); }
+.me-who img, .me-who i { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: none; }
 .fog-dot { width: 20px; height: 14px; border-radius: 6px; flex: none; background: radial-gradient(circle at 30% 40%, #6b7383, #2b3140 70%); box-shadow: 0 0 6px #6b7383; }
 .states { display: flex; flex-wrap: wrap; gap: 5px; }
 .state { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 8px; border: 0; background: rgba(255, 255, 255, 0.05); color: var(--text); font: 600 12px var(--sans); cursor: pointer; }

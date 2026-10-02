@@ -7,7 +7,7 @@
       </div>
       <div class="info-titles">
         <div class="ui-kicker">{{ kindLabel }}</div>
-        <h2 class="ui-title">{{ (type === 'labels' ? item.text : type === 'quests' ? item.type : item.name) || 'Без названия' }}</h2>
+        <h2 class="ui-title">{{ (type === 'labels' ? item.text : type === 'quests' ? item.type : type === 'notes' ? 'Заметка' : item.name) || 'Без названия' }}</h2>
       </div>
       <button class="ui-btn icon ghost" title="Закрыть (Esc)" @click="store.selection = null"><Icon name="close" /></button>
     </header>
@@ -15,7 +15,8 @@
     <div class="info-body ui-scroll">
       <!-- ======= Просмотр (видят все) ======= -->
       <div class="chips">
-        <span v-if="item.hidden" class="ui-chip warn"><Icon name="eyeOff" :size="13" /> Скрыто от игроков</span>
+        <span v-if="item.onlyYou" class="ui-chip gold">✦ Видно только тебе</span>
+        <span v-else-if="item.hidden" class="ui-chip warn"><Icon name="eyeOff" :size="13" /> Скрыто от игроков<template v-if="item.revealTo?.length"> · открыто {{ item.revealTo.length }}</template></span>
         <template v-if="type === 'cities'">
           <span v-if="item.port" class="ui-chip"><Icon name="anchor" :size="13" /> Порт</span>
           <span v-if="item.population" class="ui-chip">≈ {{ item.population.toLocaleString('ru-RU') }} жителей</span>
@@ -121,6 +122,22 @@
         </template>
       </div>
       <button v-if="type === 'parties' && master" class="ui-btn small show-all" @click="showParty"><Icon name="eye" :size="16" /> Показать отряд всем</button>
+
+      <!-- личная заметка -->
+      <div v-if="type === 'notes'" class="note-edit">
+        <template v-if="item.ownerId === store.me?.id">
+          <textarea v-model="noteText" class="ui-input" rows="4" placeholder="Что здесь? «тут торговец обманул»" @change="saveNote({ text: noteText })" />
+          <div class="swatches">
+            <button v-for="c in NOTE_COLORS" :key="c" type="button" class="sw" :class="{ on: item.color === c }" :style="{ background: c }" @click="saveNote({ color: c })" />
+          </div>
+          <label class="ui-check"><input type="checkbox" :checked="item.share === 'group'" @change="saveNote({ share: $event.target.checked ? 'group' : 'self' })" /> Показать моему отряду</label>
+          <button class="ui-btn danger small" @click="deleteNote"><Icon name="delete" :size="15" /> Удалить заметку</button>
+        </template>
+        <template v-else>
+          <p class="ui-desc">{{ item.text || 'Без текста' }}</p>
+          <div class="ui-muted small">Заметка {{ item.ownerName || 'союзника' }}</div>
+        </template>
+      </div>
 
       <!-- заказ гильдии -->
       <div v-if="type === 'quests'" class="quest-view">
@@ -292,6 +309,13 @@
               <input v-model.number="form.pace" type="number" min="1" class="ui-input pace-in" placeholder="км" />
             </div>
           </div>
+          <div v-if="roster.length" class="ui-field"><span>Игроки в отряде (видят общие заметки друг друга)</span>
+            <div class="pick-players">
+              <button v-for="p in roster" :key="p.id" type="button" class="pp" :class="{ on: form.members.includes(p.id) }" @click="togglePlayer(form.members, p.id)">
+                <img v-if="p.avatar" :src="avatarUrl(p.avatar)" alt="" /><i v-else :style="{ background: p.color }" />{{ p.character }}
+              </button>
+            </div>
+          </div>
           <div class="ui-row move-row">
             <button v-if="!item.journey" type="button" class="ui-btn primary small" @click="planJourney"><Icon name="journey" :size="16" /> Отправить в путь</button>
             <template v-else>
@@ -304,6 +328,14 @@
         <label v-if="type !== 'labels'" class="ui-field"><span>Описание (видят все)</span><textarea v-model="form.description" class="ui-input" rows="4" /></label>
         <label v-if="type !== 'labels'" class="ui-field"><span><Icon name="lock" :size="12" /> Заметки мастера (игроки не видят)</span><textarea v-model="form.secret" class="ui-input" rows="3" /></label>
         <label class="ui-check"><input v-model="form.hidden" type="checkbox" /> Скрыть от игроков</label>
+        <div v-if="form.hidden && 'revealTo' in form && roster.length" class="ui-field reveal">
+          <span>…но открыть только им (что узнал их персонаж):</span>
+          <div class="pick-players">
+            <button v-for="p in roster" :key="p.id" type="button" class="pp" :class="{ on: form.revealTo.includes(p.id) }" @click="togglePlayer(form.revealTo, p.id)">
+              <img v-if="p.avatar" :src="avatarUrl(p.avatar)" alt="" /><i v-else :style="{ background: p.color }" />{{ p.character }}
+            </button>
+          </div>
+        </div>
 
         <div class="editor-actions">
           <button type="submit" class="ui-btn primary" :disabled="saving"><Icon name="check" :size="16" /> Сохранить</button>
@@ -319,7 +351,7 @@
 import { computed, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import IconPicker from './IconPicker.vue'
-import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km, toast, markIcon, sendFollow } from './store.js'
+import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km, toast, markIcon, sendFollow, avatarUrl } from './store.js'
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
 import { URGENCY, rewardText } from '../shared/quests.js'
 import { polyLength, journeyState, anomalyState } from '../shared/geo.js'
@@ -329,7 +361,7 @@ const item = computed(() => findSelected())
 const type = computed(() => store.selection?.type)
 const select = (t, id) => { store.selection = { type: t, id } }
 
-const KIND = { cities: 'Поселение', states: 'Народ / государство', roads: 'Дорога', anomalies: 'Аномалия', parties: 'Отряд', labels: 'Подпись', routes: 'Маршрут', quests: 'Заказ гильдии' }
+const KIND = { cities: 'Поселение', states: 'Народ / государство', roads: 'Дорога', anomalies: 'Аномалия', parties: 'Отряд', labels: 'Подпись', routes: 'Маршрут', quests: 'Заказ гильдии', notes: 'Личная заметка' }
 
 // метки по разделам легенды
 const pointGroups = Object.entries(POINT_EFFECTS).reduce((acc, [k, e]) => {
@@ -358,7 +390,7 @@ const headIcon = computed(() => {
   if (type.value === 'parties') return it.icon || 'sword'
   if (type.value === 'labels') return 'label'
   if (type.value === 'routes') return 'ship'
-  if (type.value === 'quests') return 'note'
+  if (type.value === 'quests' || type.value === 'notes') return 'note'
   return 'map'
 })
 const accent = computed(() => {
@@ -394,13 +426,13 @@ const toLocal = ms => {
 const fromLocal = s => (s ? new Date(s).getTime() : null)
 
 const FIELDS = {
-  cities: ['name', 'type', 'population', 'stateId', 'port', 'description', 'secret', 'hidden'],
-  states: ['name', 'color', 'description', 'secret', 'hidden'],
-  roads: ['name', 'type', 'description', 'hidden'],
-  anomalies: ['name', 'kind', 'effect', 'size', 'radius', 'description', 'secret', 'hidden'],
-  parties: ['name', 'color', 'icon', 'pace', 'description', 'secret', 'hidden'],
-  routes: ['name', 'color', 'stops', 'description', 'hidden'],
-  labels: ['text', 'style', 'hidden']
+  cities: ['name', 'type', 'population', 'stateId', 'port', 'description', 'secret', 'hidden', 'revealTo'],
+  states: ['name', 'color', 'description', 'secret', 'hidden', 'revealTo'],
+  roads: ['name', 'type', 'description', 'hidden', 'revealTo'],
+  anomalies: ['name', 'kind', 'effect', 'size', 'radius', 'description', 'secret', 'hidden', 'revealTo'],
+  parties: ['name', 'color', 'icon', 'pace', 'members', 'description', 'secret', 'hidden', 'revealTo'],
+  routes: ['name', 'color', 'stops', 'description', 'hidden', 'revealTo'],
+  labels: ['text', 'style', 'hidden', 'revealTo']
 }
 
 /* ---------------- Подписи: ползунки меняют карту сразу и сохраняются при отпускании ---------------- */
@@ -438,6 +470,8 @@ function resetForm() {
   if (!it || !master.value || !FIELDS[type.value]) { form.value = null; return }
   const f = {}
   for (const k of FIELDS[type.value]) f[k] = it[k] ?? (k === 'secret' || k === 'description' ? '' : it[k])
+  // списки — копией, чтобы правки не утекали в данные до «Сохранить»
+  for (const k of ['revealTo', 'members']) if (k in f || FIELDS[type.value].includes(k)) f[k] = [...(it[k] || [])]
   if (type.value === 'routes') f.stops = it.stops.map(st => ({ ...st }))
   if (type.value === 'anomalies') f.size = it.size || 1
   if (type.value === 'anomalies') {
@@ -542,6 +576,21 @@ function showParty() {
 
 const unpinQuest = () => act('PATCH', `/api/quests/${item.value.id}`, { loc: null }, 'Заказ убран с карты').catch(() => {})
 
+/* ---------------- Игроки: секреты, отряд, заметки ---------------- */
+const roster = computed(() => store.data.roster || [])
+function togglePlayer(list, id) {
+  const i = list.indexOf(id)
+  i === -1 ? list.push(id) : list.splice(i, 1)
+}
+const NOTE_COLORS = ['#ffd166', '#ff9a4e', '#ff7ac0', '#7ee06a', '#4fd8ff', '#c47aff', '#f2f2f2']
+const noteText = ref('')
+watch(() => (type.value === 'notes' ? item.value?.id : null), () => { noteText.value = item.value?.text || '' }, { immediate: true })
+const saveNote = patch => act('PATCH', `/api/notes/${item.value.id}`, patch).catch(() => {})
+async function deleteNote() {
+  await act('DELETE', `/api/notes/${item.value.id}`, undefined, 'Заметка удалена').catch(() => {})
+  store.selection = null
+}
+
 function planJourney() {
   store.tool = 'select'
   store.journeyPlan = { partyId: item.value.id, waypoints: [], byRoad: true }
@@ -586,6 +635,12 @@ function replay() {
 .q-tasks li.main { color: var(--ok); }
 .q-btns { margin: 10px 0; flex-wrap: wrap; }
 .q-btns > * { flex: 0 1 auto; text-decoration: none; }
+.pick-players { display: flex; flex-wrap: wrap; gap: 5px; }
+.pp { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px 0 4px; border-radius: 99px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, .04); color: var(--muted); font: 600 12px var(--sans); cursor: pointer; }
+.pp img, .pp i { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.pp.on { color: var(--gold-2); border-color: rgba(231, 197, 111, .5); background: rgba(231, 197, 111, .14); }
+.reveal { margin-top: -4px; }
+.note-edit { display: grid; gap: 10px; margin-bottom: 12px; }
 .badge-img { max-width: 32px; max-height: 32px; }
 .route-box { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: rgba(255, 74, 61, 0.06); border: 1px solid rgba(255, 74, 61, 0.25); margin-bottom: 10px; }
 .route-box .ui-kicker { color: #ff9b8f; }

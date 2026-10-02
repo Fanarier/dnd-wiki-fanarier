@@ -19,8 +19,7 @@
         <input v-model="search" placeholder="Поиск по статьям…" aria-label="Поиск по вики" />
         <button v-if="search" class="w-clear" aria-label="Очистить" @click="search = ''">×</button>
       </label>
-      <button v-if="master" class="w-auth master" title="Выйти" @click="logout">♛ <span class="w-hide">Мастер</span> ⎋</button>
-      <button v-else class="w-auth" @click="loginOpen = true">Войти</button>
+      <UserMenu />
     </header>
 
     <div class="w-layout">
@@ -29,8 +28,9 @@
       </aside>
       <div v-if="drawer" class="w-scrim" @click="drawer = false" />
 
-      <main class="w-main">
-        <transition name="fade" mode="out-in">
+      <main class="w-main" :class="{ 'theme-magic': isMagic }">
+        <div v-if="magicLoading" class="w-loader"><SteamLoader kind="magic" /></div>
+        <transition v-else name="fade" mode="out-in">
           <div v-if="hasQuery" key="search-results">
             <h2 class="w-h">Результаты поиска: «{{ search }}»</h2>
             <SearchResults :results="searchResults" :query="search" @open="openArticle" />
@@ -40,27 +40,16 @@
       </main>
     </div>
 
-    <div v-if="loginOpen" class="w-modal" @mousedown.self="loginOpen = false">
-      <form class="w-login" @submit.prevent="doLogin">
-        <div class="w-kicker">Только для мастера</div>
-        <h3>Вход</h3>
-        <label>Логин<input ref="loginInput" v-model="lf.login" autocomplete="username" /></label>
-        <label>Пароль<input v-model="lf.password" type="password" autocomplete="current-password" /></label>
-        <div v-if="loginError" class="w-err">{{ loginError }}</div>
-        <div class="w-actions">
-          <button type="button" @click="loginOpen = false">Отмена</button>
-          <button type="submit" class="primary">Войти</button>
-        </div>
-      </form>
-    </div>
   </v-app>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, reactive, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
-import { isMaster, init, login, logout } from '../map/store.js'
+import { init } from '../map/store.js'
+import UserMenu from '../components/UserMenu.vue'
+import SteamLoader from '../components/SteamLoader.vue'
 
 import Sidebar from '../components/Sidebar.vue'
 import SearchResults from '../components/SearchResults.vue'
@@ -150,30 +139,23 @@ function openArticle(id) {
 
 watch(currentCategory, () => { search.value = '' })
 
-/* -------------------- Вход мастера (общий с картой) -------------------- */
-const master = isMaster
+/* -------------------- Общий вход и ссылки с карты -------------------- */
 const route = useRoute()
 onMounted(init)
 // ссылка с карты на заказ открывает доску заказов
 watch(() => route.query.quest, q => { if (q) currentCategory.value = 'quests' }, { immediate: true })
 
-const loginOpen = ref(false)
-const loginError = ref('')
-const loginInput = ref(null)
-const lf = reactive({ login: '', password: '' })
-watch(loginOpen, open => { if (open) nextTick(() => loginInput.value?.focus()) })
-async function doLogin() {
-  loginError.value = ''
-  try {
-    await login(lf.login.trim(), lf.password)
-    lf.password = ''
-    loginOpen.value = false
-  } catch (e) {
-    loginError.value = e.message
+/* -------------------- Магические страницы: свой стиль и загрузка -------------------- */
+const MAGIC = ['general', 'utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
+const isMagic = computed(() => MAGIC.includes(currentCategory.value) && !hasQuery.value)
+const magicLoading = ref(false)
+watch(currentCategory, (c, old) => {
+  if (MAGIC.includes(c) && !MAGIC.includes(old)) {
+    magicLoading.value = true
+    setTimeout(() => { magicLoading.value = false }, 900)
   }
-}
+})
 </script>
-
 <style scoped>
 .w-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 18px; height: 64px; padding: 0 22px; background: rgba(13, 16, 23, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--a-line); }
 .w-brand { display: flex; align-items: center; gap: 10px; color: var(--a-gold-2); text-decoration: none; font: 700 24px var(--a-serif); }
@@ -186,6 +168,24 @@ async function doLogin() {
 .w-search:focus-within { border-color: rgba(231, 197, 111, 0.5); }
 .w-search input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--a-text); font: 500 14px var(--a-sans); }
 .w-clear { background: none; border: 0; color: var(--a-muted); font-size: 20px; cursor: pointer; }
+.w-loader { display: grid; place-items: center; min-height: 60vh; }
+/* магия: звёздное небо, светящиеся заголовки, мистические рамки */
+.theme-magic { position: relative; }
+.theme-magic::before { content: ''; position: fixed; inset: 64px 0 0; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(1px 1px at 12% 18%, #fff8, transparent), radial-gradient(1px 1px at 72% 12%, #fff7, transparent),
+    radial-gradient(1.5px 1.5px at 38% 62%, #cfc2ff99, transparent), radial-gradient(1px 1px at 86% 48%, #fff6, transparent),
+    radial-gradient(1px 1px at 22% 84%, #fff5, transparent), radial-gradient(1.5px 1.5px at 58% 30%, #9fd8ff88, transparent),
+    radial-gradient(900px 500px at 70% 10%, rgba(122, 92, 255, .16), transparent 70%),
+    radial-gradient(700px 500px at 10% 90%, rgba(79, 216, 255, .08), transparent 70%);
+  animation: twinkle 6s ease-in-out infinite alternate; }
+.theme-magic :deep(.v-card) { border-color: rgba(185, 166, 255, .35) !important; box-shadow: 0 0 0 1px rgba(122, 92, 255, .15), 0 0 40px rgba(122, 92, 255, .12), 0 18px 50px rgba(0, 0, 0, .35) !important; }
+.theme-magic :deep(h2) { color: #d9ceff !important; text-shadow: 0 0 18px rgba(155, 125, 255, .55); }
+.theme-magic :deep(h3) { color: #b9a6ff !important; }
+.theme-magic :deep(strong) { color: #cfc2ff !important; }
+.theme-magic :deep(.magic-table caption.table-caption) { color: #d9ceff; background: rgba(122, 92, 255, .1); border-color: rgba(185, 166, 255, .3); }
+.theme-magic :deep(.magic-table tbody td:first-child) { color: #cfc2ff; }
+@keyframes twinkle { from { opacity: .7; } to { opacity: 1; } }
 .w-auth { flex: none; height: 38px; padding: 0 14px; border-radius: 10px; border: 0; background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; font: 700 13px var(--a-sans); cursor: pointer; }
 .w-auth.master { background: rgba(231, 197, 111, .12); color: var(--a-gold-2); border: 1px solid rgba(231, 197, 111, .4); }
 .w-modal { position: fixed; inset: 0; z-index: 120; background: rgba(5, 7, 11, .65); display: grid; place-items: center; padding: 16px; }

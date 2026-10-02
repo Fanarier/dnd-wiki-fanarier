@@ -41,6 +41,7 @@ const COMMON = [
   { id: 'ruler', icon: 'ruler', short: 'Линейка', label: 'Линейка', key: 'M' },
   { id: 'ping', icon: 'pingTool', short: 'Пинг', label: 'Пинг для всех (или Alt+клик / долгое нажатие)', key: 'G' }
 ]
+const NOTE_TOOL = { id: 'note', icon: 'note', short: 'Заметка', label: 'Личная заметка на карте', key: 'N' }
 const GROUPS = [
   COMMON,
   [
@@ -60,9 +61,14 @@ const GROUPS = [
   ]
 ]
 
-const groups = computed(() => (master.value ? GROUPS : [COMMON]))
+// заметка — для вошедших; гостям только выбор и линейка
+const groups = computed(() => {
+  const common = store.me ? [...COMMON, NOTE_TOOL] : COMMON.filter(t => t.id !== 'ping')
+  return master.value ? [common, ...GROUPS.slice(1)] : [common]
+})
 
 const HINTS = {
+  note: 'Кликни, где поставить заметку — её видишь только ты (или твой отряд)',
   ruler: 'Кликай точки — длина пути. Протяни — замер по прямой. Двойной клик или Enter — готово, Esc — убрать',
   ping: 'Кликни — пинг увидят все. Ещё: Alt+клик (Alt+Shift — «опасность») или долгое нажатие',
   label: 'Кликни, где поставить подпись',
@@ -111,9 +117,9 @@ async function clearFog() {
 }
 const toggleFog = on => act('PATCH', '/api/settings', { fogEnabled: on }, on ? 'Туман включён' : 'Туман выключен для всех').catch(() => {})
 
-const KEYS = { v: 'select', m: 'ruler', g: 'ping', c: 'city', t: 'label', r: 'road', w: 'route', a: 'zone', p: 'point', f: 'fogBrush', e: 'fogErase' }
-const RU = { м: 'v', ь: 'm', п: 'g', с: 'c', е: 't', к: 'r', ц: 'w', ф: 'a', з: 'p', а: 'f', у: 'e' }
-const PLAYER_TOOLS = ['select', 'ruler', 'ping']
+const KEYS = { v: 'select', m: 'ruler', g: 'ping', n: 'note', c: 'city', t: 'label', r: 'road', w: 'route', a: 'zone', p: 'point', f: 'fogBrush', e: 'fogErase' }
+const RU = { м: 'v', ь: 'm', п: 'g', т: 'n', с: 'c', е: 't', к: 'r', ц: 'w', ф: 'a', з: 'p', а: 'f', у: 'e' }
+const PLAYER_TOOLS = ['select', 'ruler', 'ping', 'note']
 function onKey(e) {
   if (e.target.closest?.('input, textarea, select') || e.altKey || e.metaKey) return
   if (e.ctrlKey && e.key.toLowerCase() === 'z' && master.value) { e.preventDefault(); undoFog(); return }

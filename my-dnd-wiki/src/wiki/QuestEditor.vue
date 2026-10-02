@@ -128,11 +128,11 @@
             <label>Город
               <select :value="cityAt" @change="setCity($event.target.value)">
                 <option value="">— не привязан —</option>
-                <option v-if="f.loc && !cityAt" value="__pt">Точка на карте ({{ Math.round(f.loc.x) }}, {{ Math.round(f.loc.y) }})</option>
+                <option v-if="cityAt === '__pt'" value="__pt">Точка на карте ({{ Math.round(f.loc.x) }}, {{ Math.round(f.loc.y) }})</option>
                 <option v-for="c in citiesSorted" :key="c.id" :value="c.id">{{ c.name }}</option>
               </select>
             </label>
-            <button v-if="!isNew" type="button" class="mini pick" @click="$emit('pick-on-map', f)">Указать точку на карте…</button>
+            <button type="button" class="mini pick" @click="$emit('pick-on-map', f)">📍 Указать точку на карте…</button>
           </div>
         </section>
       </div>
@@ -151,7 +151,7 @@
 import { computed, ref } from 'vue'
 import { GUILDS, RANKS, QUEST_TYPES, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP } from '../shared/catalog.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, DAY } from '../shared/quests.js'
-import { store } from '../map/store.js'
+import { store, portraitUrl } from '../map/store.js'
 
 const props = defineProps({ quest: { type: Object, default: null }, busy: Boolean })
 const emit = defineEmits(['close', 'save', 'delete', 'pick-on-map'])
@@ -169,10 +169,7 @@ f.value.reward = { ...blank.reward, ...f.value.reward }
 f.value.bonus = { ...blank.bonus, ...f.value.bonus }
 
 const pickFor = ref(null)
-const imgOf = icon => {
-  const ic = icon?.startsWith('u:') && store.data.icons.find(i => i.id === icon.slice(2))
-  return ic ? `/usericons/${ic.file}` : null
-}
+const imgOf = icon => portraitUrl(icon) || null
 
 const toLocal = ms => {
   if (!ms) return ''
@@ -188,7 +185,8 @@ const chanceNow = computed(() => earlyChance(f.value, store.now))
 const curve = computed(() => Array.from({ length: 8 }, (_, day) => ({ day, v: earlyChance(f.value, (f.value.postedAt || Date.now()) + day * DAY) })))
 
 const citiesSorted = computed(() => [...store.data.cities].sort((a, b) => a.name.localeCompare(b.name, 'ru')))
-const cityAt = computed(() => (f.value.loc ? store.data.cities.find(c => Math.hypot(c.x - f.value.loc.x, c.y - f.value.loc.y) < 0.5)?.id || '' : ''))
+// город, если место совпадает с городом; иначе «точка на карте»
+const cityAt = computed(() => (f.value.loc ? store.data.cities.find(c => Math.hypot(c.x - f.value.loc.x, c.y - f.value.loc.y) < 0.5)?.id || '__pt' : ''))
 function setCity(id) {
   if (id === '__pt') return
   const c = store.data.cities.find(x => x.id === id)

@@ -49,21 +49,19 @@
       <b :style="{ background: rank.color, color: rank.text }">{{ rank.label }}</b>
     </div>
 
-    <div class="n-bottom">
-      <div class="n-group">
-        <span>Группа</span>
-        <div class="slots">
-          <i v-for="n in MAX_GROUP" :key="n" class="slot" :title="q.group[n - 1]?.name || 'Свободно'">
-            <img v-if="memberImg(q.group[n - 1])" :src="memberImg(q.group[n - 1])" alt="" />
-            <b v-else-if="q.group[n - 1]">{{ initials(q.group[n - 1].name) }}</b>
-          </i>
-        </div>
+    <div class="n-group">
+      <span>Группа <em>{{ q.group.length }}/{{ MAX_GROUP }}</em></span>
+      <div class="slots">
+        <i v-for="n in MAX_GROUP" :key="n" class="slot" :class="{ me: isMe(q.group[n - 1]) }" :title="q.group[n - 1]?.name || 'Свободно'">
+          <img v-if="portraitUrl(q.group[n - 1]?.icon)" :src="portraitUrl(q.group[n - 1].icon)" alt="" />
+          <b v-else-if="q.group[n - 1]">{{ initials(q.group[n - 1].name) }}</b>
+        </i>
       </div>
-      <div class="n-status" :style="{ background: status.color }">
-        <i class="seal" :title="q.guild">{{ q.guild[0] }}</i>
-        {{ status.label }}
-        <small v-if="!master && q.status === 'available' && q.applicantsCount">откликов: {{ q.applicantsCount }}</small>
-      </div>
+    </div>
+    <div class="n-status" :style="{ background: status.color }">
+      <i class="seal" :title="q.guild">{{ q.guild[0] }}</i>
+      {{ status.label }}
+      <small v-if="!master && q.status === 'available' && q.applicantsCount">· откликов: {{ q.applicantsCount }}</small>
     </div>
 
     <!-- итог: штамп и отчёт -->
@@ -76,12 +74,16 @@
 
 
     <footer class="n-actions">
-      <button v-if="q.loc" class="n-btn" @click="$emit('map', q)">🗺 На карте</button>
-      <button v-if="!master && q.status === 'available'" class="n-btn primary" @click="$emit('apply', q)">Откликнуться</button>
-      <template v-if="master">
-        <button class="n-btn" @click="$emit('edit', q)">✎ Изменить</button>
+      <button v-if="q.loc" class="n-btn map" @click="$emit('map', q)">🗺 Показать на карте</button>
+      <button v-else-if="master" class="n-btn" title="Место не указано" @click="$emit('pick', q)">📍 Указать место</button>
+      <template v-if="!master && q.status === 'available'">
+        <span v-if="inGroup" class="n-done">✔ Ты в группе</span>
+        <span v-else-if="q.applied" class="n-done">✉ Отклик отправлен</span>
+        <button v-else class="n-btn primary" @click="$emit('apply', q)">Откликнуться</button>
       </template>
+      <button v-if="master" class="n-btn" @click="$emit('edit', q)">✎ Изменить</button>
     </footer>
+    <div v-if="q.onlyYou" class="only-you">Этот заказ видишь только ты</div>
 
     <!-- мастеру: таймер, шанс досрочного закрытия, заявки -->
     <section v-if="master && hasMasterInfo" class="n-master">
@@ -112,10 +114,10 @@
 import { computed } from 'vue'
 import { GUILDS, RANKS, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP } from '../shared/catalog.js'
 import { URGENCY, QUEST_TAGS, earlyChance, nextRollAt, rewardText } from '../shared/quests.js'
-import { store } from '../map/store.js'
+import { store, portraitUrl } from '../map/store.js'
 
 const props = defineProps({ q: { type: Object, required: true }, master: Boolean })
-defineEmits(['edit', 'apply', 'map', 'roll', 'accept', 'reject'])
+defineEmits(['edit', 'apply', 'map', 'pick', 'roll', 'accept', 'reject'])
 
 const now = computed(() => store.now)
 const guild = computed(() => GUILDS.find(g => g.name === props.q.guild) || GUILDS[0])
@@ -144,11 +146,8 @@ const durationText = computed(() => {
 const STAMPS = { done: 'Выполнено', failed: 'Провалено', closed: 'Снят' }
 const stamp = computed(() => STAMPS[props.q.status] || '')
 
-function memberImg(m) {
-  if (!m?.icon?.startsWith('u:')) return null
-  const ic = store.data.icons.find(i => i.id === m.icon.slice(2))
-  return ic ? `/usericons/${ic.file}` : null
-}
+const isMe = m => !!store.me && m?.icon === 'p:' + store.me.id
+const inGroup = computed(() => props.q.group.some(isMe))
 const initials = n => (n || '?').split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
 function fmtLeft(ms) {
@@ -207,15 +206,18 @@ function fmtLeft(ms) {
 .box img { width: 100%; height: 100%; }
 .n-rank { display: grid; justify-items: center; gap: 3px; margin-bottom: 10px; font-weight: 700; }
 .n-rank b { min-width: 60%; text-align: center; padding: 3px 10px; border-radius: 3px; font-size: 13px; box-shadow: 0 2px 0 rgba(0, 0, 0, .25); }
-.n-bottom { display: flex; gap: 8px; align-items: stretch; }
-.n-group { flex: 1; border: 1.5px solid rgba(60, 40, 15, .4); border-radius: 4px; padding: 4px 6px 6px; display: grid; justify-items: center; gap: 4px; font-weight: 700; }
-.slots { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
-.slot { width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid rgba(60, 40, 15, .5); overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, .3); font-style: normal; }
+.n-group { border: 1.5px solid rgba(60, 40, 15, .4); border-radius: 4px; padding: 5px 8px 8px; display: grid; justify-items: center; gap: 5px; font-weight: 700; margin-bottom: 8px; }
+.n-group em { font-style: normal; color: #6b5232; font-weight: 600; font-size: 11px; }
+.slots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; width: 100%; }
+.slot { aspect-ratio: 1; border-radius: 50%; border: 1.5px solid rgba(60, 40, 15, .5); overflow: hidden; display: grid; place-items: center; background: rgba(255, 255, 255, .3); font-style: normal; box-shadow: inset 0 1px 3px rgba(0, 0, 0, .25); }
+.slot.me { border: 2.5px solid #2a72f0; }
 .slot img { width: 100%; height: 100%; object-fit: cover; }
 .slot b { font-size: 11px; color: #3a2410; }
-.n-status { width: 88px; flex: none; display: grid; place-content: center; text-align: center; color: #fff; font-weight: 800; font-size: 13px; border-radius: 4px; box-shadow: 0 3px 0 rgba(0, 0, 0, .25); }
-.n-status small { font-weight: 600; font-size: 10px; opacity: .85; }
-
+.n-status { position: relative; padding: 7px 10px; text-align: center; color: #fff; font-weight: 800; font-size: 14px; border-radius: 4px; box-shadow: 0 3px 0 rgba(0, 0, 0, .25); }
+.n-status small { font-weight: 600; font-size: 11px; opacity: .9; }
+.n-btn.map { background: #2a72f0; border-color: #1a4fb3; color: #fff; }
+.n-done { align-self: center; font-weight: 800; color: #1f6b12; }
+.only-you { margin-top: 6px; font-size: 11px; font-weight: 800; color: #7a5cff; text-transform: uppercase; letter-spacing: .04em; }
 .stamp { position: absolute; top: 42%; left: 50%; transform: translate(-50%, -50%) rotate(-14deg); display: flex; align-items: center; gap: 8px; padding: 6px 16px; border: 4px double currentColor; border-radius: 8px; font: 800 26px 'Cormorant Garamond', Georgia, serif; letter-spacing: .1em; text-transform: uppercase; pointer-events: none; mix-blend-mode: multiply; opacity: .85; }
 .stamp img { width: 30px; height: 30px; mix-blend-mode: normal; }
 .stamp-done { color: #1a4fb3; }
@@ -223,7 +225,7 @@ function fmtLeft(ms) {
 .stamp-closed { color: #5d4a30; }
 .n-report { margin-top: 8px; padding: 6px 8px; border-left: 3px solid var(--guild); background: rgba(255, 255, 255, .25); font-style: italic; white-space: pre-wrap; }
 .n-status { position: relative; }
-.seal { position: absolute; right: -12px; top: -14px; font-style: normal; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: rgba(255, 255, 255, .85); font: 700 17px 'Cormorant Garamond', Georgia, serif; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--guild) 70%, white), var(--guild) 55%, color-mix(in srgb, var(--guild) 60%, black)); box-shadow: 0 2px 3px rgba(0, 0, 0, .4), inset 0 0 0 3px rgba(0, 0, 0, .12); transform: rotate(-12deg); opacity: .9; pointer-events: none; }
+.seal { position: absolute; right: -10px; top: -16px; font-style: normal; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: rgba(255, 255, 255, .85); font: 700 17px 'Cormorant Garamond', Georgia, serif; background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--guild) 70%, white), var(--guild) 55%, color-mix(in srgb, var(--guild) 60%, black)); box-shadow: 0 2px 3px rgba(0, 0, 0, .4), inset 0 0 0 3px rgba(0, 0, 0, .12); transform: rotate(-12deg); opacity: .9; pointer-events: none; }
 .n-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .n-actions:empty { display: none; }
 .n-btn { border: 1.5px solid rgba(60, 40, 15, .5); background: rgba(255, 255, 255, .35); color: #2b2116; border-radius: 4px; padding: 4px 10px; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }

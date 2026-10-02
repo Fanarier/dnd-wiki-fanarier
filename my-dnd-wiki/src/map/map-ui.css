@@ -96,3 +96,14 @@ input[type='range'] { accent-color: var(--gold); width: 100%; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(6px); }
 .slide-enter-active, .slide-leave-active { transition: opacity 0.22s, transform 0.22s; }
 .slide-enter-from, .slide-leave-to { opacity: 0; transform: translateX(24px); }
+
+/* Стимпанк-акценты: латунные заклёпки по углам крупных панелей */
+.anacaria .legend, .anacaria .info, .anacaria .journey, .anacaria .hud-card, .anacaria .mt-bar, .anacaria .dialog, .anacaria .brand {
+  --rivet: radial-gradient(circle, #f2d79c 0 1.6px, #a37b3a 2.2px, #4a3415 2.9px, transparent 3.4px);
+  background-image: var(--rivet), var(--rivet), var(--rivet), var(--rivet);
+  background-size: 10px 10px;
+  background-repeat: no-repeat;
+  background-position: 4px 4px, calc(100% - 4px) 4px, 4px calc(100% - 4px), calc(100% - 4px) calc(100% - 4px);
+  border-color: rgba(201, 162, 79, 0.38);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 220, 150, 0.08), var(--shadow);
+}

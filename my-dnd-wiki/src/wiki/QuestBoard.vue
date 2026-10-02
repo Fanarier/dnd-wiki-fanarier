@@ -25,11 +25,11 @@
         <input v-model="fText" placeholder="Поиск по заказам…" />
       </div>
 
-      <div v-if="!store.ready" class="qb-empty">Загружаем доску…</div>
+      <div v-if="!store.ready" class="qb-load"><SteamLoader kind="board" /></div>
       <div v-else-if="!board.length" class="qb-empty">На доске пусто{{ master ? ' — вывеси первый заказ.' : '. Загляни позже.' }}</div>
       <div v-else class="qb-wood">
         <QuestNote v-for="q in board" :key="q.id" :q="q" :master="master"
-                   @edit="edit" @apply="apply = { q, name: store.nick || '', note: '' }" @map="showOnMap"
+                   @edit="edit" @apply="applyTo" @map="showOnMap" @pick="pickOnMap"
                    @roll="roll" @accept="accept" @reject="reject" />
       </div>
     </template>
@@ -78,20 +78,6 @@
       <p class="qb-note">Репутация считается сама: выполненный заказ с наградой «репутация гильдии» даёт +10 (+5 за доп. награду, +2 за каждый череп опасности), проваленный — минус столько же. Мастер может добавить поправку.</p>
     </template>
 
-    <!-- Отклик игрока -->
-    <div v-if="apply" class="qb-modal" @mousedown.self="apply = null">
-      <form class="qb-dialog" @submit.prevent="sendApply">
-        <div class="qe-kicker">Отклик на заказ</div>
-        <h3>{{ apply.q.type }} · {{ apply.q.guild }}</h3>
-        <label>Имя персонажа<input v-model="apply.name" maxlength="40" required autofocus /></label>
-        <label>Пара слов распорядителю (необязательно)<textarea v-model="apply.note" maxlength="300" rows="3" placeholder="Раса, класс, уровень, чем полезен" /></label>
-        <div class="qb-actions">
-          <button type="button" class="qb-btn" @click="apply = null">Отмена</button>
-          <button type="submit" class="qb-btn primary" :disabled="sending">Откликнуться</button>
-        </div>
-      </form>
-    </div>
-
     <QuestEditor v-if="editing" :quest="editing" :busy="sending" @close="editing = null" @save="save" @delete="remove" @pick-on-map="pickOnMap" />
   </div>
 </template>
@@ -101,7 +87,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuestNote from './QuestNote.vue'
 import QuestEditor from './QuestEditor.vue'
-import { store, isMaster, init, act, api, toast, setNick } from '../map/store.js'
+import SteamLoader from '../components/SteamLoader.vue'
+import { store, isMaster, init, act, api, toast } from '../map/store.js'
 import { GUILDS, RANKS, QUEST_STATUS, QUEST_RESULT, MAX_GROUP } from '../shared/catalog.js'
 import { URGENCY, guildStats, questRep } from '../shared/quests.js'
 
@@ -169,36 +156,36 @@ async function roll(q) {
   } catch (e) { toast(e.message, 'error') }
 }
 
-async function accept(q, a) {
-  if (q.group.length >= MAX_GROUP) return toast(`В группе уже ${MAX_GROUP}`, 'error')
-  await act('PATCH', `/api/quests/${q.id}`, {
-    group: [...q.group, { name: a.name, icon: '' }],
-    applicants: q.applicants.filter(x => x.id !== a.id)
-  }, `${a.name} в группе`).catch(() => {})
-}
-const reject = (q, a) => act('PATCH', `/api/quests/${q.id}`, { applicants: q.applicants.filter(x => x.id !== a.id) }).catch(() => {})
+const accept = (q, a) => act('POST', `/api/quests/${q.id}/applicants/${a.id}/accept`, {}, `${a.name} в группе`).catch(() => {})
+const reject = (q, a) => act('POST', `/api/quests/${q.id}/applicants/${a.id}/reject`, {}).catch(() => {})
 
 const adjustRep = (guild, value) => act('PATCH', '/api/guild-rep', { guild, value: Number(value) || 0 }, 'Репутация обновлена').catch(() => {})
 
-/* ---------- игрок ---------- */
-const apply = ref(null)
-async function sendApply() {
-  sending.value = true
-  try {
-    await api('POST', `/api/quests/${apply.value.q.id}/apply`, { name: apply.value.name, note: apply.value.note })
-    setNick(apply.value.name)
-    toast('Отклик отправлен — распорядитель рассмотрит')
-    apply.value = null
-  } catch (e) { toast(e.message, 'error') } finally {
-    sending.value = false
+/* ---------- игрок: отклик в один клик своим персонажем ---------- */
+async function applyTo(q) {
+  if (store.role === 'guest') {
+    store.gate = 'choose'
+    return toast('Откликаться могут вошедшие игроки')
   }
+  try {
+    await api('POST', `/api/quests/${q.id}/apply`, {})
+    toast(`Отклик отправлен — распорядитель гильдии рассмотрит`)
+  } catch (e) { toast(e.message, 'error') }
 }
 
 /* ---------- карта ---------- */
 const showOnMap = q => router.push({ path: '/', query: { focus: 'quests:' + q.id } })
-function pickOnMap(q) {
+async function pickOnMap(q) {
+  let id = q.id
+  // новый заказ — сначала вывешиваем, потом выбираем место
+  if (!id) {
+    const { applicants, applicantsCount, completedAt, createdAt, ...body } = q
+    try {
+      id = (await act('POST', '/api/quests', body, 'Заказ сохранён — укажи место')).id
+    } catch { return }
+  }
   editing.value = null
-  router.push({ path: '/', query: { pick: 'quest:' + q.id } })
+  router.push({ path: '/', query: { pick: 'quest:' + id } })
 }
 
 // /wiki?quest=ID — открыть заказ (например, после выбора точки на карте)
@@ -223,6 +210,7 @@ watch(() => [route.query.quest, store.ready, master.value], () => {
 }
 .qb-filters select option { background: #141a24; }
 .qb-filters input { flex: 1; min-width: 180px; }
+.qb-load { display: grid; place-items: center; min-height: 40vh; }
 .qb-empty { padding: 40px; text-align: center; color: #9d978b; border: 1px dashed rgba(255, 255, 255, .12); border-radius: 14px; }
 .qb-btn { border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: #ece6da; border-radius: 10px; padding: 9px 16px; font: 700 13px 'Manrope', sans-serif; cursor: pointer; }
 .qb-btn.primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }

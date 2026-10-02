@@ -45,11 +45,8 @@
           <span>{{ clock }}</span>
         </div>
         <router-link to="/wiki" class="ui-btn ghost small nav"><Icon name="wiki" :size="17" /><span class="hide-sm">Вики</span></router-link>
-        <template v-if="master">
-          <button class="ui-btn ghost icon" title="Настройки мира" @click="settingsOpen = true"><Icon name="settings" :size="18" /></button>
-          <button class="ui-btn small master-chip" title="Выйти" @click="logout"><Icon name="crown" :size="15" /><span class="hide-sm">Мастер</span><Icon name="logout" :size="15" /></button>
-        </template>
-        <button v-else class="ui-btn primary small" @click="loginOpen = true"><Icon name="login" :size="16" /> Войти</button>
+        <button v-if="master" class="ui-btn ghost icon" title="Настройки мира" @click="settingsOpen = true"><Icon name="settings" :size="18" /></button>
+        <UserMenu />
       </div>
     </header>
 
@@ -84,24 +81,9 @@
     <!-- Загрузка -->
     <transition name="fade">
       <div v-if="!store.ready" class="loading">
-        <div class="ui-title">Разворачиваем карту Анкарии…</div>
+        <SteamLoader kind="map" />
       </div>
     </transition>
-
-    <!-- Вход -->
-    <div v-if="loginOpen" class="modal" @mousedown.self="loginOpen = false">
-      <form class="dialog ui-panel" @submit.prevent="doLogin">
-        <div class="ui-kicker">Только для мастера</div>
-        <h2 class="ui-title">Вход</h2>
-        <label class="ui-field"><span>Логин</span><input ref="loginInput" v-model="loginForm.login" class="ui-input" autocomplete="username" /></label>
-        <label class="ui-field"><span>Пароль</span><input v-model="loginForm.password" type="password" class="ui-input" autocomplete="current-password" /></label>
-        <div v-if="loginError" class="err">{{ loginError }}</div>
-        <div class="dialog-actions">
-          <button type="button" class="ui-btn" @click="loginOpen = false">Отмена</button>
-          <button type="submit" class="ui-btn primary" :disabled="loginBusy">Войти</button>
-        </div>
-      </form>
-    </div>
 
     <!-- Настройки -->
     <div v-if="settingsOpen" class="modal" @mousedown.self="settingsOpen = false">
@@ -120,6 +102,7 @@
         <p class="ui-muted small">Например, 24 — время в мире идёт как в жизни; 1 — день похода длится реальный час.</p>
         <label class="ui-check"><input v-model="sf.fogEnabled" type="checkbox" /> Туман войны включён</label>
         <label class="ui-check"><input v-model="sf.playerPings" type="checkbox" /> Игроки могут ставить пинги</label>
+        <label class="ui-check"><input v-model="sf.playerCursors" type="checkbox" /> Показывать всем курсоры игроков</label>
 
         <div class="ui-kicker sec">Сетка мастера</div>
         <div class="ui-row">
@@ -168,7 +151,9 @@ import InfoPanel from './InfoPanel.vue'
 import JourneyPanel from './JourneyPanel.vue'
 import MasterToolbar from './MasterToolbar.vue'
 import HudPanel from './HudPanel.vue'
-import { store, isMaster, init, login, logout, api, act, km, toast, sendFollow } from './store.js'
+import UserMenu from '../components/UserMenu.vue'
+import SteamLoader from '../components/SteamLoader.vue'
+import { store, isMaster, init, api, act, km, toast, sendFollow } from './store.js'
 import { CITY_TYPES, ZONE_EFFECTS, POINT_EFFECTS } from '../shared/catalog.js'
 import { partyPosition, anomalyState } from '../shared/geo.js'
 
@@ -261,28 +246,6 @@ function showMyView() {
   toast('Игроки смотрят туда же, куда и ты')
 }
 
-/* ---------- Вход ---------- */
-const loginOpen = ref(false)
-const loginBusy = ref(false)
-const loginError = ref('')
-const loginForm = reactive({ login: '', password: '' })
-const loginInput = ref(null)
-watch(loginOpen, open => { if (open) nextTick(() => loginInput.value?.focus()) })
-async function doLogin() {
-  loginBusy.value = true
-  loginError.value = ''
-  try {
-    await login(loginForm.login.trim(), loginForm.password)
-    loginOpen.value = false
-    loginForm.password = ''
-    toast('Добро пожаловать, мастер')
-  } catch (e) {
-    loginError.value = e.message
-  } finally {
-    loginBusy.value = false
-  }
-}
-
 /* ---------- Настройки ---------- */
 const settingsOpen = ref(false)
 const sf = reactive({})
@@ -299,9 +262,9 @@ const calResult = computed(() => {
   return d > 0 && cal.km > 0 ? Math.round((cal.km / d) * 1000) / 1000 : null
 })
 async function saveSettings() {
-  const { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled, playerPings, grid } = sf
+  const { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled, playerPings, playerCursors, grid } = sf
   try {
-    await act('PATCH', '/api/settings', { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled, playerPings, grid }, 'Настройки сохранены')
+    await act('PATCH', '/api/settings', { worldName, worldDate, kmPerPx, paceKmPerDay, realHoursPerGameDay, fogEnabled, playerPings, playerCursors: !!playerCursors, grid }, 'Настройки сохранены')
     settingsOpen.value = false
   } catch { /* тост */ }
 }

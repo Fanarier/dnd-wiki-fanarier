@@ -5,7 +5,7 @@ import { POINT_EFFECTS } from '../shared/catalog.js'
 
 const TOKEN_KEY = 'anacaria-token'
 const LAYERS_KEY = 'anacaria-layers'
-const NICK_KEY = 'anacaria-nick'
+const GUEST_KEY = 'anacaria-guest'
 const SOUND_KEY = 'anacaria-sound'
 
 function lsGet(key) {
@@ -17,7 +17,7 @@ function lsSet(key, val) {
 
 const DEFAULT_LAYERS = {
   states: true, borders: true, rivers: true, labels: true, relief: false, biomes: false, heights: false,
-  roads: true, routes: true, quests: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
+  roads: true, routes: true, quests: true, notes: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
 }
 
 let savedLayers = {}
@@ -30,7 +30,7 @@ export const store = reactive({
   token: lsGet(TOKEN_KEY),
   clockOffset: 0,
   now: Date.now(),
-  data: { settings: { width: 2048, height: 1024, kmPerPx: 1, grid: { cellKm: 10, type: 'square' } }, hud: null, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [], labels: [], routes: [], icons: [], quests: [], guildRep: {} },
+  data: { settings: { width: 2048, height: 1024, kmPerPx: 1, grid: { cellKm: 10, type: 'square' } }, hud: null, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [], labels: [], routes: [], icons: [], quests: [], guildRep: {}, roster: [], notes: [], notifications: [], players: [] },
   statePaths: [],
 
   layers: { ...DEFAULT_LAYERS, ...savedLayers },
@@ -45,7 +45,9 @@ export const store = reactive({
   toasts: [],
   fogUndo: [],
   ruler: null, // { points: [[x,y]], done } — своя линейка
-  nick: lsGet(NICK_KEY) || '',
+  me: null, // { role, id, name, avatar, color } — кто вошёл
+  // экран входа: показываем, пока не вошёл и не выбрал «смотреть как гость»
+  gate: lsGet(TOKEN_KEY) || lsGet(GUEST_KEY) ? null : 'choose',
   sound: lsGet(SOUND_KEY) !== 'off',
   presence: { id: null, color: '#ffd166', cursors: {}, rulers: {}, pings: [] },
   follow: null, // { mode: 'party', partyId, until, by } | { mode: 'view', x, y, span, by } — камера идёт за мастером
@@ -54,6 +56,22 @@ export const store = reactive({
 })
 
 export const isMaster = computed(() => store.role === 'master')
+export const isPlayer = computed(() => store.role === 'player')
+export const isUser = computed(() => store.role === 'master' || store.role === 'player')
+export const unread = computed(() => (store.data.notifications || []).filter(n => !n.read).length)
+
+// аватарка: файл аватара игрока/мастера
+export const avatarUrl = file => (file ? `/avatars/${file}` : '')
+// портрет участника группы: своя иконка (u:) или аватар игрока (p:)
+export function portraitUrl(icon) {
+  if (!icon) return ''
+  if (icon.startsWith('u:')) {
+    const ic = store.data.icons.find(i => i.id === icon.slice(2))
+    return ic ? `/usericons/${ic.file}` : ''
+  }
+  if (icon.startsWith('p:')) return avatarUrl(store.data.roster?.find(p => p.id === icon.slice(2))?.avatar)
+  return ''
+}
 
 watch(() => ({ ...store.layers }), v => lsSet(LAYERS_KEY, JSON.stringify(v)))
 
@@ -126,12 +144,20 @@ export async function act(method, url, body, okText) {
   }
 }
 
+// токен больше не действует (сменили пароль, удалили аккаунт) — выходим и показываем вход
+function tokenRevoked() {
+  setToken(null)
+  if (!lsGet(GUEST_KEY)) store.gate = 'choose'
+}
+
 function applyState(state) {
   store.clockOffset = state.serverTime - Date.now()
   store.now = Date.now() + store.clockOffset
   store.role = state.role
-  const { role, serverTime, ...data } = state
+  store.me = state.me || null
+  const { role, serverTime, me, ...data } = state
   store.data = data
+
   store.ready = true
   if (store.selection && !findSelected()) store.selection = null
 }
@@ -154,13 +180,16 @@ function connect() {
     store.connected = true
     retry = 0
     if (store.token) ws.send(JSON.stringify({ type: 'auth', token: store.token }))
-    if (store.nick) ws.send(JSON.stringify({ type: 'nick', name: store.nick }))
     store.presence.cursors = {}
     store.presence.rulers = {}
   }
   ws.onmessage = e => {
     const msg = JSON.parse(e.data)
-    if (msg.type === 'state') applyState(msg.state)
+    if (msg.type === 'state') {
+      // первый вид при подключении — гостевой, пока сервер не проверил токен; его пропускаем
+      if (store.token && msg.state.role === 'guest') return
+      applyState(msg.state)
+    } else if (msg.type === 'authFailed') tokenRevoked()
     else onPresence(msg)
   }
   ws.onclose = () => {
@@ -178,6 +207,7 @@ export async function init() {
     const [state, paths] = await Promise.all([api('GET', '/api/state'), fetch(`/map/states.json?v=${__BUILD__}`).then(r => r.json())])
     store.statePaths = paths
     applyState(state)
+    if (store.token && state.role === 'guest') tokenRevoked()
   } catch (e) {
     toast('Сервер карты недоступен: ' + e.message, 'error')
   }
@@ -188,7 +218,8 @@ export function setToken(token) {
   store.token = token
   lsSet(TOKEN_KEY, token)
   if (!token) {
-    store.role = 'player'
+    store.role = 'guest'
+    store.me = null
     store.tool = 'select'
     store.journeyPlan = null
     store.draft = null
@@ -200,13 +231,49 @@ export function setToken(token) {
 export async function login(loginName, password) {
   const r = await api('POST', '/api/login', { login: loginName, password })
   setToken(r.token)
-  // состояние мастера придёт по WebSocket; на всякий случай запрашиваем и напрямую
+  store.gate = null
+  // состояние придёт по WebSocket; на всякий случай запрашиваем и напрямую
   applyState(await api('GET', '/api/state'))
+  return r.role
 }
 
 export function logout() {
   setToken(null)
+  store.gate = 'choose'
+  lsSet(GUEST_KEY, null)
   api('GET', '/api/state').then(applyState).catch(() => {})
+}
+
+export function enterAsGuest() {
+  lsSet(GUEST_KEY, '1')
+  store.gate = null
+}
+
+export async function registerPlayer(form) {
+  return api('POST', '/api/register', form)
+}
+
+export async function updateProfile(patch) {
+  const r = await api('PATCH', '/api/me', patch)
+  if (r.token) setToken(r.token)
+  applyState(await api('GET', '/api/state'))
+  return r
+}
+
+export function markRead(ids) {
+  return api('POST', '/api/notifications/read', ids ? { ids } : {}).catch(() => {})
+}
+
+// Картинку уменьшаем на клиенте и отдаём data URL (аватарки — квадрат до 256px)
+export async function imageToDataUrl(file, max = 256) {
+  if (!file.type.startsWith('image/') || file.type.includes('svg')) throw new Error('Нужна картинка PNG, JPG, WebP или GIF')
+  const bmp = await createImageBitmap(file)
+  const side = Math.min(bmp.width, bmp.height)
+  const c = document.createElement('canvas')
+  c.width = c.height = Math.min(max, side)
+  // обрезаем по центру в квадрат — для круглой аватарки
+  c.getContext('2d').drawImage(bmp, (bmp.width - side) / 2, (bmp.height - side) / 2, side, side, 0, 0, c.width, c.height)
+  return c.toDataURL('image/webp', 0.88)
 }
 
 /* ---------------- Утилиты ---------------- */
@@ -242,7 +309,7 @@ function onPresence(msg) {
       P.color = msg.color
       break
     case 'cursor':
-      P.cursors[msg.id] = { name: msg.name, color: msg.color, x: msg.x, y: msg.y, t: Date.now() }
+      P.cursors[msg.id] = { name: msg.name, color: msg.color, avatar: msg.avatar, x: msg.x, y: msg.y, t: Date.now() }
       break
     case 'cursorLeave':
       delete P.cursors[msg.id]
@@ -316,7 +383,7 @@ setInterval(() => {
 let cursorTimer = null
 let pendingCursor = null
 export function sendCursor(x, y) {
-  if (store.role !== 'master') return
+  if (store.role !== 'master' && !(store.role === 'player' && store.data.settings.playerCursors)) return
   pendingCursor = [x, y]
   if (cursorTimer) return
   cursorTimer = setTimeout(() => {
@@ -326,7 +393,7 @@ export function sendCursor(x, y) {
 }
 export function sendCursorLeave() {
   pendingCursor = null
-  if (store.role === 'master') wsSend({ type: 'cursorLeave' })
+  if (store.role !== 'guest') wsSend({ type: 'cursorLeave' })
 }
 
 export function sendRuler(points) {
@@ -335,7 +402,7 @@ export function sendRuler(points) {
 
 const PING_TTL = 4200
 function addPing(p) {
-  const ping = { key: Math.random(), x: p.x, y: p.y, name: p.name, color: p.color, kind: p.kind || 'look', t: Date.now() }
+  const ping = { key: Math.random(), x: p.x, y: p.y, name: p.name, avatar: p.avatar, color: p.color, kind: p.kind || 'look', t: Date.now() }
   store.presence.pings.push(ping)
   setTimeout(() => {
     const i = store.presence.pings.indexOf(ping)
@@ -345,18 +412,16 @@ function addPing(p) {
 }
 
 export function ping(x, y, kind = 'look') {
+  if (store.role === 'guest') {
+    toast('Пинги — для вошедших игроков', 'error')
+    return
+  }
   if (store.role !== 'master' && !store.data.settings.playerPings) {
     toast('Мастер выключил пинги игроков', 'error')
     return
   }
-  addPing({ x, y, kind, name: store.role === 'master' ? 'Вы' : (store.nick || 'Вы'), color: store.presence.color })
+  addPing({ x, y, kind, name: store.me?.name || 'Вы', avatar: store.me?.avatar, color: store.me?.color || store.presence.color })
   wsSend({ type: 'ping', x, y, kind })
-}
-
-export function setNick(name) {
-  store.nick = String(name || '').trim().slice(0, 24)
-  lsSet(NICK_KEY, store.nick || null)
-  wsSend({ type: 'nick', name: store.nick })
 }
 
 export function setSound(on) {

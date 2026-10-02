@@ -8,7 +8,11 @@ import express from 'express'
 import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR } from './db.js'
-import { checkCredentials, issueToken, verifyToken, hasMasters, loginAllowed, recordFailure } from './auth.js'
+import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword } from './auth.js'
+import {
+  getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
+  masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR
+} from './accounts.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS, GUILDS, RANKS, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP } from '../src/shared/catalog.js'
@@ -98,7 +102,8 @@ T.group = () => v => {
   if (!Array.isArray(v) || v.length > MAX_GROUP) throw new Error(`в группе не больше ${MAX_GROUP} человек`)
   return v.map(m => ({
     name: T.str(40)(m?.name),
-    icon: typeof m?.icon === 'string' && /^u:[a-z0-9]{4,20}$/.test(m.icon) ? m.icon : ''
+    // u:<иконка из библиотеки> или p:<игрок> — тогда берётся его аватарка
+    icon: typeof m?.icon === 'string' && /^(u:[a-z0-9]{4,20}|p:u[a-f0-9]{6,20})$/.test(m.icon) ? m.icon : ''
   }))
 }
 
@@ -111,12 +116,15 @@ T.early = () => v => ({
 })
 T.loc = () => v => (v ? { x: T.num(-500, 3000)(v.x), y: T.num(-500, 3000)(v.y) } : null)
 
+// список id игроков (кому открыт скрытый объект, кто в отряде)
+T.ids = () => v => (Array.isArray(v) ? [...new Set(v.filter(x => typeof x === 'string' && /^u[a-f0-9]{6,20}$/.test(x)))].slice(0, 50) : [])
+
 const COORD = T.num(-500, 3000)
 const TEXT = T.str(20000)
 const SCHEMAS = {
   states: {
     noCreate: true,
-    fields: { name: T.str(80), color: T.color(), label: T.label(), description: TEXT, secret: TEXT, hidden: T.bool() }
+    fields: { name: T.str(80), color: T.color(), label: T.label(), description: TEXT, secret: TEXT, hidden: T.bool(), revealTo: T.ids() }
   },
   labels: {
     prefix: 'l',
@@ -124,7 +132,7 @@ const SCHEMAS = {
     required: ['text', 'x', 'y'],
     fields: {
       text: T.str(120), x: COORD, y: COORD, angle: T.num(-360, 360), size: T.num(3, 200), bend: T.num(-0.05, 0.05),
-      wrap: T.bool(), style: T.oneOf(['land', 'sea', 'region', 'danger']), hidden: T.bool()
+      wrap: T.bool(), style: T.oneOf(['land', 'sea', 'region', 'danger']), hidden: T.bool(), revealTo: T.ids()
     }
   },
   cities: {
@@ -133,14 +141,14 @@ const SCHEMAS = {
     required: ['name', 'x', 'y'],
     fields: {
       name: T.str(80), x: COORD, y: COORD, type: T.oneOf(Object.keys(CITY_TYPES)), port: T.bool(),
-      stateId: T.idOrNull(), population: T.num(0, 1e9), description: TEXT, secret: TEXT, hidden: T.bool()
+      stateId: T.idOrNull(), population: T.num(0, 1e9), description: TEXT, secret: TEXT, hidden: T.bool(), revealTo: T.ids()
     }
   },
   roads: {
     prefix: 'r',
     defaults: { name: '', type: 'road', description: '', hidden: false },
     required: ['points'],
-    fields: { name: T.str(80), type: T.oneOf(Object.keys(ROAD_TYPES)), points: T.points(), description: TEXT, hidden: T.bool() }
+    fields: { name: T.str(80), type: T.oneOf(Object.keys(ROAD_TYPES)), points: T.points(), description: TEXT, hidden: T.bool(), revealTo: T.ids() }
   },
   anomalies: {
     prefix: 'a',
@@ -152,7 +160,7 @@ const SCHEMAS = {
       name: T.str(80), x: COORD, y: COORD, radius: T.num(2, 600),
       toX: T.numOrNull(-500, 3000), toY: T.numOrNull(-500, 3000),
       activeFrom: T.numOrNull(0, 1e14), activeTo: T.numOrNull(0, 1e14),
-      description: TEXT, secret: TEXT, hidden: T.bool()
+      description: TEXT, secret: TEXT, hidden: T.bool(), revealTo: T.ids()
     }
   },
   parties: {
@@ -161,7 +169,7 @@ const SCHEMAS = {
     required: ['name', 'x', 'y'],
     fields: {
       name: T.str(80), color: T.color(), icon: T.oneOf(PARTY_ICONS), x: COORD, y: COORD,
-      pace: T.numOrNull(1, 5000), description: TEXT, secret: TEXT, hidden: T.bool()
+      pace: T.numOrNull(1, 5000), members: T.ids(), description: TEXT, secret: TEXT, hidden: T.bool(), revealTo: T.ids()
     }
   },
   routes: {
@@ -170,7 +178,7 @@ const SCHEMAS = {
     required: ['points'],
     fields: {
       name: T.str(80), color: T.color(), kind: T.oneOf(['sea', 'land']), points: T.points(), stops: T.stops(),
-      description: TEXT, hidden: T.bool()
+      description: TEXT, hidden: T.bool(), revealTo: T.ids()
     }
   },
   quests: {
@@ -191,8 +199,8 @@ const SCHEMAS = {
       report: TEXT, tags: v => (Array.isArray(v) ? v.filter(t => QUEST_TAGS[t]) : []),
       urgency: T.oneOf(Object.keys(URGENCY)), postedAt: T.num(0, 1e14), expiresAt: T.numOrNull(0, 1e14),
       early: T.early(), loc: T.loc(), closedReason: T.str(200),
-      applicants: v => (Array.isArray(v) ? v.slice(0, 50).map(a => ({ id: T.str(20)(a?.id), name: T.str(40)(a?.name), note: T.str(300)(a?.note), at: Number(a?.at) || Date.now() })) : []),
-      secret: TEXT, hidden: T.bool()
+      applicants: v => (Array.isArray(v) ? v.slice(0, 50).map(a => ({ id: T.str(20)(a?.id), userId: T.str(24)(a?.userId), name: T.str(40)(a?.name), note: T.str(300)(a?.note), at: Number(a?.at) || Date.now() })) : []),
+      secret: TEXT, hidden: T.bool(), revealTo: T.ids()
     }
   },
   fog: {
@@ -206,7 +214,7 @@ const SCHEMAS = {
 const SETTINGS = {
   worldName: T.str(60), worldDate: T.str(120), kmPerPx: T.num(0.001, 1000),
   paceKmPerDay: T.num(1, 2000), realHoursPerGameDay: T.num(0.01, 10000), fogEnabled: T.bool(),
-  playerPings: T.bool(),
+  playerPings: T.bool(), playerCursors: T.bool(),
   grid: v => ({ cellKm: T.num(0.1, 5000)(v?.cellKm), type: T.oneOf(['square', 'hex'])(v?.type) })
 }
 
@@ -246,48 +254,129 @@ function sanitize(fields, body, partial) {
   return out
 }
 
-/* ------------------------- Что видят игроки ------------------------- */
+/* ------------------------- Кто зашёл ------------------------- */
 
-const strip = ({ secret, ...rest }) => rest
+// Токен → пользователь: мастер, игрок (только одобренный) или null (гость)
+function identify(token) {
+  const d = readToken(token)
+  if (!d) return null
+  if (!d.role || d.role === 'master') {
+    if (!verifyToken(token)) return null
+    const pr = masterProfile(d.sub)
+    return { role: 'master', id: 'm:' + d.sub, login: d.sub, name: pr.displayName || d.sub, avatar: pr.avatar, color: pr.color }
+  }
+  if (d.role === 'player') {
+    const p = getPlayer(d.sub)
+    if (!p || p.status !== 'active' || p.v !== d.v) return null
+    return { role: 'player', id: p.id, login: p.login, name: p.character, avatar: p.avatar, color: p.color, rank: p.rank }
+  }
+  return null
+}
 
-function viewFor(role, now = Date.now()) {
+function userOf(req) {
+  const h = req.headers.authorization || ''
+  return h.startsWith('Bearer ') ? identify(h.slice(7)) : null
+}
+
+/* ------------------------- Уведомления (колокольчик) ------------------------- */
+
+// to: 'masters' — всем мастерам, или id игрока
+function notify(to, kind, text, data = {}) {
   const db = getDb()
-  if (role === 'master') return { ...db, role, serverTime: now }
+  db.notifications ||= []
+  db.notifications.push({ id: newId('n'), to, kind, text, data, createdAt: Date.now(), readBy: [], resolved: false })
+  // храним последние 400; нерешённые заявки не выкидываем
+  if (db.notifications.length > 400) {
+    const keep = db.notifications.filter(n => n.kind === 'register' && !n.resolved)
+    db.notifications = [...keep, ...db.notifications.filter(n => !(n.kind === 'register' && !n.resolved)).slice(-(400 - keep.length))]
+  }
+}
+function resolveNotifications(match) {
+  for (const n of getDb().notifications || []) if (match(n)) n.resolved = true
+}
+function notificationsFor(user) {
+  const list = (getDb().notifications || []).filter(n => (user.role === 'master' ? n.to === 'masters' : n.to === user.id))
+  return list.slice(-80).map(n => ({ ...n, read: n.resolved || n.readBy.includes(user.id), readBy: undefined }))
+}
+
+const RANK_ORDER = RANKS.map(r => r.key)
+function notifyNewQuest(q) {
+  if (q.hidden || q.status !== 'available') return
+  for (const p of allPlayers()) {
+    if (p.status === 'active' && RANK_ORDER.indexOf(p.rank) >= RANK_ORDER.indexOf(q.rank)) {
+      notify(p.id, 'newQuest', `Новый заказ на доске: «${q.type}» (${q.guild})`, { questId: q.id })
+    }
+  }
+}
+
+/* ------------------------- Что видит каждый ------------------------- */
+
+const strip = ({ secret, revealTo, ...rest }) => rest
+
+function roster() {
+  return allPlayers().filter(p => p.status === 'active').map(publicPlayer)
+}
+
+function viewFor(user, now = Date.now()) {
+  const db = getDb()
+  const role = user?.role || 'guest'
+  const uid = user?.id
+  const me = user ? { role, id: uid, login: user.login, name: user.name, avatar: user.avatar, color: user.color, rank: user.rank } : null
+  // заметки: свои + общие для отряда, в котором состоит игрок
+  const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
+  const notes = (db.notes || []).filter(n => n.ownerId === uid || (n.share === 'group' && mates.has(n.ownerId)))
+  if (role === 'master') {
+    const { notifications, notes: _n, questsSeeded, ...rest } = db
+    return {
+      ...rest, role, me, serverTime: now, notes, roster: roster(),
+      notifications: notificationsFor(user),
+      players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt }))
+    }
+  }
   const fogOn = db.settings.fogEnabled
   const fog = fogOn ? db.fog : []
-  const fogged = (x, y) => fogOn && isFogged([x, y], fog)
+  // секрет, открытый лично этому игроку, виден даже скрытым и под туманом
+  const mine = o => !!uid && o.revealTo?.includes(uid)
+  const vis = o => !o.hidden || mine(o)
+  const fogged = (o, x, y) => fogOn && !mine(o) && isFogged([x, y], fog)
+  const pub = o => ({ ...strip(o), ...(o.hidden && mine(o) ? { onlyYou: true } : {}) })
   return {
-    role: 'player',
-    serverTime: now,
+    role, me, serverTime: now,
     settings: db.settings,
-    states: db.states.filter(s => !s.hidden && !(s.pole && fogged(s.pole[0], s.pole[1]))).map(strip),
-    cities: db.cities.filter(c => !c.hidden && !fogged(c.x, c.y)).map(strip),
-    roads: db.roads.filter(r => !r.hidden).map(strip),
+    states: db.states.filter(s => vis(s) && !(s.pole && fogged(s, s.pole[0], s.pole[1]))).map(pub),
+    cities: db.cities.filter(c => vis(c) && !fogged(c, c.x, c.y)).map(pub),
+    roads: db.roads.filter(vis).map(pub),
     anomalies: db.anomalies
       .filter(a => {
-        if (a.hidden) return false
+        if (!vis(a)) return false
         const st = anomalyState(a, now)
-        return st.active && !fogged(st.x, st.y)
+        return st.active && !fogged(a, st.x, st.y)
       })
-      .map(strip),
-    parties: db.parties.filter(p => !p.hidden).map(strip),
-    labels: db.labels.filter(l => !l.hidden && !fogged(l.x, l.y)),
-    routes: db.routes.filter(r => !r.hidden).map(r => ({ ...r, stops: r.stops.filter(st => !st.hidden) })),
+      .map(pub),
+    parties: db.parties.filter(vis).map(pub),
+    labels: db.labels.filter(l => vis(l) && !fogged(l, l.x, l.y)).map(pub),
+    routes: db.routes.filter(vis).map(r => ({ ...pub(r), stops: r.stops.filter(st => !st.hidden) })),
     icons: db.icons,
-    quests: db.quests.filter(q => !q.hidden).map(({ secret, early, expiresAt, applicants, ...q }) => ({ ...q, applicantsCount: applicants?.length || 0 })),
+    quests: db.quests.filter(vis).map(({ secret, early, expiresAt, applicants, revealTo, ...q }) => ({
+      ...q, applicantsCount: applicants?.length || 0, applied: !!uid && !!applicants?.some(a => a.userId === uid),
+      ...(q.hidden ? { onlyYou: true } : {})
+    })),
     guildRep: db.guildRep || {},
     hud: db.hud?.visible ? db.hud : null,
+    roster: roster(),
+    notes,
+    notifications: user ? notificationsFor(user) : [],
     fog
   }
 }
 
 /* ------------------------- WebSocket ------------------------- */
 
-const clients = new Set() // { ws, role }
-let lastPlayerView = ''
+const clients = new Set() // { ws, user, role }
+let lastGuestView = ''
 
-function playerViewString(now) {
-  const { serverTime, ...rest } = viewFor('player', now)
+const guestViewString = now => {
+  const { serverTime, ...rest } = viewFor(null, now)
   return JSON.stringify(rest)
 }
 
@@ -295,12 +384,12 @@ function send(client, view) {
   if (client.ws.readyState === 1) client.ws.send(JSON.stringify({ type: 'state', state: view }))
 }
 
+// у каждого свой вид (секреты, заметки, колокольчик), гостям — один общий
 function broadcast() {
   const now = Date.now()
-  const master = viewFor('master', now)
-  const player = viewFor('player', now)
-  lastPlayerView = playerViewString(now)
-  for (const c of clients) send(c, c.role === 'master' ? master : player)
+  const guest = viewFor(null, now)
+  lastGuestView = guestViewString(now)
+  for (const c of clients) send(c, c.user ? viewFor(c.user, now) : guest)
 }
 
 // Аномалии появляются/исчезают по времени, отряды доходят до цели — проверяем раз в 5 секунд
@@ -314,6 +403,7 @@ setInterval(() => {
       const last = p.journey.path[p.journey.path.length - 1]
       p.x = last[0]
       p.y = last[1]
+      if (j.done && (p.journey.endAt - p.journey.startAt) > 60000) notify('masters', 'arrived', `Отряд «${p.name}» добрался до цели${p.journey.label ? ': ' + p.journey.label : ''}`, { partyId: p.id })
       p.journey = null
       changed = true
     }
@@ -323,12 +413,7 @@ setInterval(() => {
     broadcast()
     return
   }
-  const v = playerViewString(now)
-  if (v !== lastPlayerView) {
-    lastPlayerView = v
-    const player = viewFor('player', now)
-    for (const c of clients) if (c.role !== 'master') send(c, player)
-  }
+  if (guestViewString(now) !== lastGuestView) broadcast()
 }, 5000)
 
 setInterval(backupDb, 6 * 3600 * 1000)
@@ -340,14 +425,16 @@ app.disable('x-powered-by')
 app.set('trust proxy', 'loopback')
 app.use(express.json({ limit: '5mb' }))
 
-function roleOf(req) {
-  const h = req.headers.authorization || ''
-  const token = h.startsWith('Bearer ') ? h.slice(7) : null
-  return token && verifyToken(token) ? 'master' : 'player'
-}
-
 function requireMaster(req, res, next) {
-  if (roleOf(req) !== 'master') return res.status(401).json({ error: 'Нужно войти как мастер' })
+  const u = userOf(req)
+  if (u?.role !== 'master') return res.status(401).json({ error: 'Нужно войти как мастер' })
+  req.user = u
+  next()
+}
+function requireUser(req, res, next) {
+  const u = userOf(req)
+  if (!u) return res.status(401).json({ error: 'Нужно войти' })
+  req.user = u
   next()
 }
 
@@ -356,14 +443,165 @@ app.post('/api/login', (req, res) => {
   if (!hasMasters()) return res.status(503).json({ error: 'Мастер ещё не настроен на сервере (npm run set-password)' })
   if (!loginAllowed(ip)) return res.status(429).json({ error: 'Слишком много попыток. Подожди 10 минут.' })
   const { login, password } = req.body || {}
-  if (!checkCredentials(login, password)) {
+  if (checkCredentials(login, password)) return res.json({ token: issueToken(login), role: 'master' })
+  const p = checkPlayer(login, password)
+  if (!p) {
     recordFailure(ip)
     return res.status(401).json({ error: 'Неверный логин или пароль' })
   }
-  res.json({ token: issueToken(login), login })
+  if (p.status === 'pending') return res.status(403).json({ error: 'Твоя заявка ещё у мастера — подожди, пока её рассмотрят' })
+  if (p.status !== 'active') return res.status(403).json({ error: 'Заявка отклонена мастером' })
+  res.json({ token: signToken({ sub: p.id, role: 'player', v: p.v }), role: 'player' })
 })
 
-app.get('/api/state', (req, res) => res.json(viewFor(roleOf(req))))
+// Заявка на аккаунт игрока: ждёт одобрения мастера
+const regHits = new Map()
+app.post('/api/register', (req, res) => {
+  const now = Date.now()
+  const hits = (regHits.get(req.ip) || []).filter(t => now - t < 3600 * 1000)
+  if (hits.length >= 5) return res.status(429).json({ error: 'Слишком много заявок с этого адреса. Попробуй через час.' })
+  const b = req.body || {}
+  if (b.password !== b.password2) return res.status(400).json({ error: 'Пароли не совпадают' })
+  try {
+    const p = register({ login: String(b.login || '').trim(), password: b.password, character: b.character, race: b.race })
+    if (b.avatar) updatePlayer(p.id, { avatar: saveAvatar(b.avatar) })
+    regHits.set(req.ip, [...hits, now])
+    notify('masters', 'register', `Заявка игрока: ${p.character}${p.race ? ' (' + p.race + ')' : ''} — логин ${p.login}`, { playerId: p.id })
+    saveDb()
+    broadcast()
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+app.get('/api/state', (req, res) => res.json(viewFor(userOf(req))))
+app.get('/api/me', requireUser, (req, res) => {
+  const u = req.user
+  if (u.role === 'master') return res.json({ role: 'master', login: u.login, ...masterProfile(u.login) })
+  const p = getPlayer(u.id)
+  res.json({ role: 'player', login: p.login, ...publicPlayer(p) })
+})
+
+/* ---------- Профиль ---------- */
+app.patch('/api/me', requireUser, (req, res) => {
+  const u = req.user, b = req.body || {}
+  if (b.newPassword) {
+    if (String(b.newPassword).length < 6) return res.status(400).json({ error: 'Новый пароль — минимум 6 символов' })
+    const ok = u.role === 'master'
+      ? changeMasterPassword(u.login, String(b.oldPassword || ''), String(b.newPassword))
+      : (checkPlayer(u.login, b.oldPassword) && (setPlayerPassword(u.id, String(b.newPassword)), true))
+    if (!ok) return res.status(400).json({ error: 'Старый пароль неверный' })
+  }
+  try {
+    const color = b.color && /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : undefined
+    if (u.role === 'master') {
+      const cur = masterProfile(u.login)
+      const patch = {}
+      if (b.name !== undefined) patch.displayName = T.str(40)(b.name).trim() || u.login
+      if (color) patch.color = color
+      if (b.avatar === null) patch.avatar = ''
+      else if (b.avatar) patch.avatar = saveAvatar(b.avatar, cur.avatar)
+      updateMasterProfile(u.login, patch)
+    } else {
+      const cur = getPlayer(u.id)
+      const patch = {}
+      if (b.name !== undefined) patch.character = T.str(40)(b.name).trim() || cur.character
+      if (b.race !== undefined) patch.race = T.str(40)(b.race).trim()
+      if (color) patch.color = color
+      if (b.avatar === null) patch.avatar = ''
+      else if (b.avatar) patch.avatar = saveAvatar(b.avatar, cur.avatar)
+      updatePlayer(u.id, patch)
+    }
+  } catch (e) {
+    return res.status(400).json({ error: e.message })
+  }
+  broadcast()
+  // после смены пароля старый токен недействителен — выдаём новый
+  if (b.newPassword) {
+    const token = u.role === 'master' ? issueToken(u.login) : signToken({ sub: u.id, role: 'player', v: getPlayer(u.id).v })
+    return res.json({ ok: true, token })
+  }
+  res.json({ ok: true })
+})
+
+/* ---------- Игроки (мастер) ---------- */
+app.post('/api/players/:id/:action(approve|reject)', requireMaster, (req, res) => {
+  const p = getPlayer(req.params.id)
+  if (!p) return res.status(404).json({ error: 'Игрок не найден' })
+  const approve = req.params.action === 'approve'
+  updatePlayer(p.id, { status: approve ? 'active' : 'rejected' })
+  resolveNotifications(n => n.kind === 'register' && n.data.playerId === p.id)
+  if (approve) notify(p.id, 'welcome', `Добро пожаловать в Анкарию, ${p.character}! Мастер одобрил твою заявку.`)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+app.patch('/api/players/:id', requireMaster, (req, res) => {
+  const p = getPlayer(req.params.id)
+  if (!p) return res.status(404).json({ error: 'Игрок не найден' })
+  const patch = {}
+  if (req.body?.rank) patch.rank = T.oneOf(RANK_ORDER)(req.body.rank)
+  if (req.body?.status) patch.status = T.oneOf(['active', 'rejected', 'pending'])(req.body.status)
+  updatePlayer(p.id, patch)
+  broadcast()
+  res.json({ ok: true })
+})
+app.delete('/api/players/:id', requireMaster, (req, res) => {
+  if (!removePlayer(req.params.id)) return res.status(404).json({ error: 'Игрок не найден' })
+  resolveNotifications(n => n.kind === 'register' && n.data.playerId === req.params.id)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+
+/* ---------- Колокольчик ---------- */
+app.post('/api/notifications/read', requireUser, (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : null
+  for (const n of notificationsForRaw(req.user)) if (!ids || ids.includes(n.id)) if (!n.readBy.includes(req.user.id)) n.readBy.push(req.user.id)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+function notificationsForRaw(user) {
+  return (getDb().notifications || []).filter(n => (user.role === 'master' ? n.to === 'masters' : n.to === user.id))
+}
+
+/* ---------- Личные заметки на карте ---------- */
+const NOTE = { text: T.str(500), x: COORD, y: COORD, color: T.color(), share: T.oneOf(['self', 'group']) }
+app.post('/api/notes', requireUser, (req, res) => {
+  const db = getDb()
+  db.notes ||= []
+  if (db.notes.filter(n => n.ownerId === req.user.id).length >= 300) return res.status(400).json({ error: 'Слишком много заметок' })
+  const data = sanitize(NOTE, req.body || {}, false)
+  const note = { id: newId('n'), color: '#ffd166', share: 'self', text: '', ...data, ownerId: req.user.id, ownerName: req.user.name, createdAt: Date.now() }
+  db.notes.push(note)
+  saveDb()
+  broadcast()
+  res.json(note)
+})
+app.patch('/api/notes/:id', requireUser, (req, res) => {
+  const note = (getDb().notes || []).find(n => n.id === req.params.id && n.ownerId === req.user.id)
+  if (!note) return res.status(404).json({ error: 'Заметка не найдена' })
+  Object.assign(note, sanitize(NOTE, req.body || {}, true))
+  saveDb()
+  broadcast()
+  res.json(note)
+})
+app.delete('/api/notes/:id', requireUser, (req, res) => {
+  const db = getDb()
+  const i = (db.notes || []).findIndex(n => n.id === req.params.id && n.ownerId === req.user.id)
+  if (i === -1) return res.status(404).json({ error: 'Заметка не найдена' })
+  db.notes.splice(i, 1)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+
+app.use('/avatars', express.static(AVATAR_DIR, {
+  maxAge: '30d', immutable: true, index: false,
+  setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff')
+}))
 
 app.patch('/api/settings', requireMaster, (req, res) => {
   const db = getDb()
@@ -532,26 +770,42 @@ function rollEarly(q, now = Date.now()) {
     q.status = 'closed'
     q.completedAt = now
     q.closedReason = 'Заказ выполнила другая группа'
+    notify('masters', 'questClosed', `d100 = ${roll} против ${Math.round(chance)}%: заказ «${q.type}» (${q.guild}) забрала другая группа`, { questId: q.id })
   }
   return { chance, roll, closed }
 }
 
-// Игроки откликаются без входа — мастер потом добавляет их в группу
-const applyHits = new Map()
-app.post('/api/quests/:id/apply', (req, res) => {
-  const q = getDb().quests.find(x => x.id === req.params.id && !x.hidden)
+// Отклик игрока своим персонажем; мастер принимает в группу или отклоняет
+app.post('/api/quests/:id/apply', requireUser, (req, res) => {
+  if (req.user.role !== 'player') return res.status(400).json({ error: 'Откликаться могут только игроки' })
+  const q = getDb().quests.find(x => x.id === req.params.id && (!x.hidden || x.revealTo?.includes(req.user.id)))
   if (!q) return res.status(404).json({ error: 'Заказ не найден' })
   if (q.status !== 'available') return res.status(400).json({ error: 'На этот заказ уже не набирают' })
-  const now = Date.now()
-  const hits = (applyHits.get(req.ip) || []).filter(t => now - t < 10 * 60 * 1000)
-  if (hits.length >= 6) return res.status(429).json({ error: 'Слишком много откликов. Попробуй позже.' })
-  const name = T.str(40)(req.body?.name).trim()
-  if (!name) return res.status(400).json({ error: 'Напиши имя персонажа' })
   q.applicants ||= []
+  if (q.applicants.some(a => a.userId === req.user.id)) return res.status(400).json({ error: 'Ты уже откликнулся' })
+  if (q.group.some(m => m.icon === 'p:' + req.user.id)) return res.status(400).json({ error: 'Ты уже в группе' })
   if (q.applicants.length >= 30) return res.status(400).json({ error: 'Заявок уже слишком много' })
-  if (q.applicants.some(a => a.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: 'Этот персонаж уже откликнулся' })
-  applyHits.set(req.ip, [...hits, now])
-  q.applicants.push({ id: newId('a'), name, note: T.str(300)(req.body?.note), at: now })
+  const a = { id: newId('a'), userId: req.user.id, name: req.user.name, note: T.str(300)(req.body?.note), at: Date.now() }
+  q.applicants.push(a)
+  notify('masters', 'apply', `${a.name} откликается на заказ «${q.type}» (${q.guild})${a.note ? ': ' + a.note : ''}`, { questId: q.id, applicantId: a.id })
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+
+app.post('/api/quests/:id/applicants/:aid/:action(accept|reject)', requireMaster, (req, res) => {
+  const q = getDb().quests.find(x => x.id === req.params.id)
+  const a = q?.applicants?.find(x => x.id === req.params.aid)
+  if (!q || !a) return res.status(404).json({ error: 'Отклик не найден' })
+  const accept = req.params.action === 'accept'
+  if (accept && q.group.length >= MAX_GROUP) return res.status(400).json({ error: `В группе уже ${MAX_GROUP}` })
+  q.applicants = q.applicants.filter(x => x.id !== a.id)
+  if (accept) {
+    q.group.push({ name: a.name, icon: a.userId ? 'p:' + a.userId : '' })
+    if (q.status === 'available' && q.group.length >= MAX_GROUP) q.status = 'taken'
+  }
+  resolveNotifications(n => n.kind === 'apply' && n.data.applicantId === a.id)
+  if (a.userId) notify(a.userId, accept ? 'accepted' : 'declined', accept ? `Тебя взяли в группу заказа «${q.type}» (${q.guild})!` : `Мастер отклонил твой отклик на «${q.type}»`, { questId: q.id })
   saveDb()
   broadcast()
   res.json({ ok: true })
@@ -587,6 +841,7 @@ setInterval(() => {
     if (q.status !== 'available') continue
     if (q.expiresAt && now >= q.expiresAt) {
       Object.assign(q, { status: 'closed', completedAt: now, closedReason: 'Срок заказа истёк' })
+      notify('masters', 'questClosed', `Срок заказа «${q.type}» (${q.guild}) истёк — снят с доски`, { questId: q.id })
       changed = true
     } else if (q.early?.enabled && q.early.auto && now >= nextRollAt(q)) {
       rollEarly(q, now)
@@ -613,6 +868,7 @@ app.post('/api/:col', requireMaster, (req, res) => {
   const item = { id: newId(schema.prefix), ...JSON.parse(JSON.stringify(schema.defaults || {})), ...data, createdAt: Date.now() }
   if (req.params.col === 'quests') item.postedAt ||= item.createdAt
   getDb()[req.params.col].push(item)
+  if (req.params.col === 'quests') notifyNewQuest(item)
   saveDb()
   broadcast()
   res.json(item)
@@ -624,10 +880,15 @@ app.patch('/api/:col/:id', requireMaster, (req, res) => {
   const item = getDb()[req.params.col].find(x => x.id === req.params.id)
   if (!item) return res.status(404).json({ error: 'Объект не найден' })
   const patch = sanitize(schema.fields, req.body || {}, true)
+  const wasHidden = item.hidden
   if (req.params.col === 'quests' && patch.status && patch.status !== item.status) {
     patch.completedAt = ['done', 'failed', 'closed'].includes(patch.status) ? Date.now() : null
+    if (['done', 'failed'].includes(patch.status)) {
+      for (const m of item.group) if (m.icon?.startsWith('p:')) notify(m.icon.slice(2), 'questResult', `Заказ «${item.type}» ${patch.status === 'done' ? 'выполнен' : 'провален'}`, { questId: item.id })
+    }
   }
   Object.assign(item, patch)
+  if (req.params.col === 'quests' && wasHidden && !item.hidden) notifyNewQuest(item)
   saveDb()
   broadcast()
   res.json(item)
@@ -667,7 +928,7 @@ const CURSOR_COLORS = ['#ffd166', '#ff7ac0', '#4fd8ff', '#7ee06a', '#c47aff', '#
 let nextClientId = 1
 
 function relay(from, msg) {
-  const data = JSON.stringify({ ...msg, id: from.id, name: from.name, color: from.color })
+  const data = JSON.stringify({ ...msg, id: from.id, name: from.name, color: from.color, avatar: from.user?.avatar || '' })
   for (const c of clients) if (c !== from && c.ws.readyState === 1) c.ws.send(data)
 }
 
@@ -675,13 +936,13 @@ const num = v => (Number.isFinite(Number(v)) ? Math.round(Number(v) * 10) / 10 :
 
 wss.on('connection', ws => {
   const id = nextClientId++
-  const client = { ws, role: 'player', id, name: 'Игрок', color: CURSOR_COLORS[id % CURSOR_COLORS.length], pings: [] }
+  const client = { ws, role: 'guest', user: null, id, name: 'Гость', color: CURSOR_COLORS[id % CURSOR_COLORS.length], pings: [] }
   clients.add(client)
-  send(client, viewFor('player'))
+  send(client, viewFor(null))
   ws.send(JSON.stringify({ type: 'hello', id, color: client.color }))
   // новому клиенту — текущие курсоры и линейки мастеров
   for (const c of clients) {
-    if (c === client || c.role !== 'master') continue
+    if (c === client || !c.user) continue
     if (c.cursor) ws.send(JSON.stringify({ type: 'cursor', id: c.id, name: c.name, color: c.color, ...c.cursor }))
     if (c.ruler) ws.send(JSON.stringify({ type: 'ruler', id: c.id, name: c.name, color: c.color, points: c.ruler }))
   }
@@ -691,23 +952,22 @@ wss.on('connection', ws => {
     try { msg = JSON.parse(raw) } catch { return }
     switch (msg.type) {
       case 'auth': {
-        const tok = verifyToken(msg.token)
-        const wasMaster = client.role === 'master'
-        client.role = tok ? 'master' : 'player'
-        if (tok) client.name = tok.sub
-        else if (wasMaster) {
-          client.name = 'Игрок'
+        const user = identify(msg.token)
+        if (client.user && !user) {
           client.cursor = client.ruler = null
           relay(client, { type: 'gone' })
         }
-        send(client, viewFor(client.role))
+        if (msg.token && !user) ws.send(JSON.stringify({ type: 'authFailed' }))
+        client.user = user
+        client.role = user?.role || 'guest'
+        client.name = user?.name || 'Гость'
+        if (user?.color) client.color = user.color
+        send(client, viewFor(user))
         break
       }
-      case 'nick':
-        if (client.role !== 'master') client.name = String(msg.name || '').trim().slice(0, 24) || 'Игрок'
-        break
       case 'cursor': {
-        if (client.role !== 'master') return
+        // курсоры мастеров видны всегда, игроков — если мастер включил
+        if (client.role !== 'master' && !(client.role === 'player' && getDb().settings.playerCursors)) return
         const x = num(msg.x), y = num(msg.y)
         if (x === null || y === null) return
         client.cursor = { x, y }
@@ -715,7 +975,7 @@ wss.on('connection', ws => {
         break
       }
       case 'cursorLeave':
-        if (client.role !== 'master') return
+        if (!client.user) return
         client.cursor = null
         relay(client, { type: 'cursorLeave' })
         break
@@ -740,6 +1000,7 @@ wss.on('connection', ws => {
       case 'ping': {
         const x = num(msg.x), y = num(msg.y)
         if (x === null || y === null) return
+        if (!client.user) return // гости не пингуют
         if (client.role !== 'master' && !getDb().settings.playerPings) return
         // не чаще раза в 0.7 с и не больше 20 в минуту
         const now = Date.now()
@@ -753,7 +1014,7 @@ wss.on('connection', ws => {
   })
   ws.on('close', () => {
     clients.delete(client)
-    if (client.role === 'master') relay(client, { type: 'gone' })
+    if (client.user) relay(client, { type: 'gone' })
   })
 })
 

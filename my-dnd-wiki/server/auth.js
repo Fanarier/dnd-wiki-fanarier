@@ -56,28 +56,54 @@ export function checkCredentials(login, password) {
 
 const b64 = s => Buffer.from(s).toString('base64url')
 
-export function issueToken(login) {
+// Подпись токена общая для мастеров и игроков: { sub, role, v, exp }
+export function signToken(payloadObj) {
   const cfg = readConfig()
-  const payload = b64(JSON.stringify({ sub: login, role: 'master', exp: Date.now() + TOKEN_TTL, v: cfg.users[login].v }))
+  const payload = b64(JSON.stringify({ ...payloadObj, exp: Date.now() + TOKEN_TTL }))
   const sig = crypto.createHmac('sha256', cfg.secret).update(payload).digest('base64url')
   return `${payload}.${sig}`
 }
 
-export function verifyToken(token) {
+// Только подпись и срок — кто это и действителен ли аккаунт, решает вызывающий
+export function readToken(token) {
   const cfg = readConfig()
-  if (!cfg || typeof token !== 'string' || !token.includes('.')) return null
+  if (!cfg?.secret || typeof token !== 'string' || !token.includes('.')) return null
   const [payload, sig] = token.split('.')
   const expected = crypto.createHmac('sha256', cfg.secret).update(payload).digest('base64url')
   if (!safeEqual(sig, expected)) return null
   try {
     const data = JSON.parse(Buffer.from(payload, 'base64url').toString())
-    const user = Object.hasOwn(cfg.users, data.sub) ? cfg.users[data.sub] : null
-    // старые токены (до перехода на нескольких мастеров) могли не содержать v
-    if (!user || data.exp < Date.now() || (data.v ?? 1) !== user.v) return null
-    return data
+    return data.exp < Date.now() ? null : data
   } catch {
     return null
   }
+}
+
+export function issueToken(login) {
+  return signToken({ sub: login, role: 'master', v: readConfig().users[login].v })
+}
+
+// Токен мастера (старые токены без v считаются версией 1)
+export function verifyToken(token) {
+  const data = readToken(token)
+  if (!data || (data.role && data.role !== 'master')) return null
+  const users = readConfig().users
+  const user = Object.hasOwn(users, data.sub) ? users[data.sub] : null
+  return user && (data.v ?? 1) === user.v ? data : null
+}
+
+// Смена пароля мастера из профиля: старые входы мастера сбрасываются
+export function changeMasterPassword(login, oldPassword, newPassword) {
+  if (!checkCredentials(login, oldPassword)) return false
+  const cfg = readConfig()
+  cfg.users[login] = { hash: hashPassword(newPassword), v: (cfg.users[login].v || 1) + 1 }
+  writeConfig(cfg)
+  return true
+}
+
+export function isMasterLogin(login) {
+  const cfg = readConfig()
+  return !!cfg && Object.hasOwn(cfg.users, login)
 }
 
 // Примитивная защита от перебора: 8 попыток за 10 минут с одного IP
