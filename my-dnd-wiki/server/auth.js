@@ -12,9 +12,14 @@ export function hashPassword(password, salt = crypto.randomBytes(16).toString('h
   return `${salt}:${hash}`
 }
 
+// читаем файл заново только если он изменился (смена пароля, новый мастер)
+let cache = { key: '', text: null }
 export function readConfig() {
   if (!fs.existsSync(CONFIG_FILE)) return null
-  const cfg = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'))
+  const st = fs.statSync(CONFIG_FILE)
+  const key = `${st.mtimeMs}:${st.size}`
+  if (key !== cache.key) cache = { key, text: fs.readFileSync(CONFIG_FILE, 'utf8') }
+  const cfg = JSON.parse(cache.text)
   // старый формат: один мастер { login, passwordHash, tokenVersion }
   if (!cfg.users && cfg.login) {
     cfg.users = { [cfg.login]: { hash: cfg.passwordHash, v: cfg.tokenVersion || 1 } }

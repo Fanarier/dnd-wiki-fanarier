@@ -384,12 +384,34 @@ function send(client, view) {
   if (client.ws.readyState === 1) client.ws.send(JSON.stringify({ type: 'state', state: view }))
 }
 
+// Профиль мог измениться (аватарка, имя, цвет) или аккаунт удалён — перечитываем перед рассылкой,
+// иначе подключение отдаёт копию, запомненную при входе
+function refreshClient(c) {
+  if (!c.token) return
+  const user = identify(c.token)
+  if (!user) {
+    if (c.user) {
+      c.ws.readyState === 1 && c.ws.send(JSON.stringify({ type: 'authFailed' }))
+      c.cursor = c.ruler = null
+      relay(c, { type: 'gone' })
+    }
+    c.token = null
+  }
+  c.user = user
+  c.role = user?.role || 'guest'
+  c.name = user?.name || 'Гость'
+  if (user?.color) c.color = user.color
+}
+
 // у каждого свой вид (секреты, заметки, колокольчик), гостям — один общий
 function broadcast() {
   const now = Date.now()
   const guest = viewFor(null, now)
   lastGuestView = guestViewString(now)
-  for (const c of clients) send(c, c.user ? viewFor(c.user, now) : guest)
+  for (const c of clients) {
+    refreshClient(c)
+    send(c, c.user ? viewFor(c.user, now) : guest)
+  }
 }
 
 // Аномалии появляются/исчезают по времени, отряды доходят до цели — проверяем раз в 5 секунд
@@ -958,6 +980,7 @@ wss.on('connection', ws => {
           relay(client, { type: 'gone' })
         }
         if (msg.token && !user) ws.send(JSON.stringify({ type: 'authFailed' }))
+        client.token = user ? msg.token : null
         client.user = user
         client.role = user?.role || 'guest'
         client.name = user?.name || 'Гость'
