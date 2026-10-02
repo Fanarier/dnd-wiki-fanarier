@@ -1,5 +1,5 @@
 // Общее состояние карты: данные мира с сервера, роль, инструменты, выбор.
-import { reactive, computed, watch } from 'vue'
+import { reactive, computed, watch, ref } from 'vue'
 import { buildRoadGraph, findRoute, partyPosition, polyLength } from '../shared/geo.js'
 import { POINT_EFFECTS } from '../shared/catalog.js'
 
@@ -52,7 +52,9 @@ export const store = reactive({
   presence: { id: null, color: '#ffd166', cursors: {}, rulers: {}, pings: [] },
   follow: null, // { mode: 'party', partyId, until, by } | { mode: 'view', x, y, span, by } — камера идёт за мастером
   lastMark: 'quest', // какой тип метки ставить следующим
-  selectedStop: null // выбранная остановка маршрута
+  selectedStop: null, // выбранная остановка маршрута
+  offline: false, // связи с сервером нет дольше нескольких секунд
+  reconnectTries: 0
 })
 
 export const isMaster = computed(() => store.role === 'master')
@@ -173,11 +175,20 @@ export function findSelected() {
 let ws = null
 let retry = 0
 
+// экран «Энди спит» — только если связи нет дольше 5 секунд (короткий перезапуск сервера не мигает)
+let offlineTimer = null
+let reconnectTimer = null
+
 function connect() {
+  clearTimeout(reconnectTimer)
   const proto = location.protocol === 'https:' ? 'wss' : 'ws'
   ws = new WebSocket(`${proto}://${location.host}/ws`)
   ws.onopen = () => {
     store.connected = true
+    clearTimeout(offlineTimer)
+    offlineTimer = null
+    store.offline = false
+    store.reconnectTries = 0
     retry = 0
     if (store.token) ws.send(JSON.stringify({ type: 'auth', token: store.token }))
     store.presence.cursors = {}
@@ -194,8 +205,16 @@ function connect() {
   }
   ws.onclose = () => {
     store.connected = false
-    setTimeout(connect, Math.min(15000, 1000 * 2 ** retry++))
+    store.reconnectTries++
+    offlineTimer ||= setTimeout(() => { store.offline = true }, 5000)
+    reconnectTimer = setTimeout(connect, Math.min(15000, 1000 * 2 ** retry++))
   }
+}
+
+// Арт «Энди спит» качаем заранее и держим в памяти: когда сервер лежит, взять его будет неоткуда
+export const offlineArt = ref('')
+function preloadOfflineArt() {
+  fetch('/img/andy-sleep.webp').then(r => (r.ok ? r.blob() : null)).then(b => { if (b) offlineArt.value = URL.createObjectURL(b) }).catch(() => {})
 }
 
 let started = false
@@ -203,6 +222,7 @@ export async function init() {
   // карта и вики пользуются одним хранилищем — подключаемся один раз
   if (started) return
   started = true
+  preloadOfflineArt()
   try {
     const [state, paths] = await Promise.all([api('GET', '/api/state'), fetch(`/map/states.json?v=${__BUILD__}`).then(r => r.json())])
     store.statePaths = paths
@@ -210,6 +230,17 @@ export async function init() {
     if (store.token && state.role === 'guest') tokenRevoked()
   } catch (e) {
     toast('Сервер карты недоступен: ' + e.message, 'error')
+  }
+  connect()
+}
+
+// «Разбудить» — попробовать переподключиться прямо сейчас
+export function reconnectNow() {
+  if (store.connected) return
+  retry = 0
+  if (ws) {
+    ws.onclose = null // иначе закрытие запустит второе переподключение
+    try { ws.close() } catch { /* уже закрыт */ }
   }
   connect()
 }
