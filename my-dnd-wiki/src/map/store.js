@@ -6,6 +6,8 @@ import { POINT_EFFECTS } from '../shared/catalog.js'
 const TOKEN_KEY = 'anacaria-token'
 const LAYERS_KEY = 'anacaria-layers'
 const GUEST_KEY = 'anacaria-guest'
+const VIEW_KEY = 'anacaria-view'
+export const TICKET_KEY = 'anacaria-ticket'
 const SOUND_KEY = 'anacaria-sound'
 
 function lsGet(key) {
@@ -46,6 +48,7 @@ export const store = reactive({
   fogUndo: [],
   ruler: null, // { points: [[x,y]], done } — своя линейка
   me: null, // { role, id, name, avatar, color } — кто вошёл
+  viewAs: lsGet(VIEW_KEY) === 'player' ? 'player' : null, // мастер играет своим персонажем
   // экран входа: показываем, пока не вошёл и не выбрал «смотреть как гость»
   gate: lsGet(TOKEN_KEY) || lsGet(GUEST_KEY) ? null : 'choose',
   sound: lsGet(SOUND_KEY) !== 'off',
@@ -116,7 +119,8 @@ export async function api(method, url, body) {
     method,
     headers: {
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-      ...(store.token ? { authorization: 'Bearer ' + store.token } : {})
+      ...(store.token ? { authorization: 'Bearer ' + store.token } : {}),
+      ...(store.token && store.viewAs ? { 'x-view-as': store.viewAs } : {})
     },
     body: body !== undefined ? JSON.stringify(body) : undefined
   })
@@ -190,7 +194,7 @@ function connect() {
     store.offline = false
     store.reconnectTries = 0
     retry = 0
-    if (store.token) ws.send(JSON.stringify({ type: 'auth', token: store.token }))
+    if (store.token) ws.send(JSON.stringify({ type: 'auth', token: store.token, viewAs: store.viewAs }))
     store.presence.cursors = {}
     store.presence.rulers = {}
   }
@@ -228,6 +232,7 @@ export async function init() {
     store.statePaths = paths
     applyState(state)
     if (store.token && state.role === 'guest') tokenRevoked()
+    if (!store.token) checkTicket()
   } catch (e) {
     toast('Сервер карты недоступен: ' + e.message, 'error')
   }
@@ -251,18 +256,30 @@ export function setToken(token) {
   if (!token) {
     store.role = 'guest'
     store.me = null
+    store.viewAs = null
+    lsSet(VIEW_KEY, null)
     store.tool = 'select'
     store.journeyPlan = null
     store.draft = null
     store.pick = null
   }
-  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'auth', token }))
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'auth', token, viewAs: store.viewAs }))
+}
+
+// Мастер с персонажем: «♛ мастер ⇄ ⚔ персонаж»
+export async function setViewAs(mode) {
+  store.viewAs = mode === 'player' ? 'player' : null
+  lsSet(VIEW_KEY, store.viewAs)
+  Object.assign(store, { tool: 'select', selection: null, journeyPlan: null, draft: null, pick: null })
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type: 'auth', token: store.token, viewAs: store.viewAs }))
+  applyState(await api('GET', '/api/state'))
 }
 
 export async function login(loginName, password) {
   const r = await api('POST', '/api/login', { login: loginName, password })
   setToken(r.token)
   store.gate = null
+  lsSet(TICKET_KEY, null)
   // состояние придёт по WebSocket; на всякий случай запрашиваем и напрямую
   applyState(await api('GET', '/api/state'))
   return r.role
@@ -281,7 +298,26 @@ export function enterAsGuest() {
 }
 
 export async function registerPlayer(form) {
-  return api('POST', '/api/register', form)
+  const r = await api('POST', '/api/register', form)
+  if (r.ticket) lsSet(TICKET_KEY, r.ticket)
+  return r
+}
+
+// Заявка, отправленная с этого устройства: одобрили — открываем вход с логином
+export async function ticketStatus() {
+  const t = lsGet(TICKET_KEY)
+  if (!t) return null
+  try {
+    return await api('GET', `/api/register/status/${encodeURIComponent(t)}`)
+  } catch (e) {
+    if (e.status === 404) lsSet(TICKET_KEY, null)
+    return null
+  }
+}
+export const forgetTicket = () => lsSet(TICKET_KEY, null)
+async function checkTicket() {
+  const st = await ticketStatus()
+  if (st?.status === 'active') store.gate = 'approved'
 }
 
 export async function updateProfile(patch) {

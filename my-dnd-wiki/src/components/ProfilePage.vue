@@ -40,6 +40,21 @@
         </div>
       </section>
 
+      <!-- персонаж мастера: мастер тоже может играть -->
+      <section v-if="isMaster" class="p-card">
+        <h3>Мой персонаж <small>{{ store.me.character ? 'можно играть: «♛ Мастер ⇄ ⚔ Персонаж» в меню' : 'если ты не только ведёшь, но и играешь' }}</small></h3>
+        <div class="char-row">
+          <label>Имя персонажа<input v-model="ch.character" maxlength="40" placeholder="напр. Федя-паладин" /></label>
+          <label>Раса<input v-model="ch.race" maxlength="40" placeholder="необязательно" /></label>
+          <button class="brass small" :disabled="!ch.character.trim()" @click="saveCharacter">{{ store.me.character ? 'Сохранить' : 'Создать персонажа' }}</button>
+        </div>
+        <p class="muted small">Персонаж появится в списке игроков: его можно брать в группы заказов, добавлять в отряд и открывать ему секреты. Аватарка — твоя мастерская, пока в режиме персонажа не поставишь другую.</p>
+      </section>
+      <section v-if="store.me.asMaster" class="p-card">
+        <h3>Режим персонажа</h3>
+        <p class="muted">Ты сейчас играешь «{{ store.me.name }}». Имя, расу и аватарку персонажа меняй выше; пароль — в режиме мастера.</p>
+      </section>
+
       <!-- игроки (мастер) -->
       <section v-if="isMaster" class="p-card">
         <h3>Игроки <small>{{ activePlayers.length }} в игре · {{ pendingPlayers.length }} ждут</small></h3>
@@ -49,7 +64,7 @@
           <span v-else class="pl-av ini" :style="{ background: p.color }">{{ p.character[0] }}</span>
           <div class="pl-main">
             <b>{{ p.character }}</b><span v-if="p.race" class="muted"> · {{ p.race }}</span>
-            <div class="muted small">логин {{ p.login }} · {{ STATUS[p.status] }}</div>
+            <div class="muted small">{{ p.linked ? `персонаж мастера ${p.login}` : `логин ${p.login} · ${STATUS[p.status]}` }}</div>
           </div>
           <template v-if="p.status === 'pending'">
             <button class="mini ok" @click="call(`/api/players/${p.id}/approve`, 'POST', 'Игрок одобрен')">Одобрить</button>
@@ -80,7 +95,7 @@
       <!-- безопасность и настройки -->
       <section class="p-card">
         <h3>Пароль и настройки</h3>
-        <form class="pw" @submit.prevent="changePassword">
+        <form v-if="!store.me.asMaster" class="pw" @submit.prevent="changePassword">
           <label>Старый пароль<input v-model="pw.old" type="password" autocomplete="current-password" /></label>
           <label>Новый пароль<input v-model="pw.new1" type="password" autocomplete="new-password" minlength="6" /></label>
           <label>Ещё раз<input v-model="pw.new2" type="password" autocomplete="new-password" minlength="6" /></label>
@@ -142,6 +157,19 @@ async function saveProfile() {
   } finally {
     busy.value = false
   }
+}
+
+// персонаж мастера
+const ch = reactive({ character: '', race: '' })
+watch(() => [store.me?.character, store.data.roster?.length], () => {
+  const mine = store.data.roster?.find(p => p.linked && p.character === store.me?.character)
+  ch.character = store.me?.character || ''
+  ch.race = mine?.race || ''
+}, { immediate: true })
+async function saveCharacter() {
+  try {
+    await act('POST', '/api/me/character', { character: ch.character, race: ch.race }, store.me.character ? 'Персонаж обновлён' : 'Персонаж создан — переключайся в меню')
+  } catch { /* тост */ }
 }
 
 const pw = reactive({ old: '', new1: '', new2: '' })
@@ -223,10 +251,11 @@ input[type='color'] { width: 60px; padding: 3px; cursor: pointer; }
 .pl-main { flex: 1; min-width: 0; }
 .note-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(201, 162, 79, .14); font-size: 13.5px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.char-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
 .pw { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
 .love { text-align: center; margin-top: 18px; font: italic 600 18px/1.5 'Cormorant Garamond', Georgia, serif; color: #a8936c; }
 @media (max-width: 640px) {
   .hero { flex-direction: column; align-items: center; }
-  .pw { grid-template-columns: 1fr; }
+  .pw, .char-row { grid-template-columns: 1fr; }
 }
 </style>

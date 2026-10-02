@@ -31,6 +31,11 @@
           </ul>
         </div>
       </div>
+      <button v-if="store.me.canPlay" class="um-btn mode" :class="{ playing: store.me.asMaster }"
+              :title="store.me.asMaster ? 'Сейчас ты играешь персонажем — вернуться в режим мастера' : `Играть персонажем «${store.me.character}»`"
+              @click="switchMode">
+        {{ store.me.asMaster ? '⚔ Персонаж' : '♛ Мастер' }}<span class="arrow">⇄</span>
+      </button>
       <router-link to="/profile" class="um-btn me" :title="`${store.me.name} — профиль`">
         <img v-if="store.me.avatar" :src="avatarUrl(store.me.avatar)" alt="" />
         <span v-else class="ini" :style="{ background: store.me.color }">{{ store.me.name[0] }}</span>
@@ -45,7 +50,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { mdiBell } from '@mdi/js'
-import { store, unread, markRead, act, avatarUrl } from '../map/store.js'
+import { store, unread, markRead, act, avatarUrl, setViewAs, toast } from '../map/store.js'
 
 const BELL = mdiBell
 const open = ref(false)
@@ -65,6 +70,14 @@ const close = () => { open.value = false }
 onMounted(() => document.addEventListener('click', onDoc))
 onBeforeUnmount(() => document.removeEventListener('click', onDoc))
 function onDoc(e) { if (!e.target.closest?.('.bell-wrap')) close() }
+
+async function switchMode() {
+  const toPlayer = !store.me.asMaster
+  try {
+    await setViewAs(toPlayer ? 'player' : null)
+    toast(toPlayer ? `Ты играешь: ${store.me.name}` : 'Режим мастера')
+  } catch (e) { toast(e.message, 'error') }
+}
 
 const act2 = (url, text) => act('POST', url, {}, text).catch(() => {})
 
@@ -88,6 +101,10 @@ function ago(ms) {
 .ini { display: grid; place-items: center; color: #1b1408; font-weight: 800; }
 .me-name { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .crown { color: #e6c27a; font-style: normal; }
+.mode { border-color: rgba(231, 197, 111, .4); color: #f3d99a; background: rgba(231, 197, 111, .1); }
+.mode.playing { border-color: rgba(126, 224, 163, .5); color: #9be07a; background: rgba(126, 224, 163, .1); }
+.mode .arrow { opacity: .7; }
+@media (max-width: 760px) { .mode { padding: 0 6px; font-size: 12px; } }
 .um-login { height: 34px; padding: 0 14px; border-radius: 10px; border: 1px solid #6e4f22; cursor: pointer; color: #1e150a; font: 800 13px 'Manrope', sans-serif; background: linear-gradient(180deg, #f2d58f, #c99a48 55%, #a87a33); box-shadow: inset 0 1px 0 rgba(255, 245, 210, .7), 0 2px 0 #5a3e1a; }
 .bell-wrap { position: relative; }
 .panel { position: absolute; right: 0; top: calc(100% + 8px); width: min(360px, 90vw); max-height: 70vh; overflow-y: auto; z-index: 300; background: #17130e; border: 1px solid #8a6630; border-radius: 14px; box-shadow: 0 0 0 3px #2a2117, 0 20px 50px rgba(0, 0, 0, .6); color: #efe3c8; }

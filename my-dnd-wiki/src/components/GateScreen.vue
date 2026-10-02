@@ -26,6 +26,7 @@
       <!-- вход -->
       <form v-else-if="mode === 'master' || mode === 'player'" class="form" @submit.prevent="doLogin">
         <h2>{{ mode === 'master' ? 'Вход мастера' : 'Вход игрока' }}</h2>
+        <div v-if="info" class="ok">{{ info }}</div>
         <label>Логин<input ref="first" v-model="f.login" autocomplete="username" required /></label>
         <label>Пароль<input v-model="f.password" type="password" autocomplete="current-password" required /></label>
         <div v-if="err" class="err">{{ err }}</div>
@@ -66,8 +67,11 @@
       <div v-else-if="mode === 'sent'" class="sent">
         <div class="seal">✉</div>
         <h2>Пожалуйста, ждите</h2>
-        <p>Ваша заявка у мастера. Когда её одобрят — входите как игрок со своим логином и паролем.</p>
-        <button class="brass-btn small" @click="guest">Пока посмотреть как гость</button>
+        <p>Ваша заявка у мастера. Как только её одобрят, вход произойдёт сам<span class="dots" /></p>
+        <div class="row center">
+          <button class="brass-btn small" @click="guest">Пока посмотреть как гость</button>
+          <button class="link" @click="mode = 'player'">Уже одобрили? Войти</button>
+        </div>
       </div>
 
       <div class="footer">{{ footer }}</div>
@@ -76,11 +80,13 @@
 </template>
 
 <script setup>
-import { nextTick, reactive, ref, watch } from 'vue'
-import { store, login, enterAsGuest, registerPlayer, imageToDataUrl } from '../map/store.js'
+import { nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { store, login, enterAsGuest, registerPlayer, imageToDataUrl, ticketStatus, forgetTicket } from '../map/store.js'
 import { phrase } from '../shared/phrases.js'
 
-const mode = ref(store.gate || 'choose')
+// 'approved' — заявку с этого устройства одобрили, пока страница была закрыта
+const mode = ref(store.gate === 'approved' ? 'player' : store.gate || 'choose')
+const info = ref('')
 const busy = ref(false)
 const err = ref('')
 const first = ref(null)
@@ -95,6 +101,43 @@ watch(mode, () => {
 })
 
 function back() { mode.value = 'choose' }
+
+/* ---------- заявка: ждём одобрения и входим сами ---------- */
+let pollTimer = null
+let rememberedPassword = '' // только в памяти страницы, на диск не пишется
+async function checkApproval() {
+  const st = await ticketStatus()
+  if (!st) return
+  if (st.status === 'active') {
+    clearInterval(pollTimer)
+    f.login = st.login
+    if (rememberedPassword) {
+      try {
+        await login(st.login, rememberedPassword)
+        return
+      } catch { /* не вышло — покажем форму входа */ }
+    }
+    mode.value = 'player'
+    info.value = `Заявку одобрили! Входи, ${st.character}.`
+  } else if (st.status === 'rejected') {
+    clearInterval(pollTimer)
+    forgetTicket()
+    mode.value = 'choose'
+    // смена режима сама очищает ошибку — пишем после неё
+    nextTick(() => { err.value = 'Мастер отклонил заявку' })
+  } else if (mode.value === 'choose') {
+    mode.value = 'sent'
+  }
+}
+onMounted(async () => {
+  if (store.gate === 'approved' || mode.value === 'choose') await checkApproval()
+  if (mode.value === 'sent') pollTimer = setInterval(checkApproval, 6000)
+})
+onBeforeUnmount(() => clearInterval(pollTimer))
+watch(mode, m => {
+  clearInterval(pollTimer)
+  if (m === 'sent') pollTimer = setInterval(checkApproval, 6000)
+})
 function close() { store.gate = null }
 function guest() { enterAsGuest() }
 
@@ -123,6 +166,8 @@ async function doRegister() {
   err.value = ''
   try {
     await registerPlayer({ login: f.login.trim(), password: f.password, password2: f.password2, character: f.character.trim(), race: f.race.trim(), avatar: f.avatar || undefined })
+    rememberedPassword = f.password
+    f.password = f.password2 = ''
     mode.value = 'sent'
   } catch (e) {
     err.value = e.message
@@ -197,6 +242,10 @@ input:focus { outline: none; border-color: #e6c27a; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .link { background: none; border: 0; color: #a8936c; font: 600 13px 'Manrope', sans-serif; cursor: pointer; }
 .err { color: #ff8a7a; font-size: 13px; font-weight: 600; }
+.ok { color: #9be07a; font-size: 14px; font-weight: 700; }
+.row.center { justify-content: center; gap: 16px; flex-wrap: wrap; }
+.dots::after { content: '…'; display: inline-block; width: 1.2em; text-align: left; overflow: hidden; vertical-align: bottom; animation: dots 1.6s steps(4) infinite; }
+@keyframes dots { from { width: 0; } to { width: 1.2em; } }
 .avatar-pick { display: flex; gap: 14px; align-items: center; }
 .avatar { width: 84px; height: 84px; flex: none; border-radius: 50%; border: 3px solid #a37b3a; box-shadow: 0 0 0 2px #3a2a16; overflow: hidden; cursor: pointer; display: grid; place-items: center; background: #120e09; color: #a8936c; font-size: 26px; text-align: center; line-height: 1; }
 .avatar small { display: block; font-size: 11px; }

@@ -11,7 +11,7 @@ import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR } from './db.
 import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword } from './auth.js'
 import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
-  masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR
+  masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
@@ -256,14 +256,25 @@ function sanitize(fields, body, partial) {
 
 /* ------------------------- Кто зашёл ------------------------- */
 
-// Токен → пользователь: мастер, игрок (только одобренный) или null (гость)
-function identify(token) {
+// Токен → пользователь: мастер, игрок (только одобренный) или null (гость).
+// viewAs = 'player' — мастер, у которого есть свой персонаж, сейчас играет им
+function identify(token, viewAs) {
   const d = readToken(token)
   if (!d) return null
   if (!d.role || d.role === 'master') {
     if (!verifyToken(token)) return null
     const pr = masterProfile(d.sub)
-    return { role: 'master', id: 'm:' + d.sub, login: d.sub, name: pr.displayName || d.sub, avatar: pr.avatar, color: pr.color }
+    const ch = linkedCharacter(d.sub)
+    if (viewAs === 'player' && ch) {
+      return {
+        role: 'player', id: ch.id, login: d.sub, name: ch.character, avatar: ch.avatar || pr.avatar,
+        color: ch.color || pr.color, rank: ch.rank, asMaster: true
+      }
+    }
+    return {
+      role: 'master', id: 'm:' + d.sub, login: d.sub, name: pr.displayName || d.sub, avatar: pr.avatar, color: pr.color,
+      playerId: ch?.id || null, character: ch?.character || null
+    }
   }
   if (d.role === 'player') {
     const p = getPlayer(d.sub)
@@ -275,7 +286,7 @@ function identify(token) {
 
 function userOf(req) {
   const h = req.headers.authorization || ''
-  return h.startsWith('Bearer ') ? identify(h.slice(7)) : null
+  return h.startsWith('Bearer ') ? identify(h.slice(7), req.headers['x-view-as']) : null
 }
 
 /* ------------------------- Уведомления (колокольчик) ------------------------- */
@@ -314,14 +325,22 @@ function notifyNewQuest(q) {
 const strip = ({ secret, revealTo, ...rest }) => rest
 
 function roster() {
-  return allPlayers().filter(p => p.status === 'active').map(publicPlayer)
+  return allPlayers().filter(p => p.status === 'active').map(p => {
+    const pub = publicPlayer(p)
+    if (p.linked && !pub.avatar) pub.avatar = masterProfile(p.login).avatar
+    return { ...pub, linked: !!p.linked }
+  })
 }
 
 function viewFor(user, now = Date.now()) {
   const db = getDb()
   const role = user?.role || 'guest'
   const uid = user?.id
-  const me = user ? { role, id: uid, login: user.login, name: user.name, avatar: user.avatar, color: user.color, rank: user.rank } : null
+  const me = user ? {
+    role, id: uid, login: user.login, name: user.name, avatar: user.avatar, color: user.color, rank: user.rank,
+    // мастер с персонажем может переключаться «мастер ⇄ персонаж»
+    canPlay: !!(user.playerId || user.asMaster), asMaster: !!user.asMaster, character: user.character || null
+  } : null
   // заметки: свои + общие для отряда, в котором состоит игрок
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
   const notes = (db.notes || []).filter(n => n.ownerId === uid || (n.share === 'group' && mates.has(n.ownerId)))
@@ -330,7 +349,7 @@ function viewFor(user, now = Date.now()) {
     return {
       ...rest, role, me, serverTime: now, notes, roster: roster(),
       notifications: notificationsFor(user),
-      players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt }))
+      players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked }))
     }
   }
   const fogOn = db.settings.fogEnabled
@@ -388,7 +407,7 @@ function send(client, view) {
 // иначе подключение отдаёт копию, запомненную при входе
 function refreshClient(c) {
   if (!c.token) return
-  const user = identify(c.token)
+  const user = identify(c.token, c.viewAs)
   if (!user) {
     if (c.user) {
       c.ws.readyState === 1 && c.ws.send(JSON.stringify({ type: 'authFailed' }))
@@ -491,7 +510,25 @@ app.post('/api/register', (req, res) => {
     notify('masters', 'register', `Заявка игрока: ${p.character}${p.race ? ' (' + p.race + ')' : ''} — логин ${p.login}`, { playerId: p.id })
     saveDb()
     broadcast()
-    res.json({ ok: true })
+    // квитанция — по ней страница «ждите» узнает, что заявку одобрили
+    res.json({ ok: true, ticket: issueTicket(p.id) })
+  } catch (e) {
+    res.status(400).json({ error: e.message })
+  }
+})
+
+app.get('/api/register/status/:ticket', (req, res) => {
+  const st = ticketStatus(req.params.ticket)
+  if (!st) return res.status(404).json({ error: 'Заявка не найдена' })
+  res.json(st)
+})
+
+// Персонаж мастера (только в режиме мастера)
+app.post('/api/me/character', requireMaster, (req, res) => {
+  try {
+    const ch = upsertLinkedCharacter(req.user.login, { character: req.body?.character, race: req.body?.race })
+    broadcast()
+    res.json({ ok: true, id: ch.id })
   } catch (e) {
     res.status(400).json({ error: e.message })
   }
@@ -508,6 +545,7 @@ app.get('/api/me', requireUser, (req, res) => {
 /* ---------- Профиль ---------- */
 app.patch('/api/me', requireUser, (req, res) => {
   const u = req.user, b = req.body || {}
+  if (b.newPassword && u.asMaster) return res.status(400).json({ error: 'Пароль меняется в режиме мастера' })
   if (b.newPassword) {
     if (String(b.newPassword).length < 6) return res.status(400).json({ error: 'Новый пароль — минимум 6 символов' })
     const ok = u.role === 'master'
@@ -974,7 +1012,8 @@ wss.on('connection', ws => {
     try { msg = JSON.parse(raw) } catch { return }
     switch (msg.type) {
       case 'auth': {
-        const user = identify(msg.token)
+        client.viewAs = msg.viewAs === 'player' ? 'player' : null
+        const user = identify(msg.token, client.viewAs)
         if (client.user && !user) {
           client.cursor = client.ruler = null
           relay(client, { type: 'gone' })

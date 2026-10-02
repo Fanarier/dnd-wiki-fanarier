@@ -38,9 +38,42 @@ export function players() {
 export function getPlayer(id) {
   return load().players[id] || null
 }
+// персонажи мастеров (linked) по логину не входят — у них нет своего пароля
 export function findByLogin(login) {
   const l = String(login || '').toLowerCase()
-  return players().find(p => p.login.toLowerCase() === l) || null
+  return players().find(p => !p.linked && p.login.toLowerCase() === l) || null
+}
+
+/* ---------- Квитанция заявки: чтобы страница «ждите» узнала, что заявку одобрили ---------- */
+const sha = t => crypto.createHash('sha256').update(String(t)).digest('hex')
+export function issueTicket(id) {
+  const ticket = crypto.randomBytes(18).toString('base64url')
+  updatePlayer(id, { ticketHash: sha(ticket) })
+  return ticket
+}
+export function ticketStatus(ticket) {
+  const h = sha(ticket)
+  const p = players().find(x => x.ticketHash && x.ticketHash === h)
+  return p ? { status: p.status, login: p.login, character: p.character } : null
+}
+
+/* ---------- Персонаж мастера: мастер может и играть ---------- */
+export function linkedCharacter(masterLogin) {
+  return players().find(p => p.linked && p.login === masterLogin) || null
+}
+export function upsertLinkedCharacter(masterLogin, { character, race }) {
+  const name = String(character || '').trim().slice(0, 40)
+  if (!name) throw new Error('Напиши имя персонажа')
+  const cur = linkedCharacter(masterLogin)
+  if (cur) return updatePlayer(cur.id, { character: name, race: String(race || '').trim().slice(0, 40) })
+  const id = 'u' + crypto.randomBytes(5).toString('hex')
+  load().players[id] = {
+    id, login: masterLogin, linked: true, hash: null, v: 1, status: 'active',
+    character: name, race: String(race || '').trim().slice(0, 40), avatar: '',
+    color: masterProfile(masterLogin).color || COLORS[0], rank: 'bronze', createdAt: Date.now()
+  }
+  save()
+  return load().players[id]
 }
 
 // Публичная часть — то, что видят другие (группа заказа, пинги, курсоры)
@@ -71,9 +104,9 @@ const DUMMY = hashPassword('dummy-password')
 // Проверка пароля игрока; статус (ждёт / отклонён) решает вызывающий
 export function checkPlayer(login, password) {
   const p = findByLogin(login)
-  const [salt, hash] = (p ? p.hash : DUMMY).split(':')
+  const [salt, hash] = (p?.hash ? p.hash : DUMMY).split(':')
   const ok = safeEqual(hashPassword(String(password || ''), salt).split(':')[1], hash)
-  return ok && p ? p : null
+  return ok && p?.hash ? p : null
 }
 
 export function updatePlayer(id, patch) {
