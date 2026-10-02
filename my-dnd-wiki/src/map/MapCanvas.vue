@@ -73,8 +73,11 @@
         <g v-if="L.roads" class="roads">
           <g v-for="r in roads" :key="r.id" :class="{ 'is-hidden': r.hidden }">
             <path :d="r.d" class="road-hit" :data-obj="'roads:' + r.id" />
+            <path v-if="r.style.glow" :d="r.d" class="road road-glow" :stroke="r.style.color" vector-effect="non-scaling-stroke" />
             <path :d="r.d" class="road" :stroke="r.style.color" :stroke-width="r.style.width" :stroke-dasharray="r.style.dash"
                   vector-effect="non-scaling-stroke" />
+            <path v-if="r.style.overlay" :d="r.d" class="road" :stroke="r.style.overlay.color" :stroke-width="r.style.overlay.width"
+                  :stroke-dasharray="r.style.overlay.dash" stroke-linecap="butt" vector-effect="non-scaling-stroke" />
             <path v-if="isSel('roads', r.id)" :d="r.d" class="road-sel" vector-effect="non-scaling-stroke" />
           </g>
         </g>
@@ -151,6 +154,23 @@
             <image :href="p.img.src" :x="-p.dw / 2" :y="-p.dh / 2" :width="p.dw" :height="p.dh" />
             <circle v-if="isSel('anomalies', p.id)" :r="Math.max(p.dw, p.dh) / 2 + 6" class="sel-ring" />
             <text v-if="view.k > 1.3 || isSel('anomalies', p.id)" :y="p.dh / 2 + 15" class="lbl lbl-poi">{{ p.name }}</text>
+          </g>
+        </g>
+
+        <!-- Заказы гильдий: листок с печатью гильдии -->
+        <g v-if="L.quests">
+          <g v-for="q in questPins" :key="q.id" :transform="`translate(${q.loc.x},${q.loc.y}) scale(${iconScale / view.k})`"
+             :class="['qpin', 'qs-' + q.status, { selected: isSel('quests', q.id), hot: q.hot }]" :data-obj="'quests:' + q.id" :style="{ '--g': q.color }">
+            <g transform="rotate(-6)">
+              <rect x="-9" y="-30" width="18" height="22" rx="1.5" class="qpin-paper" />
+              <line x1="-5" y1="-24" x2="5" y2="-24" class="qpin-line" /><line x1="-5" y1="-20" x2="5" y2="-20" class="qpin-line" /><line x1="-5" y1="-16" x2="2" y2="-16" class="qpin-line" />
+              <circle cx="4" cy="-11" r="4.5" class="qpin-seal" />
+            </g>
+            <line x1="0" y1="-8" x2="0" y2="0" class="qpin-stick" />
+            <circle cx="0" cy="-31" r="2.6" class="qpin-pin" />
+            <text v-if="q.hot" x="9" y="-26" class="qpin-hot">!</text>
+            <circle v-if="isSel('quests', q.id)" cy="-18" r="20" class="sel-ring" />
+            <text v-if="view.k > 1.6 || isSel('quests', q.id)" y="14" class="lbl lbl-quest">{{ q.type }}</text>
           </g>
         </g>
 
@@ -256,9 +276,11 @@ import MapLabel from './MapLabel.vue'
 import { ICONS } from './icons.js'
 import { fogTexture } from './fogTexture.js'
 import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm, markIcon } from './store.js'
-import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS, ROUTE_COLORS } from '../shared/catalog.js'
+import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS, ROUTE_COLORS, GUILDS } from '../shared/catalog.js'
+import { useRouter } from 'vue-router'
 import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength, projectOnPath } from '../shared/geo.js'
 
+const router = useRouter()
 const wrap = ref(null)
 const svg = ref(null)
 const size = reactive({ w: 800, h: 600 })
@@ -401,6 +423,11 @@ watch(ownRulerPoints, () => {
     sendRuler(ownRulerPoints.value)
   }, 80)
 })
+
+// заказы на карте: игрокам — только открытые и в работе
+const questPins = computed(() => (store.data.quests || [])
+  .filter(q => q.loc && (master.value || ['available', 'taken'].includes(q.status)))
+  .map(q => ({ ...q, color: GUILDS.find(g => g.name === q.guild)?.color || '#c9a24f', hot: ['high', 'critical'].includes(q.urgency) && q.status === 'available' })))
 
 const cursors = computed(() => Object.entries(store.presence.cursors).map(([id, c]) => ({ id, ...c })))
 
@@ -786,6 +813,16 @@ async function onClick(w, hit) {
     await act('PATCH', `/api/routes/${route.id}`, { stops: [...route.stops, stop] }, 'Остановка добавлена').catch(() => {})
     return
   }
+  // Место заказа гильдии — выбрано из вики
+  if (store.pick?.purpose === 'questLoc') {
+    const { id } = store.pick
+    store.pick = null
+    try {
+      await act('PATCH', `/api/quests/${id}`, { loc: { x: r1(w)[0], y: r1(w)[1] } }, 'Место заказа отмечено')
+      router.push({ path: '/wiki', query: { quest: id } })
+    } catch { /* тост */ }
+    return
+  }
   // Выбор точки для аномалии (куда движется)
   if (store.pick) {
     const { id } = store.pick
@@ -925,6 +962,7 @@ watch(() => store.tool, t => {
 .state-hits path.selected { fill-opacity: 0.2; stroke: #ffe08a; stroke-width: 1.2; stroke-dasharray: 4 3; }
 
 .road { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.road-glow { stroke-width: 7; stroke-opacity: .22; }
 .road-hit { fill: none; stroke: transparent; stroke-width: 6; cursor: pointer; pointer-events: stroke; }
 .road-sel { fill: none; stroke: #ffe08a; stroke-width: 5; stroke-opacity: 0.55; pointer-events: none; }
 .is-hidden { opacity: 0.45; }
@@ -987,6 +1025,15 @@ watch(() => store.tool, t => {
 .stop.picked .stop-bg { stroke: #ffe08a; stroke-width: 3; }
 .lbl-stop { font-size: 12px; }
 .stop-preview { fill: rgba(255, 224, 138, .5); stroke: #ffe08a; stroke-width: 2; }
+.qpin { cursor: pointer; }
+.qpin.qs-done, .qpin.qs-failed, .qpin.qs-closed { opacity: .45; }
+.qpin-paper { fill: #efe0bb; stroke: #6b4b1e; stroke-width: 1; }
+.qpin-line { stroke: #8a6a3a; stroke-width: 1; }
+.qpin-seal { fill: var(--g); stroke: rgba(0, 0, 0, .35); stroke-width: 1; }
+.qpin-stick { stroke: #3a2410; stroke-width: 1.4; }
+.qpin-pin { fill: #c21d1d; stroke: #3a0805; stroke-width: 1; }
+.qpin-hot { font: 900 15px Manrope, sans-serif; fill: #ff3b2e; stroke: #fff; stroke-width: 3px; paint-order: stroke; animation: glow 1.2s ease-in-out infinite; }
+.lbl-quest { font-size: 12px; fill: #3a2410; }
 .grid { pointer-events: none; }
 .grid-line { stroke: rgba(255, 255, 255, 0.55); }
 

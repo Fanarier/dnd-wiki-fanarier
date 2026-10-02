@@ -1,0 +1,485 @@
+[
+ {
+  "guild": "Алый коготь",
+  "urgency": "normal",
+  "tags": [],
+  "report": "",
+  "secret": "",
+  "hidden": false,
+  "early": {
+   "enabled": false,
+   "start": 5,
+   "perDay": 8,
+   "max": 60,
+   "auto": false,
+   "lastRoll": null,
+   "history": []
+  },
+  "expiresAt": null,
+  "loc": null,
+  "applicants": [],
+  "closedReason": "",
+  "result": null,
+  "completedAt": null,
+  "id": "qhunt1",
+  "type": "Охота",
+  "description": "В гильдию поступил заказ добыть туши зверей «Большерогий чибис». Это травоядные звери, которые обитают только на землях Драконидов. Их можно встретить повсеместно. Несмотря на свою спокойную природу, эти звери могут дать серьёзный отпор, если на них напасть. Могут представлять опасность для неопытных охотников. Пасутся стадами.",
+  "duration": 72,
+  "reward": {
+   "exp": 200,
+   "gold": 50,
+   "rep": true,
+   "other": ""
+  },
+  "bonus": {
+   "exp": 0,
+   "gold": 25,
+   "rep": true,
+   "other": ""
+  },
+  "tasks": [
+   {
+    "text": "Добыть 10 туш «Большерогий чибис»",
+    "main": true,
+    "status": "active"
+   },
+   {
+    "text": "Собрать 15 мешков «Шерсть чибиса»",
+    "main": false,
+    "status": "active"
+   },
+   {
+    "text": "Собрать 5 шкур «Большерогий чибис»",
+    "main": false,
+    "status": "active"
+   }
+  ],
+  "danger": 1,
+  "difficulty": 1,
+  "rank": "silver",
+  "group": [],
+  "status": "available",
+  "postedAt": 1790367392847,
+  "createdAt": 1790367392847
+ },
+ {
+  "guild": "Алый коготь",
+  "urgency": "normal",
+  "tags": [],
+  "report": "",
+  "secret": "",
+  "hidden": false,
+  "early": {
+   "enabled": false,
+   "start": 5,
+   "perDay": 8,
+   "max": 60,
+   "auto": false,
+   "lastRoll": null,
+   "history": []
+  },
+  "expiresAt": null,
+  "loc": {
+   "x": 352.25,
+   "y": 501.96
+  },
+  "applicants": [],
+  "closedReason": "",
+  "result": "success",
+  "completedAt": 1790864192847,
+  "id": "qlav1",
+  "type": "Сбор",
+  "description": "Травник заказал собрать цветы «Лаванды». Цветы «Лаванды» обнаружены близ деревни «Блус». «Лаванда» является лекарственным растением.",
+  "duration": 24,
+  "reward": {
+   "exp": 100,
+   "gold": 20,
+   "rep": true,
+   "other": ""
+  },
+  "bonus": {
+   "exp": 0,
+   "gold": 5,
+   "rep": true,
+   "other": ""
+  },
+  "tasks": [
+   {
+    "text": "Собрать 10 мешков «Лаванды»",
+    "main": true,
+    "status": "done"
+   },
+   {
+    "text": "Собрать 15 мешков «Лаванды»",
+    "main": false,
+    "status": "active"
+   }
+  ],
+  "danger": 0,
+  "difficulty": 0,
+  "rank": "bronze",
+  "group": [
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   }
+  ],
+  "status": "done",
+  "postedAt": 1790453792847,
+  "createdAt": 1790453792847
+ },
+ {
+  "guild": "Алый коготь",
+  "urgency": "high",
+  "tags": [],
+  "report": "",
+  "secret": "",
+  "hidden": false,
+  "early": {
+   "enabled": false,
+   "start": 5,
+   "perDay": 8,
+   "max": 60,
+   "auto": false,
+   "lastRoll": null,
+   "history": []
+  },
+  "expiresAt": null,
+  "loc": null,
+  "applicants": [],
+  "closedReason": "",
+  "result": null,
+  "completedAt": null,
+  "id": "qscout21",
+  "type": "Разведка этажа",
+  "description": "Гильдия поручает вам задание исследовать только что открытый 21 этаж подземелья «Эдолан». Какие опасности вас там ждут — неизвестно. Карта этажа отсутствует. Всем авантюристам настоятельно рекомендуется работать сообща. Авантюристы без группы к заданию не допускаются!",
+  "duration": 168,
+  "reward": {
+   "exp": 750,
+   "gold": 100,
+   "rep": true,
+   "other": ""
+  },
+  "bonus": {
+   "exp": 0,
+   "gold": 40,
+   "rep": true,
+   "other": ""
+  },
+  "tasks": [
+   {
+    "text": "Составить карту этажа",
+    "main": true,
+    "status": "active"
+   },
+   {
+    "text": "Найти минимум 3 сокровищницы",
+    "main": false,
+    "status": "active"
+   },
+   {
+    "text": "Обезвредить минимум 10 ловушек",
+    "main": false,
+    "status": "active"
+   },
+   {
+    "text": "Найти покои босса",
+    "main": false,
+    "status": "active"
+   }
+  ],
+  "danger": 2,
+  "difficulty": 3,
+  "rank": "platinum",
+  "group": [],
+  "status": "available",
+  "postedAt": 1790540192847,
+  "createdAt": 1790540192847
+ },
+ {
+  "guild": "Алый коготь",
+  "urgency": "low",
+  "tags": [],
+  "report": "",
+  "secret": "",
+  "hidden": false,
+  "early": {
+   "enabled": false,
+   "start": 5,
+   "perDay": 8,
+   "max": 60,
+   "auto": false,
+   "lastRoll": null,
+   "history": []
+  },
+  "expiresAt": null,
+  "loc": null,
+  "applicants": [],
+  "closedReason": "",
+  "result": null,
+  "completedAt": null,
+  "id": "qcham1",
+  "type": "Сбор",
+  "description": "Травник заказал собрать цветы «Ромашки». Цветы «Ромашки» обнаружены близ города «Гарот». «Ромашка» является лекарственным растением.",
+  "duration": 24,
+  "reward": {
+   "exp": 100,
+   "gold": 20,
+   "rep": true,
+   "other": ""
+  },
+  "bonus": {
+   "exp": 0,
+   "gold": 5,
+   "rep": true,
+   "other": ""
+  },
+  "tasks": [
+   {
+    "text": "Собрать 10 мешков «Ромашки»",
+    "main": true,
+    "status": "active"
+   },
+   {
+    "text": "Собрать 15 мешков «Ромашки»",
+    "main": false,
+    "status": "active"
+   }
+  ],
+  "danger": 0,
+  "difficulty": 0,
+  "rank": "bronze",
+  "group": [],
+  "status": "available",
+  "postedAt": 1790626592847,
+  "createdAt": 1790626592847
+ },
+ {
+  "guild": "Алый коготь",
+  "urgency": "normal",
+  "tags": [],
+  "report": "",
+  "secret": "",
+  "hidden": false,
+  "early": {
+   "enabled": false,
+   "start": 5,
+   "perDay": 8,
+   "max": 60,
+   "auto": false,
+   "lastRoll": null,
+   "history": []
+  },
+  "expiresAt": null,
+  "loc": null,
+  "applicants": [],
+  "closedReason": "",
+  "result": null,
+  "completedAt": null,
+  "id": "qclear12",
+  "type": "Зачистка",
+  "description": "В подземелье «Эдолан» на 12 этаже появилось слишком много монстров. Для безопасности авантюристов гильдия просит провести зачистку этажа. Разведка показывает, что на этаже присутствуют только (обычные) монстры. Однако у этажа изменилась планировка. Могли появиться ловушки! Будьте осторожны!",
+  "duration": 72,
+  "reward": {
+   "exp": 200,
+   "gold": 60,
+   "rep": true,
+   "other": ""
+  },
+  "bonus": {
+   "exp": 0,
+   "gold": 20,
+   "rep": true,
+   "other": ""
+  },
+  "tasks": [
+   {
+    "text": "Уничтожить 100 разных монстров",
+    "main": true,
+    "status": "active"
+   },
+   {
+    "text": "Обезвредить 10 ловушек",
+    "main": false,
+    "status": "active"
+   },
+   {
+    "text": "Составить новую карту этажа",
+    "main": false,
+    "status": "active"
+   }
+  ],
+  "danger": 1,
+  "difficulty": 2,
+  "rank": "silver",
+  "group": [],
+  "status": "available",
+  "postedAt": 1790712992847,
+  "createdAt": 1790712992847
+ },
+ {
+  "guild": "Алый коготь",
+  "urgency": "normal",
+  "tags": [],
+  "report": "",
+  "secret": "",
+  "hidden": false,
+  "early": {
+   "enabled": false,
+   "start": 5,
+   "perDay": 8,
+   "max": 60,
+   "auto": false,
+   "lastRoll": null,
+   "history": []
+  },
+  "expiresAt": null,
+  "loc": {
+   "x": 384,
+   "y": 605
+  },
+  "applicants": [],
+  "closedReason": "",
+  "result": "success",
+  "completedAt": 1790900192847,
+  "id": "qliq1",
+  "type": "Ликвидация",
+  "description": "Из конвоя, перевозящего преступников, сбежал опасный вор-рецидивист! СБ Драконидов просит содействия всех Гильдий Авантюристов из близлежащих стран. Преступник вооружён и опасен. При побеге он убил одного из охранников конвоя и завладел его оружием и снаряжением. Найти и уничтожить! Рекомендуется подготовиться к операции! Побег был совершён в районе между Гноком и Лерастао.",
+  "duration": 72,
+  "reward": {
+   "exp": 750,
+   "gold": 150,
+   "rep": true,
+   "other": ""
+  },
+  "bonus": {
+   "exp": 0,
+   "gold": 100,
+   "rep": true,
+   "other": ""
+  },
+  "tasks": [
+   {
+    "text": "Найти и ликвидировать Замана",
+    "main": true,
+    "status": "done"
+   },
+   {
+    "text": "Найти беглеца за 48 часов",
+    "main": false,
+    "status": "done"
+   }
+  ],
+  "danger": 2,
+  "difficulty": 3,
+  "rank": "platinum",
+  "group": [
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   }
+  ],
+  "status": "done",
+  "postedAt": 1790799392847,
+  "createdAt": 1790799392847
+ },
+ {
+  "guild": "Алый коготь",
+  "urgency": "normal",
+  "tags": [],
+  "report": "",
+  "secret": "",
+  "hidden": false,
+  "early": {
+   "enabled": false,
+   "start": 5,
+   "perDay": 8,
+   "max": 60,
+   "auto": false,
+   "lastRoll": null,
+   "history": []
+  },
+  "expiresAt": null,
+  "loc": null,
+  "applicants": [],
+  "closedReason": "",
+  "result": "success",
+  "completedAt": 1790936192847,
+  "id": "qsearch11",
+  "type": "Поиск",
+  "description": "В подземелье «Эдолан» пропала группа авантюристов из 4 существ. Все они были серебряного ранга. Ушли 7 дней назад и не вернулись. Последний раз их видели в районе 11 этажа, больше о них нет никаких известий. Первичный поиск не дал результатов, требуется спасательная экспедиция. Найдите авантюристов и выясните, что случилось.",
+  "duration": 72,
+  "reward": {
+   "exp": 300,
+   "gold": 50,
+   "rep": true,
+   "other": ""
+  },
+  "bonus": {
+   "exp": 0,
+   "gold": 100,
+   "rep": true,
+   "other": ""
+  },
+  "tasks": [
+   {
+    "text": "Выясните судьбу группы авантюристов",
+    "main": true,
+    "status": "done"
+   },
+   {
+    "text": "Верните всех четверых авантюристов живыми",
+    "main": false,
+    "status": "unknown"
+   }
+  ],
+  "danger": 2,
+  "difficulty": 2,
+  "rank": "gold",
+  "group": [
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   },
+   {
+    "name": "Авантюрист",
+    "icon": ""
+   }
+  ],
+  "status": "done",
+  "postedAt": 1790885792847,
+  "createdAt": 1790885792847
+ }
+]

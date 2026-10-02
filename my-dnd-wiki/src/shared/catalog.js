@@ -14,7 +14,10 @@ export const ROAD_TYPES = {
   highway: { label: 'Большак', color: '#c8743a', width: 3, dash: '' },
   road: { label: 'Дорога', color: '#b5652f', width: 2.2, dash: '' },
   trail: { label: 'Тропа', color: '#a0643a', width: 1.6, dash: '5 4' },
-  sea: { label: 'Морской путь', color: '#e8f1ff', width: 1.6, dash: '2 5' }
+  sea: { label: 'Морской путь', color: '#e8f1ff', width: 1.6, dash: '2 5' },
+  // железная дорога: тёмное полотно + светлые «шпалы» поверх
+  rail: { label: 'Железная дорога', color: '#2b2b2b', width: 3.4, dash: '', overlay: { color: '#f2f2f2', width: 1.6, dash: '5 5' } },
+  air: { label: 'Воздушный путь (дирижабль)', color: '#9fdcff', width: 2, dash: '10 4 2 4', glow: true }
 }
 
 // Зоны — анимированные области
@@ -70,7 +73,15 @@ export const POINT_EFFECTS = {
   watcher: { label: 'Тайный враг', img: 'one-eyed', color: '#d0021b', group: 'Угрозы' },
   danger1: { label: 'Опасность: средняя', img: 'thunder-skull', color: '#f8e71c', group: 'Угрозы' },
   danger2: { label: 'Опасность: высокая', img: 'thunder-skull_1', color: '#f5a623', group: 'Угрозы' },
-  danger3: { label: 'Опасность: смертельная', img: 'thunder-skull_2', color: '#d0021b', group: 'Угрозы' }
+  danger3: { label: 'Опасность: смертельная', img: 'thunder-skull_2', color: '#d0021b', group: 'Угрозы' },
+  warnYellow: { label: 'Внимание', img: 'warn-yellow', color: '#f8e71c', group: 'Угрозы' },
+  warnRed: { label: 'Серьёзная угроза', img: 'warn-red', color: '#d0021b', group: 'Угрозы' },
+
+  done: { label: 'Выполнено', img: 'check', color: '#4a90e2', group: 'Статусы' },
+  approve: { label: 'Одобрено / успех', img: 'thumbs-up', color: '#7ed321', group: 'Статусы' },
+  reject: { label: 'Отказ / провал', img: 'thumbs-down', color: '#d0021b', group: 'Статусы' },
+  question: { label: 'Под вопросом', img: 'question', color: '#f5a623', group: 'Статусы' },
+  cancelled: { label: 'Отменено / закрыто', img: 'cross', color: '#f5a623', group: 'Статусы' }
 }
 
 // Уровни для шкал на панели «Лунный виток» (угроза разлома, пиратство…)
@@ -96,7 +107,59 @@ export const PACE_PRESETS = [
   { label: 'Верхом', km: 60 },
   { label: 'Парусный корабль', km: 77 },
   { label: 'Галера', km: 154 },
-  { label: 'Полёт', km: 130 }
+  { label: 'Полёт', km: 130 },
+  { label: 'Дирижабль', km: 720 },
+  { label: 'Поезд', km: 900 }
 ]
 
 export const ROUTE_COLORS = ['#ff4a3d', '#ffb02e', '#4fd8ff', '#7ee06a', '#c47aff', '#f2f2f2']
+
+/* ---------------- Гильдии авантюристов и заказы ---------------- */
+export const GUILDS = [
+  { name: 'Алый коготь', country: 'Страна Фенрисов', color: '#ff4a4a' },
+  { name: 'Кошкин дом', country: 'Страна Фенрисов', color: '#c47aff' },
+  { name: 'Око дракона', country: 'Страна Драконидов', color: '#ffb02e' },
+  { name: 'Разящие пегасы', country: 'Страна Кентавров', color: '#7cc4ff' },
+  { name: 'Инферно', country: 'Страна Тифлингов', color: '#ff6a2c' },
+  { name: 'Наездники бури', country: 'Страна Аурэнов', color: '#4fd8ff' },
+  { name: 'Альма-Эльма', country: 'Страна Высших эльфов', color: '#2fd6a0' },
+  { name: 'Йор', country: 'Страна Дроу', color: '#b9a6ff' },
+  { name: 'Драктар', country: 'Страна Орков', color: '#d08a4a' }
+]
+
+// Ранги авантюристов от младшего к старшему
+export const RANKS = [
+  { key: 'bronze', label: 'Бронза', color: '#b06f2a', text: '#fff' },
+  { key: 'silver', label: 'Серебро', color: '#4fe0f0', text: '#0b2730' },
+  { key: 'gold', label: 'Золото', color: '#f5d03a', text: '#2a2104' },
+  { key: 'platinum', label: 'Платина', color: '#2a72f0', text: '#fff' },
+  { key: 'obsidian', label: 'Обсидиан', color: '#2b1f3d', text: '#e9dcff' },
+  { key: 'mithril', label: 'Мифрил', color: '#cfe3f2', text: '#14324a' },
+  { key: 'orichalcum', label: 'Орихалк', color: '#e2642a', text: '#fff' }
+]
+
+export const QUEST_TYPES = ['Охота', 'Сбор', 'Разведка этажа', 'Зачистка', 'Ликвидация', 'Поиск', 'Сопровождение', 'Доставка', 'Охрана', 'Расследование']
+
+export const QUEST_STATUS = {
+  available: { label: 'Доступно', color: '#4c9a0c' },
+  taken: { label: 'В работе', color: '#e08a14' },
+  done: { label: 'Завершено', color: '#2a72f0' },
+  failed: { label: 'Провалено', color: '#c21d1d' },
+  closed: { label: 'Закрыто', color: '#5d6470' }
+}
+
+// Статус отдельной задачи заказа → иконка
+export const TASK_STATUS = {
+  active: { label: 'В процессе', img: null },
+  done: { label: 'Выполнено', img: 'check' },
+  failed: { label: 'Провалено', img: 'cross' },
+  unknown: { label: 'Неизвестно', img: 'question' }
+}
+
+// Итог заказа (показывается на карточке)
+export const QUEST_RESULT = {
+  success: { label: 'Успех', img: 'thumbs-up' },
+  failure: { label: 'Провал', img: 'thumbs-down' }
+}
+
+export const MAX_GROUP = 6

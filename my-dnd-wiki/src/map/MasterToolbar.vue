@@ -82,6 +82,8 @@ const isFogTool = computed(() => store.tool.startsWith('fog'))
 const isBrushTool = computed(() => ['fogBrush', 'fogErase'].includes(store.tool))
 const hint = computed(() => {
   if (store.journeyPlan) return 'Кликай по карте — точки маршрута отряда'
+  if (store.pick?.purpose === 'questLoc') return 'Кликни, где находится цель заказа'
+  if (store.pick?.purpose === 'routeStop') return 'Кликни на линию маршрута — там встанет остановка'
   if (store.pick) return 'Кликни, куда будет двигаться аномалия'
   return HINTS[store.tool] || ''
 })

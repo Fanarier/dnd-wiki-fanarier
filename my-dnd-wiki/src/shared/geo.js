@@ -195,7 +195,9 @@ export function buildRoadGraph(roads) {
     for (let i = 1; i < road.points.length; i++) {
       const cur = nodeFor(road.points[i])
       if (cur !== prev) {
-        const w = dist(nodes[prev], nodes[cur]) * (road.type === 'trail' ? 1.15 : road.type === 'sea' ? 1.3 : 1)
+        // «стоимость» участка: тропы и море медленнее, железная дорога и воздух — быстрее
+        const k = { trail: 1.15, sea: 1.3, rail: 0.5, air: 0.6 }[road.type] || 1
+        const w = dist(nodes[prev], nodes[cur]) * k
         adj[prev].push([cur, w])
         adj[cur].push([prev, w])
       }

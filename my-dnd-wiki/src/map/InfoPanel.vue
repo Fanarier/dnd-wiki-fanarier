@@ -7,7 +7,7 @@
       </div>
       <div class="info-titles">
         <div class="ui-kicker">{{ kindLabel }}</div>
-        <h2 class="ui-title">{{ (type === 'labels' ? item.text : item.name) || 'Без названия' }}</h2>
+        <h2 class="ui-title">{{ (type === 'labels' ? item.text : type === 'quests' ? item.type : item.name) || 'Без названия' }}</h2>
       </div>
       <button class="ui-btn icon ghost" title="Закрыть (Esc)" @click="store.selection = null"><Icon name="close" /></button>
     </header>
@@ -121,6 +121,24 @@
         </template>
       </div>
       <button v-if="type === 'parties' && master" class="ui-btn small show-all" @click="showParty"><Icon name="eye" :size="16" /> Показать отряд всем</button>
+
+      <!-- заказ гильдии -->
+      <div v-if="type === 'quests'" class="quest-view">
+        <div class="chips">
+          <span class="ui-chip" :style="{ background: (QUEST_STATUS[item.status] || {}).color, color: '#fff' }">{{ (QUEST_STATUS[item.status] || {}).label }}</span>
+          <span v-if="item.status === 'available'" class="ui-chip" :style="{ color: URGENCY[item.urgency]?.color }">{{ URGENCY[item.urgency]?.label }}</span>
+          <span class="ui-chip">ранг: {{ RANKS.find(r => r.key === item.rank)?.label }}</span>
+        </div>
+        <p class="ui-desc">{{ item.description }}</p>
+        <div class="ui-muted small">Награда: {{ rewardText(item.reward) || '—' }}</div>
+        <ul v-if="item.tasks?.length" class="q-tasks">
+          <li v-for="(t, i) in item.tasks" :key="i" :class="{ main: t.main }">{{ t.text }}</li>
+        </ul>
+        <div class="ui-row q-btns">
+          <router-link :to="{ path: '/wiki', query: { quest: item.id } }" class="ui-btn small primary">Открыть на доске заказов</router-link>
+          <button v-if="master" class="ui-btn small" @click="unpinQuest">Убрать с карты</button>
+        </div>
+      </div>
 
       <!-- маршрут: остановки (видят все) -->
       <div v-if="type === 'routes'" class="stops-view">
@@ -302,7 +320,8 @@ import { computed, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import IconPicker from './IconPicker.vue'
 import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km, toast, markIcon, sendFollow } from './store.js'
-import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS } from '../shared/catalog.js'
+import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
+import { URGENCY, rewardText } from '../shared/quests.js'
 import { polyLength, journeyState, anomalyState } from '../shared/geo.js'
 
 const master = isMaster
@@ -310,7 +329,7 @@ const item = computed(() => findSelected())
 const type = computed(() => store.selection?.type)
 const select = (t, id) => { store.selection = { type: t, id } }
 
-const KIND = { cities: 'Поселение', states: 'Народ / государство', roads: 'Дорога', anomalies: 'Аномалия', parties: 'Отряд', labels: 'Подпись', routes: 'Маршрут' }
+const KIND = { cities: 'Поселение', states: 'Народ / государство', roads: 'Дорога', anomalies: 'Аномалия', parties: 'Отряд', labels: 'Подпись', routes: 'Маршрут', quests: 'Заказ гильдии' }
 
 // метки по разделам легенды
 const pointGroups = Object.entries(POINT_EFFECTS).reduce((acc, [k, e]) => {
@@ -339,10 +358,12 @@ const headIcon = computed(() => {
   if (type.value === 'parties') return it.icon || 'sword'
   if (type.value === 'labels') return 'label'
   if (type.value === 'routes') return 'ship'
+  if (type.value === 'quests') return 'note'
   return 'map'
 })
 const accent = computed(() => {
   const it = item.value
+  if (type.value === 'quests') return GUILDS.find(g => g.name === it.guild)?.color
   if (type.value === 'states' || type.value === 'parties') return it.color
   if (type.value === 'anomalies') return ((it.kind === 'zone' ? ZONE_EFFECTS : POINT_EFFECTS)[it.effect] || {}).color
   return 'var(--gold)'
@@ -414,7 +435,7 @@ async function saveLabel() {
 
 function resetForm() {
   const it = item.value
-  if (!it || !master.value) { form.value = null; return }
+  if (!it || !master.value || !FIELDS[type.value]) { form.value = null; return }
   const f = {}
   for (const k of FIELDS[type.value]) f[k] = it[k] ?? (k === 'secret' || k === 'description' ? '' : it[k])
   if (type.value === 'routes') f.stops = it.stops.map(st => ({ ...st }))
@@ -519,6 +540,8 @@ function showParty() {
   toast('Камера всех игроков летит к отряду')
 }
 
+const unpinQuest = () => act('PATCH', `/api/quests/${item.value.id}`, { loc: null }, 'Заказ убран с карты').catch(() => {})
+
 function planJourney() {
   store.tool = 'select'
   store.journeyPlan = { partyId: item.value.id, waypoints: [], byRoad: true }
@@ -559,6 +582,10 @@ function replay() {
 .move-row > * { flex: 0 1 auto; }
 .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
 .sw { width: 28px; height: 28px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; display: grid; place-items: center; background: rgba(255, 255, 255, 0.06); color: var(--text); }
+.q-tasks { margin: 8px 0; padding-left: 18px; font-size: 13px; }
+.q-tasks li.main { color: var(--ok); }
+.q-btns { margin: 10px 0; flex-wrap: wrap; }
+.q-btns > * { flex: 0 1 auto; text-decoration: none; }
 .badge-img { max-width: 32px; max-height: 32px; }
 .route-box { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: rgba(255, 74, 61, 0.06); border: 1px solid rgba(255, 74, 61, 0.25); margin-bottom: 10px; }
 .route-box .ui-kicker { color: #ff9b8f; }

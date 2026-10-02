@@ -19,6 +19,8 @@
         <input v-model="search" placeholder="Поиск по статьям…" aria-label="Поиск по вики" />
         <button v-if="search" class="w-clear" aria-label="Очистить" @click="search = ''">×</button>
       </label>
+      <button v-if="master" class="w-auth master" title="Выйти" @click="logout">♛ <span class="w-hide">Мастер</span> ⎋</button>
+      <button v-else class="w-auth" @click="loginOpen = true">Войти</button>
     </header>
 
     <div class="w-layout">
@@ -37,11 +39,28 @@
         </transition>
       </main>
     </div>
+
+    <div v-if="loginOpen" class="w-modal" @mousedown.self="loginOpen = false">
+      <form class="w-login" @submit.prevent="doLogin">
+        <div class="w-kicker">Только для мастера</div>
+        <h3>Вход</h3>
+        <label>Логин<input ref="loginInput" v-model="lf.login" autocomplete="username" /></label>
+        <label>Пароль<input v-model="lf.password" type="password" autocomplete="current-password" /></label>
+        <div v-if="loginError" class="w-err">{{ loginError }}</div>
+        <div class="w-actions">
+          <button type="button" @click="loginOpen = false">Отмена</button>
+          <button type="submit" class="primary">Войти</button>
+        </div>
+      </form>
+    </div>
   </v-app>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+import QuestBoard from './QuestBoard.vue'
+import { isMaster, init, login, logout } from '../map/store.js'
 
 import Sidebar from '../components/Sidebar.vue'
 import SearchResults from '../components/SearchResults.vue'
@@ -59,6 +78,7 @@ import articles from '../data/articles.js' // единый источник те
   Чтобы добавить страницу — добавь запись в articles.js и сюда в categories.
 */
 const categories = ref([
+  { id: 'quests', title: 'Заказы гильдий', description: 'Доска объявлений, хроника, репутация', component: QuestBoard },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
   { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SchoolFire },
@@ -68,8 +88,8 @@ const categories = ref([
 ])
 
 const drawer = ref(false)
-const currentCategory = ref('general')
-const currentPage = computed(() => categories.value.find(x => x.id === currentCategory.value)?.component ?? WikiGeneral)
+const currentCategory = ref('quests')
+const currentPage = computed(() => categories.value.find(x => x.id === currentCategory.value)?.component ?? QuestBoard)
 const currentContent = computed(() => categories.value.find(x => x.id === currentCategory.value) ?? {})
 function onCategorySelect(id) {
   currentCategory.value = id
@@ -129,6 +149,29 @@ function openArticle(id) {
 }
 
 watch(currentCategory, () => { search.value = '' })
+
+/* -------------------- Вход мастера (общий с картой) -------------------- */
+const master = isMaster
+const route = useRoute()
+onMounted(init)
+// ссылка с карты на заказ открывает доску заказов
+watch(() => route.query.quest, q => { if (q) currentCategory.value = 'quests' }, { immediate: true })
+
+const loginOpen = ref(false)
+const loginError = ref('')
+const loginInput = ref(null)
+const lf = reactive({ login: '', password: '' })
+watch(loginOpen, open => { if (open) nextTick(() => loginInput.value?.focus()) })
+async function doLogin() {
+  loginError.value = ''
+  try {
+    await login(lf.login.trim(), lf.password)
+    lf.password = ''
+    loginOpen.value = false
+  } catch (e) {
+    loginError.value = e.message
+  }
+}
 </script>
 
 <style scoped>
@@ -143,6 +186,18 @@ watch(currentCategory, () => { search.value = '' })
 .w-search:focus-within { border-color: rgba(231, 197, 111, 0.5); }
 .w-search input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--a-text); font: 500 14px var(--a-sans); }
 .w-clear { background: none; border: 0; color: var(--a-muted); font-size: 20px; cursor: pointer; }
+.w-auth { flex: none; height: 38px; padding: 0 14px; border-radius: 10px; border: 0; background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; font: 700 13px var(--a-sans); cursor: pointer; }
+.w-auth.master { background: rgba(231, 197, 111, .12); color: var(--a-gold-2); border: 1px solid rgba(231, 197, 111, .4); }
+.w-modal { position: fixed; inset: 0; z-index: 120; background: rgba(5, 7, 11, .65); display: grid; place-items: center; padding: 16px; }
+.w-login { width: min(360px, 100%); background: #141a24; border: 1px solid rgba(231, 197, 111, .25); border-radius: 16px; padding: 22px; display: grid; gap: 10px; color: var(--a-text); }
+.w-login h3 { margin: 0; font: 700 28px var(--a-serif); color: var(--a-gold-2); }
+.w-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--a-muted); }
+.w-login label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: var(--a-muted); }
+.w-login input { min-height: 36px; padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(255, 255, 255, .1); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 500 14px var(--a-sans); }
+.w-err { color: #ff6b5e; font-size: 13px; font-weight: 600; }
+.w-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.w-actions button { height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: var(--a-text); font: 700 13px var(--a-sans); cursor: pointer; }
+.w-actions .primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
 .w-burger { display: none; flex-direction: column; gap: 4px; background: none; border: 0; padding: 6px; cursor: pointer; }
 .w-burger span { width: 20px; height: 2px; background: var(--a-text); border-radius: 2px; }
 
@@ -157,6 +212,7 @@ watch(currentCategory, () => { search.value = '' })
   .w-burger { display: flex; }
   .w-brand span { display: none; }
   .w-search { width: auto; flex: 1; min-width: 0; }
+  .w-hide { display: none; }
   .w-side { position: fixed; z-index: 40; top: 0; left: 0; height: 100vh; background: #0f131b; border-right: 1px solid var(--a-line); transform: translateX(-100%); transition: transform .25s; padding-top: 22px; }
   .w-side.open { transform: none; }
   .w-scrim { display: block; position: fixed; inset: 0; z-index: 35; background: rgba(0, 0, 0, 0.5); }

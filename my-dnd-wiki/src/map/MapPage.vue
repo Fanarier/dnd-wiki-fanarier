@@ -159,6 +159,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import './map-ui.css'
 import Icon from './Icon.vue'
 import MapCanvas from './MapCanvas.vue'
@@ -176,6 +177,27 @@ const master = isMaster
 const s = computed(() => store.data.settings)
 
 onMounted(init)
+
+// ссылки из вики: ?focus=quests:ID — показать заказ, ?pick=quest:ID — выбрать место заказа
+const route = useRoute()
+const router = useRouter()
+watch(() => [route.query.focus, route.query.pick, store.ready], () => {
+  if (!store.ready) return
+  const { focus, pick } = route.query
+  if (focus) {
+    const [type, id] = String(focus).split(':')
+    const o = store.data[type]?.find(x => x.id === id)
+    if (o) {
+      store.selection = { type, id }
+      if (o.loc) setTimeout(() => canvas.value?.flyTo(o.loc.x, o.loc.y, 4), 300)
+    }
+  }
+  if (pick && String(pick).startsWith('quest:')) {
+    store.pick = { purpose: 'questLoc', id: String(pick).slice(6) }
+    toast('Кликни на карте место заказа')
+  }
+  if (focus || pick) router.replace({ query: {} })
+}, { immediate: true })
 
 /* ---------- Часы ---------- */
 const clock = computed(() => new Date(store.now).toLocaleString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))

@@ -9,8 +9,9 @@ import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR } from './db.js'
 import { checkCredentials, issueToken, verifyToken, hasMasters, loginAllowed, recordFailure } from './auth.js'
+import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
-import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS } from '../src/shared/catalog.js'
+import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS, GUILDS, RANKS, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP } from '../src/shared/catalog.js'
 
 const PORT = Number(process.env.PORT) || 3001
 // На сервере за туннелем ставим HOST=127.0.0.1, чтобы порт не был виден снаружи
@@ -83,6 +84,33 @@ T.stops = () => v => {
   })).sort((a, b) => a.s - b.s)
 }
 
+// Заказы гильдий
+const int = (min, max) => v => Math.round(T.num(min, max)(v ?? 0))
+T.reward = () => v => ({ exp: int(0, 1e9)(v?.exp), gold: int(0, 1e9)(v?.gold), rep: !!v?.rep, other: T.str(200)(v?.other) })
+T.tasks = () => v => {
+  if (!Array.isArray(v) || v.length > 20) throw new Error('некорректный список задач')
+  return v.map(t => ({
+    text: T.str(300)(t?.text), main: !!t?.main,
+    status: Object.keys(TASK_STATUS).includes(t?.status) ? t.status : 'active'
+  })).filter(t => t.text.trim())
+}
+T.group = () => v => {
+  if (!Array.isArray(v) || v.length > MAX_GROUP) throw new Error(`в группе не больше ${MAX_GROUP} человек`)
+  return v.map(m => ({
+    name: T.str(40)(m?.name),
+    icon: typeof m?.icon === 'string' && /^u:[a-z0-9]{4,20}$/.test(m.icon) ? m.icon : ''
+  }))
+}
+
+T.early = () => v => ({
+  enabled: !!v?.enabled, auto: !!v?.auto,
+  start: T.num(0, 100)(v?.start ?? EARLY_DEFAULT.start), perDay: T.num(0, 100)(v?.perDay ?? EARLY_DEFAULT.perDay),
+  max: T.num(0, 100)(v?.max ?? EARLY_DEFAULT.max),
+  // история бросков ведёт сервер — из запроса берём только то, что уже было
+  lastRoll: v?.lastRoll ?? null, history: Array.isArray(v?.history) ? v.history.slice(-30) : []
+})
+T.loc = () => v => (v ? { x: T.num(-500, 3000)(v.x), y: T.num(-500, 3000)(v.y) } : null)
+
 const COORD = T.num(-500, 3000)
 const TEXT = T.str(20000)
 const SCHEMAS = {
@@ -143,6 +171,28 @@ const SCHEMAS = {
     fields: {
       name: T.str(80), color: T.color(), kind: T.oneOf(['sea', 'land']), points: T.points(), stops: T.stops(),
       description: TEXT, hidden: T.bool()
+    }
+  },
+  quests: {
+    prefix: 'q',
+    defaults: {
+      guild: GUILDS[0].name, type: 'Охота', description: '', duration: 24,
+      reward: { exp: 0, gold: 0, rep: true, other: '' }, bonus: { exp: 0, gold: 0, rep: false, other: '' },
+      tasks: [], danger: 0, difficulty: 0, rank: 'bronze', group: [], status: 'available', result: null,
+      report: '', tags: [], urgency: 'normal', expiresAt: null, early: EARLY_DEFAULT, loc: null, applicants: [],
+      completedAt: null, closedReason: '', secret: '', hidden: false
+    },
+    required: ['type'],
+    fields: {
+      guild: T.oneOf(GUILDS.map(g => g.name)), type: T.str(40), description: TEXT, duration: T.num(0, 1e6),
+      reward: T.reward(), bonus: T.reward(), tasks: T.tasks(), danger: int(0, 3), difficulty: int(0, 3),
+      rank: T.oneOf(RANKS.map(r => r.key)), group: T.group(), status: T.oneOf(Object.keys(QUEST_STATUS)),
+      result: v => (v === null || v === '' ? null : T.oneOf(Object.keys(QUEST_RESULT))(v)),
+      report: TEXT, tags: v => (Array.isArray(v) ? v.filter(t => QUEST_TAGS[t]) : []),
+      urgency: T.oneOf(Object.keys(URGENCY)), postedAt: T.num(0, 1e14), expiresAt: T.numOrNull(0, 1e14),
+      early: T.early(), loc: T.loc(), closedReason: T.str(200),
+      applicants: v => (Array.isArray(v) ? v.slice(0, 50).map(a => ({ id: T.str(20)(a?.id), name: T.str(40)(a?.name), note: T.str(300)(a?.note), at: Number(a?.at) || Date.now() })) : []),
+      secret: TEXT, hidden: T.bool()
     }
   },
   fog: {
@@ -224,6 +274,8 @@ function viewFor(role, now = Date.now()) {
     labels: db.labels.filter(l => !l.hidden && !fogged(l.x, l.y)),
     routes: db.routes.filter(r => !r.hidden).map(r => ({ ...r, stops: r.stops.filter(st => !st.hidden) })),
     icons: db.icons,
+    quests: db.quests.filter(q => !q.hidden).map(({ secret, early, expiresAt, applicants, ...q }) => ({ ...q, applicantsCount: applicants?.length || 0 })),
+    guildRep: db.guildRep || {},
     hud: db.hud?.visible ? db.hud : null,
     fog
   }
@@ -469,6 +521,84 @@ app.use('/usericons', express.static(ICON_DIR, {
   setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff')
 }))
 
+/* ---------- Заказы гильдий ---------- */
+function rollEarly(q, now = Date.now()) {
+  const chance = earlyChance(q, now)
+  const roll = Math.floor(Math.random() * 100) + 1
+  const closed = roll <= chance
+  q.early.lastRoll = now
+  q.early.history = [...(q.early.history || []), { at: now, chance: Math.round(chance * 10) / 10, roll, closed }].slice(-30)
+  if (closed) {
+    q.status = 'closed'
+    q.completedAt = now
+    q.closedReason = 'Заказ выполнила другая группа'
+  }
+  return { chance, roll, closed }
+}
+
+// Игроки откликаются без входа — мастер потом добавляет их в группу
+const applyHits = new Map()
+app.post('/api/quests/:id/apply', (req, res) => {
+  const q = getDb().quests.find(x => x.id === req.params.id && !x.hidden)
+  if (!q) return res.status(404).json({ error: 'Заказ не найден' })
+  if (q.status !== 'available') return res.status(400).json({ error: 'На этот заказ уже не набирают' })
+  const now = Date.now()
+  const hits = (applyHits.get(req.ip) || []).filter(t => now - t < 10 * 60 * 1000)
+  if (hits.length >= 6) return res.status(429).json({ error: 'Слишком много откликов. Попробуй позже.' })
+  const name = T.str(40)(req.body?.name).trim()
+  if (!name) return res.status(400).json({ error: 'Напиши имя персонажа' })
+  q.applicants ||= []
+  if (q.applicants.length >= 30) return res.status(400).json({ error: 'Заявок уже слишком много' })
+  if (q.applicants.some(a => a.name.toLowerCase() === name.toLowerCase())) return res.status(400).json({ error: 'Этот персонаж уже откликнулся' })
+  applyHits.set(req.ip, [...hits, now])
+  q.applicants.push({ id: newId('a'), name, note: T.str(300)(req.body?.note), at: now })
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+
+app.post('/api/quests/:id/roll', requireMaster, (req, res) => {
+  const q = getDb().quests.find(x => x.id === req.params.id)
+  if (!q) return res.status(404).json({ error: 'Заказ не найден' })
+  q.early = { ...EARLY_DEFAULT, ...q.early, enabled: true }
+  const r = rollEarly(q)
+  saveDb()
+  broadcast()
+  res.json({ ...r, quest: q })
+})
+
+// ручная поправка репутации отряда у гильдии
+app.patch('/api/guild-rep', requireMaster, (req, res) => {
+  const db = getDb()
+  const name = T.oneOf(GUILDS.map(g => g.name))(req.body?.guild)
+  db.guildRep ||= {}
+  db.guildRep[name] = Math.round(T.num(-100000, 100000)(req.body?.value ?? 0))
+  saveDb()
+  broadcast()
+  res.json(db.guildRep)
+})
+
+// раз в минуту: просроченные заказы закрываются, автоматические броски — раз в реальные сутки
+setInterval(() => {
+  const db = getDb()
+  const now = Date.now()
+  let changed = false
+  for (const q of db.quests) {
+    if (q.status !== 'available') continue
+    if (q.expiresAt && now >= q.expiresAt) {
+      Object.assign(q, { status: 'closed', completedAt: now, closedReason: 'Срок заказа истёк' })
+      changed = true
+    } else if (q.early?.enabled && q.early.auto && now >= nextRollAt(q)) {
+      rollEarly(q, now)
+      changed = true
+    }
+  }
+  if (changed) {
+    saveDb()
+    broadcast()
+  }
+}, 60 * 1000)
+
 app.get('/api/export', requireMaster, (req, res) => {
   flushDb()
   res.setHeader('Content-Disposition', `attachment; filename="anacaria-${new Date().toISOString().slice(0, 10)}.json"`)
@@ -480,7 +610,8 @@ app.post('/api/:col', requireMaster, (req, res) => {
   if (!schema || schema.noCreate) return res.status(404).json({ error: 'Неизвестный тип объекта' })
   const data = sanitize(schema.fields, req.body || {}, false)
   for (const r of schema.required || []) if (!(r in data)) return res.status(400).json({ error: `Не заполнено поле «${r}»` })
-  const item = { id: newId(schema.prefix), ...schema.defaults, ...data }
+  const item = { id: newId(schema.prefix), ...JSON.parse(JSON.stringify(schema.defaults || {})), ...data, createdAt: Date.now() }
+  if (req.params.col === 'quests') item.postedAt ||= item.createdAt
   getDb()[req.params.col].push(item)
   saveDb()
   broadcast()
@@ -492,7 +623,11 @@ app.patch('/api/:col/:id', requireMaster, (req, res) => {
   if (!schema) return res.status(404).json({ error: 'Неизвестный тип объекта' })
   const item = getDb()[req.params.col].find(x => x.id === req.params.id)
   if (!item) return res.status(404).json({ error: 'Объект не найден' })
-  Object.assign(item, sanitize(schema.fields, req.body || {}, true))
+  const patch = sanitize(schema.fields, req.body || {}, true)
+  if (req.params.col === 'quests' && patch.status && patch.status !== item.status) {
+    patch.completedAt = ['done', 'failed', 'closed'].includes(patch.status) ? Date.now() : null
+  }
+  Object.assign(item, patch)
   saveDb()
   broadcast()
   res.json(item)

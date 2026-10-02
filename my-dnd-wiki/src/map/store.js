@@ -17,7 +17,7 @@ function lsSet(key, val) {
 
 const DEFAULT_LAYERS = {
   states: true, borders: true, rivers: true, labels: true, relief: false, biomes: false, heights: false,
-  roads: true, routes: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
+  roads: true, routes: true, quests: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
 }
 
 let savedLayers = {}
@@ -30,7 +30,7 @@ export const store = reactive({
   token: lsGet(TOKEN_KEY),
   clockOffset: 0,
   now: Date.now(),
-  data: { settings: { width: 2048, height: 1024, kmPerPx: 1, grid: { cellKm: 10, type: 'square' } }, hud: null, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [], labels: [], routes: [], icons: [] },
+  data: { settings: { width: 2048, height: 1024, kmPerPx: 1, grid: { cellKm: 10, type: 'square' } }, hud: null, states: [], cities: [], roads: [], anomalies: [], parties: [], fog: [], labels: [], routes: [], icons: [], quests: [], guildRep: {} },
   statePaths: [],
 
   layers: { ...DEFAULT_LAYERS, ...savedLayers },
@@ -169,7 +169,11 @@ function connect() {
   }
 }
 
+let started = false
 export async function init() {
+  // карта и вики пользуются одним хранилищем — подключаемся один раз
+  if (started) return
+  started = true
   try {
     const [state, paths] = await Promise.all([api('GET', '/api/state'), fetch(`/map/states.json?v=${__BUILD__}`).then(r => r.json())])
     store.statePaths = paths

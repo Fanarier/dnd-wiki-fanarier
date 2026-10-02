@@ -63,7 +63,10 @@
           <div class="leg"><svg width="22" height="22" viewBox="-11 -11 22 22"><rect x="-5" y="-5" width="10" height="10" rx="2" fill="#f6ecd6" stroke="#3b2a1a" stroke-width="1.6" transform="rotate(45)" /></svg> Крепость</div>
           <div class="leg"><svg width="22" height="22" viewBox="-11 -11 22 22"><circle r="3.6" fill="#2a1d12" stroke="#f6ecd6" stroke-width="1.4" /></svg> Поселение</div>
           <div v-for="(r, k) in ROAD_TYPES" :key="k" class="leg">
-            <svg width="22" height="22"><line x1="1" y1="11" x2="21" y2="11" :stroke="r.color" :stroke-width="r.width" :stroke-dasharray="r.dash" stroke-linecap="round" /></svg> {{ r.label }}
+            <svg width="22" height="22">
+              <line x1="1" y1="11" x2="21" y2="11" :stroke="r.color" :stroke-width="r.width" :stroke-dasharray="r.dash" stroke-linecap="round" />
+              <line v-if="r.overlay" x1="1" y1="11" x2="21" y2="11" :stroke="r.overlay.color" :stroke-width="r.overlay.width" :stroke-dasharray="r.overlay.dash" />
+            </svg> {{ r.label }}
           </div>
         </div>
         <div class="ui-kicker sec small-sec leg-head">
@@ -138,6 +141,7 @@ const OBJ = [
   { key: 'towns', label: 'Поселения', icon: 'home' },
   { key: 'roads', label: 'Дороги', icon: 'roadType' },
   { key: 'routes', label: 'Маршруты', icon: 'ship' },
+  { key: 'quests', label: 'Заказы гильдий', icon: 'note' },
   { key: 'anomalies', label: 'Аномалии', icon: 'anomaly' },
   { key: 'parties', label: 'Отряды', icon: 'party' }
 ]

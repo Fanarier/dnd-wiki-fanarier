@@ -8,7 +8,7 @@ const DB_FILE = path.join(DATA_DIR, 'db.json')
 const SEED_FILE = path.resolve(import.meta.dirname, 'seed', 'anacaria.json')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
 
-export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels', 'routes', 'icons']
+export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels', 'routes', 'icons', 'quests']
 // Свои иконки мастера лежат рядом с базой (служба может писать только в data)
 export const ICON_DIR = path.join(DATA_DIR, 'icons')
 
@@ -44,6 +44,13 @@ function migrate(d) {
   for (const st of seed.states) if (!have.has(st.id)) { d.states.push(st); changed = true }
   for (const s of d.states) {
     if (s.label === undefined && seedStates.get(s.id)?.label) { s.label = seedStates.get(s.id).label; changed = true }
+  }
+  // стартовые заказы гильдий — один раз, пока доска пустая
+  const QUESTS_SEED = path.resolve(import.meta.dirname, 'seed', 'quests.json')
+  if (!d.questsSeeded && fs.existsSync(QUESTS_SEED)) {
+    if (!d.quests?.length) d.quests = JSON.parse(fs.readFileSync(QUESTS_SEED, 'utf8'))
+    d.questsSeeded = true
+    changed = true
   }
   if (changed) console.log('[db] мир дополнен новыми полями из seed')
   return changed
