@@ -13,11 +13,17 @@
       <div class="body">
         <!-- портрет и основное -->
         <div class="top">
-          <label class="portrait" title="Загрузить портрет">
-            <img v-if="portraitPreview" :src="portraitPreview" alt="" />
-            <span v-else>＋<br />портрет</span>
-            <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickPortrait" />
-          </label>
+          <div class="pcol">
+            <PortraitFocus v-if="portraitPreview" v-model="h.portraitPos" :src="portraitPreview" />
+            <label v-else class="portrait" title="Загрузить портрет">
+              <span>＋<br />портрет</span>
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickPortrait" />
+            </label>
+            <div v-if="portraitPreview" class="pbtns">
+              <label class="link">заменить<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickPortrait" /></label>
+              <button type="button" class="link" @click="dropPortrait">убрать</button>
+            </div>
+          </div>
           <div class="grid">
             <label v-if="master" class="wide">Тип
               <select v-model="h.kind">
@@ -38,7 +44,6 @@
             </template>
           </div>
         </div>
-        <div v-if="portraitPreview" class="row-end"><button type="button" class="link" @click="dropPortrait">убрать портрет</button></div>
 
         <div class="grid three">
           <label>Локация<input v-model="h.location" maxlength="80" list="he-loc" /></label>
@@ -116,6 +121,7 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import HexPips from './HexPips.vue'
+import PortraitFocus from './PortraitFocus.vue'
 import { store, heroPortraitUrl } from '../map/store.js'
 import { HERO_KINDS, RARITY, MAX_SIDEKICKS, ILLNESS_MAX, REL_LEVELS, REL_CELL, EXPENSES } from '../shared/catalog.js'
 
@@ -127,12 +133,13 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save', 'delete'])
 
 const BLANK = {
-  kind: 'character', name: '', portrait: '', level: 1, bm: '+5', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
+  kind: 'character', name: '', portrait: '', portraitPos: { x: 50, y: 20, zoom: 1 }, level: 1, bm: '+5', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
   illness: 0, effectPlus: '', effectMinus: '', expenses: { life: 0, housing: 0, business: 0 }, expensesMax: 5, relations: [],
   ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false
 }
 const h = reactive({ ...JSON.parse(JSON.stringify(BLANK)), ...JSON.parse(JSON.stringify(props.hero)) })
 h.expenses = { ...BLANK.expenses, ...h.expenses }
+h.portraitPos = { ...BLANK.portraitPos, ...h.portraitPos }
 
 const heroes = computed(() => store.data.heroes || [])
 const sidekickFull = computed(() => props.hero.kind !== 'sidekick' && heroes.value.filter(x => x.kind === 'sidekick').length >= MAX_SIDEKICKS)
@@ -162,7 +169,7 @@ function carry(r) {
 const portraitFile = ref(null)
 const portraitBlobUrl = ref('')
 const portraitRemoved = ref(false)
-const portraitPreview = computed(() => portraitBlobUrl.value || (!portraitRemoved.value && heroPortraitUrl(h.portrait)) || '')
+const portraitPreview = computed(() => portraitBlobUrl.value || (!portraitRemoved.value && heroPortraitUrl(h.portraitThumb || h.portrait)) || '')
 function pickPortrait(e) {
   const file = e.target.files[0]
   e.target.value = ''
@@ -170,6 +177,7 @@ function pickPortrait(e) {
   if (portraitBlobUrl.value) URL.revokeObjectURL(portraitBlobUrl.value)
   portraitFile.value = file
   portraitBlobUrl.value = URL.createObjectURL(file)
+  h.portraitPos = { ...BLANK.portraitPos }
 }
 function dropPortrait() {
   if (portraitBlobUrl.value) URL.revokeObjectURL(portraitBlobUrl.value)
@@ -182,7 +190,7 @@ onBeforeUnmount(() => { if (portraitBlobUrl.value) URL.revokeObjectURL(portraitB
 function save() {
   for (const r of h.relations) carry(r)
   if (!h.ownerId) h.canEdit = false
-  const { id, portrait, createdAt, onlyYou, order, ...body } = h
+  const { id, portrait, portraitThumb, createdAt, onlyYou, order, ...body } = h
   if (!props.master) for (const k of ['kind', 'ownerId', 'canEdit', 'hidden', 'masterId', 'rarity', 'status']) delete body[k]
   emit('save', { id, body, portraitFile: portraitFile.value, portraitRemoved: portraitRemoved.value && !portraitFile.value })
 }
@@ -199,7 +207,10 @@ h3 { margin: 2px 0 0; font: 700 28px 'Cormorant Garamond', Georgia, serif; color
 .x { border: 0; background: none; color: #a8936c; font-size: 28px; line-height: 1; cursor: pointer; }
 .body { padding: 14px 22px; overflow-y: auto; display: grid; gap: 12px; }
 .top { display: flex; gap: 16px; align-items: flex-start; }
-.portrait { width: 132px; height: 170px; flex: none; border-radius: 12px; overflow: hidden; cursor: pointer; display: grid; place-items: center; text-align: center; border: 2px dashed rgba(201, 162, 79, .45); background: #120e09; color: #a8936c; font: 700 13px/1.4 'Manrope', sans-serif; }
+.pcol { width: 276px; flex: none; display: grid; gap: 6px; }
+.pbtns { display: flex; gap: 14px; justify-content: center; }
+.pbtns label { display: inline; cursor: pointer; }
+.portrait { width: 100%; height: 250px; border-radius: 12px; overflow: hidden; cursor: pointer; display: grid; place-items: center; text-align: center; border: 2px dashed rgba(201, 162, 79, .45); background: #120e09; color: #a8936c; font: 700 13px/1.4 'Manrope', sans-serif; }
 .portrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
 .portrait:hover { border-color: #e6c27a; color: #e6c27a; }
 .grid { flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -238,7 +249,8 @@ footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding:
 @keyframes rise { from { opacity: 0; transform: translateY(24px) scale(.97); } }
 @media (max-width: 640px) {
   .body, header, footer { padding-left: 14px; padding-right: 14px; }
-  .top { flex-direction: column; align-items: center; }
+  .top { flex-direction: column; align-items: stretch; }
+  .pcol { width: 100%; }
   .grid, .grid.three, .grid.two { grid-template-columns: 1fr; width: 100%; }
   .wide { grid-column: auto; }
   .rel select, .rel > input { width: 100%; }

@@ -550,10 +550,12 @@ async function postBlob(url, blob) {
   return json
 }
 
-// портрет карточки: до 900px по длинной стороне
+// портрет карточки: целиком до 2400px (смотреть на весь экран) + лёгкий 720px для самой карточки
 export async function uploadPortrait(heroId, file) {
-  const { blob } = await shrink(file, 900)
-  return postBlob(`/api/heroes/${heroId}/portrait`, blob)
+  const big = file.size < 4e6 && /png|jpeg|webp/.test(file.type) ? { blob: file } : await shrink(file, 2400, 0.92)
+  await postBlob(`/api/heroes/${heroId}/portrait`, big.blob)
+  const { blob } = await shrink(file, 720, 0.88)
+  return postBlob(`/api/heroes/${heroId}/portrait?part=thumb`, blob)
 }
 
 // арт: оригинал как есть (до 40 МБ) + лёгкое превью для стены

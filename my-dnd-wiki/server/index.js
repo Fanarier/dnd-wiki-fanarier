@@ -132,6 +132,8 @@ T.relations = () => v => {
     level: int(0, REL_LEVELS)(r?.level), points: int(0, REL_CELL)(r?.points)
   })).filter(r => r.heroId || r.name.trim())
 }
+// какую часть портрета показывать на карточке: точка фокуса в % и приближение
+T.focus = () => v => ({ x: T.num(0, 100)(v?.x ?? 50), y: T.num(0, 100)(v?.y ?? 20), zoom: T.num(1, 4)(v?.zoom ?? 1) })
 const PLAYER_ID = v => (typeof v === 'string' && /^u[a-f0-9]{6,20}$/.test(v) ? v : null)
 
 const COORD = T.num(-500, 3000)
@@ -221,7 +223,7 @@ const SCHEMAS = {
   heroes: {
     prefix: 'h',
     defaults: {
-      kind: 'character', portrait: '', level: 1, bm: '+2', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
+      kind: 'character', portrait: '', portraitThumb: '', portraitPos: { x: 50, y: 20, zoom: 1 }, level: 1, bm: '+2', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
       illness: 0, effectPlus: '', effectMinus: '', expenses: { life: 0, housing: 0, business: 0 }, expensesMax: 5, relations: [],
       ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false, order: 0
     },
@@ -232,7 +234,7 @@ const SCHEMAS = {
       illness: int(0, ILLNESS_MAX), effectPlus: T.str(300), effectMinus: T.str(300),
       expenses: T.expenses(), expensesMax: int(1, 10), relations: T.relations(),
       ownerId: PLAYER_ID, canEdit: T.bool(), status: T.str(60), rarity: T.oneOf(Object.keys(RARITY)),
-      masterId: T.idOrNull(), hidden: T.bool(), order: T.num(-1e6, 1e6)
+      masterId: T.idOrNull(), hidden: T.bool(), order: T.num(-1e6, 1e6), portraitPos: T.focus()
     }
   },
   fog: {
@@ -912,6 +914,7 @@ app.delete('/api/heroes/:id', requireMaster, (req, res) => {
   if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
   db.heroes = db.heroes.filter(x => x !== h)
   dropPortrait(h.portrait)
+  dropPortrait(h.portraitThumb)
   // ссылки на удалённую карточку: отношения остаются по имени, хозяин компаньона сбрасывается
   for (const x of db.heroes) {
     for (const r of x.relations || []) if (r.heroId === h.id) { r.heroId = null; r.name ||= h.name }
@@ -922,20 +925,28 @@ app.delete('/api/heroes/:id', requireMaster, (req, res) => {
   res.json({ ok: true })
 })
 
-// портрет: картинку уже уменьшил браузер, тип проверяем по содержимому
+// портрет: картинку уже уменьшил браузер, тип проверяем по содержимому.
+// Два файла: целиком (для просмотра на весь экран) и лёгкий для карточки (?part=thumb, грузится вторым)
 const imageExt = buf => (Buffer.isBuffer(buf) && buf.length ? Object.keys(IMAGE_TYPES).find(k => IMAGE_TYPES[k](buf)) : null)
 
-app.post('/api/heroes/:id/portrait', requireUser, express.raw({ type: () => true, limit: '6mb' }), (req, res) => {
+app.post('/api/heroes/:id/portrait', requireUser, express.raw({ type: () => true, limit: '12mb' }), (req, res) => {
   const h = findHero(req.params.id)
   if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
   if (!canEditHero(req.user, h)) return res.status(403).json({ error: 'Эту карточку меняет только мастер' })
   const ext = imageExt(req.body)
   if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
   fs.mkdirSync(PORTRAIT_DIR, { recursive: true })
-  const file = `${h.id}-${newId('').slice(0, 8)}.${ext}`
+  const thumb = req.query.part === 'thumb'
+  if (thumb && !h.portrait) return res.status(400).json({ error: 'Сначала сам портрет' })
+  const file = `${h.id}-${newId('').slice(0, 8)}${thumb ? '-t' : ''}.${ext}`
   fs.writeFileSync(path.join(PORTRAIT_DIR, file), req.body)
-  dropPortrait(h.portrait)
-  h.portrait = file
+  dropPortrait(h.portraitThumb)
+  h.portraitThumb = ''
+  if (thumb) h.portraitThumb = file
+  else {
+    dropPortrait(h.portrait)
+    h.portrait = file
+  }
   saveDb()
   broadcast()
   res.json(h)
@@ -945,7 +956,8 @@ app.delete('/api/heroes/:id/portrait', requireUser, (req, res) => {
   if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
   if (!canEditHero(req.user, h)) return res.status(403).json({ error: 'Эту карточку меняет только мастер' })
   dropPortrait(h.portrait)
-  h.portrait = ''
+  dropPortrait(h.portraitThumb)
+  h.portrait = h.portraitThumb = ''
   saveDb()
   broadcast()
   res.json(h)
