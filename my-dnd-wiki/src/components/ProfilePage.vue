@@ -44,7 +44,7 @@
       <section v-if="isMaster" class="p-card">
         <h3>Мой персонаж <small>{{ store.me.character ? 'можно играть: «♛ Мастер ⇄ ⚔ Персонаж» в меню' : 'если ты не только ведёшь, но и играешь' }}</small></h3>
         <div class="char-row">
-          <label>Имя персонажа<input v-model="ch.character" maxlength="40" placeholder="напр. Федя-паладин" /></label>
+          <label>Имя персонажа<input v-model="ch.character" maxlength="40" /></label>
           <label>Раса<input v-model="ch.race" maxlength="40" placeholder="необязательно" /></label>
           <button class="brass small" :disabled="!ch.character.trim()" @click="saveCharacter">{{ store.me.character ? 'Сохранить' : 'Создать персонажа' }}</button>
         </div>
