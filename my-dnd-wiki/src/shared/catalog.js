@@ -163,3 +163,32 @@ export const QUEST_RESULT = {
 }
 
 export const MAX_GROUP = 6
+
+/* ---------- Герои Анкарии: карточки персонажей, сайд-киков, компаньонов ---------- */
+export const HERO_KINDS = {
+  character: { label: 'Персонаж', many: 'Персонажи' },
+  sidekick: { label: 'Сайд-кик', many: 'Сайд-кики' },
+  companion: { label: 'Компаньон', many: 'Компаньоны' }
+}
+export const MAX_SIDEKICKS = 4
+export const ILLNESS_MAX = 6
+export const REL_LEVELS = 5 // ячеек отношений
+export const REL_CELL = 200 // очков в одной ячейке
+export const EXPENSES = { life: 'Жизнь', housing: 'Жильё', business: 'Дело' }
+export const RARITY = {
+  common: { label: 'Обычный', color: '#b8b2a4' },
+  rare: { label: 'Редкий', color: '#4fa8ff' },
+  epic: { label: 'Эпический', color: '#b77aff' },
+  unique: { label: 'Уникальный', color: '#f3d99a' }
+}
+// цвет группы: известные — свои, остальные — из палитры по имени
+const GROUP_COLORS = { 'Герои': '#e6c27a', 'Дьяволята': '#ff9a3c' }
+const GROUP_PALETTE = ['#7ee0a3', '#4fd8ff', '#ff7ac0', '#c47aff', '#ffd166', '#2fd6b4']
+export const isNoGroup = g => !g || !g.trim() || /^нет$/i.test(g.trim())
+export function groupColor(g) {
+  if (isNoGroup(g)) return '#8a8172'
+  if (GROUP_COLORS[g.trim()]) return GROUP_COLORS[g.trim()]
+  let h = 0
+  for (const ch of g) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  return GROUP_PALETTE[h % GROUP_PALETTE.length]
+}

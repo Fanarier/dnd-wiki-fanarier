@@ -517,3 +517,63 @@ function playPing(kind) {
     })
   } catch { /* браузер не дал звук — не страшно */ }
 }
+
+/* ---------------- Герои и арты ---------------- */
+export const heroPortraitUrl = file => (file ? `/portraits/${file}` : '')
+export const artUrl = file => (file ? `/arts/${file}` : '')
+
+// картинка → blob не больше max по длинной стороне (webp); возвращает и размеры оригинала
+async function shrink(file, max, quality = 0.9) {
+  if (!file.type.startsWith('image/') || file.type.includes('svg')) throw new Error('Нужна картинка PNG, JPG, GIF или WebP')
+  const bmp = await createImageBitmap(file)
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height))
+  const c = document.createElement('canvas')
+  c.width = Math.max(1, Math.round(bmp.width * k))
+  c.height = Math.max(1, Math.round(bmp.height * k))
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height)
+  const blob = await new Promise(r => c.toBlob(r, 'image/webp', quality))
+  return { blob, w: bmp.width, h: bmp.height }
+}
+
+async function postBlob(url, blob) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': blob.type || 'application/octet-stream',
+      ...(store.token ? { authorization: 'Bearer ' + store.token } : {}),
+      ...(store.token && store.viewAs ? { 'x-view-as': store.viewAs } : {})
+    },
+    body: blob
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || 'Не удалось загрузить')
+  return json
+}
+
+// портрет карточки: до 900px по длинной стороне
+export async function uploadPortrait(heroId, file) {
+  const { blob } = await shrink(file, 900)
+  return postBlob(`/api/heroes/${heroId}/portrait`, blob)
+}
+
+// арт: оригинал как есть (до 40 МБ) + лёгкое превью для стены
+export async function uploadArt(file) {
+  if (file.size > 40 * 1024 * 1024) throw new Error(`«${file.name}» больше 40 МБ`)
+  const { blob: thumb, w, h } = await shrink(file, 720, 0.85)
+  const name = file.name.replace(/\.[^.]+$/, '').slice(0, 120)
+  const art = await postBlob(`/api/arts?name=${encodeURIComponent(name)}&w=${w}&h=${h}`, file)
+  try { await postBlob(`/api/arts/${art.id}/thumb`, thumb) } catch { /* без превью покажем оригинал */ }
+  return art
+}
+
+// какие арты этот браузер уже видел — для ленточки «НОВОЕ»
+const ARTS_SEEN_KEY = 'anacaria-arts-seen'
+export const artsSeen = ref(Number(lsGet(ARTS_SEEN_KEY)) || 0)
+export function markArtsSeen() {
+  const last = Math.max(0, ...(store.data.arts || []).map(a => a.createdAt))
+  if (last > artsSeen.value) {
+    artsSeen.value = last
+    lsSet(ARTS_SEEN_KEY, String(last))
+  }
+}
+export const unseenArts = computed(() => (store.data.arts || []).filter(a => a.createdAt > artsSeen.value).length)

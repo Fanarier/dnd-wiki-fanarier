@@ -174,7 +174,8 @@ watch(() => [route.query.focus, route.query.pick, store.ready], () => {
     const o = store.data[type]?.find(x => x.id === id)
     if (o) {
       store.selection = { type, id }
-      if (o.loc) setTimeout(() => canvas.value?.flyTo(o.loc.x, o.loc.y, 4), 300)
+      const at = o.loc || (o.x != null ? { x: o.x, y: o.y } : null)
+      if (at) setTimeout(() => canvas.value?.flyTo(at.x, at.y, 4), 300)
     }
   }
   if (pick && String(pick).startsWith('quest:')) {

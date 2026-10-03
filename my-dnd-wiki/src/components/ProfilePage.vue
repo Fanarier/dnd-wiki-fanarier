@@ -40,6 +40,17 @@
         </div>
       </section>
 
+      <!-- карточки героев, привязанные к игроку -->
+      <section v-if="myHeroes.length" class="p-card">
+        <h3>Мои карточки <small>в разделе «Герои Анкарии»</small></h3>
+        <div v-for="h in myHeroes" :key="h.id" class="note-row">
+          <img v-if="h.portrait" :src="heroPortraitUrl(h.portrait)" alt="" class="pl-av" />
+          <span v-else class="pl-av ini" :style="{ background: store.me.color }">{{ h.name[0] }}</span>
+          <span class="grow"><b>{{ h.name }}</b> <span class="muted small">· ур. {{ h.level }}{{ h.canEdit ? ' · можешь править сам' : '' }}</span></span>
+          <router-link class="mini" :to="{ path: '/wiki', query: { hero: h.id } }">открыть</router-link>
+        </div>
+      </section>
+
       <!-- персонаж мастера: мастер тоже может играть -->
       <section v-if="isMaster" class="p-card">
         <h3>Мой персонаж <small>{{ store.me.character ? 'можно играть: «♛ Мастер ⇄ ⚔ Персонаж» в меню' : 'если ты не только ведёшь, но и играешь' }}</small></h3>
@@ -103,6 +114,7 @@
         </form>
         <div v-if="pw.new2 && pw.new1 !== pw.new2" class="err">Пароли не совпадают</div>
         <label class="chk"><input type="checkbox" :checked="store.sound" @change="setSound($event.target.checked)" /> Звук пингов</label>
+        <label v-if="store.role === 'player'" class="chk"><input type="checkbox" :checked="store.me.notifyArts" @change="setNotifyArts($event.target.checked)" /> Уведомлять, когда мастер выкладывает новые арты</label>
         <div class="row end"><button class="mini no" @click="out">Выйти из аккаунта</button></div>
       </section>
 
@@ -116,7 +128,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UserMenu from './UserMenu.vue'
 import SteamLoader from './SteamLoader.vue'
-import { store, init, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound } from '../map/store.js'
+import { store, init, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound, heroPortraitUrl } from '../map/store.js'
 import { RANKS } from '../shared/catalog.js'
 
 const router = useRouter()
@@ -189,6 +201,13 @@ const sortedPlayers = computed(() => {
 })
 const activePlayers = computed(() => (store.data.players || []).filter(p => p.status === 'active'))
 const pendingPlayers = computed(() => (store.data.players || []).filter(p => p.status === 'pending'))
+const myHeroes = computed(() => (store.data.heroes || []).filter(h => h.ownerId && h.ownerId === store.me?.id))
+async function setNotifyArts(on) {
+  try {
+    await updateProfile({ notifyArts: on })
+    toast(on ? 'Будем звать на новые арты' : 'Об артах больше не напоминаем')
+  } catch (e) { toast(e.message, 'error') }
+}
 const myNotes = computed(() => (store.data.notes || []).filter(n => n.ownerId === store.me?.id))
 
 const call = (url, method, text, body) => act(method, url, method === 'DELETE' ? undefined : (body || {}), text).catch(() => {})

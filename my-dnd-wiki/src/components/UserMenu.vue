@@ -27,6 +27,8 @@
                 </template>
               </div>
               <router-link v-if="n.data?.questId" class="n-link" :to="{ path: '/wiki', query: { quest: n.data.questId } }" @click="open = false">к заказу →</router-link>
+              <router-link v-else-if="n.data?.heroId" class="n-link" :to="{ path: '/wiki', query: { hero: n.data.heroId } }" @click="open = false">к карточке →</router-link>
+              <router-link v-else-if="n.data?.arts" class="n-link" :to="{ path: '/wiki', query: { heroes: 'arts' } }" @click="open = false">смотреть арты →</router-link>
             </li>
           </ul>
         </div>

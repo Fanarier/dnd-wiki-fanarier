@@ -8,9 +8,11 @@ const DB_FILE = path.join(DATA_DIR, 'db.json')
 const SEED_FILE = path.resolve(import.meta.dirname, 'seed', 'anacaria.json')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
 
-export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels', 'routes', 'icons', 'quests']
+export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels', 'routes', 'icons', 'quests', 'heroes']
 // Свои иконки мастера лежат рядом с базой (служба может писать только в data)
 export const ICON_DIR = path.join(DATA_DIR, 'icons')
+// портреты карточек героев
+export const PORTRAIT_DIR = path.join(DATA_DIR, 'portraits')
 
 let db = null
 let saveTimer = null
@@ -50,6 +52,13 @@ function migrate(d) {
   if (!d.questsSeeded && fs.existsSync(QUESTS_SEED)) {
     if (!d.quests?.length) d.quests = JSON.parse(fs.readFileSync(QUESTS_SEED, 'utf8'))
     d.questsSeeded = true
+    changed = true
+  }
+  // карточки героев со старой таблицы — один раз
+  const HEROES_SEED = path.resolve(import.meta.dirname, 'seed', 'heroes.json')
+  if (!d.heroesSeeded && fs.existsSync(HEROES_SEED)) {
+    if (!d.heroes?.length) d.heroes = JSON.parse(fs.readFileSync(HEROES_SEED, 'utf8')).map(h => ({ ...h, createdAt: Date.now() }))
+    d.heroesSeeded = true
     changed = true
   }
   if (changed) console.log('[db] мир дополнен новыми полями из seed')

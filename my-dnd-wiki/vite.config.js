@@ -10,6 +10,8 @@ export default defineConfig({
     proxy: {
       '/api': 'http://127.0.0.1:3001',
       '/usericons': 'http://127.0.0.1:3001',
+      '/portraits': 'http://127.0.0.1:3001',
+      '/arts': 'http://127.0.0.1:3001',
       '/ws': { target: 'ws://127.0.0.1:3001', ws: true }
     }
   }

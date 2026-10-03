@@ -7,7 +7,8 @@ import http from 'node:http'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 
-import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR } from './db.js'
+import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
+import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
 import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword } from './auth.js'
 import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
@@ -15,7 +16,10 @@ import {
 } from './accounts.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
-import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS, GUILDS, RANKS, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP } from '../src/shared/catalog.js'
+import {
+  CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS, GUILDS, RANKS, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP,
+  HERO_KINDS, RARITY, MAX_SIDEKICKS, ILLNESS_MAX, REL_LEVELS, REL_CELL
+} from '../src/shared/catalog.js'
 
 const PORT = Number(process.env.PORT) || 3001
 // На сервере за туннелем ставим HOST=127.0.0.1, чтобы порт не был виден снаружи
@@ -119,6 +123,17 @@ T.loc = () => v => (v ? { x: T.num(-500, 3000)(v.x), y: T.num(-500, 3000)(v.y) }
 // список id игроков (кому открыт скрытый объект, кто в отряде)
 T.ids = () => v => (Array.isArray(v) ? [...new Set(v.filter(x => typeof x === 'string' && /^u[a-f0-9]{6,20}$/.test(x)))].slice(0, 50) : [])
 
+// Карточки героев
+T.expenses = () => v => ({ life: int(0, 10)(v?.life), housing: int(0, 10)(v?.housing), business: int(0, 10)(v?.business) })
+T.relations = () => v => {
+  if (!Array.isArray(v) || v.length > 30) throw new Error('некорректный список отношений')
+  return v.map(r => ({
+    heroId: r?.heroId ? T.str(24)(r.heroId) : null, name: T.str(60)(r?.name),
+    level: int(0, REL_LEVELS)(r?.level), points: int(0, REL_CELL)(r?.points)
+  })).filter(r => r.heroId || r.name.trim())
+}
+const PLAYER_ID = v => (typeof v === 'string' && /^u[a-f0-9]{6,20}$/.test(v) ? v : null)
+
 const COORD = T.num(-500, 3000)
 const TEXT = T.str(20000)
 const SCHEMAS = {
@@ -203,6 +218,23 @@ const SCHEMAS = {
       secret: TEXT, hidden: T.bool(), revealTo: T.ids()
     }
   },
+  heroes: {
+    prefix: 'h',
+    defaults: {
+      kind: 'character', portrait: '', level: 1, bm: '+2', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
+      illness: 0, effectPlus: '', effectMinus: '', expenses: { life: 0, housing: 0, business: 0 }, expensesMax: 5, relations: [],
+      ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false, order: 0
+    },
+    required: ['kind', 'name'],
+    fields: {
+      kind: T.oneOf(Object.keys(HERO_KINDS)), name: T.str(60), level: int(0, 99), bm: T.str(8),
+      staminaMax: int(0, 999), stamina: int(0, 999), location: T.str(80), housing: T.str(80), group: T.str(40),
+      illness: int(0, ILLNESS_MAX), effectPlus: T.str(300), effectMinus: T.str(300),
+      expenses: T.expenses(), expensesMax: int(1, 10), relations: T.relations(),
+      ownerId: PLAYER_ID, canEdit: T.bool(), status: T.str(60), rarity: T.oneOf(Object.keys(RARITY)),
+      masterId: T.idOrNull(), hidden: T.bool(), order: T.num(-1e6, 1e6)
+    }
+  },
   fog: {
     prefix: 'f',
     defaults: { mode: 'add', shape: 'stroke', r: 20 },
@@ -268,7 +300,7 @@ function identify(token, viewAs) {
     if (viewAs === 'player' && ch) {
       return {
         role: 'player', id: ch.id, login: d.sub, name: ch.character, avatar: ch.avatar || pr.avatar,
-        color: ch.color || pr.color, rank: ch.rank, asMaster: true
+        color: ch.color || pr.color, rank: ch.rank, asMaster: true, notifyArts: ch.notifyArts !== false
       }
     }
     return {
@@ -279,7 +311,7 @@ function identify(token, viewAs) {
   if (d.role === 'player') {
     const p = getPlayer(d.sub)
     if (!p || p.status !== 'active' || p.v !== d.v) return null
-    return { role: 'player', id: p.id, login: p.login, name: p.character, avatar: p.avatar, color: p.color, rank: p.rank }
+    return { role: 'player', id: p.id, login: p.login, name: p.character, avatar: p.avatar, color: p.color, rank: p.rank, notifyArts: p.notifyArts !== false }
   }
   return null
 }
@@ -339,15 +371,16 @@ function viewFor(user, now = Date.now()) {
   const me = user ? {
     role, id: uid, login: user.login, name: user.name, avatar: user.avatar, color: user.color, rank: user.rank,
     // мастер с персонажем может переключаться «мастер ⇄ персонаж»
-    canPlay: !!(user.playerId || user.asMaster), asMaster: !!user.asMaster, character: user.character || null
+    canPlay: !!(user.playerId || user.asMaster), asMaster: !!user.asMaster, character: user.character || null,
+    notifyArts: user.notifyArts !== false
   } : null
   // заметки: свои + общие для отряда, в котором состоит игрок
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
   const notes = (db.notes || []).filter(n => n.ownerId === uid || (n.share === 'group' && mates.has(n.ownerId)))
   if (role === 'master') {
-    const { notifications, notes: _n, questsSeeded, ...rest } = db
+    const { notifications, notes: _n, questsSeeded, heroesSeeded, ...rest } = db
     return {
-      ...rest, role, me, serverTime: now, notes, roster: roster(),
+      ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(),
       notifications: notificationsFor(user),
       players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked }))
     }
@@ -381,6 +414,9 @@ function viewFor(user, now = Date.now()) {
       ...(q.hidden ? { onlyYou: true } : {})
     })),
     guildRep: db.guildRep || {},
+    // карточка «в тени» видна только мастеру и её владельцу
+    heroes: db.heroes.filter(h => !h.hidden || (uid && h.ownerId === uid)).map(h => ({ ...h, ...(h.hidden ? { onlyYou: true } : {}) })),
+    arts: allArts(),
     hud: db.hud?.visible ? db.hud : null,
     roster: roster(),
     notes,
@@ -569,6 +605,7 @@ app.patch('/api/me', requireUser, (req, res) => {
       if (b.name !== undefined) patch.character = T.str(40)(b.name).trim() || cur.character
       if (b.race !== undefined) patch.race = T.str(40)(b.race).trim()
       if (color) patch.color = color
+      if (b.notifyArts !== undefined) patch.notifyArts = !!b.notifyArts
       if (b.avatar === null) patch.avatar = ''
       else if (b.avatar) patch.avatar = saveAvatar(b.avatar, cur.avatar)
       updatePlayer(u.id, patch)
@@ -818,6 +855,146 @@ app.use('/usericons', express.static(ICON_DIR, {
   maxAge: '30d', immutable: true, index: false,
   setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff')
 }))
+
+/* ---------- Герои Анкарии: карточки персонажей, сайд-киков, компаньонов ---------- */
+// владелец с правом правки меняет всё, кроме служебного
+const HERO_OWNER_LOCKED = ['kind', 'ownerId', 'canEdit', 'hidden', 'order', 'masterId', 'rarity', 'status']
+const findHero = id => getDb().heroes.find(h => h.id === id)
+const canEditHero = (u, h) => u?.role === 'master' || (!!u && h.kind === 'character' && h.ownerId === u.id && h.canEdit)
+
+function heroOwnerChanged(h, before) {
+  if (h.ownerId && h.ownerId !== before) notify(h.ownerId, 'hero', `Мастер отметил карточку «${h.name}» как твоего персонажа`, { heroId: h.id })
+}
+
+app.post('/api/heroes', requireMaster, (req, res) => {
+  const data = sanitize(SCHEMAS.heroes.fields, req.body || {}, false)
+  if (!data.name?.trim()) return res.status(400).json({ error: 'Напиши имя' })
+  const db = getDb()
+  const kind = data.kind || 'character'
+  if (kind === 'sidekick' && db.heroes.filter(h => h.kind === 'sidekick').length >= MAX_SIDEKICKS) return res.status(400).json({ error: `Сайд-киков не больше ${MAX_SIDEKICKS}` })
+  if (kind !== 'character') Object.assign(data, { ownerId: null, canEdit: false })
+  const order = Math.max(0, ...db.heroes.filter(h => h.kind === kind).map(h => h.order || 0)) + 1
+  const h = { id: newId('h'), ...JSON.parse(JSON.stringify(SCHEMAS.heroes.defaults)), order, ...data, createdAt: Date.now() }
+  db.heroes.push(h)
+  heroOwnerChanged(h, null)
+  saveDb()
+  broadcast()
+  res.json(h)
+})
+
+app.patch('/api/heroes/:id', requireUser, (req, res) => {
+  const h = findHero(req.params.id)
+  if (!h || (h.hidden && req.user.role !== 'master' && h.ownerId !== req.user.id)) return res.status(404).json({ error: 'Карточка не найдена' })
+  if (!canEditHero(req.user, h)) return res.status(403).json({ error: 'Эту карточку меняет только мастер' })
+  const master = req.user.role === 'master'
+  const patch = sanitize(SCHEMAS.heroes.fields, req.body || {}, true)
+  if (!master) for (const k of HERO_OWNER_LOCKED) delete patch[k]
+  if (patch.name !== undefined && !patch.name.trim()) delete patch.name
+  const kind = patch.kind || h.kind
+  if (kind === 'sidekick' && h.kind !== 'sidekick' && getDb().heroes.filter(x => x.kind === 'sidekick').length >= MAX_SIDEKICKS) return res.status(400).json({ error: `Сайд-киков не больше ${MAX_SIDEKICKS}` })
+  if (kind !== 'character') Object.assign(patch, { ownerId: null, canEdit: false })
+  const before = h.ownerId
+  Object.assign(h, patch)
+  if (master) heroOwnerChanged(h, before)
+  else notify('masters', 'heroEdit', `${req.user.name} обновляет свою карточку «${h.name}»`, { heroId: h.id })
+  saveDb()
+  broadcast()
+  res.json(h)
+})
+
+function dropPortrait(file) {
+  if (file) try { fs.unlinkSync(path.join(PORTRAIT_DIR, path.basename(file))) } catch { /* нет файла */ }
+}
+
+app.delete('/api/heroes/:id', requireMaster, (req, res) => {
+  const db = getDb()
+  const h = findHero(req.params.id)
+  if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
+  db.heroes = db.heroes.filter(x => x !== h)
+  dropPortrait(h.portrait)
+  // ссылки на удалённую карточку: отношения остаются по имени, хозяин компаньона сбрасывается
+  for (const x of db.heroes) {
+    for (const r of x.relations || []) if (r.heroId === h.id) { r.heroId = null; r.name ||= h.name }
+    if (x.masterId === h.id) x.masterId = null
+  }
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+
+// портрет: картинку уже уменьшил браузер, тип проверяем по содержимому
+const imageExt = buf => (Buffer.isBuffer(buf) && buf.length ? Object.keys(IMAGE_TYPES).find(k => IMAGE_TYPES[k](buf)) : null)
+
+app.post('/api/heroes/:id/portrait', requireUser, express.raw({ type: () => true, limit: '6mb' }), (req, res) => {
+  const h = findHero(req.params.id)
+  if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
+  if (!canEditHero(req.user, h)) return res.status(403).json({ error: 'Эту карточку меняет только мастер' })
+  const ext = imageExt(req.body)
+  if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  fs.mkdirSync(PORTRAIT_DIR, { recursive: true })
+  const file = `${h.id}-${newId('').slice(0, 8)}.${ext}`
+  fs.writeFileSync(path.join(PORTRAIT_DIR, file), req.body)
+  dropPortrait(h.portrait)
+  h.portrait = file
+  saveDb()
+  broadcast()
+  res.json(h)
+})
+app.delete('/api/heroes/:id/portrait', requireUser, (req, res) => {
+  const h = findHero(req.params.id)
+  if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
+  if (!canEditHero(req.user, h)) return res.status(403).json({ error: 'Эту карточку меняет только мастер' })
+  dropPortrait(h.portrait)
+  h.portrait = ''
+  saveDb()
+  broadcast()
+  res.json(h)
+})
+
+const STATIC_IMG = { maxAge: '30d', immutable: true, index: false, setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff') }
+app.use('/portraits', express.static(PORTRAIT_DIR, STATIC_IMG))
+
+/* ---------- Новые арты: не часть мира, мастер выкладывает и чистит ---------- */
+app.post('/api/arts', requireMaster, express.raw({ type: () => true, limit: '40mb' }), (req, res) => {
+  const ext = imageExt(req.body)
+  if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  const art = addArt(req.body, ext, {
+    name: T.str(120)(req.query.name || ''),
+    w: Math.round(T.num(1, 30000)(req.query.w || 1000)), h: Math.round(T.num(1, 30000)(req.query.h || 1000))
+  })
+  broadcast()
+  res.json(art)
+})
+app.post('/api/arts/:id/thumb', requireMaster, express.raw({ type: () => true, limit: '3mb' }), (req, res) => {
+  const ext = imageExt(req.body)
+  if (!ext) return res.status(400).json({ error: 'Нужна картинка' })
+  const art = setThumb(req.params.id, req.body, ext)
+  if (!art) return res.status(404).json({ error: 'Арт не найден' })
+  broadcast()
+  res.json(art)
+})
+// после загрузки пачки — одно уведомление игрокам (кто не выключил это в профиле)
+const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many)
+app.post('/api/arts/announce', requireMaster, (req, res) => {
+  const n = Math.round(T.num(1, 10000)(req.body?.count || 1))
+  for (const p of allPlayers()) {
+    if (p.status === 'active' && p.notifyArts !== false) notify(p.id, 'arts', `Мастер выложил ${n} ${plural(n, 'новый арт', 'новых арта', 'новых артов')}`, { arts: true })
+  }
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+app.delete('/api/arts/:id', requireMaster, (req, res) => {
+  if (!removeArts([req.params.id])) return res.status(404).json({ error: 'Арт не найден' })
+  broadcast()
+  res.json({ ok: true })
+})
+app.delete('/api/arts', requireMaster, (req, res) => {
+  const n = removeArts(null)
+  broadcast()
+  res.json({ ok: true, removed: n })
+})
+app.use('/arts', express.static(ARTS_DIR, STATIC_IMG))
 
 /* ---------- Заказы гильдий ---------- */
 function rollEarly(q, now = Date.now()) {

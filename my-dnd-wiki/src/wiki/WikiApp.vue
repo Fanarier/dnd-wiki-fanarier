@@ -47,6 +47,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
+import HeroesPage from './HeroesPage.vue'
 import { init } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
@@ -68,6 +69,7 @@ import articles from '../data/articles.js' // единый источник те
 */
 const categories = ref([
   { id: 'quests', title: 'Заказы гильдий', description: 'Доска объявлений, хроника, репутация', component: QuestBoard },
+  { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
   { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SchoolFire },
@@ -144,6 +146,8 @@ const route = useRoute()
 onMounted(init)
 // ссылка с карты на заказ открывает доску заказов
 watch(() => route.query.quest, q => { if (q) currentCategory.value = 'quests' }, { immediate: true })
+// ссылки на карточку героя и на новые арты (из колокольчика, профиля)
+watch(() => [route.query.hero, route.query.heroes], ([h, t]) => { if (h || t) currentCategory.value = 'heroes' }, { immediate: true })
 
 /* -------------------- Магические страницы: свой стиль и загрузка -------------------- */
 const MAGIC = ['general', 'utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
