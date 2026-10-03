@@ -158,6 +158,8 @@ function untilt() { rx.value = ry.value = 0 }
 .port { position: relative; height: 250px; flex: none; border-radius: 12px; overflow: hidden; border: 1px solid #6b5127; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--gc) 28%, #2a2015), #120e09 75%); }
 .port > img:first-child { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; transition: transform 6s ease; }
 .slot:hover .port > img:first-child { transform: scale(1.07); }
+/* портрет при наклоне карточки (3D) иначе перехватывает клики у кнопок поверх него */
+.port > img:first-child, .ph { pointer-events: none; }
 .ph { width: 100%; height: 100%; display: grid; place-items: center; font: 700 120px 'Cormorant Garamond', Georgia, serif; color: rgba(255, 240, 210, .16); }
 .port::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 50%, rgba(16, 12, 8, .94)); }
 .lvl { position: absolute; z-index: 2; top: 8px; left: 8px; width: 46px; height: 52px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(180deg, #f2d58f, #a87a33); display: grid; place-items: center; text-align: center; color: #1e150a; font: 800 18px/1 'Manrope', sans-serif; }
