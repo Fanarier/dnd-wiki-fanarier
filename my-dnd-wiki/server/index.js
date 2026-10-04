@@ -223,7 +223,7 @@ const SCHEMAS = {
   heroes: {
     prefix: 'h',
     defaults: {
-      kind: 'character', portrait: '', portraitThumb: '', portraitPos: { x: 50, y: 20, zoom: 1 }, level: 1, bm: '+2', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
+      kind: 'character', gallery: [], level: 1, bm: '+2', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
       illness: 0, effectPlus: '', effectMinus: '', expenses: { life: 0, housing: 0, business: 0 }, expensesMax: 5, relations: [],
       ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false, order: 0
     },
@@ -234,7 +234,7 @@ const SCHEMAS = {
       illness: int(0, ILLNESS_MAX), effectPlus: T.str(300), effectMinus: T.str(300),
       expenses: T.expenses(), expensesMax: int(1, 10), relations: T.relations(),
       ownerId: PLAYER_ID, canEdit: T.bool(), status: T.str(60), rarity: T.oneOf(Object.keys(RARITY)),
-      masterId: T.idOrNull(), hidden: T.bool(), order: T.num(-1e6, 1e6), portraitPos: T.focus()
+      masterId: T.idOrNull(), hidden: T.bool(), order: T.num(-1e6, 1e6)
     }
   },
   fog: {
@@ -897,6 +897,7 @@ app.patch('/api/heroes/:id', requireUser, (req, res) => {
   if (kind !== 'character') Object.assign(patch, { ownerId: null, canEdit: false })
   const before = h.ownerId
   Object.assign(h, patch)
+  if (Array.isArray(req.body?.gallery)) arrangeGallery(h, req.body.gallery)
   if (master) heroOwnerChanged(h, before)
   else notify('masters', 'heroEdit', `${req.user.name} обновляет свою карточку «${h.name}»`, { heroId: h.id })
   saveDb()
@@ -907,14 +908,28 @@ app.patch('/api/heroes/:id', requireUser, (req, res) => {
 function dropPortrait(file) {
   if (file) try { fs.unlinkSync(path.join(PORTRAIT_DIR, path.basename(file))) } catch { /* нет файла */ }
 }
+const dropArt = g => { dropPortrait(g.file); dropPortrait(g.thumb) }
+
+// [{ id, pos }] от клиента: новый порядок (первый — обложка) и область показа; чужие id игнорируем
+function arrangeGallery(h, list) {
+  const byId = new Map((h.gallery || []).map(g => [g.id, g]))
+  const ordered = []
+  for (const it of list.slice(0, 50)) {
+    const g = byId.get(it?.id)
+    if (!g) continue
+    byId.delete(g.id)
+    if (it.pos) g.pos = T.focus()(it.pos)
+    ordered.push(g)
+  }
+  h.gallery = [...ordered, ...byId.values()]
+}
 
 app.delete('/api/heroes/:id', requireMaster, (req, res) => {
   const db = getDb()
   const h = findHero(req.params.id)
   if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
   db.heroes = db.heroes.filter(x => x !== h)
-  dropPortrait(h.portrait)
-  dropPortrait(h.portraitThumb)
+  for (const g of h.gallery || []) dropArt(g)
   // ссылки на удалённую карточку: отношения остаются по имени, хозяин компаньона сбрасывается
   for (const x of db.heroes) {
     for (const r of x.relations || []) if (r.heroId === h.id) { r.heroId = null; r.name ||= h.name }
@@ -925,42 +940,61 @@ app.delete('/api/heroes/:id', requireMaster, (req, res) => {
   res.json({ ok: true })
 })
 
-// портрет: картинку уже уменьшил браузер, тип проверяем по содержимому.
-// Два файла: целиком (для просмотра на весь экран) и лёгкий для карточки (?part=thumb, грузится вторым)
+// Арты карточки: первый — обложка. У каждого два файла: целиком (смотреть на весь экран)
+// и лёгкий для карточки (грузится вторым запросом). Картинку уже уменьшил браузер, тип проверяем по содержимому
 const imageExt = buf => (Buffer.isBuffer(buf) && buf.length ? Object.keys(IMAGE_TYPES).find(k => IMAGE_TYPES[k](buf)) : null)
-
-app.post('/api/heroes/:id/portrait', requireUser, express.raw({ type: () => true, limit: '12mb' }), (req, res) => {
+const HERO_ARTS_MAX = 24
+function heroForArt(req, res) {
   const h = findHero(req.params.id)
-  if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
-  if (!canEditHero(req.user, h)) return res.status(403).json({ error: 'Эту карточку меняет только мастер' })
-  const ext = imageExt(req.body)
-  if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  if (!h) return void res.status(404).json({ error: 'Карточка не найдена' })
+  if (!canEditHero(req.user, h)) return void res.status(403).json({ error: 'Эту карточку меняет только мастер' })
+  h.gallery ||= []
+  return h
+}
+function saveHeroFile(h, buf, suffix) {
+  const ext = imageExt(buf)
+  if (!ext) return null
   fs.mkdirSync(PORTRAIT_DIR, { recursive: true })
-  const thumb = req.query.part === 'thumb'
-  if (thumb && !h.portrait) return res.status(400).json({ error: 'Сначала сам портрет' })
-  const file = `${h.id}-${newId('').slice(0, 8)}${thumb ? '-t' : ''}.${ext}`
-  fs.writeFileSync(path.join(PORTRAIT_DIR, file), req.body)
-  dropPortrait(h.portraitThumb)
-  h.portraitThumb = ''
-  if (thumb) h.portraitThumb = file
-  else {
-    dropPortrait(h.portrait)
-    h.portrait = file
-  }
+  const file = `${h.id}-${newId('').slice(0, 8)}${suffix}.${ext}`
+  fs.writeFileSync(path.join(PORTRAIT_DIR, file), buf)
+  return file
+}
+
+app.post('/api/heroes/:id/gallery', requireUser, express.raw({ type: () => true, limit: '12mb' }), (req, res) => {
+  const h = heroForArt(req, res)
+  if (!h) return
+  if (h.gallery.length >= HERO_ARTS_MAX) return res.status(400).json({ error: `У карточки уже ${HERO_ARTS_MAX} артов` })
+  const file = saveHeroFile(h, req.body, '')
+  if (!file) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  const g = { id: newId('g'), file, thumb: '', pos: { x: 50, y: 20, zoom: 1 } }
+  h.gallery.push(g)
   saveDb()
   broadcast()
-  res.json(h)
+  res.json(g)
 })
-app.delete('/api/heroes/:id/portrait', requireUser, (req, res) => {
-  const h = findHero(req.params.id)
-  if (!h) return res.status(404).json({ error: 'Карточка не найдена' })
-  if (!canEditHero(req.user, h)) return res.status(403).json({ error: 'Эту карточку меняет только мастер' })
-  dropPortrait(h.portrait)
-  dropPortrait(h.portraitThumb)
-  h.portrait = h.portraitThumb = ''
+app.post('/api/heroes/:id/gallery/:gid/thumb', requireUser, express.raw({ type: () => true, limit: '3mb' }), (req, res) => {
+  const h = heroForArt(req, res)
+  if (!h) return
+  const g = h.gallery.find(x => x.id === req.params.gid)
+  if (!g) return res.status(404).json({ error: 'Арт не найден' })
+  const file = saveHeroFile(h, req.body, '-t')
+  if (!file) return res.status(400).json({ error: 'Нужна картинка' })
+  dropPortrait(g.thumb)
+  g.thumb = file
   saveDb()
   broadcast()
-  res.json(h)
+  res.json(g)
+})
+app.delete('/api/heroes/:id/gallery/:gid', requireUser, (req, res) => {
+  const h = heroForArt(req, res)
+  if (!h) return
+  const g = h.gallery.find(x => x.id === req.params.gid)
+  if (!g) return res.status(404).json({ error: 'Арт не найден' })
+  h.gallery = h.gallery.filter(x => x !== g)
+  dropArt(g)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
 })
 
 const STATIC_IMG = { maxAge: '30d', immutable: true, index: false, setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff') }

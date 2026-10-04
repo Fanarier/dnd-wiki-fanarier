@@ -7,9 +7,16 @@
       <!-- ===== лицо ===== -->
       <div class="face front">
         <i class="rivet a" /><i class="rivet b" /><i class="rivet c" /><i class="rivet d" /><i class="stripe" />
-        <div class="port" :class="{ art: hero.portrait }" :title="hero.portrait ? 'Посмотреть арт целиком' : undefined" @click="hero.portrait && (viewer = true)">
-          <img v-if="hero.portrait" :src="heroPortraitUrl(hero.portraitThumb || hero.portrait)" :style="focusStyle" alt="" loading="lazy" />
-          <div v-else class="ph">{{ initial }}</div>
+        <div class="port" :class="{ art: arts.length }" :title="arts.length ? (arts.length > 1 ? 'Веди мышкой — листай арты, клик — на весь экран' : 'Посмотреть арт целиком') : undefined"
+             @click="arts.length && (viewer = true)" @mousemove="scrub" @mouseleave="unscrub" @touchstart.passive="tStart" @touchend="tEnd">
+          <transition name="xf">
+            <img v-if="art" :key="art.id" class="pimg" :src="heroPortraitUrl(art.thumb || art.file)" :style="focusStyle" alt="" loading="lazy" />
+          </transition>
+          <div v-if="!arts.length" class="ph">{{ initial }}</div>
+          <!-- полоски кадров: сколько артов и какой сейчас -->
+          <div v-if="arts.length > 1" class="frames" :class="{ left: hero.kind === 'companion' }">
+            <i v-for="(a, n) in arts" :key="a.id" :class="{ on: n === idx }" />
+          </div>
           <div v-if="hero.kind !== 'companion'" class="lvl"><div><small>УР.</small>{{ hero.level }}</div></div>
           <div v-if="hero.kind !== 'companion'" class="bm"><small>БМ</small>{{ hero.bm || '—' }}</div>
           <div v-else class="rar">{{ rarity.label }}</div>
@@ -86,20 +93,15 @@
         <button class="turn" @click.stop="turn">↻ Назад</button>
       </div>
     </div>
-    <teleport to="body">
-      <div v-if="viewer" class="hc-viewer" @click="viewer = false">
-        <img :src="heroPortraitUrl(hero.portrait)" alt="" />
-        <div class="hc-cap">{{ hero.name }}</div>
-        <button class="hc-x" aria-label="Закрыть">×</button>
-      </div>
-    </teleport>
+    <HeroGalleryViewer v-if="viewer" :arts="arts" :start="idx" :name="hero.name" @close="viewer = false" />
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { mdiMapMarker, mdiHome, mdiFlag, mdiPaw } from '@mdi/js'
 import HexPips from './HexPips.vue'
+import HeroGalleryViewer from './HeroGalleryViewer.vue'
 import { store, heroPortraitUrl, avatarUrl } from '../map/store.js'
 import { RARITY, ILLNESS_MAX, REL_LEVELS, REL_CELL, EXPENSES, groupColor, isNoGroup } from '../shared/catalog.js'
 
@@ -130,17 +132,35 @@ const relations = computed(() => (props.hero.relations || []).map(r => {
   return { ...r, hero, name: hero?.name || r.name }
 }))
 
-/* какая часть портрета видна (мастер выбирает в редакторе) */
+/* арты карточки: первый — обложка; мышкой по портрету листаются, на телефоне — свайпом */
+const arts = computed(() => props.hero.gallery || [])
+const idx = ref(0)
+const art = computed(() => arts.value[idx.value] || arts.value[0] || null)
+watch(() => arts.value.length, n => { if (idx.value >= n) idx.value = 0 })
+// какая часть арта видна (выбирается в редакторе)
 const focusStyle = computed(() => {
-  const p = { x: 50, y: 20, zoom: 1, ...props.hero.portraitPos }
+  const p = { x: 50, y: 20, zoom: 1, ...art.value?.pos }
   return { objectPosition: `${p.x}% ${p.y}%`, transformOrigin: `${p.x}% ${p.y}%`, '--z': p.zoom }
 })
+function scrub(e) {
+  if (arts.value.length < 2 || matchMedia('(hover: none)').matches) return
+  const r = e.currentTarget.getBoundingClientRect()
+  idx.value = Math.max(0, Math.min(arts.value.length - 1, Math.floor(((e.clientX - r.left) / r.width) * arts.value.length)))
+}
+const unscrub = () => { idx.value = 0 }
+let tx = null
+const tStart = e => { tx = e.touches[0].clientX }
+function tEnd(e) {
+  if (tx === null || arts.value.length < 2) return
+  const dx = e.changedTouches[0].clientX - tx
+  tx = null
+  if (Math.abs(dx) < 40) return
+  e.preventDefault() // свайп — не клик
+  idx.value = (idx.value + (dx < 0 ? 1 : -1) + arts.value.length) % arts.value.length
+}
 
-/* арт целиком на весь экран */
+/* арты на весь экран */
 const viewer = ref(false)
-const onKey = e => { if (e.key === 'Escape') viewer.value = false }
-watch(viewer, v => (v ? window.addEventListener('keydown', onKey) : window.removeEventListener('keydown', onKey)))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 /* переворот и наклон за мышкой */
 const flip = ref(false)
@@ -175,11 +195,16 @@ function untilt() { rx.value = ry.value = 0 }
 .stripe { position: absolute; top: 0; left: 20%; right: 20%; height: 3px; border-radius: 0 0 4px 4px; background: var(--gc); box-shadow: 0 0 12px var(--gc); }
 
 .port { position: relative; height: 250px; flex: none; border-radius: 12px; overflow: hidden; border: 1px solid #6b5127; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--gc) 28%, #2a2015), #120e09 75%); }
-.port > img:first-child { width: 100%; height: 100%; object-fit: cover; transform: scale(var(--z, 1)); transition: transform 6s ease; }
+.pimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(var(--z, 1)); transition: transform 6s ease, opacity .35s ease; }
+.xf-enter-from, .xf-leave-to { opacity: 0; }
+.frames { position: absolute; z-index: 3; top: 9px; left: 62px; right: 74px; display: flex; gap: 3px; pointer-events: none; }
+.frames.left { left: 12px; right: 120px; }
+.frames i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 240, 210, .28); box-shadow: 0 1px 3px rgba(0, 0, 0, .6); transition: background .2s; }
+.frames i.on { background: #f3d99a; box-shadow: 0 0 6px rgba(243, 217, 154, .8); }
 .port.art { cursor: zoom-in; }
-.slot:hover .port > img:first-child { transform: scale(calc(var(--z, 1) * 1.07)); }
+.slot:hover .pimg { transform: scale(calc(var(--z, 1) * 1.07)); }
 /* портрет при наклоне карточки (3D) иначе перехватывает клики у кнопок поверх него */
-.port > img:first-child, .ph { pointer-events: none; }
+.pimg, .ph { pointer-events: none; }
 .ph { width: 100%; height: 100%; display: grid; place-items: center; font: 700 120px 'Cormorant Garamond', Georgia, serif; color: rgba(255, 240, 210, .16); }
 .port::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 50%, rgba(16, 12, 8, .94)); }
 .lvl { position: absolute; z-index: 2; top: 8px; left: 8px; width: 46px; height: 52px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(180deg, #f2d58f, #a87a33); display: grid; place-items: center; text-align: center; color: #1e150a; font: 800 18px/1 'Manrope', sans-serif; }
@@ -247,12 +272,6 @@ function untilt() { rx.value = ry.value = 0 }
 .shade .face { filter: saturate(.55) brightness(.85); }
 .pulse .face { animation: pulse 1.4s ease 2; }
 
-.hc-viewer { position: fixed; inset: 0; z-index: 210; display: grid; place-items: center; padding: 20px; background: rgba(6, 4, 2, .93); cursor: zoom-out; animation: hc-fade .2s; }
-.hc-viewer img { max-width: 100%; max-height: calc(100vh - 80px); object-fit: contain; border-radius: 8px; background: #120e09; box-shadow: 0 0 0 1px #6b5127, 0 20px 60px rgba(0, 0, 0, .8); animation: hc-zoom .3s cubic-bezier(.2, .9, .3, 1.1); }
-.hc-cap { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 5px 16px; border-radius: 99px; background: rgba(20, 15, 10, .85); border: 1px solid rgba(201, 162, 79, .35); color: #f3d99a; font: 700 18px 'Cormorant Garamond', Georgia, serif; white-space: nowrap; }
-.hc-x { position: absolute; top: 10px; right: 16px; border: 0; background: none; color: #efe3c8; font-size: 40px; cursor: pointer; }
-@keyframes hc-fade { from { opacity: 0; } }
-@keyframes hc-zoom { from { opacity: 0; transform: scale(.92); } }
 @property --a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 @keyframes rot { to { --a: 360deg; } }
 @keyframes deal { from { opacity: 0; transform: translateY(60px) rotate(-6deg) scale(.9); } }

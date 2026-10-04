@@ -61,6 +61,15 @@ function migrate(d) {
     d.heroesSeeded = true
     changed = true
   }
+  // один портрет → галерея артов (первый — обложка)
+  for (const h of d.heroes || []) {
+    if (h.gallery) continue
+    h.gallery = h.portrait ? [{ id: 'g' + crypto.randomBytes(5).toString('hex'), file: h.portrait, thumb: h.portraitThumb || '', pos: h.portraitPos || { x: 50, y: 20, zoom: 1 } }] : []
+    delete h.portrait
+    delete h.portraitThumb
+    delete h.portraitPos
+    changed = true
+  }
   if (changed) console.log('[db] мир дополнен новыми полями из seed')
   return changed
 }

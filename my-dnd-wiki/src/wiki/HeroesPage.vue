@@ -56,7 +56,7 @@ import HeroCard from './HeroCard.vue'
 import HeroEditor from './HeroEditor.vue'
 import ArtsGallery from './ArtsGallery.vue'
 import SteamLoader from '../components/SteamLoader.vue'
-import { store, isMaster, init, api, act, toast, uploadPortrait, unseenArts } from '../map/store.js'
+import { store, isMaster, init, api, act, toast, uploadHeroArt, unseenArts } from '../map/store.js'
 import { HERO_KINDS, MAX_SIDEKICKS, groupColor, isNoGroup } from '../shared/catalog.js'
 
 const COG = mdiCog
@@ -114,17 +114,27 @@ const saving = ref(false)
 const edit = h => { editing.value = h }
 const create = kind => { editing.value = { kind, group: kind === 'character' ? '' : 'Нет' } }
 
-async function save({ id, body, portraitFile, portraitRemoved }) {
+// сначала карточка, потом арты (новые грузим по одному), в конце — порядок и видимая область каждого
+async function save({ id, body, gallery, removed }) {
   saving.value = true
+  let heroId = id
   try {
-    const h = id ? await api('PATCH', `/api/heroes/${id}`, body) : await api('POST', '/api/heroes', body)
-    if (portraitFile) await uploadPortrait(h.id, portraitFile)
-    else if (portraitRemoved) await api('DELETE', `/api/heroes/${h.id}/portrait`)
+    if (!heroId) heroId = (await api('POST', '/api/heroes', body)).id
+    for (const gid of removed) await api('DELETE', `/api/heroes/${heroId}/gallery/${gid}`).catch(() => {})
+    const fresh = gallery.filter(g => !g.id)
+    for (const [n, g] of fresh.entries()) {
+      if (fresh.length > 1) toast(`Загружаю арты: ${n + 1} из ${fresh.length}…`)
+      g.id = (await uploadHeroArt(heroId, g.fileObj)).id
+    }
+    const order = gallery.map(g => ({ id: g.id, pos: g.pos }))
+    const h = await api('PATCH', `/api/heroes/${heroId}`, id ? { ...body, gallery: order } : { gallery: order })
     toast(id ? 'Карточка обновлена' : 'Карточка создана')
     editing.value = null
     if (!id && h.kind !== tab.value) setTab(h.kind)
   } catch (e) {
     toast(e.message, 'error')
+    // карточка уже создана, не загрузился арт — закрываем, чтобы повторное «Сохранить» не создало дубль
+    if (!id && heroId) { editing.value = null; toast('Карточка создана, но не все арты загрузились — открой её и добавь снова', 'error') }
   } finally {
     saving.value = false
   }

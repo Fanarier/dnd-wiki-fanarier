@@ -13,15 +13,25 @@
       <div class="body">
         <!-- портрет и основное -->
         <div class="top">
+          <!-- арты карточки: первый — обложка, у каждого своя видимая область -->
           <div class="pcol">
-            <PortraitFocus v-if="portraitPreview" v-model="h.portraitPos" :src="portraitPreview" />
-            <label v-else class="portrait" title="Загрузить портрет">
-              <span>＋<br />портрет</span>
-              <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickPortrait" />
+            <PortraitFocus v-if="selItem" :key="selItem.id || selItem.tmp" v-model="selItem.pos" :src="srcOf(selItem)" />
+            <label v-else class="portrait" title="Загрузить арты">
+              <span>＋<br />арты<br /><small>можно сразу несколько</small></span>
+              <input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickArts" />
             </label>
-            <div v-if="portraitPreview" class="pbtns">
-              <label class="link">заменить<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickPortrait" /></label>
-              <button type="button" class="link" @click="dropPortrait">убрать</button>
+            <div v-if="gal.length" class="gstrip">
+              <button v-for="(g, n) in gal" :key="g.id || g.tmp" type="button" class="gth" :class="{ on: n === sel }" :title="n === 0 ? 'Обложка' : `Арт ${n + 1}`" @click="sel = n">
+                <img :src="srcOf(g)" alt="" /><i v-if="n === 0">★</i>
+              </button>
+              <label class="gadd" title="Добавить арты">＋<input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickArts" /></label>
+            </div>
+            <div v-if="selItem" class="pbtns">
+              <button type="button" class="link" :disabled="sel === 0" title="Левее" @click="moveSel(-1)">◀</button>
+              <button v-if="sel > 0" type="button" class="link" @click="makeCover">★ сделать обложкой</button>
+              <span v-else class="cover-note">★ обложка</span>
+              <button type="button" class="link" :disabled="sel === gal.length - 1" title="Правее" @click="moveSel(1)">▶</button>
+              <button type="button" class="link no" @click="removeSel">убрать</button>
             </div>
           </div>
           <div class="grid">
@@ -133,13 +143,12 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save', 'delete'])
 
 const BLANK = {
-  kind: 'character', name: '', portrait: '', portraitPos: { x: 50, y: 20, zoom: 1 }, level: 1, bm: '+5', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
+  kind: 'character', name: '', level: 1, bm: '+5', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
   illness: 0, effectPlus: '', effectMinus: '', expenses: { life: 0, housing: 0, business: 0 }, expensesMax: 5, relations: [],
   ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false
 }
 const h = reactive({ ...JSON.parse(JSON.stringify(BLANK)), ...JSON.parse(JSON.stringify(props.hero)) })
 h.expenses = { ...BLANK.expenses, ...h.expenses }
-h.portraitPos = { ...BLANK.portraitPos, ...h.portraitPos }
 
 const heroes = computed(() => store.data.heroes || [])
 const sidekickFull = computed(() => props.hero.kind !== 'sidekick' && heroes.value.filter(x => x.kind === 'sidekick').length >= MAX_SIDEKICKS)
@@ -165,34 +174,46 @@ function carry(r) {
   r.points = Math.min(r.points, REL_CELL)
 }
 
-/* портрет: выбранный файл держим до сохранения */
-const portraitFile = ref(null)
-const portraitBlobUrl = ref('')
-const portraitRemoved = ref(false)
-const portraitPreview = computed(() => portraitBlobUrl.value || (!portraitRemoved.value && heroPortraitUrl(h.portraitThumb || h.portrait)) || '')
-function pickPortrait(e) {
-  const file = e.target.files[0]
+/* арты: новые файлы держим до сохранения (загрузит страница после сохранения карточки) */
+const DEFPOS = { x: 50, y: 20, zoom: 1 }
+const gal = ref((props.hero.gallery || []).map(g => ({ ...g, pos: { ...DEFPOS, ...g.pos } })))
+const removed = []
+const sel = ref(0)
+const selItem = computed(() => gal.value[sel.value] || null)
+const srcOf = g => g.url || heroPortraitUrl(g.thumb || g.file)
+function pickArts(e) {
+  const files = [...e.target.files].filter(f => f.type.startsWith('image/') && !f.type.includes('svg'))
   e.target.value = ''
-  if (!file) return
-  if (portraitBlobUrl.value) URL.revokeObjectURL(portraitBlobUrl.value)
-  portraitFile.value = file
-  portraitBlobUrl.value = URL.createObjectURL(file)
-  h.portraitPos = { ...BLANK.portraitPos }
+  if (!files.length) return
+  const first = gal.value.length
+  for (const f of files.slice(0, 24 - gal.value.length)) gal.value.push({ tmp: Math.random().toString(36).slice(2), fileObj: f, url: URL.createObjectURL(f), pos: { ...DEFPOS } })
+  sel.value = Math.min(first, gal.value.length - 1)
 }
-function dropPortrait() {
-  if (portraitBlobUrl.value) URL.revokeObjectURL(portraitBlobUrl.value)
-  portraitBlobUrl.value = ''
-  portraitFile.value = null
-  portraitRemoved.value = true
+function moveSel(d) {
+  const a = gal.value, i = sel.value, j = i + d
+  if (j < 0 || j >= a.length) return
+  ;[a[i], a[j]] = [a[j], a[i]]
+  sel.value = j
 }
-onBeforeUnmount(() => { if (portraitBlobUrl.value) URL.revokeObjectURL(portraitBlobUrl.value) })
+function makeCover() {
+  const [g] = gal.value.splice(sel.value, 1)
+  gal.value.unshift(g)
+  sel.value = 0
+}
+function removeSel() {
+  const [g] = gal.value.splice(sel.value, 1)
+  if (g.id) removed.push(g.id)
+  if (g.url) URL.revokeObjectURL(g.url)
+  sel.value = Math.max(0, Math.min(sel.value, gal.value.length - 1))
+}
+onBeforeUnmount(() => { for (const g of gal.value) if (g.url) URL.revokeObjectURL(g.url) })
 
 function save() {
   for (const r of h.relations) carry(r)
   if (!h.ownerId) h.canEdit = false
-  const { id, portrait, portraitThumb, createdAt, onlyYou, order, ...body } = h
+  const { id, gallery, createdAt, onlyYou, order, ...body } = h
   if (!props.master) for (const k of ['kind', 'ownerId', 'canEdit', 'hidden', 'masterId', 'rarity', 'status']) delete body[k]
-  emit('save', { id, body, portraitFile: portraitFile.value, portraitRemoved: portraitRemoved.value && !portraitFile.value })
+  emit('save', { id, body, gallery: gal.value, removed })
 }
 </script>
 
@@ -208,8 +229,18 @@ h3 { margin: 2px 0 0; font: 700 28px 'Cormorant Garamond', Georgia, serif; color
 .body { padding: 14px 22px; overflow-y: auto; display: grid; gap: 12px; }
 .top { display: flex; gap: 16px; align-items: flex-start; }
 .pcol { width: 276px; flex: none; display: grid; gap: 6px; }
-.pbtns { display: flex; gap: 14px; justify-content: center; }
-.pbtns label { display: inline; cursor: pointer; }
+.pbtns { display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: wrap; }
+.pbtns .link:disabled { opacity: .3; cursor: default; }
+.link.no { color: #ff9b8f; }
+.cover-note { font-size: 12px; font-weight: 700; color: #e6c27a; }
+.gstrip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px; scrollbar-width: thin; }
+.gth { position: relative; flex: none; width: 46px; height: 54px; padding: 0; border-radius: 7px; overflow: hidden; border: 2px solid transparent; background: #120e09; cursor: pointer; opacity: .6; }
+.gth img { width: 100%; height: 100%; object-fit: cover; }
+.gth.on { opacity: 1; border-color: #e6c27a; }
+.gth i { position: absolute; top: 1px; left: 3px; color: #f3d99a; font-size: 11px; font-style: normal; text-shadow: 0 1px 3px #000; }
+.gadd { flex: none; width: 46px; height: 54px; display: grid; place-items: center; border-radius: 7px; border: 2px dashed rgba(201, 162, 79, .45); color: #e6c27a; font-size: 20px; cursor: pointer; }
+.gadd:hover { border-color: #e6c27a; }
+.portrait small { font-weight: 600; font-size: 11px; opacity: .8; }
 .portrait { width: 100%; height: 250px; border-radius: 12px; overflow: hidden; cursor: pointer; display: grid; place-items: center; text-align: center; border: 2px dashed rgba(201, 162, 79, .45); background: #120e09; color: #a8936c; font: 700 13px/1.4 'Manrope', sans-serif; }
 .portrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
 .portrait:hover { border-color: #e6c27a; color: #e6c27a; }

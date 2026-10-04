@@ -44,7 +44,7 @@
       <section v-if="myHeroes.length" class="p-card">
         <h3>Мои карточки <small>в разделе «Герои Анкарии»</small></h3>
         <div v-for="h in myHeroes" :key="h.id" class="note-row">
-          <img v-if="h.portrait" :src="heroPortraitUrl(h.portrait)" alt="" class="pl-av" />
+          <img v-if="heroCover(h)" :src="heroPortraitUrl(heroCover(h).thumb || heroCover(h).file)" alt="" class="pl-av" />
           <span v-else class="pl-av ini" :style="{ background: store.me.color }">{{ h.name[0] }}</span>
           <span class="grow"><b>{{ h.name }}</b> <span class="muted small">· ур. {{ h.level }}{{ h.canEdit ? ' · можешь править сам' : '' }}</span></span>
           <router-link class="mini" :to="{ path: '/wiki', query: { hero: h.id } }">открыть</router-link>
@@ -128,7 +128,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UserMenu from './UserMenu.vue'
 import SteamLoader from './SteamLoader.vue'
-import { store, init, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound, heroPortraitUrl } from '../map/store.js'
+import { store, init, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound, heroPortraitUrl, heroCover } from '../map/store.js'
 import { RANKS } from '../shared/catalog.js'
 
 const router = useRouter()

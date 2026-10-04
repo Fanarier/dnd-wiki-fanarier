@@ -550,13 +550,15 @@ async function postBlob(url, blob) {
   return json
 }
 
-// портрет карточки: целиком до 2400px (смотреть на весь экран) + лёгкий 720px для самой карточки
-export async function uploadPortrait(heroId, file) {
+// арт карточки: целиком до 2400px (смотреть на весь экран) + лёгкий 720px для самой карточки
+export async function uploadHeroArt(heroId, file) {
   const big = file.size < 4e6 && /png|jpeg|webp/.test(file.type) ? { blob: file } : await shrink(file, 2400, 0.92)
-  await postBlob(`/api/heroes/${heroId}/portrait`, big.blob)
+  const g = await postBlob(`/api/heroes/${heroId}/gallery`, big.blob)
   const { blob } = await shrink(file, 720, 0.88)
-  return postBlob(`/api/heroes/${heroId}/portrait?part=thumb`, blob)
+  try { return await postBlob(`/api/heroes/${heroId}/gallery/${g.id}/thumb`, blob) } catch { return g }
 }
+// обложка карточки — первый арт
+export const heroCover = h => h?.gallery?.[0] || null
 
 // арт: оригинал как есть (до 40 МБ) + лёгкое превью для стены
 export async function uploadArt(file) {
