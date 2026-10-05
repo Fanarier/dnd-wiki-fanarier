@@ -75,7 +75,9 @@
             <router-link v-if="city" class="v link" :to="{ path: '/', query: { focus: 'cities:' + city.id } }" title="Показать на карте">{{ hero.location }}</router-link>
             <span v-else class="v">{{ hero.location || '—' }}</span>
           </div>
-          <div class="row"><svg viewBox="0 0 24 24"><path :d="HOME" fill="currentColor" /></svg><span class="k">Жильё</span><span class="v">{{ hero.housing || '—' }}</span></div>
+          <div class="row"><svg viewBox="0 0 24 24"><path :d="HOME" fill="currentColor" /></svg><span class="k">Жильё</span><span class="v">{{ hero.housing || settle?.home || '—' }}</span>
+            <router-link v-if="settle" class="settle" :to="settle.to" :title="settle.title" @click.stop>⚑ {{ settle.name }}</router-link>
+          </div>
           <div class="row"><svg viewBox="0 0 24 24"><path :d="FLAG" fill="currentColor" /></svg><span class="k">Группа</span><span class="v grp">{{ noGroup ? 'Нет' : hero.group }}</span></div>
           <div v-if="hero.kind === 'companion'" class="row"><i class="sp" /><span class="k">БМ</span><span class="v">{{ hero.bm || '—' }}</span></div>
         </div>
@@ -167,6 +169,22 @@ const relations = computed(() => (props.hero.relations || []).map(r => {
 
 /* арты карточки: колода, первый — обложка; листаются стрелками, полосками и свайпом */
 const arts = computed(() => props.hero.gallery || [])
+// связь с поселением: глава, владелец построек, актив, решает за поселение
+const settle = computed(() => {
+  for (const s of store.data.settlements || []) {
+    const owns = (s.buildings || []).filter(b => b.owner === props.hero.id)
+    const asset = (s.assets || []).find(a => a.heroId === props.hero.id)
+    const head = s.headHeroId === props.hero.id
+    const decides = !!props.hero.ownerId && props.hero.kind === 'character' && s.deciders?.includes(props.hero.ownerId)
+    if (!owns.length && !asset && !head && !decides) continue
+    const ties = [head && 'глава поселения', decides && !head && 'принимает решения', asset && 'актив поселения', ...owns.map(b => b.name || 'своя постройка')].filter(Boolean)
+    return {
+      name: s.name, home: owns[0]?.name || '', title: `${s.name}: ${ties.join(', ')}`,
+      to: { path: '/settlement/' + s.id, query: owns[0] ? { b: owns[0].id } : asset ? { tab: 'assets' } : {} }
+    }
+  }
+  return null
+})
 const idx = ref(0)
 watch(() => arts.value.length, n => { if (idx.value >= n) idx.value = 0 })
 // какая часть арта видна (выбирается в редакторе)
@@ -374,6 +392,8 @@ function untilt() {
 .row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .row svg, .row .sp { width: 15px; height: 15px; flex: none; color: #b8893f; }
 .rows .k { width: 52px; }
+.settle { flex: none; margin-left: auto; padding: 0 7px; border-radius: 99px; border: 1px solid rgba(201, 162, 79, .45); color: #f3d99a; font: 700 10.5px/17px 'Manrope', sans-serif; text-decoration: none; white-space: nowrap; }
+.settle:hover { background: rgba(201, 162, 79, .18); }
 .v { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .v.link { color: #f3d99a; text-decoration: underline dotted; text-underline-offset: 3px; }
 .grp { color: var(--gc); }

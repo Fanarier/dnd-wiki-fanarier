@@ -8,7 +8,7 @@ const DB_FILE = path.join(DATA_DIR, 'db.json')
 const SEED_FILE = path.resolve(import.meta.dirname, 'seed', 'anacaria.json')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
 
-export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels', 'routes', 'icons', 'quests', 'heroes']
+export const COLLECTIONS = ['states', 'cities', 'roads', 'anomalies', 'parties', 'fog', 'labels', 'routes', 'icons', 'quests', 'heroes', 'settlements']
 // Свои иконки мастера лежат рядом с базой (служба может писать только в data)
 export const ICON_DIR = path.join(DATA_DIR, 'icons')
 // портреты карточек героев
@@ -59,6 +59,13 @@ function migrate(d) {
   if (!d.heroesSeeded && fs.existsSync(HEROES_SEED)) {
     if (!d.heroes?.length) d.heroes = JSON.parse(fs.readFileSync(HEROES_SEED, 'utf8')).map(h => ({ ...h, createdAt: Date.now() }))
     d.heroesSeeded = true
+    changed = true
+  }
+  // Урюпинск со старой таблицы — один раз (tools/urupinsk-seed.mjs)
+  const SETTLE_SEED = path.resolve(import.meta.dirname, 'seed', 'urupinsk.json')
+  if (!d.settlementsSeeded && fs.existsSync(SETTLE_SEED)) {
+    if (!d.settlements?.some(s => s.id === 'urupinsk')) (d.settlements ||= []).push(JSON.parse(fs.readFileSync(SETTLE_SEED, 'utf8')))
+    d.settlementsSeeded = true
     changed = true
   }
   // один портрет → галерея артов (первый — обложка)

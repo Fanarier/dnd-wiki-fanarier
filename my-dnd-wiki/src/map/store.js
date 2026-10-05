@@ -550,6 +550,12 @@ async function postBlob(url, blob) {
   return json
 }
 
+// портрет актива поселения: квадратик до 512px
+export async function uploadSettlementPortrait(sid, file) {
+  const { blob } = await shrink(file, 512, 0.9)
+  return postBlob(`/api/settlements/${sid}/portrait`, blob)
+}
+
 // арт карточки: целиком до 2400px (смотреть на весь экран) + лёгкий 720px для самой карточки
 export async function uploadHeroArt(heroId, file) {
   const big = file.size < 4e6 && /png|jpeg|webp/.test(file.type) ? { blob: file } : await shrink(file, 2400, 0.92)

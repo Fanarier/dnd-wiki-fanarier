@@ -45,6 +45,7 @@
           <span>{{ clock }}</span>
         </div>
         <router-link to="/wiki" class="ui-btn ghost small nav"><Icon name="wiki" :size="17" /><span class="hide-sm">Вики</span></router-link>
+        <router-link v-if="store.data.settlements?.length" to="/settlement" class="ui-btn ghost small nav" title="Поселение игроков"><Icon name="home" :size="17" /><span class="hide-sm">Поселение</span></router-link>
         <button v-if="master" class="ui-btn ghost icon" title="Настройки мира" @click="settingsOpen = true"><Icon name="settings" :size="18" /></button>
         <UserMenu />
       </div>
