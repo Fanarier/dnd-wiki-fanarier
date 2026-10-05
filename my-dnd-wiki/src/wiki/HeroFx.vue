@@ -186,7 +186,7 @@ function fogTile() {
   if (fog) return fog
   const N = 256
   const r = rng(4242)
-  const oct = [[4, 0.5], [8, 0.27], [16, 0.15], [32, 0.08]].map(([p, w]) => ({ p, w, g: Float32Array.from({ length: p * p }, r) }))
+  const oct = [[4, 0.5], [8, 0.27], [16, 0.15], [32, 0.08]].map(([p, w]) => ({ p, w, ox: r() * p, oy: r() * p, g: Float32Array.from({ length: p * p }, r) }))
   const sm = t => t * t * (3 - 2 * t)
   const c = document.createElement('canvas')
   c.width = c.height = N
@@ -195,10 +195,10 @@ function fogTile() {
   for (let y = 0; y < N; y++) {
     for (let x = 0; x < N; x++) {
       let v = 0
-      for (const { p, w, g } of oct) {
-        const fx = (x / N) * p, fy = (y / N) * p
-        const ix = Math.floor(fx), iy = Math.floor(fy)
-        const tx = sm(fx - ix), ty = sm(fy - iy)
+      for (const { p, w, ox, oy, g } of oct) {
+        const fx = (x / N) * p + ox, fy = (y / N) * p + oy
+        const ix = Math.floor(fx) % p, iy = Math.floor(fy) % p
+        const tx = sm(fx - Math.floor(fx)), ty = sm(fy - Math.floor(fy))
         const x1 = (ix + 1) % p, y1 = (iy + 1) % p
         const a = g[iy * p + ix] + (g[iy * p + x1] - g[iy * p + ix]) * tx
         const b = g[y1 * p + ix] + (g[y1 * p + x1] - g[y1 * p + ix]) * tx
@@ -224,16 +224,19 @@ function fogTile() {
 
 /* ---------- пар ---------- */
 /* туман — бесшовный шум, который плывёт вверх; маска гасит его к середине карточки */
-.steambank { left: 0; right: 0; bottom: 0; top: 40%; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); animation: fade-in 1.2s ease-out both; }
+.steambank { left: 0; right: 0; bottom: 0; top: 40%; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); animation: steam-build 4.5s cubic-bezier(.3, .1, .3, 1) both; }
 .m-ambient .steambank { top: 0; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); }
 .fog { position: absolute; display: block; left: -20%; right: -20%; top: 0; height: calc(100% + var(--t)); background: var(--fog) 0 0 / var(--t) var(--t) repeat; will-change: transform; animation: fog-rise linear infinite; }
 /* цикл бесшовный: за один оборот слой сдвигается ровно на плитку — по вертикали, а второй ещё и вбок */
 .f1 { --t: 256px; animation-duration: 8s; opacity: .5; }
-.m-ambient .f1 { opacity: .32; }
-.m-ambient .f2 { opacity: .2; }
+/* в просмотрщике экран большой: плитки крупнее и разного размера, чтобы узор не повторялся на глазах */
+.m-ambient .fog { left: -30%; right: -30%; top: -20%; height: calc(140% + var(--t)); }
+.m-ambient .f1 { --t: 760px; opacity: .3; }
+.m-ambient .f2 { --t: 530px; opacity: .18; right: calc(-30% - var(--t)); }
 .f2 { --t: 180px; animation-name: fog-drift; animation-duration: 6.5s; opacity: .32; background-position: 90px 40px; right: calc(-20% - var(--t)); }
-@keyframes fog-rise { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, calc(var(--t) * -1), 0); } }
-@keyframes fog-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(calc(var(--t) * -1), calc(var(--t) * -1), 0); } }
+@keyframes steam-build { from { opacity: 0; transform: translateY(55%); } 40% { opacity: .6; } to { opacity: 1; transform: none; } }
+@keyframes fog-rise { from { transform: rotate(-9deg) translate3d(0, 0, 0); } to { transform: rotate(-9deg) translate3d(0, calc(var(--t) * -1), 0); } }
+@keyframes fog-drift { from { transform: rotate(7deg) translate3d(0, 0, 0); } to { transform: rotate(7deg) translate3d(calc(var(--t) * -1), calc(var(--t) * -1), 0); } }
 
 /* ---------- тёмная магия ---------- */
 .sigil { top: 300px; left: calc(50% - 130px); width: 260px; height: 260px; stroke: var(--ta); stroke-width: .8; opacity: .5; filter: drop-shadow(0 0 4px var(--ta)); animation: sigil-in 1s ease-out both, spin 18s linear infinite; }
@@ -261,9 +264,9 @@ function fogTile() {
 
 /* ---------- лёд ---------- */
 /* иней растёт из-под портрета: маска-эллипс раскрывается от центра арта */
-.rime { inset: 0; opacity: .68; background: var(--frost) 0 0 / 100% 100% no-repeat; -webkit-mask: radial-gradient(ellipse calc(var(--fr) * 1.15) var(--fr) at 50% 24%, #000 72%, transparent 100%); mask: radial-gradient(ellipse calc(var(--fr) * 1.15) var(--fr) at 50% 24%, #000 72%, transparent 100%); animation: rime 2.4s cubic-bezier(.25, .6, .2, 1) both; }
+.rime { inset: 0; opacity: .68; background: var(--frost) 0 0 / 100% 100% no-repeat; -webkit-mask: radial-gradient(ellipse calc(var(--fr) * 1.15) var(--fr) at 50% 24%, #000 72%, transparent 100%); mask: radial-gradient(ellipse calc(var(--fr) * 1.15) var(--fr) at 50% 24%, #000 72%, transparent 100%); animation: rime 6s cubic-bezier(.35, .15, .4, 1) both; }
 @property --fr { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
-@keyframes rime { from { --fr: 20%; } to { --fr: 135%; } }
+@keyframes rime { from { --fr: 22%; } to { --fr: 62%; } }
 .flake { top: -10px; width: var(--sz); height: var(--sz); border-radius: 50%; background: #f2fbff; box-shadow: 0 0 6px #bfeaff; opacity: 0; animation: fall linear infinite both; }
 .m-ambient .flake { width: calc(var(--sz) * 1.6); height: calc(var(--sz) * 1.6); }
 @keyframes fall {
