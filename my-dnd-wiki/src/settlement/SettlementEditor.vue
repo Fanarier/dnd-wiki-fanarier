@@ -100,6 +100,11 @@
               <label class="chk"><input v-model="a.companion" type="checkbox" /> компаньон</label>
               <button class="mini" @click="f.assets.splice(i, 1)">×</button>
             </div>
+            <div class="row">
+              <label class="chk grow">Карточка героя
+                <select v-model="a.heroId"><option :value="undefined">— не связан —</option><option v-for="h in heroes" :key="h.id" :value="h.id">{{ h.name }}{{ h.kind === 'sidekick' ? ' (сайд-кик)' : h.kind === 'companion' ? ' (компаньон)' : '' }}</option></select>
+              </label>
+            </div>
             <small>Пассивно</small>
             <div v-for="(p, k) in a.passive" :key="k" class="row">
               <input v-model="p.text" placeholder="Мораль +5" />
@@ -242,6 +247,8 @@ input[type=color] { padding: 0; width: 34px; height: 30px; }
 .row input:not(.num), .row select { flex: 1; }
 .num { width: 76px; flex: none; }
 .chk { display: flex; align-items: center; gap: 6px; color: var(--a-text); font-weight: 600; font-size: 13px; }
+.chk.grow { flex: 1; color: var(--a-muted); font-size: 12px; }
+.chk.grow select { flex: 1; min-width: 0; }
 .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .mini { justify-self: start; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .muted { color: var(--a-muted); font-size: 12px; margin: 0; }

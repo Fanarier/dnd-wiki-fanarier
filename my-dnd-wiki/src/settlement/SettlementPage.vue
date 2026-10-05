@@ -44,17 +44,22 @@
         <div v-if="palette" class="sp-pop palette">
           <div class="pop-head"><b>{{ master ? 'Поставить постройку' : 'Что построить?' }}</b><button @click="palette = false">×</button></div>
           <label v-if="master" class="chk"><input v-model="placeBuilt" type="checkbox" /> сразу построена (иначе — стройка)</label>
+          <label v-if="master && !placeBuilt" class="chk"><input v-model="payBuild" type="checkbox" /> оплатить стройку со склада</label>
+          <p v-else-if="!master" class="pal-note">Цена уйдёт со склада, когда мастер одобрит приказ. Красным — чего сейчас не хватает.</p>
           <div v-for="(list, cat) in paletteGroups" :key="cat" class="pal-group">
             <small>{{ CATEGORIES[cat]?.label }}</small>
             <button v-for="b in list" :key="b.type" class="pal-item" :class="{ on: tool?.place === b.type }" @click="startPlace(b.type)">
-              <img :src="`/settlement/${b.icon}.png`" alt="" /><span>{{ b.label }}</span><em>{{ SIZES[b.size]?.label }} · {{ b.cost }}</em>
+              <img :src="`/settlement/${b.icon}.png`" alt="" />
+              <span>{{ b.label }}</span>
+              <em>{{ SIZES[b.size]?.label }} · {{ b.cost }}</em>
+              <PriceChips v-if="!b.personal && (!master || !placeBuilt)" class="pal-price" :price="b.price" :stock="s.stock || {}" short />
             </button>
           </div>
         </div>
         <!-- «прошёл день» -->
         <div v-if="dayOpen" class="sp-pop day">
           <div class="pop-head"><b>Сколько прошло?</b><button @click="dayOpen = false">×</button></div>
-          <p>Запасы изменятся на итог за эти дни, нехватки попадут в журнал, стройка продвинется.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
+          <p>Запасы изменятся на итог за эти дни, нехватки попадут в журнал, стройка продвинется, а сайт подкинет заготовки событий.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
           <div class="day-row">
             <button @click="advance(1)">1 день</button><button @click="advance(7)">Неделя</button>
             <input v-model.number="customDays" type="number" min="1" max="60" /><button @click="advance(customDays)">дней</button>
@@ -107,8 +112,9 @@ import SettlementMap from './SettlementMap.vue'
 import SettlementTabs from './SettlementTabs.vue'
 import BuildingCard from './BuildingCard.vue'
 import SettlementEditor from './SettlementEditor.vue'
-import { store, isMaster, act } from '../map/store.js'
-import { computeSettlement, BUILDINGS, CATEGORIES, SIZES } from '../shared/settlement.js'
+import PriceChips from './PriceChips.vue'
+import { store, isMaster, act, toast } from '../map/store.js'
+import { computeSettlement, shortFor, priceText, BUILDINGS, CATEGORIES, SIZES, RES } from '../shared/settlement.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -129,6 +135,7 @@ const editing = ref(null)
 const tool = ref(null)
 const palette = ref(false)
 const placeBuilt = ref(true)
+const payBuild = ref(true)
 const dayOpen = ref(false)
 const customDays = ref(3)
 const paletteGroups = computed(() => {
@@ -163,13 +170,16 @@ function onMoved({ id, x, y }) {
   else if (s.value.outposts.some(o => o.id === id)) patch({ outposts: s.value.outposts.map(o => (o.id === id ? { ...o, x, y } : o)) })
 }
 async function onPlaced({ type, x, y }) {
+  const def = BUILDINGS[type]
   if (master.value) {
-    const settle = BUILDINGS[type].size === 'settlement'
-    const b = { id: 'b' + Date.now().toString(36), type, x: settle ? 0 : x, y: settle ? 0 : y, state: placeBuilt.value ? 'built' : 'construction', ...(placeBuilt.value ? {} : { progress: 0 }) }
-    await patch({ buildings: [...s.value.buildings, b] }, `«${BUILDINGS[type].label}» ${placeBuilt.value ? 'поставлена' : 'заложена'}`)
-    sel.value = { kind: 'building', id: b.id }
+    const b = await act('POST', `/api/settlements/${s.value.id}/buildings`, { type, x, y, built: placeBuilt.value, pay: payBuild.value },
+      `«${def.label}» ${placeBuilt.value ? 'поставлена' : 'заложена'}`).catch(() => null)
+    if (b?.id) sel.value = { kind: 'building', id: b.id }
   } else {
-    const text = prompt(`Приказ: построить «${BUILDINGS[type].label}». Комментарий для мастера (необязательно):`, '')
+    const miss = shortFor(s.value.stock, def.price)
+    const cost = def.price ? `\nЦена: ${priceText(def.price)}.` : ''
+    const warn = miss.length ? `\nСейчас не хватает: ${miss.map(m => `${RES[m.res]?.label} ${m.have} из ${m.need}`).join(', ')} — мастер может отложить.` : ''
+    const text = prompt(`Приказ: построить «${def.label}».${cost}${warn}\nКомментарий для мастера (необязательно):`, '')
     if (text === null) return
     await act('POST', `/api/settlements/${s.value.id}/orders`, { kind: 'build', type, x, y, text }, 'Приказ отправлен мастеру')
     tool.value = null
@@ -189,9 +199,11 @@ function onFog({ erase, points, r }) {
   patch({ explored: next })
 }
 async function advance(days) {
-  const r = await act('POST', `/api/settlements/${s.value.id}/advance`, { days }, `Прошло дней: ${days}`)
+  const r = await act('POST', `/api/settlements/${s.value.id}/advance`, { days }).catch(() => null)
   dayOpen.value = false
-  if (r?.short?.length) setTab('journal')
+  if (!r) return
+  toast(`Прошло дней: ${days}${r.done?.length ? ' · достроено: ' + r.done.join(', ') : ''}${r.suggestions ? ' · заготовок событий: ' + r.suggestions : ''}`)
+  if (r.short?.length || r.suggestions) setTab('journal')
 }
 function saveItem(kind, item) {
   if (kind === 'building') patch({ buildings: s.value.buildings.map(b => (b.id === item.id ? item : b)) }, 'Сохранено')
@@ -210,7 +222,7 @@ function onKey() {
   onBeforeUnmount(() => window.removeEventListener('keydown', h))
 }
 
-const sel = ref(null)
+const sel = ref(route.query.b ? { kind: 'building', id: String(route.query.b) } : null)
 const selItem = computed(() => {
   if (!sel.value || !s.value) return null
   const list = sel.value.kind === 'outpost' ? s.value.outposts : s.value.buildings
@@ -226,7 +238,8 @@ const TABS = computed(() => [
   { id: 'assets', label: 'Активы' },
   { id: 'outposts', label: 'Аванпосты' },
   { id: 'orders', label: 'Приказы', dot: master.value && (s.value?.orders || []).some(o => o.status === 'pending') },
-  { id: 'journal', label: 'Журнал', dot: (s.value?.events || []).some(e => e.duration?.includes('decide') && !e.decision) }
+  { id: 'journal', label: 'Журнал', dot: (s.value?.events || []).some(e => e.duration?.includes('decide') && !e.decision) || (master.value && !!s.value?.suggestions?.length) },
+  { id: 'history', label: 'История' }
 ])
 function setTab(id) {
   tab.value = id
@@ -266,11 +279,13 @@ function setTab(id) {
 .pal-item:hover, .pal-item.on { background: rgba(231, 197, 111, .1); border-color: var(--a-line); }
 .pal-item img { width: 24px; height: 24px; padding: 2px; border-radius: 5px; background: #d6d2c8; }
 .pal-item em { font-style: normal; color: var(--a-muted); font-size: 11px; }
+.pal-price { grid-column: 2 / 4; margin: -3px 0 1px; }
+.pal-note { margin: 0 0 4px !important; font-size: 11.5px; }
 .sp-pop p { color: #b9ab8a; line-height: 1.45; margin: 0 0 8px; }
 .day-row { display: flex; gap: 5px; }
 .day-row button { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .1); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .day-row input { width: 52px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); }
-.sp-panel { overflow-y: auto; padding: 18px 18px 30px; scrollbar-width: thin; }
+.sp-panel { min-width: 0; overflow-y: auto; padding: 18px 18px 30px; scrollbar-width: thin; }
 
 .sp-head { padding: 14px 16px; border-radius: 16px; background: linear-gradient(170deg, #241c13, #16110c); border: 1px solid #6e4f22; box-shadow: 0 0 0 3px #1a140e, 0 0 0 4px rgba(201, 162, 79, .3); }
 .sp-title { display: flex; align-items: center; gap: 12px; }

@@ -147,6 +147,47 @@ export const BUILDINGS = {
   treehouse: { label: 'Дом на дереве', cat: 'personal', size: 'medium', cost: 0, icon: 'treehouse', personal: true }
 }
 
+/* ---------------- Цена построек ----------------
+   Сколько ресурсов уходит со склада, когда стройку закладывают. Примерно по сложности: деревянное — дерево,
+   каменное и печное — булыжник и глина, машины — металл и детали. Личные дома героев ставит мастер, бесплатно. */
+const PRICES = {
+  elder: { wood: 100, stone: 60, build: 60 },
+  house: { wood: 60, build: 25, stone: 15, straw: 10 },
+  dorm: { wood: 100, build: 40, stone: 20, straw: 20 },
+  lumber: { wood: 50, build: 10, iron: 5 },
+  hunter: { wood: 70, build: 15, straw: 10 },
+  gatherer: { wood: 70, build: 15, straw: 10 },
+  guardpost: { wood: 70, stone: 30, build: 20 },
+  workshop: { wood: 80, stone: 60, build: 40, parts: 10 },
+  field: { wood: 20, straw: 10 },
+  latrine: { wood: 30, stone: 30, clay: 20 },
+  steampump: { iron: 40, parts: 20, stone: 30, build: 20 },
+  storehouse: { wood: 70, build: 30 },
+  coop: { wood: 60, straw: 30, build: 10 },
+  machinehall: { stone: 120, iron: 80, parts: 40, build: 60 },
+  mill: { wood: 120, stone: 60, build: 30 },
+  barn: { wood: 70, straw: 20, build: 15 },
+  tavern: { wood: 140, stone: 40, build: 50, clay: 20 },
+  market: { wood: 120, stone: 60, build: 40, goods: 10 },
+  ranch: { wood: 150, build: 30, straw: 40 },
+  barrels: { wood: 30, iron: 5 },
+  well: { stone: 50, wood: 20, iron: 10 },
+  quarry: { wood: 30, iron: 10, parts: 5 },
+  garden: { wood: 15 },
+  forge: { stone: 100, clay: 40, iron: 30, build: 30 },
+  tower: { wood: 60, stone: 20 },
+  wall: { wood: 300, build: 60 },
+  bath: { wood: 100, stone: 80, clay: 30, build: 30 },
+  healer: { wood: 100, stone: 30, build: 30, herbs: 10 },
+  boiler: { stone: 150, iron: 120, parts: 50, build: 80, clay: 40 }
+}
+for (const [k, p] of Object.entries(PRICES)) BUILDINGS[k].price = p
+// чего не хватает на складе: [{ res, need, have }]
+export function shortFor(stock = {}, price = {}) {
+  return Object.entries(price).filter(([k, v]) => (stock[k] || 0) < v).map(([k, v]) => ({ res: k, need: v, have: Math.floor(stock[k] || 0) }))
+}
+export const priceText = price => Object.entries(price || {}).map(([k, v]) => `${RES[k]?.label || k} ${v}`).join(', ')
+
 /* ---------------- Работы ----------------
    per — выработка и траты одного рабочего в день; spec — слоты специалистов и бонус каждого к выработке (доля);
    effects — подписи эффектов: {label, per} (на рабочего) или {label, text} */

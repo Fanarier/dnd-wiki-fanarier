@@ -16,16 +16,18 @@
           <div class="person big">
             <img v-if="headCover" :src="headCover" alt="" /><span v-else>{{ initial(head?.name) }}</span>
           </div>
-          <b>{{ head?.name || '—' }}</b>
+          <router-link v-if="head" class="hero-link" :to="{ path: '/wiki', query: { hero: head.id } }" title="Карточка героя">{{ head.name }}</router-link>
+          <b v-else>—</b>
         </div>
         <div class="gov-col wide">
           <small>Управляющие</small>
           <div class="gov-row">
             <div v-for="(m, i) in managerSlots" :key="i" class="gov-m">
               <div class="person" :class="{ empty: !m }" :style="m ? { '--fr': ASSET_FRAMES[m.frame] } : null">
-                <img v-if="m?.portrait" :src="m.portrait" alt="" /><span v-else-if="m">{{ initial(m.name) }}</span>
+                <img v-if="m && face(m)" :src="face(m)" alt="" /><span v-else-if="m">{{ initial(m.name) }}</span>
               </div>
-              <small>{{ m?.name || 'свободно' }}</small>
+              <router-link v-if="m?.heroId" class="hero-link sm" :to="{ path: '/wiki', query: { hero: m.heroId } }">{{ m.name }}</router-link>
+              <small v-else>{{ m?.name || 'свободно' }}</small>
             </div>
           </div>
         </div>
@@ -64,7 +66,7 @@
           </template>
         </tbody>
       </table>
-      <p class="muted note">«Быт» — дрова, посуда, одежда и починка: каждый житель тратит его в день по норме своей расы (вкладка «Жители»), он берётся из Дерева. Строки «Поправка» и «Стройка» — то, что старая таблица учитывала вручную; мастер может их менять.</p>
+      <p class="muted note">«Быт» — дрова, посуда, одежда и починка: каждый житель тратит его в день по норме своей расы (вкладка «Жители»), он берётся из Дерева. Строки «Поправка» и «Стройка (из старой таблицы)» — то, что старая таблица учитывала вручную; мастер может их менять или убрать. Новые стройки платят свою цену со склада один раз, когда их закладывают.</p>
     </template>
 
     <!-- ================= ЖИТЕЛИ ================= -->
@@ -119,9 +121,10 @@
     <template v-else-if="tab === 'assets'">
       <h3>Активы в работе<button v-if="master" class="ed" @click="emit('edit', 'assets')">✎ Править</button></h3>
       <div v-for="a in s.assets" :key="a.id" class="asset" :style="{ '--fr': ASSET_FRAMES[a.frame] || '#8a6630' }">
-        <div class="person" :class="{ hex: a.companion }"><img v-if="a.portrait" :src="a.portrait" alt="" /><span v-else>{{ initial(a.name) }}</span></div>
+        <div class="person" :class="{ hex: a.companion }"><img v-if="face(a)" :src="face(a)" alt="" /><span v-else>{{ initial(a.name) }}</span></div>
         <div class="asset-body">
-          <b>{{ a.name }}<small v-if="roleOf(a)">{{ roleOf(a) }}</small></b>
+          <b>{{ a.name }}<small v-if="roleOf(a)">{{ roleOf(a) }}</small>
+            <router-link v-if="heroOf(a)" class="hero-link card" :to="{ path: '/wiki', query: { hero: a.heroId } }">карточка героя →</router-link></b>
           <div class="asset-cols">
             <div><small>Пассивно</small><span v-for="p in a.passive" :key="p.text">{{ p.text }}</span></div>
             <div v-if="a.role?.effects?.length"><small>{{ a.role.kind === 'manager' ? 'Управляющий' : 'Специалист' }}</small><span v-for="p in a.role.effects" :key="p.text">{{ p.text }}</span></div>
@@ -159,6 +162,37 @@
         <input v-model="newEv.effect" placeholder="Влияние: «Угроза +45» (необязательно)" />
         <div class="evrow end"><button class="btn" @click="newEv = null">Отмена</button><button class="btn primary" :disabled="!newEv.title" @click="addEvent">Добавить и оповестить главу</button></div>
       </div>
+      <!-- заготовки событий: видит только мастер -->
+      <section v-if="master" class="sugg">
+        <div class="sugg-head">
+          <b>Заготовки событий</b><small>видишь только ты · сайт предлагает по положению дел</small>
+          <button class="btn" :disabled="(s.suggestions?.length || 0) >= 8" @click="rollSuggestion">🎲 Придумать</button>
+        </div>
+        <p v-if="!s.suggestions?.length" class="muted">Пока пусто. Заготовки появляются при «Прошёл день» (примерно одна на три дня) или по кнопке.</p>
+        <div v-for="g in s.suggestions || []" :key="g.id" class="ev sg" :style="{ '--ec': EVENT_TYPES[g.type]?.color }">
+          <template v-if="sgEdit?.id === g.id">
+            <input v-model="sgEdit.title" />
+            <textarea v-model="sgEdit.text" rows="3" />
+            <input v-model="sgEdit.effect" placeholder="Влияние (текст для главы)" />
+          </template>
+          <template v-else>
+            <div class="ev-top">
+              <img :src="icon(EVENT_TYPES[g.type]?.icon)" alt="" /><b>{{ g.title }}</b>
+              <span class="ev-type">{{ EVENT_TYPES[g.type]?.label }}</span>
+              <span v-for="d in g.duration || []" :key="d" class="ev-dur" :style="{ background: EVENT_DURATIONS[d]?.color }">{{ EVENT_DURATIONS[d]?.label }}</span>
+              <span class="ev-date">день {{ g.day }}</span>
+            </div>
+            <p>{{ g.text }}</p>
+            <div v-if="g.effect" class="ev-eff">{{ g.effect }}</div>
+          </template>
+          <label v-if="g.apply" class="chk apply"><input v-model="applyOn[g.id]" type="checkbox" /> применить сразу: {{ applyText(g.apply) }}</label>
+          <div class="evrow end">
+            <button class="btn danger" @click="dropSuggestion(g)">Отбросить</button>
+            <button v-if="sgEdit?.id !== g.id" class="btn" @click="sgEdit = { id: g.id, title: g.title, text: g.text, effect: g.effect }">Править</button>
+            <button class="btn primary" @click="releaseSuggestion(g)">В журнал</button>
+          </div>
+        </div>
+      </section>
       <div v-for="e in events" :key="e.id" class="ev" :style="{ '--ec': EVENT_TYPES[e.type]?.color }">
         <div class="ev-top">
           <img :src="icon(EVENT_TYPES[e.type]?.icon)" alt="" />
@@ -202,23 +236,34 @@
           <span class="ord-st">{{ { pending: 'ждёт мастера', approved: 'одобрен', rejected: 'отклонён' }[o.status] }}</span>
         </div>
         <span class="muted">{{ o.byName }} · {{ date(o.createdAt) }}</span>
+        <div v-if="o.kind === 'build'" class="ord-price">
+          <small>{{ o.status === 'approved' ? (o.paid ? 'Оплачено' : 'Заложено бесплатно') : 'Цена' }}</small>
+          <PriceChips :price="o.status === 'approved' ? o.paid : BUILDINGS[o.build.type]?.price" :stock="o.status === 'pending' ? s.stock || {} : null" />
+        </div>
         <p v-if="o.text">{{ o.text }}</p>
         <p v-if="o.reply" class="reply">Мастер: {{ o.reply }}</p>
-        <div v-if="o.status === 'pending' && master" class="evrow">
-          <input v-model="replies[o.id]" placeholder="Ответ (необязательно)" />
-          <button class="btn primary" @click="judge(o, 'approve')">Одобрить</button>
+        <input v-if="o.status === 'pending' && master" v-model="replies[o.id]" class="reply-in" placeholder="Ответ главе (необязательно)" />
+        <div v-if="o.status === 'pending' && master" class="evrow end">
+          <button class="btn primary" :disabled="!affordable(o)" :title="affordable(o) ? '' : 'На складе не хватает — можно заложить бесплатно'" @click="judge(o, 'approve')">Одобрить</button>
+          <button v-if="o.kind === 'build'" class="btn" @click="judge(o, 'approve', true)">Бесплатно</button>
           <button class="btn danger" @click="judge(o, 'reject')">Отклонить</button>
         </div>
         <button v-else-if="o.status === 'pending' && o.by === store.me?.id" class="ev-act" @click="cancelOrder(o)">отменить приказ</button>
       </div>
     </template>
+
+    <!-- ================= ИСТОРИЯ ================= -->
+    <SettlementHistory v-else-if="tab === 'history'" :settlement="s" />
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { store, heroCover, heroPortraitUrl, act } from '../map/store.js'
-import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES } from '../shared/settlement.js'
+import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, shortFor } from '../shared/settlement.js'
+import { applyText } from '../shared/settlementEvents.js'
+import PriceChips from './PriceChips.vue'
+import SettlementHistory from './SettlementHistory.vue'
 
 const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean })
 const emit = defineEmits(['pick', 'edit'])
@@ -276,7 +321,13 @@ const openRace = ref(null)
 /* работы */
 const jobList = computed(() => Object.entries(c.value.jobs).map(([key, j]) => ({ key, ...j })))
 
-/* активы */
+/* активы: связь с карточками героев (портрет берётся из карточки, если своего нет) */
+const heroOf = a => (a.heroId && store.data.heroes?.find(h => h.id === a.heroId)) || null
+function face(a) {
+  if (a.portrait) return a.portrait
+  const g = heroCover(heroOf(a))
+  return g ? heroPortraitUrl(g.thumb || g.file) : ''
+}
 const roleOf = a => (s.value.managers?.includes(a.id) ? 'управляющий' : Object.entries(s.value.jobs || {}).find(([, j]) => j.specialists?.includes(a.id)) ? 'специалист: ' + JOBS[Object.entries(s.value.jobs).find(([, j]) => j.specialists?.includes(a.id))[0]].label.toLowerCase() : a.companion ? 'компаньон' : '')
 
 /* журнал: новое событие, решения */
@@ -312,7 +363,20 @@ async function sendOrder(kind) {
   await act('POST', `${base()}/orders`, body, 'Приказ отправлен мастеру')
   ord.value.text = ''
 }
-const judge = (o, action) => act('POST', `${base()}/orders/${o.id}/${action}`, { reply: replies.value[o.id] || '' }, action === 'approve' ? 'Приказ одобрен' : 'Приказ отклонён')
+const judge = (o, action, free = false) => act('POST', `${base()}/orders/${o.id}/${action}`, { reply: replies.value[o.id] || '', free }, action === 'approve' ? 'Приказ одобрен' : 'Приказ отклонён').catch(() => null)
+const affordable = o => o.kind !== 'build' || !shortFor(s.value.stock, BUILDINGS[o.build.type]?.price).length
+
+/* заготовки событий */
+const sgEdit = ref(null)
+const applyOn = ref({})
+const rollSuggestion = () => act('POST', `${base()}/suggestions`).catch(() => null)
+const dropSuggestion = g => act('DELETE', `${base()}/suggestions/${g.id}`).catch(() => null)
+async function releaseSuggestion(g) {
+  const edit = sgEdit.value?.id === g.id ? sgEdit.value : {}
+  const body = { title: edit.title ?? g.title, text: edit.text ?? g.text, effect: edit.effect ?? g.effect, apply: applyOn.value[g.id] ?? g.applyOn }
+  await act('POST', `${base()}/suggestions/${g.id}/accept`, body, 'Событие в журнале, глава оповещён').catch(() => null)
+  sgEdit.value = null
+}
 const cancelOrder = o => act('DELETE', `${base()}/orders/${o.id}`, undefined, 'Приказ отменён')
 
 /* журнал: новые сверху, нерешённые — выше */
@@ -455,4 +519,19 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .ev-dec { margin-top: 6px; padding: 6px 9px; border-radius: 8px; background: rgba(231, 197, 111, .07); border: 1px solid var(--a-line); font-size: 12.5px; color: var(--a-text); }
 .ev-dec small { display: block; color: var(--a-muted); font-weight: 800; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
 .ev-dec.none { color: #ffb36b; }
+.hero-link { color: var(--a-gold-2); font-weight: 800; text-decoration: underline dotted; text-underline-offset: 3px; }
+.hero-link.sm { font-size: 11px; color: var(--a-gold); }
+.hero-link.card { margin-left: 8px; font: 700 11.5px var(--a-sans); color: var(--a-gold); }
+.ord .reply-in { margin-top: 4px; }
+.ord-price { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ord-price small { color: var(--a-muted); font-weight: 800; font-size: 11px; }
+.sugg { margin-bottom: 14px; padding: 10px 12px; border-radius: 14px; border: 1px dashed rgba(159, 208, 255, .45); background: rgba(80, 140, 220, .06); }
+.sugg-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 8px; }
+.sugg-head b { font: 700 18px var(--a-serif); color: #9fd0ff; }
+.sugg-head b { flex: 1; }
+.sugg-head small { order: 3; flex-basis: 100%; color: var(--a-muted); font-size: 11.5px; font-weight: 600; }
+.ev.sg { display: grid; gap: 5px; background: rgba(13, 16, 23, .5); }
+.ev.sg input, .ev.sg textarea { min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 500 13px var(--a-sans); resize: vertical; }
+.ev.sg p { margin: 2px 0; }
+.chk.apply { color: #9fd0ff; }
 </style>

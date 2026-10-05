@@ -14,7 +14,8 @@ import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
-import { computeSettlement, placementProblems, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS } from '../src/shared/settlement.js'
+import { computeSettlement, placementProblems, shortFor, priceText, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS } from '../src/shared/settlement.js'
+import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
 import {
@@ -421,8 +422,8 @@ function viewFor(user, now = Date.now()) {
     // карточка «в тени» видна только мастеру и её владельцу
     heroes: db.heroes.filter(h => !h.hidden || (uid && h.ownerId === uid)).map(h => ({ ...h, ...(h.hidden ? { onlyYou: true } : {}) })),
     arts: allArts(),
-    // поселения видят все; решать могут только выбранные мастером игроки (deciders)
-    settlements: db.settlements || [],
+    // поселения видят все; решать могут только выбранные мастером игроки (deciders); заготовки событий — только мастеру
+    settlements: (db.settlements || []).map(({ suggestions, ...s }) => s),
     hud: db.hud?.visible ? db.hud : null,
     roster: roster(),
     notes,
@@ -1169,6 +1170,48 @@ function addEvent(s, ev, notifyThem = true) {
   if (notifyThem) notifyDeciders(s, e.title)
   return e
 }
+// лента истории: что случилось и в какой день
+function logEntry(s, kind, text) {
+  ;(s.log ||= []).push({ id: newId('l'), day: s.day || 0, at: Date.now(), kind, text: String(text).slice(0, 400) })
+  if (s.log.length > 600) s.log = s.log.slice(-600)
+}
+// снимок для графиков: запасы, население, мораль/стабильность/угрозы
+function snapshot(s, delta) {
+  const c = computeSettlement(s)
+  const stock = Object.fromEntries(Object.entries(s.stock || {}).filter(([, v]) => v))
+  ;(s.history ||= []).push({ day: s.day || 0, at: Date.now(), stock, pop: c.population, morale: c.morale, stability: c.stability, threat: c.threat, ...(delta ? { delta } : {}) })
+  if (s.history.length > 400) s.history = s.history.slice(-400)
+}
+// списать цену постройки со склада; null — хватило, иначе текст, чего не хватает
+function payFor(s, type) {
+  const price = BUILDINGS[type]?.price || {}
+  const miss = shortFor(s.stock, price)
+  if (miss.length) return 'Не хватает: ' + miss.map(m => `${RES[m.res]?.label} ${m.have} из ${m.need}`).join(', ')
+  s.stock ||= {}
+  for (const [k, v] of Object.entries(price)) s.stock[k] = Math.round(((s.stock[k] || 0) - v) * 10) / 10
+  return null
+}
+const STAT_RANGE = { morale: [0, 100], stability: [0, 100], threat: [0, 999] }
+function applyEffects(s, apply) {
+  s.stock ||= {}
+  s.stats ||= {}
+  for (const [k, v] of Object.entries(apply?.stock || {})) if (RES[k]) s.stock[k] = Math.max(0, Math.round(((s.stock[k] || 0) + T.num(-1e6, 1e6)(v)) * 10) / 10)
+  for (const [k, v] of Object.entries(apply?.stats || {})) {
+    if (!STAT_RANGE[k]) continue
+    const [lo, hi] = STAT_RANGE[k]
+    s.stats[k] = Math.max(lo, Math.min(hi, Math.round((s.stats[k] || 0) + T.num(-1000, 1000)(v))))
+  }
+}
+const MAX_SUGGESTIONS = 8
+function addSuggestion(s) {
+  s.suggestions ||= []
+  if (s.suggestions.length >= MAX_SUGGESTIONS) return null
+  const ev = suggestEvent(s, Math.random, s.suggestions.map(x => x.idea))
+  if (!ev) return null
+  const sg = { id: newId('sg'), day: s.day || 0, createdAt: Date.now(), ...ev }
+  s.suggestions.push(sg)
+  return sg
+}
 
 app.patch('/api/settlements/:id', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
@@ -1196,6 +1239,7 @@ app.post('/api/settlements/:id/events', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
   const e = addEvent(s, { ...(req.body || {}), id: undefined, createdAt: Date.now(), location: req.body?.location || s.name })
+  logEntry(s, 'event', `Событие: «${e.title}»`)
   saveDb()
   broadcast()
   res.json(e)
@@ -1211,6 +1255,7 @@ app.post('/api/settlements/:id/events/:eid/decision', requireUser, (req, res) =>
   e.decision = T.str(2000)(req.body?.text).trim()
   e.decidedBy = req.user.name
   e.decidedAt = Date.now()
+  if (e.decision) logEntry(s, 'decision', `${req.user.name} решает «${e.title}»: ${e.decision}`)
   if (req.user.role !== 'master') notify('masters', 'settlement', `${s.name}: ${req.user.name} решает «${e.title}»`, settleLink(s, 'journal'))
   saveDb()
   broadcast()
@@ -1280,16 +1325,27 @@ app.post('/api/settlements/:id/orders/:oid/:action(approve|reject)', requireMast
         const p = placementProblems(s, b)
         if (p.length) return res.status(400).json({ error: 'Место уже занято: ' + p.join(', ') })
       }
+      // оплата со склада; мастер может заложить бесплатно (free)
+      const free = !!req.body?.free
+      if (!free) {
+        const miss = payFor(s, b.type)
+        if (miss) return res.status(400).json({ error: miss })
+      }
+      o.paid = free ? null : def.price || {}
       ;(s.buildings ||= []).push(b)
-      addEvent(s, { title: 'Стройка начата', type: 'done', duration: ['quick'], text: `По приказу главы заложили «${def.label}». Сложность ${def.cost}.`, location: s.name }, false)
+      addEvent(s, { title: 'Стройка начата', type: 'done', duration: ['quick'], text: `По приказу главы заложили «${def.label}». Сложность ${def.cost}.${free ? '' : ` Со склада ушло: ${priceText(def.price)}.`}`, location: s.name }, false)
+      logEntry(s, 'build', `Заложена «${def.label}» по приказу ${o.byName}${free ? ' (бесплатно)' : ` — ${priceText(def.price)}`}`)
     } else if (o.kind === 'workers') {
       s.jobs ||= {}
       s.jobs[o.workers.job] = { ...(s.jobs[o.workers.job] || {}), workers: o.workers.count }
+      logEntry(s, 'workers', `${JOBS[o.workers.job].label}: теперь ${o.workers.count} рабочих (приказ ${o.byName})`)
     } else if (o.kind === 'explore') {
       ;(s.explored ||= []).push({ name: 'Разведка', ...o.explore })
+      logEntry(s, 'explore', `Разведан новый участок по приказу ${o.byName}`)
       addEvent(s, { title: 'Земля разведана', type: 'done', duration: ['quick'], text: 'Разведчики изучили новый участок. Здесь можно строить.', location: s.name }, false)
     }
   }
+  if (!ok) logEntry(s, 'order', `Отклонён приказ ${o.byName}${o.reply ? ': ' + o.reply : ''}`)
   o.status = ok ? 'approved' : 'rejected'
   o.reply = T.str(1000)(req.body?.reply).trim()
   o.decidedAt = Date.now()
@@ -1305,19 +1361,25 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
   const days = Math.round(T.num(1, 60)(req.body?.days ?? 1))
+  if (!s.history?.length) snapshot(s) // точка отсчёта для графиков
   const c = computeSettlement(s)
   s.stock ||= {}
   const short = []
+  const delta = {}
   for (const [k, bal] of Object.entries(c.balance)) {
     if (!bal && !(k in s.stock)) continue
-    const v = Math.round(((s.stock[k] || 0) + bal * days) * 10) / 10
+    const was = s.stock[k] || 0
+    const v = Math.round((was + bal * days) * 10) / 10
     if (v < 0) short.push(k)
     s.stock[k] = Math.max(0, v)
+    const d = Math.round((s.stock[k] - was) * 10) / 10
+    if (d) delta[k] = d
   }
   // стройка: слесари ускоряют, нехватка стройматериалов — −75%
   const speedUp = (c.jobs.locksmith?.workers || 0) * 8.75
   const slow = (s.stock.build || 0) <= 0 && c.balance.build < 0 ? 0.25 : 1
   const pts = BUILD_POINTS_PER_DAY * days * (1 + speedUp / 100) * slow
+  const done = []
   for (const b of s.buildings || []) {
     if (b.state !== 'construction') continue
     b.progress = Math.round(((b.progress || 0) + pts) * 10) / 10
@@ -1325,6 +1387,7 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
     if (b.progress >= cost) {
       b.state = 'built'
       delete b.progress
+      done.push(BUILDINGS[b.type].label)
       addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `Мы закончили «${BUILDINGS[b.type].label}»!`, location: s.name })
     }
   }
@@ -1335,10 +1398,81 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
     addEvent(s, { title: 'Нехватка ресурса', type: 'problem', duration: ['decide'], text: `У нас закончились «${RES[k]?.label}». Как решим, господин глава?`, effect, location: s.name })
   }
   s.day = (s.day || 0) + days
+  // лента и график
+  const top = Object.entries(delta).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 6)
+  logEntry(s, 'day', `Прошло ${days} дн.${top.length ? ': ' + top.map(([k, v]) => `${RES[k]?.label} ${v > 0 ? '+' : ''}${v}`).join(', ') : ''}`)
+  for (const n of done) logEntry(s, 'built', `Достроена «${n}»`)
+  if (short.length) logEntry(s, 'short', 'Кончились: ' + short.map(k => RES[k]?.label).join(', '))
+  snapshot(s, delta)
+  // заготовки событий для мастера: примерно одна на три дня, не больше восьми в очереди
+  const fresh = []
+  for (let i = 0; i < days; i++) if (Math.random() < 0.35) { const sg = addSuggestion(s); if (sg) fresh.push(sg) }
   s.updatedAt = Date.now()
   saveDb()
   broadcast()
-  res.json({ ok: true, day: s.day, short })
+  res.json({ ok: true, day: s.day, short, delta, done, suggestions: fresh.length })
+})
+
+// мастер ставит постройку на карту: сразу готовую или стройкой (стройку можно оплатить со склада)
+app.post('/api/settlements/:id/buildings', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const b = req.body || {}
+  const def = BUILDINGS[b.type]
+  if (!def) return res.status(400).json({ error: 'Нет такой постройки' })
+  const whole = def.size === 'settlement'
+  const nb = { id: newId('b'), type: b.type, x: whole ? 0 : Math.round(T.num(0, 5000)(b.x)), y: whole ? 0 : Math.round(T.num(0, 5000)(b.y)), state: b.built ? 'built' : 'construction', ...(b.built ? {} : { progress: 0 }) }
+  if (!whole) {
+    const p = placementProblems(s, nb)
+    if (p.length) return res.status(400).json({ error: 'Сюда не поставить: ' + p.join(', ') })
+  }
+  const pay = !b.built && !!b.pay && !def.personal
+  if (pay) {
+    const miss = payFor(s, b.type)
+    if (miss) return res.status(400).json({ error: miss })
+  }
+  ;(s.buildings ||= []).push(nb)
+  logEntry(s, 'build', b.built ? `Поставлена «${def.label}»` : `Заложена «${def.label}»${pay ? ' — ' + priceText(def.price) : ''}`)
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(nb)
+})
+
+/* заготовки событий: сайт предлагает, мастер выпускает в журнал или отбрасывает */
+app.post('/api/settlements/:id/suggestions', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const sg = addSuggestion(s)
+  if (!sg) return res.status(400).json({ error: (s.suggestions?.length || 0) >= MAX_SUGGESTIONS ? 'Очередь заготовок полна — разбери старые' : 'Сейчас придумать нечего' })
+  saveDb()
+  broadcast()
+  res.json(sg)
+})
+
+app.post('/api/settlements/:id/suggestions/:sid/accept', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const sg = s?.suggestions?.find(x => x.id === req.params.sid)
+  if (!sg) return res.status(404).json({ error: 'Заготовка не найдена' })
+  const b = req.body || {}
+  const e = addEvent(s, { title: b.title ?? sg.title, type: b.type ?? sg.type, duration: b.duration ?? sg.duration, text: b.text ?? sg.text, effect: b.effect ?? sg.effect, location: s.name })
+  const withEffects = b.apply !== undefined ? !!b.apply : sg.applyOn
+  if (withEffects && sg.apply) applyEffects(s, sg.apply)
+  logEntry(s, 'event', `Событие: «${e.title}»${withEffects && sg.apply ? ' — ' + applyText(sg.apply) : ''}`)
+  s.suggestions = s.suggestions.filter(x => x !== sg)
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(e)
+})
+
+app.delete('/api/settlements/:id/suggestions/:sid', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s?.suggestions?.some(x => x.id === req.params.sid)) return res.status(404).json({ error: 'Заготовка не найдена' })
+  s.suggestions = s.suggestions.filter(x => x.id !== req.params.sid)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
 })
 
 app.get('/api/export', requireMaster, (req, res) => {

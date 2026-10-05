@@ -10,7 +10,9 @@
         </div>
       </div>
       <div class="rows">
-        <div v-if="owner"><span>Владелец</span><b>{{ owner.name }}</b></div>
+        <div v-if="owner"><span>Владелец</span><router-link class="hero" :to="{ path: '/wiki', query: { hero: owner.id } }" title="Карточка героя">{{ owner.name }}</router-link></div>
+        <div v-if="item.state === 'construction'"><span>Стройка</span><b>{{ Math.floor(item.progress || 0) }} из {{ def.cost }}</b></div>
+        <div v-if="def.price && !def.personal" class="price-row"><span>Цена</span><PriceChips :price="def.price" /></div>
         <div v-for="(n, j) in def.jobs || {}" :key="j"><span>{{ JOBS[j].label }}</span><b>{{ n }} мест · всего занято {{ calc.jobs[j]?.workers || 0 }} из {{ calc.jobs[j]?.places || 0 }}</b></div>
         <div v-if="def.housing"><span>Жильё</span><b>{{ def.housing }} жильцов</b></div>
         <div v-if="def.guests"><span>Гостевые места</span><b>{{ def.guests }}</b></div>
@@ -72,6 +74,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store } from '../map/store.js'
+import PriceChips from './PriceChips.vue'
 import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES, RESOURCES } from '../shared/settlement.js'
 
 const props = defineProps({ settlement: Object, calc: Object, sel: Object, item: Object, master: Boolean })
@@ -110,6 +113,9 @@ const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.
 .rows div { display: flex; justify-content: space-between; gap: 10px; }
 .rows span { color: var(--a-muted); }
 .rows b { color: var(--a-text); text-align: right; }
+.rows .hero { color: var(--a-gold-2); font-weight: 800; text-decoration: underline dotted; text-underline-offset: 3px; }
+.rows .price-row { align-items: flex-start; }
+.rows .price-row .price { justify-content: flex-end; }
 .plus { color: #9be07a !important; } .minus { color: #ff9b8f !important; }
 .edit { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--a-line); font-size: 12.5px; }
 .edit label { display: flex; align-items: center; gap: 6px; color: var(--a-muted); font-weight: 700; }
