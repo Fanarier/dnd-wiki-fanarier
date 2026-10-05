@@ -13,7 +13,6 @@
       <nav class="w-tabs">
         <router-link to="/" class="w-tab">Карта</router-link>
         <router-link to="/wiki" class="w-tab active">Вики</router-link>
-        <router-link v-if="store.data.settlements?.length" to="/settlement" class="w-tab">Поселение</router-link>
       </nav>
       <label class="w-search">
         <v-icon size="18">mdi-magnify</v-icon>
@@ -49,6 +48,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
 import HeroesPage from './HeroesPage.vue'
+import SettlementsPage from './SettlementsPage.vue'
 import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
@@ -71,6 +71,7 @@ import articles from '../data/articles.js' // единый источник те
 const categories = ref([
   { id: 'quests', title: 'Заказы гильдий', description: 'Доска объявлений, хроника, репутация', component: QuestBoard },
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
+  { id: 'settlements', title: 'Поселения', description: 'Урюпинск: карта, жители, стройка, журнал', component: SettlementsPage },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
   { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SchoolFire },
@@ -149,6 +150,8 @@ onMounted(init)
 watch(() => route.query.quest, q => { if (q) currentCategory.value = 'quests' }, { immediate: true })
 // ссылки на карточку героя и на новые арты (из колокольчика, профиля)
 watch(() => [route.query.hero, route.query.heroes], ([h, t]) => { if (h || t) currentCategory.value = 'heroes' }, { immediate: true })
+// /wiki?section=settlements — открыть раздел сразу
+watch(() => route.query.section, v => { if (v && categories.value.some(c => c.id === v)) currentCategory.value = String(v) }, { immediate: true })
 
 /* -------------------- Магические страницы: свой стиль и загрузка -------------------- */
 const MAGIC = ['general', 'utility', 'school-fire', 'school-water', 'school-air', 'school-earth']

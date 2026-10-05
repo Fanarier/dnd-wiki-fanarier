@@ -18,12 +18,14 @@
       <UserMenu />
     </header>
 
-    <div v-if="!store.ready" class="sp-load"><SteamLoader kind="map" /></div>
+    <!-- загрузка: топор рубит дерево, пока не готовы данные и местность -->
+    <AxeLoader v-if="loaderShown" :out="!loading" :title="s?.name || 'Поселение'" />
+    <div v-if="!store.ready" class="sp-load" />
     <div v-else-if="!s" class="sp-load">Поселение не найдено</div>
-    <div v-else class="sp-body">
+    <div v-else class="sp-body" :class="{ wide }">
       <div class="sp-mapwrap">
         <SettlementMap class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts"
-                       @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog" />
+                       @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog" />
         <!-- инструменты: мастеру — правка карты, главе — приказы -->
         <div v-if="master || decider" class="sp-tools">
           <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="tool = null">👁 Смотреть</button>
@@ -78,6 +80,9 @@
                 <router-link v-if="city" class="sp-onmap" :to="{ path: '/', query: { focus: 'cities:' + city.id } }">на карте мира</router-link>
               </div>
             </div>
+            <button class="sp-wide" :title="wide ? 'Вернуть карту' : 'Открыть панель на весь экран — удобнее читать и править'" @click="toggleWide">
+              {{ wide ? '🗺 Карта' : '⤢ Во весь экран' }}
+            </button>
           </div>
           <div class="sp-quick">
             <div><b>{{ calc.population }}</b><small>жителей</small></div>
@@ -95,11 +100,11 @@
             {{ tb.label }}<i v-if="tb.dot" class="dot" />
           </button>
         </nav>
-        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" @pick="sel = $event" @edit="editing = $event" />
+        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" />
         <p class="sp-credit">Значки: game-icons.net (CC BY 3.0)</p>
       </aside>
     </div>
-    <SettlementEditor v-if="editing && s" :section="editing" :settlement="s" @close="editing = null" />
+    <SettlementEditor v-if="editing && s" :section="editing" :settlement="s" :wide="wide" @close="editing = null" />
   </div>
 </template>
 
@@ -107,7 +112,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import UserMenu from '../components/UserMenu.vue'
-import SteamLoader from '../components/SteamLoader.vue'
+import AxeLoader from './AxeLoader.vue'
 import SettlementMap from './SettlementMap.vue'
 import SettlementTabs from './SettlementTabs.vue'
 import BuildingCard from './BuildingCard.vue'
@@ -123,10 +128,27 @@ const s = computed(() => {
   return list.find(x => x.id === route.params.id) || (!route.params.id ? list[0] : null)
 })
 const calc = computed(() => computeSettlement(s.value || {}))
+
+/* загрузочный экран: держим, пока не пришли данные и не нарисована местность (и хотя бы полтора броска топора) */
+const mapReady = ref(false)
+const minTime = ref(false)
+const loaderShown = ref(true)
+const loading = computed(() => !minTime.value || !store.ready || (!!s.value && !mapReady.value))
+setTimeout(() => { minTime.value = true }, 1500)
+setTimeout(() => { mapReady.value = true }, 9000) // страховка, если что-то пошло не так
+watch(loading, v => { if (!v) setTimeout(() => { loaderShown.value = false }, 600) })
 const city = computed(() => s.value?.cityId && store.data.cities?.find(c => c.id === s.value.cityId))
 watch(s, v => { if (v) document.title = `${v.name} — Анкария` }, { immediate: true })
 
 const master = isMaster
+
+/* большой формат: панель на весь экран (выбор запоминаем в этом браузере) */
+const WIDE_KEY = 'anacaria-settle-wide'
+const wide = ref((() => { try { return localStorage.getItem(WIDE_KEY) === '1' } catch { return false } })())
+function toggleWide() {
+  wide.value = !wide.value
+  try { localStorage.setItem(WIDE_KEY, wide.value ? '1' : '0') } catch { /* приватный режим */ }
+}
 // решать могут выбранные мастером игроки
 const decider = computed(() => !!store.me && store.me.role === 'player' && !!s.value?.deciders?.includes(store.me.id))
 const editing = ref(null)
@@ -306,6 +328,19 @@ function setTab(id) {
 .sp-tabbar button.on { background: rgba(231, 197, 111, .14); border-color: rgba(231, 197, 111, .35); color: var(--a-gold-2); }
 .dot { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: #ff6b5b; }
 .sp-credit { margin-top: 24px; color: #6d675b; font-size: 11px; text-align: center; }
+.sp-wide { margin-left: auto; align-self: flex-start; padding: 5px 10px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .4); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); white-space: nowrap; cursor: pointer; }
+.sp-wide:hover { background: rgba(231, 197, 111, .18); }
+
+/* большой формат: карта прячется, панель — на весь экран, содержимое по центру */
+.sp-body.wide { grid-template-columns: 1fr; }
+.sp-body.wide .sp-mapwrap { display: none; }
+.sp-body.wide .sp-panel { padding: 22px 28px 40px; }
+.sp-body.wide .sp-panel > * { max-width: 1240px; margin-left: auto; margin-right: auto; }
+.sp-body.wide .sp-head { display: flex; align-items: center; gap: 24px; }
+.sp-body.wide .sp-title { flex: 1; }
+.sp-body.wide .sp-quick { margin-top: 0; flex: 0 1 520px; }
+.sp-body.wide .sp-tabbar { top: -22px; margin-top: 14px; margin-bottom: 14px; padding: 10px 0 8px; }
+.sp-body.wide .sp-tabbar button { padding: 7px 14px; font-size: 14px; }
 
 @media (max-width: 900px) {
   .sp-top { gap: 10px; padding: 0 12px; }
@@ -316,5 +351,11 @@ function setTab(id) {
   .sp-hint { top: 98px; right: 12px; }
   .sp-panel { overflow: visible; padding: 14px 12px 30px; }
   .sp-tabbar { top: 64px; margin: 14px -12px 12px; padding: 10px 12px 8px; }
+  /* на телефоне панель и так во всю ширину */
+  .sp-wide { display: none; }
+  .sp-body.wide .sp-mapwrap { display: block; }
+  .sp-body.wide .sp-head { display: block; }
+  .sp-body.wide .sp-panel { padding: 14px 12px 30px; }
+  .sp-body.wide .sp-tabbar { top: 64px; margin: 14px -12px 12px; padding: 10px 12px 8px; }
 }
 </style>

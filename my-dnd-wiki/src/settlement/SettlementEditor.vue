@@ -1,8 +1,9 @@
 <template>
   <div class="se-wrap" @click.self="$emit('close')">
-    <section class="se">
+    <section class="se" :class="{ big }">
       <header>
         <div><small>Правка мастера</small><h3>{{ TITLES[section] }}</h3></div>
+        <button class="grow-btn" :title="big ? 'Сделать уже' : 'Развернуть шире — удобнее править'" @click="big = !big">{{ big ? '⤡ уже' : '⤢ шире' }}</button>
         <button class="x" aria-label="Закрыть" @click="$emit('close')">×</button>
       </header>
 
@@ -157,7 +158,8 @@ import { computed, ref } from 'vue'
 import { store, act, toast, uploadSettlementPortrait } from '../map/store.js'
 import { RESOURCES, RACES, RESIDENT_CATS, JOBS, OUTPOSTS, ASSET_FRAMES, computeSettlement } from '../shared/settlement.js'
 
-const props = defineProps({ section: String, settlement: Object })
+const props = defineProps({ section: String, settlement: Object, wide: Boolean })
+const big = ref(props.wide)
 const emit = defineEmits(['close'])
 const TITLES = { overview: 'Обзор и управление', resources: 'Запасы и поправки', residents: 'Жители', jobs: 'Работы', assets: 'Активы', outposts: 'Аванпосты' }
 const STATS = { morale: 'Мораль', stability: 'Стабильность', threat: 'Угрозы', freeSettlers: 'Свободные поселенцы', unavailable: 'Недоступные', housesUsed: 'Жильё (дома) занято', housingUsed: 'Общее жильё занято', guestsUsed: 'Гостей', tradeUsed: 'Торговых мест занято', outpostSlots: 'Слотов аванпостов' }
@@ -235,6 +237,14 @@ header { display: flex; justify-content: space-between; align-items: flex-start;
 header small { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--a-muted); }
 header h3 { margin: 2px 0 0; font: 700 26px var(--a-serif); color: var(--a-gold-2); }
 .x { border: 0; background: none; color: var(--a-muted); font-size: 28px; cursor: pointer; }
+.grow-btn { margin: 6px 10px 0 auto; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
+/* шире: карточки рас, работ и активов — в несколько колонок */
+.se.big { width: min(1180px, 100%); }
+.se.big .se-body { grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px 14px; padding: 16px 28px 24px; }
+.se.big .se-body > :not(.race):not(.job):not(.asset) { grid-column: 1 / -1; }
+.se.big .se-body > .grid3 { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.se.big .se-body > .grid2 { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+@media (max-width: 700px) { .grow-btn { display: none; } }
 .se-body { flex: 1; overflow-y: auto; padding: 12px 20px 20px; display: grid; gap: 8px; align-content: start; }
 h4 { margin: 10px 0 2px; font: 700 18px var(--a-serif); color: var(--a-gold-2); }
 h4 small { font: 600 11px var(--a-sans); color: var(--a-muted); }
