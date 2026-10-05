@@ -4,10 +4,10 @@
       <defs>
         <!-- туман: облачная текстура, неразведанное закрыто; края разведанного размыты -->
         <pattern id="sm-fog" patternUnits="userSpaceOnUse" width="384" height="384">
-          <rect width="384" height="384" fill="#15171c" />
-          <image :href="fogUrl" width="384" height="384" opacity=".55" />
+          <rect width="384" height="384" fill="#4a4f52" />
+          <image :href="fogUrl" width="384" height="384" opacity=".32" />
         </pattern>
-        <filter id="sm-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14" /></filter>
+        <filter id="sm-soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="38" /></filter>
         <mask id="sm-fog-mask" maskUnits="userSpaceOnUse" :x="-W" :y="-H" :width="W * 3" :height="H * 3">
           <rect :x="-W" :y="-H" :width="W * 3" :height="H * 3" fill="#fff" />
           <g filter="url(#sm-soft)" fill="#000">
@@ -228,7 +228,7 @@ defineExpose({ fit })
 .sm.grabbing { cursor: grabbing; }
 .sm-svg { display: block; }
 .sm-border { fill: none; stroke: rgba(231, 197, 111, .55); stroke-dasharray: 1 18; stroke-linecap: round; pointer-events: none; }
-.sm-fog { pointer-events: none; }
+.sm-fog { pointer-events: none; opacity: .86; }
 .sm-item { cursor: pointer; }
 .sm-plate { fill: #d6d2c8; stroke: var(--cat, #8a7a5a); stroke-width: 2.5; transition: filter .2s; }
 .sm-plate.outpost { fill: #cfc6b2; stroke: #6b5127; }
