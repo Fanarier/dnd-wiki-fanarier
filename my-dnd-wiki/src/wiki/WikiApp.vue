@@ -13,6 +13,7 @@
       <nav class="w-tabs">
         <router-link to="/" class="w-tab">Карта</router-link>
         <router-link to="/wiki" class="w-tab active">Вики</router-link>
+        <router-link v-if="store.data.settlements?.length" to="/settlement" class="w-tab">Поселение</router-link>
       </nav>
       <label class="w-search">
         <v-icon size="18">mdi-magnify</v-icon>
@@ -48,7 +49,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
 import HeroesPage from './HeroesPage.vue'
-import { init } from '../map/store.js'
+import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
 

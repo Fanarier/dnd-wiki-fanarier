@@ -380,7 +380,7 @@ function viewFor(user, now = Date.now()) {
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
   const notes = (db.notes || []).filter(n => n.ownerId === uid || (n.share === 'group' && mates.has(n.ownerId)))
   if (role === 'master') {
-    const { notifications, notes: _n, questsSeeded, heroesSeeded, ...rest } = db
+    const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, ...rest } = db
     return {
       ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(),
       notifications: notificationsFor(user),
@@ -419,6 +419,8 @@ function viewFor(user, now = Date.now()) {
     // карточка «в тени» видна только мастеру и её владельцу
     heroes: db.heroes.filter(h => !h.hidden || (uid && h.ownerId === uid)).map(h => ({ ...h, ...(h.hidden ? { onlyYou: true } : {}) })),
     arts: allArts(),
+    // поселения видят все; решать могут только выбранные мастером игроки (deciders)
+    settlements: db.settlements || [],
     hud: db.hud?.visible ? db.hud : null,
     roster: roster(),
     notes,
@@ -1136,6 +1138,30 @@ setInterval(() => {
     broadcast()
   }
 }, 60 * 1000)
+
+/* ---------- Поселения ---------- */
+// мастер правит разделы поселения целиком; ключи — только из списка, размеры — с запасом
+const SETTLE_KEYS = {
+  name: 'string', kind: 'string', status: 'string', cityId: 'string', headHeroId: 'string', managers: 'array', managerSlots: 'number',
+  deciders: 'array', stats: 'object', stock: 'object', races: 'array', buildings: 'array', jobs: 'object', assets: 'array',
+  outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array'
+}
+app.patch('/api/settlements/:id', requireMaster, (req, res) => {
+  const s = (getDb().settlements || []).find(x => x.id === req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const body = req.body || {}
+  for (const [k, v] of Object.entries(body)) {
+    const kind = SETTLE_KEYS[k]
+    if (!kind) return res.status(400).json({ error: 'Неизвестное поле: ' + k })
+    const ok = kind === 'array' ? Array.isArray(v) : kind === 'object' ? v && typeof v === 'object' && !Array.isArray(v) : typeof v === kind
+    if (!ok && !(k === 'headHeroId' && v === null)) return res.status(400).json({ error: 'Неверный формат поля: ' + k })
+  }
+  if (Array.isArray(body.deciders)) body.deciders = body.deciders.filter(id => typeof id === 'string').slice(0, 20)
+  Object.assign(s, body, { updatedAt: Date.now() })
+  saveDb()
+  broadcast()
+  res.json(s)
+})
 
 app.get('/api/export', requireMaster, (req, res) => {
   flushDb()

@@ -64,6 +64,10 @@
       <button v-if="type === 'cities' && state" class="link-row" @click="select('states', state.id)">
         <i class="swatch" :style="{ background: state.color }" /> {{ state.name }}
       </button>
+      <!-- у поселения игроков есть своя мини-карта -->
+      <router-link v-if="settlement" :to="`/settlement/${settlement.id}`" class="ui-btn primary small enter-settle">
+        <img src="/settlement/medieval-village-01.png" alt="" /> Войти в поселение
+      </router-link>
 
       <!-- отряд: в пути -->
       <div v-if="type === 'parties'" class="journey-box">
@@ -401,6 +405,7 @@ const accent = computed(() => {
   return 'var(--gold)'
 })
 
+const settlement = computed(() => (type.value === 'cities' ? store.data.settlements?.find(s => s.cityId === item.value.id) : null))
 const state = computed(() => (type.value === 'cities' && item.value.stateId ? store.data.states.find(s => s.id === item.value.stateId) : null))
 const stateCities = computed(() => (type.value === 'states' ? store.data.cities.filter(c => c.stateId === item.value.id) : []))
 const capital = computed(() => (type.value === 'states' ? store.data.cities.find(c => c.id === item.value.capitalId) : null))
@@ -620,6 +625,8 @@ function replay() {
 .journey-box { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-2); margin-bottom: 12px; }
 .j-line { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
 .state-cities { margin-bottom: 12px; }
+.enter-settle { display: flex; justify-content: center; gap: 8px; margin: 4px 0 12px; text-decoration: none; }
+.enter-settle img { width: 20px; height: 20px; padding: 1px; border-radius: 5px; background: #d6d2c8; }
 .city-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .city-chip { border: 0; cursor: pointer; }
 .city-chip:hover { background: rgba(231, 197, 111, 0.2); }

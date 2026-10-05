@@ -40,6 +40,7 @@ const router = createRouter({
   routes: [
     { path: '/', name: 'map', component: () => import('./map/MapPage.vue'), meta: { title: 'Анкария — карта мира' } },
     { path: '/wiki', name: 'wiki', component: () => import('./wiki/WikiApp.vue'), meta: { title: 'Анкария — вики' } },
+    { path: '/settlement/:id?', name: 'settlement', component: () => import('./settlement/SettlementPage.vue'), meta: { title: 'Анкария — поселение' } },
     { path: '/profile', name: 'profile', component: () => import('./components/ProfilePage.vue'), meta: { title: 'Анкария — профиль' } },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
