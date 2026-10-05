@@ -19,7 +19,8 @@
         <span v-else-if="item.hidden" class="ui-chip warn"><Icon name="eyeOff" :size="13" /> Скрыто от игроков<template v-if="item.revealTo?.length"> · открыто {{ item.revealTo.length }}</template></span>
         <template v-if="type === 'cities'">
           <span v-if="item.port" class="ui-chip"><Icon name="anchor" :size="13" /> Порт</span>
-          <span v-if="item.population" class="ui-chip">≈ {{ item.population.toLocaleString('ru-RU') }} жителей</span>
+          <span v-if="settlement" class="ui-chip">{{ settlePop }} жителей</span>
+          <span v-else-if="item.population" class="ui-chip">≈ {{ item.population.toLocaleString('ru-RU') }} жителей</span>
         </template>
         <template v-if="type === 'routes'">
           <div class="ui-field"><span>Цвет линии</span>
@@ -406,6 +407,8 @@ const accent = computed(() => {
 })
 
 const settlement = computed(() => (type.value === 'cities' ? store.data.settlements?.find(s => s.cityId === item.value.id) : null))
+// у поселения игроков жителей считает само поселение
+const settlePop = computed(() => (settlement.value?.races || []).reduce((n, r) => n + (r.male || 0) + (r.female || 0) + (r.kids || 0), 0))
 const state = computed(() => (type.value === 'cities' && item.value.stateId ? store.data.states.find(s => s.id === item.value.stateId) : null))
 const stateCities = computed(() => (type.value === 'states' ? store.data.cities.filter(c => c.stateId === item.value.id) : []))
 const capital = computed(() => (type.value === 'states' ? store.data.cities.find(c => c.id === item.value.capitalId) : null))

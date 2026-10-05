@@ -35,16 +35,63 @@
         <div v-for="(v, k) in item.yields || {}" :key="k"><span>Добыча</span><b class="plus">{{ RES[k]?.label }} +{{ v }}/день</b></div>
       </div>
     </template>
+
+    <!-- правка мастером -->
+    <div v-if="master" class="edit">
+      <template v-if="sel.kind === 'building'">
+        <label>Название <input v-model="form.name" :placeholder="def.label" /></label>
+        <label>Владелец <select v-model="form.owner"><option :value="undefined">—</option><option v-for="h in heroes" :key="h.id" :value="h.id">{{ h.name }}</option></select></label>
+        <label>Состояние
+          <select v-model="form.state"><option value="built">построено</option><option value="construction">стройка</option></select>
+        </label>
+        <label v-if="form.state === 'construction'">Готовность <input v-model.number="form.progress" type="number" min="0" :max="def.cost" /> / {{ def.cost }}</label>
+      </template>
+      <template v-else>
+        <label>Тип <select v-model="form.type"><option v-for="(o, k) in OUTPOSTS" :key="k" :value="k">{{ o.label }}</option></select></label>
+        <label>Рабочие <input v-model.number="form.workers" type="number" min="0" /> из <input v-model.number="form.places" type="number" min="0" /></label>
+        <label>Специалист <input v-model="form.specialist" /></label>
+        <label>Состояние <select v-model="form.state"><option value="active">работает</option><option value="depleting">вырабатывается</option><option value="closed">закрыт</option></select></label>
+        <div class="yields">
+          <small>Добыча в день</small>
+          <div v-for="(y, i) in yieldRows" :key="i" class="yrow">
+            <select v-model="y.res"><option v-for="r in RESOURCES" :key="r.key" :value="r.key">{{ r.label }}</option></select>
+            <input v-model.number="y.value" type="number" />
+            <button class="mini" @click="yieldRows.splice(i, 1)">×</button>
+          </div>
+          <button class="mini" @click="yieldRows.push({ res: 'wood', value: 10 })">+ ресурс</button>
+        </div>
+      </template>
+      <div class="btns">
+        <button class="primary" @click="save">Сохранить</button>
+        <button class="danger" @click="$emit('remove', sel.kind, item.id)">Убрать</button>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { store } from '../map/store.js'
-import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES } from '../shared/settlement.js'
+import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES, RESOURCES } from '../shared/settlement.js'
 
-const props = defineProps({ settlement: Object, calc: Object, sel: Object, item: Object })
-defineEmits(['close'])
+const props = defineProps({ settlement: Object, calc: Object, sel: Object, item: Object, master: Boolean })
+const emit = defineEmits(['close', 'save', 'remove'])
+const heroes = computed(() => store.data.heroes || [])
+const form = ref({})
+const yieldRows = ref([])
+watch(() => props.item, it => {
+  form.value = JSON.parse(JSON.stringify(it))
+  yieldRows.value = Object.entries(it.yields || {}).map(([res, value]) => ({ res, value }))
+}, { immediate: true })
+function save() {
+  const f = { ...form.value }
+  if (props.sel.kind === 'building') {
+    if (!f.name) delete f.name
+    if (!f.owner) delete f.owner
+    if (f.state === 'built') delete f.progress
+  } else f.yields = Object.fromEntries(yieldRows.value.filter(y => y.value).map(y => [y.res, y.value]))
+  emit('save', props.sel.kind, f)
+}
 const def = computed(() => BUILDINGS[props.item.type] || {})
 const cat = computed(() => CATEGORIES[def.value.cat])
 const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.id === props.item.owner))
@@ -64,5 +111,16 @@ const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.
 .rows span { color: var(--a-muted); }
 .rows b { color: var(--a-text); text-align: right; }
 .plus { color: #9be07a !important; } .minus { color: #ff9b8f !important; }
+.edit { display: grid; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--a-line); font-size: 12.5px; }
+.edit label { display: flex; align-items: center; gap: 6px; color: var(--a-muted); font-weight: 700; }
+.edit input, .edit select { flex: 1; min-width: 0; padding: 4px 7px; border-radius: 7px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 600 12.5px var(--a-sans); }
+.edit input[type=number] { flex: 0 0 64px; }
+.yields small { color: var(--a-muted); font-weight: 800; }
+.yrow { display: flex; gap: 5px; margin: 3px 0; }
+.mini { padding: 3px 8px; border-radius: 7px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
+.btns { display: flex; gap: 6px; justify-content: flex-end; }
+.btns button { padding: 6px 12px; border-radius: 9px; border: 1px solid var(--a-line); background: rgba(255, 255, 255, .05); color: var(--a-text); font: 700 12.5px var(--a-sans); cursor: pointer; }
+.btns .primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
+.btns .danger { color: #ff9b8f; border-color: rgba(255, 107, 94, .4); }
 @keyframes pop { from { opacity: 0; transform: translateY(-4px); } }
 </style>

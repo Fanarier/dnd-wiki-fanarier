@@ -1,5 +1,5 @@
 <template>
-  <div ref="box" class="sm" :class="{ grabbing: drag }" @wheel.prevent="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @pointerleave="hover = null">
+  <div ref="box" class="sm" :class="[{ grabbing: drag && !toolActive }, toolClass]" @wheel.prevent="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @pointerleave="hover = null; cursor = null">
     <svg v-if="size.w" :width="size.w" :height="size.h" class="sm-svg">
       <defs>
         <!-- туман: облачная текстура, неразведанное закрыто; края разведанного размыты -->
@@ -30,17 +30,17 @@
         <image v-if="terrainUrl" :href="terrainUrl" :width="W" :height="H" preserveAspectRatio="none" />
 
         <!-- аванпосты -->
-        <g v-for="o in settlement.outposts" :key="o.id" class="sm-item" :class="{ sel: isSel('outpost', o.id) }" :transform="`translate(${o.x} ${o.y})`"
-           @pointerenter="hover = { kind: 'outpost', item: o }" @pointerleave="hover = null" @click.stop="pick('outpost', o)">
+        <g v-for="o in outpostsView" :key="o.id" class="sm-item" :class="{ sel: isSel('outpost', o.id) }" :transform="`translate(${o.x} ${o.y})`"
+           @pointerenter="hover = { kind: 'outpost', item: o }" :data-id="o.id" @pointerleave="hover = null" @click.stop="pick('outpost', o)">
           <circle r="34" class="sm-outpost-ring" :class="o.state" />
           <rect x="-24" y="-24" width="48" height="48" rx="7" class="sm-plate outpost" filter="url(#sm-shadow)" />
           <image :href="iconUrl(OUTPOSTS[o.type]?.icon)" x="-19" y="-19" width="38" height="38" />
           <text y="48" class="sm-label">{{ OUTPOSTS[o.type]?.label }}</text>
         </g>
 
-        <!-- постройки -->
-        <g v-for="b in placed" :key="b.id" class="sm-item" :class="{ sel: isSel('building', b.id), field: b.type === 'field' }" :transform="`translate(${b.x} ${b.y})`"
-           @pointerenter="hover = { kind: 'building', item: b }" @pointerleave="hover = null" @click.stop="pick('building', b)">
+        <!-- постройки (перетаскиваемая — на новом месте; стройка — пунктиром) -->
+        <g v-for="b in placedView" :key="b.id" class="sm-item" :class="{ sel: isSel('building', b.id), field: b.type === 'field', dragging: b.id === dragId, bad: b.id === dragId && dragBad.length, building: b.state === 'construction' }" :transform="`translate(${b.x} ${b.y})`"
+           @pointerenter="hover = { kind: 'building', item: b }" :data-id="b.id" @pointerleave="hover = null" @click.stop="pick('building', b)">
           <template v-if="b.type === 'field'">
             <rect :x="-side(b) / 2" :y="-side(b) / 2" :width="side(b)" :height="side(b)" rx="10" fill="url(#sm-furrows)" class="sm-field" />
             <rect x="-26" y="-26" width="52" height="52" rx="8" class="sm-plate" filter="url(#sm-shadow)" />
@@ -52,6 +52,30 @@
             <image :href="iconUrl(BUILDINGS[b.type]?.icon)" :x="-side(b) * 0.39" :y="-side(b) * 0.39" :width="side(b) * 0.78" :height="side(b) * 0.78" />
           </template>
           <text v-if="b.name" :y="side(b) / 2 + 14" class="sm-label name">{{ b.name }}</text>
+          <!-- стройка: полоска готовности -->
+          <g v-if="b.state === 'construction'" :transform="`translate(0 ${side(b) / 2 + 8})`">
+            <rect :x="-side(b) / 2" y="-3" :width="side(b)" height="6" rx="3" class="sm-prog-bg" />
+            <rect :x="-side(b) / 2" y="-3" :width="side(b) * Math.min(1, (b.progress || 0) / (BUILDINGS[b.type]?.cost || 100))" height="6" rx="3" class="sm-prog" />
+          </g>
+        </g>
+
+        <!-- приказы на рассмотрении: будущие постройки и разведка -->
+        <g v-for="g in ghosts" :key="g.id" class="sm-ghost" :transform="`translate(${g.x} ${g.y})`">
+          <circle v-if="g.explore" :r="g.r" class="sm-ghost-explore" />
+          <template v-else>
+            <rect :x="-g.side / 2" :y="-g.side / 2" :width="g.side" :height="g.side" :rx="g.side / 8" class="sm-ghost-plate" />
+            <image :href="iconUrl(BUILDINGS[g.type]?.icon)" :x="-g.side * 0.39" :y="-g.side * 0.39" :width="g.side * 0.78" :height="g.side * 0.78" opacity=".55" />
+          </template>
+          <text :y="(g.side || g.r * 2) / 2 + 14" class="sm-label ghost">приказ</text>
+        </g>
+
+        <!-- курсор инструмента: новая постройка, кисть тумана, точка разведки -->
+        <g v-if="cursor && toolActive" :transform="`translate(${cursor.x} ${cursor.y})`" class="sm-cursor" :class="{ bad: cursorBad.length }">
+          <template v-if="tool?.place">
+            <rect :x="-placeSide / 2" :y="-placeSide / 2" :width="placeSide" :height="placeSide" :rx="placeSide / 8" class="sm-ghost-plate" />
+            <image :href="iconUrl(BUILDINGS[tool.place]?.icon)" :x="-placeSide * 0.39" :y="-placeSide * 0.39" :width="placeSide * 0.78" :height="placeSide * 0.78" opacity=".8" />
+          </template>
+          <circle v-else :r="brushR" class="sm-brush" :class="{ erase: tool === 'fog-erase' }" />
         </g>
 
         <!-- туман неразведанного -->
@@ -62,7 +86,9 @@
     </svg>
 
     <!-- подсказка при наведении -->
-    <div v-if="hover && tip" class="sm-tip" :style="tipPos">
+    <div v-if="cursor && toolActive && cursorBad.length" class="sm-tip bad" :style="tipPos">Сюда нельзя: {{ cursorBad.join(', ') }}</div>
+    <div v-else-if="dragId && dragBad.length" class="sm-tip bad" :style="tipPos">Сюда нельзя: {{ dragBad.join(', ') }}</div>
+    <div v-else-if="hover && tip && !toolActive" class="sm-tip" :style="tipPos">
       <b>{{ tip.title }}</b>
       <span v-for="(l, i) in tip.lines" :key="i">{{ l }}</span>
     </div>
@@ -78,16 +104,20 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES } from '../shared/settlement.js'
+import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, placementProblems } from '../shared/settlement.js'
 import { paintTerrain } from './terrainPainter.js'
 import { fogTexture } from '../map/fogTexture.js'
 
 const props = defineProps({
   settlement: { type: Object, required: true },
   calc: { type: Object, required: true },
-  selected: { type: Object, default: null } // { kind, id }
+  selected: { type: Object, default: null }, // { kind, id }
+  // инструмент: 'move' — двигать постройки, { place: тип } — поставить, { explore: true } — точка разведки,
+  // 'fog-add' / 'fog-erase' — кисть тумана
+  tool: { type: [String, Object], default: null },
+  ghosts: { type: Array, default: () => [] } // приказы на рассмотрении
 })
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog'])
 
 const t = computed(() => props.settlement.terrain || { w: 1600, h: 1300 })
 const W = computed(() => t.value.w).value
@@ -97,9 +127,33 @@ const iconUrl = name => `/settlement/${name || 'help'}.png`
 const side = b => SIZES[BUILDINGS[b.type]?.size]?.side || 56
 // стена и прочее «на всё поселение» на карте не стоят
 const placed = computed(() => (props.settlement.buildings || []).filter(b => side(b) > 0 && BUILDINGS[b.type]?.size !== 'settlement'))
+const toolActive = computed(() => !!props.tool && props.tool !== 'move')
+const toolClass = computed(() => (props.tool === 'move' ? 'tool-move' : toolActive.value ? 'tool-paint' : ''))
+const placeSide = computed(() => SIZES[BUILDINGS[props.tool?.place]?.size]?.side || 56)
+const brushR = computed(() => (props.tool?.explore ? 90 : 70))
+const cursor = ref(null) // в координатах карты
+const cursorBad = computed(() => {
+  if (!cursor.value || !props.tool?.place || BUILDINGS[props.tool.place]?.size === 'settlement') return []
+  return placementProblems(props.settlement, { id: '_new', type: props.tool.place, x: cursor.value.x, y: cursor.value.y })
+})
+// перетаскивание постройки мастером
+const dragId = ref(null)
+const dragPos = ref(null)
+const dragBad = computed(() => {
+  if (!dragId.value || !dragPos.value) return []
+  const b = props.settlement.buildings.find(x => x.id === dragId.value)
+  return b ? placementProblems(props.settlement, { ...b, ...dragPos.value }) : []
+})
+const outpostsView = computed(() => (props.settlement.outposts || []).map(o => (o.id === dragId.value && dragPos.value ? { ...o, ...dragPos.value } : o)))
+const placedView = computed(() => placed.value.map(b => (b.id === dragId.value && dragPos.value ? { ...b, ...dragPos.value } : b)))
+const toWorld = (cx, cy) => {
+  const rc = box.value.getBoundingClientRect()
+  return { x: Math.round((cx - rc.left - view.x) / view.k), y: Math.round((cy - rc.top - view.y) / view.k) }
+}
+let painted = []
 const isSel = (kind, id) => props.selected?.kind === kind && props.selected?.id === id
 function pick(kind, item) {
-  if (moved) return
+  if (moved || toolActive.value) return
   emit('select', isSel(kind, item.id) ? null : { kind, id: item.id })
 }
 
@@ -152,6 +206,21 @@ function onDown(e) {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   moved = false
   drag.value = true
+  // мастер тянет постройку
+  if (props.tool === 'move' && pointers.size === 1) {
+    const g = e.target.closest?.('.sm-item[data-id]')
+    if (g) {
+      dragId.value = g.dataset.id
+      dragPos.value = null
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+      return
+    }
+  }
+  // кисть тумана рисует сразу
+  if ((props.tool === 'fog-add' || props.tool === 'fog-erase') && pointers.size === 1) {
+    painted = [toWorld(e.clientX, e.clientY)]
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+  }
   if (pointers.size === 2) {
     const [a, b] = [...pointers.values()]
     pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }
@@ -160,8 +229,21 @@ function onDown(e) {
 function onMove(e) {
   const rc = box.value?.getBoundingClientRect()
   if (rc) mouse.value = { x: e.clientX - rc.left, y: e.clientY - rc.top }
+  if (box.value) cursor.value = toWorld(e.clientX, e.clientY)
   const p = pointers.get(e.pointerId)
   if (!p) return
+  if (dragId.value) {
+    const w = toWorld(e.clientX, e.clientY)
+    dragPos.value = { x: w.x, y: w.y }
+    moved = true
+    return
+  }
+  if (painted.length && pointers.size === 1) {
+    const w = toWorld(e.clientX, e.clientY), last = painted[painted.length - 1]
+    if (Math.hypot(w.x - last.x, w.y - last.y) > brushR.value * 0.5) painted.push(w)
+    moved = true
+    return
+  }
   const dx = e.clientX - p.x, dy = e.clientY - p.y
   p.x = e.clientX
   p.y = e.clientY
@@ -179,11 +261,32 @@ function onMove(e) {
   }
 }
 function onUp(e) {
+  if (dragId.value && e.type === 'pointerup') {
+    if (dragPos.value && !dragBad.value.length) emit('moved', { id: dragId.value, ...dragPos.value })
+    dragId.value = null
+    dragPos.value = null
+    pointers.delete(e.pointerId)
+    drag.value = false
+    return
+  }
+  if (painted.length && e.type === 'pointerup') {
+    emit('fog', { erase: props.tool === 'fog-erase', points: painted, r: brushR.value })
+    painted = []
+    pointers.delete(e.pointerId)
+    drag.value = false
+    return
+  }
+  // поставить постройку / выбрать точку разведки
+  if (!moved && e.type === 'pointerup' && toolActive.value && pointers.size === 1) {
+    const w = toWorld(e.clientX, e.clientY)
+    if (props.tool.place && !cursorBad.value.length) emit('placed', { type: props.tool.place, ...w })
+    if (props.tool.explore) emit('explore', w)
+  }
   pointers.delete(e.pointerId)
   if (pointers.size < 2) pinch = null
   if (!pointers.size) drag.value = false
   // клик по пустому месту снимает выбор
-  if (!moved && e.type === 'pointerup' && e.target.closest && !e.target.closest('.sm-item') && !e.target.closest('.sm-ctrl')) emit('select', null)
+  if (!moved && !toolActive.value && e.type === 'pointerup' && e.target.closest && !e.target.closest('.sm-item') && !e.target.closest('.sm-ctrl')) emit('select', null)
   setTimeout(() => { moved = false })
 }
 
@@ -245,5 +348,21 @@ defineExpose({ fit })
 .sm-ctrl { position: absolute; right: 12px; bottom: 12px; display: grid; gap: 6px; }
 .sm-ctrl button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid #8a6630; background: rgba(23, 19, 14, .9); color: #f3d99a; font: 700 18px 'Manrope', sans-serif; cursor: pointer; }
 .sm-ctrl button:hover { background: rgba(60, 46, 28, .95); }
+.sm.tool-move .sm-item { cursor: move; }
+.sm.tool-paint { cursor: crosshair; }
+.sm-item.dragging { opacity: .9; }
+.sm-item.bad .sm-plate { stroke: #ff4a3d; fill: #f3c6c0; }
+.sm-item.building .sm-plate { stroke-dasharray: 6 4; fill: #c9c2b2; opacity: .85; }
+.sm-prog-bg { fill: rgba(20, 16, 10, .75); }
+.sm-prog { fill: #e6c27a; }
+.sm-ghost { pointer-events: none; }
+.sm-ghost-plate { fill: rgba(243, 217, 154, .25); stroke: #f3d99a; stroke-width: 2.5; stroke-dasharray: 7 5; }
+.sm-ghost-explore { fill: rgba(243, 217, 154, .12); stroke: #f3d99a; stroke-width: 2.5; stroke-dasharray: 8 6; }
+.sm-label.ghost { fill: #f3d99a; font-size: 11px; }
+.sm-cursor { pointer-events: none; }
+.sm-cursor.bad .sm-ghost-plate { stroke: #ff4a3d; fill: rgba(255, 74, 61, .2); }
+.sm-brush { fill: rgba(243, 217, 154, .14); stroke: #f3d99a; stroke-width: 2; stroke-dasharray: 6 5; }
+.sm-brush.erase { fill: rgba(40, 44, 50, .35); stroke: #9aa3ad; }
+.sm-tip.bad { border-color: rgba(255, 107, 94, .7); color: #ffc2bb; }
 .sm-loading { position: absolute; inset: 0; display: grid; place-items: center; color: #c9b88f; font: 600 14px 'Manrope', sans-serif; pointer-events: none; }
 </style>

@@ -2,7 +2,7 @@
   <div class="st">
     <!-- ================= ОБЗОР ================= -->
     <template v-if="tab === 'overview'">
-      <h3>Основная информация</h3>
+      <h3>Основная информация<button v-if="master" class="ed" @click="emit('edit', 'overview')">✎ Править</button></h3>
       <div class="tiles">
         <div v-for="x in overview" :key="x.label" class="tile" :class="x.cls" :title="x.hint">
           <img :src="icon(x.icon)" alt="" /><span>{{ x.label }}</span><b>{{ x.value }}</b>
@@ -42,18 +42,20 @@
 
     <!-- ================= РЕСУРСЫ ================= -->
     <template v-else-if="tab === 'resources'">
-      <h3>Ресурсы <small>в день · нажми на строку — откуда и куда</small></h3>
+      <h3>Ресурсы <small>в день · нажми на строку — откуда и куда</small><button v-if="master" class="ed" @click="emit('edit', 'resources')">✎ Править</button></h3>
+      <p v-if="s.day" class="muted">Прошло дней: {{ s.day }}</p>
       <table class="res">
-        <thead><tr><th>Вид</th><th>Прирост</th><th>Расход</th><th>Итог</th></tr></thead>
+        <thead><tr><th>Вид</th><th v-if="hasStock">Запас</th><th>Прирост</th><th>Расход</th><th>Итог</th></tr></thead>
         <tbody>
           <template v-for="r in resRows" :key="r.key">
             <tr :class="{ bad: r.bal < 0, idle: !r.gain && !r.use, open: openRes === r.key }" @click="openRes = openRes === r.key ? null : r.key">
               <td><i class="rdot" :style="{ background: r.color }" />{{ r.label }}</td>
+              <td v-if="hasStock" class="stock">{{ s.stock?.[r.key] != null ? fmt(s.stock[r.key]) : '—' }}<small v-if="r.bal < 0 && s.stock?.[r.key]">{{ Math.floor(s.stock[r.key] / -r.bal) }} дн.</small></td>
               <td>{{ fmt(r.gain) }}</td><td>{{ fmt(r.use) }}</td>
               <td class="bal">{{ r.bal > 0 ? '+' : '' }}{{ fmt(r.bal) }}</td>
             </tr>
             <tr v-if="openRes === r.key" class="parts">
-              <td colspan="4">
+              <td :colspan="hasStock ? 5 : 4">
                 <div v-for="p in calc.gain[r.key]?.parts || []" :key="'g' + p.label" class="pl plus"><span>{{ p.label }}</span><b>+{{ fmt(p.value) }}</b></div>
                 <div v-for="p in calc.use[r.key]?.parts || []" :key="'u' + p.label" class="pl minus"><span>{{ p.label }}</span><b>−{{ fmt(p.value) }}</b></div>
                 <div v-if="!calc.gain[r.key] && !calc.use[r.key]" class="muted">Пока не добывается и не тратится</div>
@@ -67,7 +69,7 @@
 
     <!-- ================= ЖИТЕЛИ ================= -->
     <template v-else-if="tab === 'residents'">
-      <h3>Жители <small>{{ calc.population }} · взрослых {{ calc.adults }}, детей {{ calc.kids }}</small></h3>
+      <h3>Жители <small>{{ calc.population }} · взрослых {{ calc.adults }}, детей {{ calc.kids }}</small><button v-if="master" class="ed" @click="emit('edit', 'residents')">✎ Править</button></h3>
       <div v-for="r in s.races" :key="r.race" class="race">
         <div class="race-top" @click="openRace = openRace === r.race ? null : r.race">
           <div class="race-name">{{ RACES[r.race]?.label }}<small>{{ (r.male || 0) + (r.female || 0) + (r.kids || 0) }}</small></div>
@@ -90,7 +92,7 @@
 
     <!-- ================= РАБОТЫ ================= -->
     <template v-else-if="tab === 'jobs'">
-      <h3>Рабочие места</h3>
+      <h3>Рабочие места<button v-if="master" class="ed" @click="emit('edit', 'jobs')">✎ Править</button></h3>
       <div v-for="j in jobList" :key="j.key" class="job">
         <div class="job-top">
           <img :src="icon(JOBS[j.key].icon)" alt="" />
@@ -115,7 +117,7 @@
 
     <!-- ================= АКТИВЫ ================= -->
     <template v-else-if="tab === 'assets'">
-      <h3>Активы в работе</h3>
+      <h3>Активы в работе<button v-if="master" class="ed" @click="emit('edit', 'assets')">✎ Править</button></h3>
       <div v-for="a in s.assets" :key="a.id" class="asset" :style="{ '--fr': ASSET_FRAMES[a.frame] || '#8a6630' }">
         <div class="person" :class="{ hex: a.companion }"><img v-if="a.portrait" :src="a.portrait" alt="" /><span v-else>{{ initial(a.name) }}</span></div>
         <div class="asset-body">
@@ -131,7 +133,7 @@
 
     <!-- ================= АВАНПОСТЫ ================= -->
     <template v-else-if="tab === 'outposts'">
-      <h3>Аванпосты <small>{{ s.outposts.length }} из {{ s.stats?.outpostSlots || s.outposts.length }}</small></h3>
+      <h3>Аванпосты <small>{{ s.outposts.length }} из {{ s.stats?.outpostSlots || s.outposts.length }}</small><button v-if="master" class="ed" @click="emit('edit', 'outposts')">✎ Править</button></h3>
       <div v-for="o in s.outposts" :key="o.id" class="outpost" :class="o.state" @click="emit('pick', { kind: 'outpost', id: o.id })">
         <img :src="icon(OUTPOSTS[o.type]?.icon)" alt="" />
         <div>
@@ -145,7 +147,18 @@
 
     <!-- ================= ЖУРНАЛ ================= -->
     <template v-else-if="tab === 'journal'">
-      <h3>Журнал поселения</h3>
+      <h3>Журнал поселения<button v-if="master" class="ed" @click="newEv = newEv ? null : blankEvent()">＋ Событие</button></h3>
+      <div v-if="newEv" class="evform">
+        <input v-model="newEv.title" placeholder="Заголовок: «Дикие Варги!»" />
+        <div class="evrow">
+          <select v-model="newEv.type"><option v-for="(t, k) in EVENT_TYPES" :key="k" :value="k">{{ t.label }}</option></select>
+          <label v-for="(d, k) in EVENT_DURATIONS" :key="k" class="chk"><input v-model="newEv.duration" type="checkbox" :value="k" /> {{ d.label }}</label>
+        </div>
+        <div class="evrow"><label class="chk">Срок <input v-model="newEv.deadline" type="date" /></label></div>
+        <textarea v-model="newEv.text" rows="3" placeholder="Что случилось — от лица жителей" />
+        <input v-model="newEv.effect" placeholder="Влияние: «Угроза +45» (необязательно)" />
+        <div class="evrow end"><button class="btn" @click="newEv = null">Отмена</button><button class="btn primary" :disabled="!newEv.title" @click="addEvent">Добавить и оповестить главу</button></div>
+      </div>
       <div v-for="e in events" :key="e.id" class="ev" :style="{ '--ec': EVENT_TYPES[e.type]?.color }">
         <div class="ev-top">
           <img :src="icon(EVENT_TYPES[e.type]?.icon)" alt="" />
@@ -156,7 +169,47 @@
         </div>
         <p>{{ e.text }}</p>
         <div v-if="e.effect" class="ev-eff">{{ e.effect }}</div>
-        <div class="ev-dec" :class="{ none: !e.decision }"><small>Решение</small>{{ e.decision || (e.duration?.includes('decide') ? 'ждёт решения главы' : '—') }}</div>
+        <div v-if="decEdit === e.id" class="ev-dec edit">
+          <small>Решение</small>
+          <textarea v-model="decText" rows="3" placeholder="Что прикажет глава?" />
+          <div class="evrow end"><button class="btn" @click="decEdit = null">Отмена</button><button class="btn primary" @click="decide(e)">Сохранить решение</button></div>
+        </div>
+        <div v-else class="ev-dec" :class="{ none: !e.decision }">
+          <small>Решение<template v-if="e.decidedBy"> · {{ e.decidedBy }}</template></small>{{ e.decision || (e.duration?.includes('decide') ? 'ждёт решения главы' : '—') }}
+          <button v-if="master || (decider && (e.decision || e.duration?.includes('decide')))" class="ev-act" @click="decEdit = e.id; decText = e.decision || ''">{{ e.decision ? 'изменить' : 'решить' }}</button>
+          <button v-if="master" class="ev-act del" @click="removeEvent(e)">удалить событие</button>
+        </div>
+      </div>
+    </template>
+    <!-- ================= ПРИКАЗЫ ================= -->
+    <template v-else-if="tab === 'orders'">
+      <h3>Приказы главы</h3>
+      <div v-if="decider" class="evform">
+        <p class="muted">Построить и разведать — кнопками на карте. Здесь — назначить рабочих или свободный приказ. Мастер одобрит или отклонит.</p>
+        <div class="evrow">
+          <select v-model="ord.job"><option v-for="(j, k) in c.jobs" :key="k" :value="k">{{ JOBS[k].label }} ({{ j.workers }}/{{ j.places }})</option></select>
+          <input v-model.number="ord.count" type="number" min="0" class="num" />
+          <button class="btn primary" :disabled="!ord.job" @click="sendOrder('workers')">Назначить</button>
+        </div>
+        <textarea v-model="ord.text" rows="2" placeholder="Свободный приказ: «Наймите мастеров в Ширатори»" />
+        <div class="evrow end"><button class="btn primary" :disabled="!ord.text" @click="sendOrder('free')">Отдать приказ</button></div>
+      </div>
+      <p v-else-if="!master" class="muted">Приказы отдают игроки, которых выбрал мастер.</p>
+      <div v-if="!orders.length" class="muted">Приказов пока нет</div>
+      <div v-for="o in orders" :key="o.id" class="ord" :class="o.status">
+        <div class="ord-top">
+          <b>{{ orderTitle(o) }}</b>
+          <span class="ord-st">{{ { pending: 'ждёт мастера', approved: 'одобрен', rejected: 'отклонён' }[o.status] }}</span>
+        </div>
+        <span class="muted">{{ o.byName }} · {{ date(o.createdAt) }}</span>
+        <p v-if="o.text">{{ o.text }}</p>
+        <p v-if="o.reply" class="reply">Мастер: {{ o.reply }}</p>
+        <div v-if="o.status === 'pending' && master" class="evrow">
+          <input v-model="replies[o.id]" placeholder="Ответ (необязательно)" />
+          <button class="btn primary" @click="judge(o, 'approve')">Одобрить</button>
+          <button class="btn danger" @click="judge(o, 'reject')">Отклонить</button>
+        </div>
+        <button v-else-if="o.status === 'pending' && o.by === store.me?.id" class="ev-act" @click="cancelOrder(o)">отменить приказ</button>
       </div>
     </template>
   </div>
@@ -164,11 +217,12 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { store, heroCover, heroPortraitUrl } from '../map/store.js'
+import { store, heroCover, heroPortraitUrl, act } from '../map/store.js'
 import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES } from '../shared/settlement.js'
 
-const props = defineProps({ tab: String, settlement: Object, calc: Object })
-const emit = defineEmits(['pick'])
+const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean })
+const emit = defineEmits(['pick', 'edit'])
+const base = () => `/api/settlements/${props.settlement.id}`
 const s = computed(() => props.settlement)
 const c = computed(() => props.calc)
 const icon = n => `/settlement/${n || 'help'}.png`
@@ -213,6 +267,7 @@ function pickFirst(type) {
 
 /* ресурсы */
 const openRes = ref(null)
+const hasStock = computed(() => Object.keys(s.value.stock || {}).length > 0)
 const resRows = computed(() => RESOURCES.map(r => ({ ...r, gain: c.value.gain[r.key]?.total || 0, use: c.value.use[r.key]?.total || 0, bal: c.value.balance[r.key] })))
 
 /* жители */
@@ -224,6 +279,42 @@ const jobList = computed(() => Object.entries(c.value.jobs).map(([key, j]) => ({
 /* активы */
 const roleOf = a => (s.value.managers?.includes(a.id) ? 'управляющий' : Object.entries(s.value.jobs || {}).find(([, j]) => j.specialists?.includes(a.id)) ? 'специалист: ' + JOBS[Object.entries(s.value.jobs).find(([, j]) => j.specialists?.includes(a.id))[0]].label.toLowerCase() : a.companion ? 'компаньон' : '')
 
+/* журнал: новое событие, решения */
+const newEv = ref(null)
+const blankEvent = () => ({ title: '', type: 'message', duration: ['decide'], deadline: '', text: '', effect: '' })
+async function addEvent() {
+  await act('POST', `${base()}/events`, newEv.value, 'Событие в журнале, глава оповещён')
+  newEv.value = null
+}
+const decEdit = ref(null)
+const decText = ref('')
+async function decide(e) {
+  await act('POST', `${base()}/events/${e.id}/decision`, { text: decText.value }, 'Решение записано')
+  decEdit.value = null
+}
+function removeEvent(e) {
+  if (!confirm(`Удалить событие «${e.title}»?`)) return
+  act('PATCH', base(), { events: s.value.events.filter(x => x.id !== e.id) }, 'Удалено')
+}
+
+/* приказы */
+const ord = ref({ job: 'farmer', count: 0, text: '' })
+const replies = ref({})
+const orders = computed(() => [...(s.value.orders || [])].sort((a, b) => (a.status === 'pending' ? -1 : 0) - (b.status === 'pending' ? -1 : 0) || b.createdAt - a.createdAt))
+function orderTitle(o) {
+  if (o.kind === 'build') return `Построить «${BUILDINGS[o.build.type]?.label}»`
+  if (o.kind === 'workers') return `${JOBS[o.workers.job]?.label}: назначить ${o.workers.count} рабочих`
+  if (o.kind === 'explore') return 'Разведать участок'
+  return 'Приказ'
+}
+async function sendOrder(kind) {
+  const body = kind === 'workers' ? { kind, job: ord.value.job, count: ord.value.count, text: ord.value.text } : { kind, text: ord.value.text }
+  await act('POST', `${base()}/orders`, body, 'Приказ отправлен мастеру')
+  ord.value.text = ''
+}
+const judge = (o, action) => act('POST', `${base()}/orders/${o.id}/${action}`, { reply: replies.value[o.id] || '' }, action === 'approve' ? 'Приказ одобрен' : 'Приказ отклонён')
+const cancelOrder = o => act('DELETE', `${base()}/orders/${o.id}`, undefined, 'Приказ отменён')
+
 /* журнал: новые сверху, нерешённые — выше */
 const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.decision && a.duration?.includes('decide') ? -1 : 0) - (!b.decision && b.duration?.includes('decide') ? -1 : 0) || b.createdAt - a.createdAt))
 </script>
@@ -233,6 +324,33 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .st h3:first-child { margin-top: 2px; }
 .st h3 small { font: 600 12px var(--a-sans); color: var(--a-muted); margin-left: 6px; }
 .muted { color: var(--a-muted); font-size: 12px; }
+.ed { float: right; margin-top: 4px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
+.ed:hover { background: rgba(231, 197, 111, .18); }
+.res td.stock { color: var(--a-gold-2); font-weight: 700; }
+.res td.stock small { display: block; color: #ff9b8f; font-size: 10.5px; }
+.evform { display: grid; gap: 6px; padding: 10px 12px; margin-bottom: 10px; border-radius: 12px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(231, 197, 111, .05); }
+.evform input, .evform select, .evform textarea, .ev-dec textarea, .ord input { min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 500 13px var(--a-sans); resize: vertical; }
+.evrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.evrow.end { justify-content: flex-end; }
+.evrow input:not(.num) { flex: 1; }
+.num { width: 70px; }
+.chk { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #d9cdb0; font-weight: 600; }
+.btn { padding: 6px 12px; border-radius: 9px; border: 1px solid var(--a-line); background: rgba(255, 255, 255, .05); color: var(--a-text); font: 700 12.5px var(--a-sans); cursor: pointer; }
+.btn.primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
+.btn.danger { color: #ff9b8f; border-color: rgba(255, 107, 94, .4); }
+.btn:disabled { opacity: .5; cursor: default; }
+.ev-act { margin-left: 8px; padding: 0; border: 0; background: none; color: var(--a-gold); font: 700 11.5px var(--a-sans); text-decoration: underline dotted; cursor: pointer; }
+.ev-act.del { color: #ff9b8f; }
+.ev-dec.edit { display: grid; gap: 6px; }
+.ord { display: grid; gap: 3px; padding: 10px 12px; margin-bottom: 8px; border-radius: 12px; border: 1px solid var(--a-line-2); background: rgba(255, 255, 255, .02); }
+.ord.pending { border-color: rgba(231, 197, 111, .45); }
+.ord.rejected { opacity: .65; }
+.ord-top { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.ord-top b { font: 700 17px var(--a-serif); color: var(--a-gold-2); }
+.ord-st { font-size: 11.5px; font-weight: 800; color: var(--a-muted); }
+.ord.pending .ord-st { color: #ffb36b; } .ord.approved .ord-st { color: #9be07a; } .ord.rejected .ord-st { color: #ff9b8f; }
+.ord p { margin: 2px 0; font-size: 13px; color: #d9cdb0; }
+.ord .reply { color: var(--a-gold-2); }
 .note { margin-top: 10px; line-height: 1.5; }
 
 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }

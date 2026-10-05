@@ -14,6 +14,7 @@ import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
+import { computeSettlement, placementProblems, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS } from '../src/shared/settlement.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
 import {
@@ -1144,10 +1145,32 @@ setInterval(() => {
 const SETTLE_KEYS = {
   name: 'string', kind: 'string', status: 'string', cityId: 'string', headHeroId: 'string', managers: 'array', managerSlots: 'number',
   deciders: 'array', stats: 'object', stock: 'object', races: 'array', buildings: 'array', jobs: 'object', assets: 'array',
-  outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array'
+  outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array', orders: 'array', day: 'number'
 }
+const findSettlement = id => (getDb().settlements || []).find(x => x.id === id)
+// решать по событиям и отдавать приказы могут мастер и выбранные им игроки
+const canDecide = (u, s) => u?.role === 'master' || (u?.role === 'player' && s.deciders?.includes(u.id))
+const settleLink = (s, tab) => ({ settlementId: s.id, tab })
+function notifyDeciders(s, text, tab = 'journal') {
+  for (const id of s.deciders || []) notify(id, 'settlement', `${s.name}: ${text}`, settleLink(s, tab))
+}
+const T_EVENT = v => ({
+  id: v.id || newId('e'), title: T.str(120)(v.title) || 'Событие', type: EVENT_TYPES[v.type] ? v.type : 'message',
+  duration: (Array.isArray(v.duration) ? v.duration : []).filter(d => EVENT_DURATIONS[d]).slice(0, 3),
+  deadline: v.deadline ? T.str(20)(v.deadline) : null, text: T.str(4000)(v.text), effect: T.str(300)(v.effect),
+  decision: T.str(2000)(v.decision), decidedBy: v.decidedBy ? T.str(60)(v.decidedBy) : null,
+  location: T.str(80)(v.location), createdAt: Number(v.createdAt) || Date.now()
+})
+function addEvent(s, ev, notifyThem = true) {
+  const e = T_EVENT(ev)
+  ;(s.events ||= []).push(e)
+  if (s.events.length > 300) s.events = s.events.slice(-300)
+  if (notifyThem) notifyDeciders(s, e.title)
+  return e
+}
+
 app.patch('/api/settlements/:id', requireMaster, (req, res) => {
-  const s = (getDb().settlements || []).find(x => x.id === req.params.id)
+  const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
   const body = req.body || {}
   for (const [k, v] of Object.entries(body)) {
@@ -1157,10 +1180,164 @@ app.patch('/api/settlements/:id', requireMaster, (req, res) => {
     if (!ok && !(k === 'headHeroId' && v === null)) return res.status(400).json({ error: 'Неверный формат поля: ' + k })
   }
   if (Array.isArray(body.deciders)) body.deciders = body.deciders.filter(id => typeof id === 'string').slice(0, 20)
+  // новые события из правки мастера — решающим в колокольчик
+  const known = new Set((s.events || []).map(e => e.id))
+  if (Array.isArray(body.events)) body.events = body.events.map(T_EVENT)
   Object.assign(s, body, { updatedAt: Date.now() })
+  for (const e of body.events || []) if (!known.has(e.id)) notifyDeciders(s, e.title)
   saveDb()
   broadcast()
   res.json(s)
+})
+
+// мастер пишет новое событие в журнал
+app.post('/api/settlements/:id/events', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const e = addEvent(s, { ...(req.body || {}), id: undefined, createdAt: Date.now(), location: req.body?.location || s.name })
+  saveDb()
+  broadcast()
+  res.json(e)
+})
+
+// решение главы по событию
+app.post('/api/settlements/:id/events/:eid/decision', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  if (!canDecide(req.user, s)) return res.status(403).json({ error: 'Решения здесь принимает глава поселения' })
+  const e = (s.events || []).find(x => x.id === req.params.eid)
+  if (!e) return res.status(404).json({ error: 'Событие не найдено' })
+  e.decision = T.str(2000)(req.body?.text).trim()
+  e.decidedBy = req.user.name
+  e.decidedAt = Date.now()
+  if (req.user.role !== 'master') notify('masters', 'settlement', `${s.name}: ${req.user.name} решает «${e.title}»`, settleLink(s, 'journal'))
+  saveDb()
+  broadcast()
+  res.json(e)
+})
+
+// портрет актива поселения (картинку уже уменьшил браузер)
+app.post('/api/settlements/:id/portrait', requireMaster, express.raw({ type: () => true, limit: '3mb' }), (req, res) => {
+  if (!findSettlement(req.params.id)) return res.status(404).json({ error: 'Поселение не найдено' })
+  const file = saveHeroFile({ id: 'settle-' + req.params.id }, req.body, '')
+  if (!file) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  res.json({ url: '/portraits/' + file })
+})
+
+/* приказы главы: построить, назначить рабочих, разведать, свободный — мастер одобряет */
+const ORDER_KINDS = ['build', 'workers', 'explore', 'free']
+app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  if (!canDecide(req.user, s)) return res.status(403).json({ error: 'Приказы отдаёт глава поселения' })
+  const b = req.body || {}
+  if (!ORDER_KINDS.includes(b.kind)) return res.status(400).json({ error: 'Неизвестный приказ' })
+  const o = { id: newId('o'), kind: b.kind, text: T.str(1000)(b.text).trim(), by: req.user.id, byName: req.user.name, status: 'pending', createdAt: Date.now() }
+  if (b.kind === 'build') {
+    if (!BUILDINGS[b.type] || BUILDINGS[b.type].personal) return res.status(400).json({ error: 'Такую постройку не построить' })
+    o.build = { type: b.type, x: Math.round(T.num(0, 5000)(b.x)), y: Math.round(T.num(0, 5000)(b.y)) }
+    if (BUILDINGS[b.type].size !== 'settlement') {
+      const p = placementProblems(s, { id: 'new', ...o.build })
+      if (p.length) return res.status(400).json({ error: 'Сюда не поставить: ' + p.join(', ') })
+    }
+  } else if (b.kind === 'workers') {
+    if (!JOBS[b.job]) return res.status(400).json({ error: 'Неизвестная работа' })
+    o.workers = { job: b.job, count: Math.round(T.num(0, 999)(b.count)) }
+  } else if (b.kind === 'explore') {
+    o.explore = { x: Math.round(T.num(-500, 5000)(b.x)), y: Math.round(T.num(-500, 5000)(b.y)), r: 90 }
+  } else if (!o.text) return res.status(400).json({ error: 'Напиши, что нужно сделать' })
+  ;(s.orders ||= []).push(o)
+  if (s.orders.length > 200) s.orders = s.orders.slice(-200)
+  if (req.user.role !== 'master') notify('masters', 'settlement', `${s.name}: новый приказ от ${req.user.name}`, settleLink(s, 'orders'))
+  saveDb()
+  broadcast()
+  res.json(o)
+})
+
+app.delete('/api/settlements/:id/orders/:oid', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const o = s?.orders?.find(x => x.id === req.params.oid)
+  if (!o) return res.status(404).json({ error: 'Приказ не найден' })
+  if (req.user.role !== 'master' && (o.by !== req.user.id || o.status !== 'pending')) return res.status(403).json({ error: 'Отменить можно только свой приказ, пока его не рассмотрели' })
+  s.orders = s.orders.filter(x => x !== o)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
+})
+
+app.post('/api/settlements/:id/orders/:oid/:action(approve|reject)', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const o = s?.orders?.find(x => x.id === req.params.oid)
+  if (!o) return res.status(404).json({ error: 'Приказ не найден' })
+  if (o.status !== 'pending') return res.status(400).json({ error: 'Приказ уже рассмотрен' })
+  const ok = req.params.action === 'approve'
+  if (ok) {
+    if (o.kind === 'build') {
+      const def = BUILDINGS[o.build.type]
+      const b = { id: newId('b'), ...o.build, state: 'construction', progress: 0 }
+      if (def.size !== 'settlement') {
+        const p = placementProblems(s, b)
+        if (p.length) return res.status(400).json({ error: 'Место уже занято: ' + p.join(', ') })
+      }
+      ;(s.buildings ||= []).push(b)
+      addEvent(s, { title: 'Стройка начата', type: 'done', duration: ['quick'], text: `По приказу главы заложили «${def.label}». Сложность ${def.cost}.`, location: s.name }, false)
+    } else if (o.kind === 'workers') {
+      s.jobs ||= {}
+      s.jobs[o.workers.job] = { ...(s.jobs[o.workers.job] || {}), workers: o.workers.count }
+    } else if (o.kind === 'explore') {
+      ;(s.explored ||= []).push({ name: 'Разведка', ...o.explore })
+      addEvent(s, { title: 'Земля разведана', type: 'done', duration: ['quick'], text: 'Разведчики изучили новый участок. Здесь можно строить.', location: s.name }, false)
+    }
+  }
+  o.status = ok ? 'approved' : 'rejected'
+  o.reply = T.str(1000)(req.body?.reply).trim()
+  o.decidedAt = Date.now()
+  if (o.by && !String(o.by).startsWith('m:')) notify(o.by, 'settlement', `${s.name}: приказ ${ok ? 'одобрен' : 'отклонён'}${o.reply ? ' — ' + o.reply : ''}`, settleLink(s, 'orders'))
+  saveDb()
+  broadcast()
+  res.json(o)
+})
+
+/* «Прошёл день»: запасы меняются на баланс, нехватки → события, стройка продвигается */
+const BUILD_POINTS_PER_DAY = 25
+app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const days = Math.round(T.num(1, 60)(req.body?.days ?? 1))
+  const c = computeSettlement(s)
+  s.stock ||= {}
+  const short = []
+  for (const [k, bal] of Object.entries(c.balance)) {
+    if (!bal && !(k in s.stock)) continue
+    const v = Math.round(((s.stock[k] || 0) + bal * days) * 10) / 10
+    if (v < 0) short.push(k)
+    s.stock[k] = Math.max(0, v)
+  }
+  // стройка: слесари ускоряют, нехватка стройматериалов — −75%
+  const speedUp = (c.jobs.locksmith?.workers || 0) * 8.75
+  const slow = (s.stock.build || 0) <= 0 && c.balance.build < 0 ? 0.25 : 1
+  const pts = BUILD_POINTS_PER_DAY * days * (1 + speedUp / 100) * slow
+  for (const b of s.buildings || []) {
+    if (b.state !== 'construction') continue
+    b.progress = Math.round(((b.progress || 0) + pts) * 10) / 10
+    const cost = BUILDINGS[b.type]?.cost || 100
+    if (b.progress >= cost) {
+      b.state = 'built'
+      delete b.progress
+      addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `Мы закончили «${BUILDINGS[b.type].label}»!`, location: s.name })
+    }
+  }
+  const open = new Set((s.events || []).filter(e => e.title === 'Нехватка ресурса' && !e.decision).map(e => e.effect))
+  for (const k of short) {
+    const effect = `Не хватает «${RES[k]?.label}»`
+    if (open.has(effect)) continue
+    addEvent(s, { title: 'Нехватка ресурса', type: 'problem', duration: ['decide'], text: `У нас закончились «${RES[k]?.label}». Как решим, господин глава?`, effect, location: s.name })
+  }
+  s.day = (s.day || 0) + days
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json({ ok: true, day: s.day, short })
 })
 
 app.get('/api/export', requireMaster, (req, res) => {

@@ -21,7 +21,46 @@
     <div v-if="!store.ready" class="sp-load"><SteamLoader kind="map" /></div>
     <div v-else-if="!s" class="sp-load">Поселение не найдено</div>
     <div v-else class="sp-body">
-      <SettlementMap class="sp-map" :settlement="s" :calc="calc" :selected="sel" @select="sel = $event" />
+      <div class="sp-mapwrap">
+        <SettlementMap class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts"
+                       @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog" />
+        <!-- инструменты: мастеру — правка карты, главе — приказы -->
+        <div v-if="master || decider" class="sp-tools">
+          <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="tool = null">👁 Смотреть</button>
+          <template v-if="master">
+            <button :class="{ on: tool === 'move' }" title="Перетаскивай постройки и аванпосты" @click="tool = 'move'">✥ Двигать</button>
+            <button :class="{ on: tool?.place }" @click="palette = !palette">＋ Поставить</button>
+            <button :class="{ on: tool === 'fog-add' }" title="Кистью открыть землю" @click="tool = 'fog-add'">☀ Разведать</button>
+            <button :class="{ on: tool === 'fog-erase' }" title="Кистью вернуть туман" @click="tool = 'fog-erase'">☁ Скрыть</button>
+            <button class="day" @click="dayOpen = !dayOpen">⏳ Прошёл день</button>
+          </template>
+          <template v-else>
+            <button :class="{ on: tool?.place }" @click="palette = !palette">⚒ Приказ: построить</button>
+            <button :class="{ on: tool?.explore }" @click="tool = { explore: true }">🧭 Приказ: разведать</button>
+          </template>
+        </div>
+        <div v-if="tool && hint" class="sp-hint">{{ hint }}</div>
+        <!-- палитра построек -->
+        <div v-if="palette" class="sp-pop palette">
+          <div class="pop-head"><b>{{ master ? 'Поставить постройку' : 'Что построить?' }}</b><button @click="palette = false">×</button></div>
+          <label v-if="master" class="chk"><input v-model="placeBuilt" type="checkbox" /> сразу построена (иначе — стройка)</label>
+          <div v-for="(list, cat) in paletteGroups" :key="cat" class="pal-group">
+            <small>{{ CATEGORIES[cat]?.label }}</small>
+            <button v-for="b in list" :key="b.type" class="pal-item" :class="{ on: tool?.place === b.type }" @click="startPlace(b.type)">
+              <img :src="`/settlement/${b.icon}.png`" alt="" /><span>{{ b.label }}</span><em>{{ SIZES[b.size]?.label }} · {{ b.cost }}</em>
+            </button>
+          </div>
+        </div>
+        <!-- «прошёл день» -->
+        <div v-if="dayOpen" class="sp-pop day">
+          <div class="pop-head"><b>Сколько прошло?</b><button @click="dayOpen = false">×</button></div>
+          <p>Запасы изменятся на итог за эти дни, нехватки попадут в журнал, стройка продвинется.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
+          <div class="day-row">
+            <button @click="advance(1)">1 день</button><button @click="advance(7)">Неделя</button>
+            <input v-model.number="customDays" type="number" min="1" max="60" /><button @click="advance(customDays)">дней</button>
+          </div>
+        </div>
+      </div>
 
       <aside class="sp-panel">
         <!-- шапка поселения -->
@@ -44,30 +83,32 @@
         </section>
 
         <!-- выбранная на карте постройка или аванпост -->
-        <BuildingCard v-if="selItem" :settlement="s" :calc="calc" :sel="sel" :item="selItem" @close="sel = null" />
+        <BuildingCard v-if="selItem" :settlement="s" :calc="calc" :sel="sel" :item="selItem" :master="master" @close="sel = null" @save="saveItem" @remove="removeItem" />
 
         <nav class="sp-tabbar">
           <button v-for="tb in TABS" :key="tb.id" :class="{ on: tab === tb.id }" @click="setTab(tb.id)">
             {{ tb.label }}<i v-if="tb.dot" class="dot" />
           </button>
         </nav>
-        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" @pick="sel = $event" />
+        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" @pick="sel = $event" @edit="editing = $event" />
         <p class="sp-credit">Значки: game-icons.net (CC BY 3.0)</p>
       </aside>
     </div>
+    <SettlementEditor v-if="editing && s" :section="editing" :settlement="s" @close="editing = null" />
   </div>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
 import SettlementMap from './SettlementMap.vue'
 import SettlementTabs from './SettlementTabs.vue'
 import BuildingCard from './BuildingCard.vue'
-import { store } from '../map/store.js'
-import { computeSettlement } from '../shared/settlement.js'
+import SettlementEditor from './SettlementEditor.vue'
+import { store, isMaster, act } from '../map/store.js'
+import { computeSettlement, BUILDINGS, CATEGORIES, SIZES } from '../shared/settlement.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -78,6 +119,96 @@ const s = computed(() => {
 const calc = computed(() => computeSettlement(s.value || {}))
 const city = computed(() => s.value?.cityId && store.data.cities?.find(c => c.id === s.value.cityId))
 watch(s, v => { if (v) document.title = `${v.name} — Анкария` }, { immediate: true })
+
+const master = isMaster
+// решать могут выбранные мастером игроки
+const decider = computed(() => !!store.me && store.me.role === 'player' && !!s.value?.deciders?.includes(store.me.id))
+const editing = ref(null)
+
+/* ---------- инструменты карты ---------- */
+const tool = ref(null)
+const palette = ref(false)
+const placeBuilt = ref(true)
+const dayOpen = ref(false)
+const customDays = ref(3)
+const paletteGroups = computed(() => {
+  const out = {}
+  for (const [type, b] of Object.entries(BUILDINGS)) {
+    if (b.personal && !master.value) continue
+    ;(out[b.cat] ||= []).push({ type, ...b })
+  }
+  return out
+})
+function startPlace(type) {
+  tool.value = { place: type }
+  palette.value = false
+}
+const hint = computed(() => {
+  const t = tool.value
+  if (t === 'move') return 'Тяни постройку или аванпост. Красным — сюда нельзя.'
+  if (t?.place) return `Кликни по разведанной земле, куда поставить «${BUILDINGS[t.place]?.label}». Esc — отмена.`
+  if (t?.explore) return 'Кликни, какой участок разведать — мастер получит приказ.'
+  if (t === 'fog-add') return 'Води кистью — земля станет разведанной.'
+  if (t === 'fog-erase') return 'Води кистью — вернёт туман на кружки разведки.'
+  return ''
+})
+// приказы на рассмотрении — призраки на карте
+const ghosts = computed(() => (s.value?.orders || []).filter(o => o.status === 'pending' && (o.build || o.explore)).map(o => (o.build
+  ? { id: o.id, type: o.build.type, x: o.build.x, y: o.build.y, side: SIZES[BUILDINGS[o.build.type]?.size]?.side || 56 }
+  : { id: o.id, explore: true, x: o.explore.x, y: o.explore.y, r: o.explore.r })))
+
+const patch = (body, ok) => act('PATCH', `/api/settlements/${s.value.id}`, body, ok)
+function onMoved({ id, x, y }) {
+  if (s.value.buildings.some(b => b.id === id)) patch({ buildings: s.value.buildings.map(b => (b.id === id ? { ...b, x, y } : b)) })
+  else if (s.value.outposts.some(o => o.id === id)) patch({ outposts: s.value.outposts.map(o => (o.id === id ? { ...o, x, y } : o)) })
+}
+async function onPlaced({ type, x, y }) {
+  if (master.value) {
+    const settle = BUILDINGS[type].size === 'settlement'
+    const b = { id: 'b' + Date.now().toString(36), type, x: settle ? 0 : x, y: settle ? 0 : y, state: placeBuilt.value ? 'built' : 'construction', ...(placeBuilt.value ? {} : { progress: 0 }) }
+    await patch({ buildings: [...s.value.buildings, b] }, `«${BUILDINGS[type].label}» ${placeBuilt.value ? 'поставлена' : 'заложена'}`)
+    sel.value = { kind: 'building', id: b.id }
+  } else {
+    const text = prompt(`Приказ: построить «${BUILDINGS[type].label}». Комментарий для мастера (необязательно):`, '')
+    if (text === null) return
+    await act('POST', `/api/settlements/${s.value.id}/orders`, { kind: 'build', type, x, y, text }, 'Приказ отправлен мастеру')
+    tool.value = null
+  }
+}
+async function onExplore({ x, y }) {
+  const text = prompt('Приказ: разведать этот участок. Комментарий для мастера (необязательно):', '')
+  if (text === null) return
+  await act('POST', `/api/settlements/${s.value.id}/orders`, { kind: 'explore', x, y, text }, 'Приказ отправлен мастеру')
+  tool.value = null
+}
+function onFog({ erase, points, r }) {
+  const ex = s.value.explored || []
+  const next = erase
+    ? ex.filter(e => !e.r || !points.some(p => Math.hypot(p.x - e.x, p.y - e.y) < r + e.r * 0.5))
+    : [...ex, ...points.map(p => ({ x: p.x, y: p.y, r }))]
+  patch({ explored: next })
+}
+async function advance(days) {
+  const r = await act('POST', `/api/settlements/${s.value.id}/advance`, { days }, `Прошло дней: ${days}`)
+  dayOpen.value = false
+  if (r?.short?.length) setTab('journal')
+}
+function saveItem(kind, item) {
+  if (kind === 'building') patch({ buildings: s.value.buildings.map(b => (b.id === item.id ? item : b)) }, 'Сохранено')
+  else patch({ outposts: s.value.outposts.map(o => (o.id === item.id ? item : o)) }, 'Сохранено')
+}
+function removeItem(kind, id) {
+  if (!confirm('Убрать с карты?')) return
+  if (kind === 'building') patch({ buildings: s.value.buildings.filter(b => b.id !== id) }, 'Убрано')
+  else patch({ outposts: s.value.outposts.filter(o => o.id !== id) }, 'Убрано')
+  sel.value = null
+}
+onKey()
+function onKey() {
+  const h = e => { if (e.key === 'Escape') { tool.value = null; palette.value = false; dayOpen.value = false } }
+  window.addEventListener('keydown', h)
+  onBeforeUnmount(() => window.removeEventListener('keydown', h))
+}
 
 const sel = ref(null)
 const selItem = computed(() => {
@@ -94,6 +225,7 @@ const TABS = computed(() => [
   { id: 'jobs', label: 'Работы' },
   { id: 'assets', label: 'Активы' },
   { id: 'outposts', label: 'Аванпосты' },
+  { id: 'orders', label: 'Приказы', dot: master.value && (s.value?.orders || []).some(o => o.status === 'pending') },
   { id: 'journal', label: 'Журнал', dot: (s.value?.events || []).some(e => e.duration?.includes('decide') && !e.decision) }
 ])
 function setTab(id) {
@@ -115,7 +247,29 @@ function setTab(id) {
 .sp-load { display: grid; place-items: center; min-height: 70vh; color: var(--a-muted); }
 
 .sp-body { display: grid; grid-template-columns: minmax(0, 1fr) 460px; height: calc(100vh - 64px); }
+.sp-mapwrap { position: relative; min-height: 0; }
 .sp-map { height: 100%; border-right: 1px solid var(--a-line); }
+.sp-tools { position: absolute; top: 12px; left: 12px; display: flex; flex-wrap: wrap; gap: 4px; max-width: calc(100% - 24px); padding: 4px; border-radius: 12px; background: rgba(13, 16, 23, .88); border: 1px solid var(--a-line); backdrop-filter: blur(6px); }
+.sp-tools button { padding: 6px 10px; border-radius: 9px; border: 1px solid transparent; background: none; color: var(--a-muted); font: 700 12.5px var(--a-sans); cursor: pointer; white-space: nowrap; }
+.sp-tools button:hover { color: var(--a-text); background: rgba(255, 255, 255, .05); }
+.sp-tools button.on { background: rgba(231, 197, 111, .16); border-color: rgba(231, 197, 111, .4); color: var(--a-gold-2); }
+.sp-tools .day { color: #9fd0ff; }
+.sp-hint { position: absolute; top: 62px; left: 12px; padding: 6px 10px; border-radius: 9px; background: rgba(23, 19, 14, .9); border: 1px solid #8a6630; color: #e6d6b0; font: 600 12px var(--a-sans); pointer-events: none; }
+.sp-pop { position: absolute; z-index: 6; top: 62px; left: 12px; width: 330px; max-height: calc(100% - 80px); overflow-y: auto; padding: 10px 12px; border-radius: 14px; background: rgba(20, 17, 12, .97); border: 1px solid #8a6630; box-shadow: 0 16px 40px rgba(0, 0, 0, .6); color: var(--a-text); font-size: 12.5px; }
+.sp-pop.day { width: 300px; }
+.pop-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.pop-head b { font: 700 18px var(--a-serif); color: var(--a-gold-2); }
+.pop-head button { border: 0; background: none; color: var(--a-muted); font-size: 22px; cursor: pointer; }
+.chk { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; color: #d9cdb0; }
+.pal-group small { display: block; margin: 8px 0 3px; color: var(--a-muted); font-weight: 800; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+.pal-item { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 4px 6px; border-radius: 8px; border: 1px solid transparent; background: none; color: var(--a-text); font: 600 12.5px var(--a-sans); text-align: left; cursor: pointer; }
+.pal-item:hover, .pal-item.on { background: rgba(231, 197, 111, .1); border-color: var(--a-line); }
+.pal-item img { width: 24px; height: 24px; padding: 2px; border-radius: 5px; background: #d6d2c8; }
+.pal-item em { font-style: normal; color: var(--a-muted); font-size: 11px; }
+.sp-pop p { color: #b9ab8a; line-height: 1.45; margin: 0 0 8px; }
+.day-row { display: flex; gap: 5px; }
+.day-row button { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .1); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
+.day-row input { width: 52px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); }
 .sp-panel { overflow-y: auto; padding: 18px 18px 30px; scrollbar-width: thin; }
 
 .sp-head { padding: 14px 16px; border-radius: 16px; background: linear-gradient(170deg, #241c13, #16110c); border: 1px solid #6e4f22; box-shadow: 0 0 0 3px #1a140e, 0 0 0 4px rgba(201, 162, 79, .3); }
@@ -143,6 +297,8 @@ function setTab(id) {
   .sp-brand span { display: none; }
   .sp-body { grid-template-columns: 1fr; height: auto; }
   .sp-map { height: 58vh; border-right: 0; border-bottom: 1px solid var(--a-line); }
+  .sp-pop { width: calc(100% - 24px); top: 98px; max-height: calc(100% - 110px); }
+  .sp-hint { top: 98px; right: 12px; }
   .sp-panel { overflow: visible; padding: 14px 12px 30px; }
   .sp-tabbar { top: 64px; margin: 14px -12px 12px; padding: 10px 12px 8px; }
 }
