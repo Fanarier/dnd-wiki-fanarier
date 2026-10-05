@@ -2,6 +2,9 @@
 // так тысячи деревьев не тормозят при перетаскивании. Поверх неё SVG: постройки, туман, подписи.
 import { pointInPoly, footprint, BUILDINGS } from '../shared/settlement.js'
 
+// холст: в фоновом потоке — OffscreenCanvas, иначе обычный
+const makeCanvas = (w, h) => (typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), { width: w, height: h }))
+
 function rng(seed) {
   return () => {
     seed = (seed * 16807) % 2147483647
@@ -47,9 +50,7 @@ function offsetLine(pts, off) {
 }
 // мягкие пятна: маленький холст со случайными цветами, растянутый со сглаживанием
 function blotches(g, W, H, cells, colors, alpha, r) {
-  const c = document.createElement('canvas')
-  c.width = cells
-  c.height = Math.ceil((cells * H) / W)
+  const c = makeCanvas(cells, Math.ceil((cells * H) / W))
   const x = c.getContext('2d')
   for (let i = 0; i < c.width; i++) for (let j = 0; j < c.height; j++) {
     x.fillStyle = colors[Math.floor(r() * colors.length)]
@@ -63,13 +64,12 @@ function blotches(g, W, H, cells, colors, alpha, r) {
   g.restore()
 }
 
-// scale — во сколько раз картинка крупнее карты (2 — чётко при приближении)
-export function paintTerrain(s, scale = 2) {
+// рисует местность в PNG (Blob). scale — во сколько раз картинка крупнее карты (2 — чётко при приближении).
+// Нужны только s.terrain и s.buildings (деревья обходят дома). Работает и в фоновом потоке (terrainWorker.js).
+export function paintTerrainBlob(s, scale = 2) {
   const t = s.terrain
   const W = t.w, H = t.h
-  const c = document.createElement('canvas')
-  c.width = Math.round(W * scale)
-  c.height = Math.round(H * scale)
+  const c = makeCanvas(Math.round(W * scale), Math.round(H * scale))
   const g = c.getContext('2d')
   g.scale(scale, scale)
   const r = rng(20261005)
@@ -283,5 +283,5 @@ export function paintTerrain(s, scale = 2) {
   g.fillStyle = vg
   g.fillRect(0, 0, W, H)
 
-  return new Promise(res => c.toBlob(b => res(URL.createObjectURL(b)), 'image/png'))
+  return c.convertToBlob ? c.convertToBlob({ type: 'image/png' }) : new Promise(res => c.toBlob(res, 'image/png'))
 }

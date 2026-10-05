@@ -1,5 +1,5 @@
 <template>
-  <div class="st">
+  <div class="st" :class="{ wide }">
     <!-- ================= ОБЗОР ================= -->
     <template v-if="tab === 'overview'">
       <h3>Основная информация<button v-if="master" class="ed" @click="emit('edit', 'overview')">✎ Править</button></h3>
@@ -72,6 +72,7 @@
     <!-- ================= ЖИТЕЛИ ================= -->
     <template v-else-if="tab === 'residents'">
       <h3>Жители <small>{{ calc.population }} · взрослых {{ calc.adults }}, детей {{ calc.kids }}</small><button v-if="master" class="ed" @click="emit('edit', 'residents')">✎ Править</button></h3>
+      <div class="cards">
       <div v-for="r in s.races" :key="r.race" class="race">
         <div class="race-top" @click="openRace = openRace === r.race ? null : r.race">
           <div class="race-name">{{ RACES[r.race]?.label }}<small>{{ (r.male || 0) + (r.female || 0) + (r.kids || 0) }}</small></div>
@@ -89,12 +90,14 @@
           </div>
         </div>
       </div>
+      </div>
       <p class="muted note">Нажми на расу — свойства, качества и нормы. «Боевые» и «Важные» — отметки поверх работы, а не отдельные люди.</p>
     </template>
 
     <!-- ================= РАБОТЫ ================= -->
     <template v-else-if="tab === 'jobs'">
       <h3>Рабочие места<button v-if="master" class="ed" @click="emit('edit', 'jobs')">✎ Править</button></h3>
+      <div class="cards">
       <div v-for="j in jobList" :key="j.key" class="job">
         <div class="job-top">
           <img :src="icon(JOBS[j.key].icon)" alt="" />
@@ -115,11 +118,13 @@
           <span class="spec-names">{{ j.specialists.filter(Boolean).map(x => x.name).join(', ') }}</span>
         </div>
       </div>
+      </div>
     </template>
 
     <!-- ================= АКТИВЫ ================= -->
     <template v-else-if="tab === 'assets'">
       <h3>Активы в работе<button v-if="master" class="ed" @click="emit('edit', 'assets')">✎ Править</button></h3>
+ <div class="cards">
       <div v-for="a in s.assets" :key="a.id" class="asset" :style="{ '--fr': ASSET_FRAMES[a.frame] || '#8a6630' }">
         <div class="person" :class="{ hex: a.companion }"><img v-if="face(a)" :src="face(a)" alt="" /><span v-else>{{ initial(a.name) }}</span></div>
         <div class="asset-body">
@@ -132,11 +137,13 @@
           <div v-if="a.note" class="asset-note" :style="{ color: a.note.color }">{{ a.note.text }}</div>
         </div>
       </div>
+      </div>
     </template>
 
     <!-- ================= АВАНПОСТЫ ================= -->
     <template v-else-if="tab === 'outposts'">
       <h3>Аванпосты <small>{{ s.outposts.length }} из {{ s.stats?.outpostSlots || s.outposts.length }}</small><button v-if="master" class="ed" @click="emit('edit', 'outposts')">✎ Править</button></h3>
+      <div class="cards">
       <div v-for="o in s.outposts" :key="o.id" class="outpost" :class="o.state" @click="emit('pick', { kind: 'outpost', id: o.id })">
         <img :src="icon(OUTPOSTS[o.type]?.icon)" alt="" />
         <div>
@@ -146,6 +153,7 @@
         </div>
       </div>
       <div v-for="n in Math.max(0, (s.stats?.outpostSlots || 0) - s.outposts.length)" :key="'e' + n" class="outpost empty">Свободный слот аванпоста</div>
+      </div>
     </template>
 
     <!-- ================= ЖУРНАЛ ================= -->
@@ -169,6 +177,7 @@
           <button class="btn" :disabled="(s.suggestions?.length || 0) >= 8" @click="rollSuggestion">🎲 Придумать</button>
         </div>
         <p v-if="!s.suggestions?.length" class="muted">Пока пусто. Заготовки появляются при «Прошёл день» (примерно одна на три дня) или по кнопке.</p>
+        <div class="cards">
         <div v-for="g in s.suggestions || []" :key="g.id" class="ev sg" :style="{ '--ec': EVENT_TYPES[g.type]?.color }">
           <template v-if="sgEdit?.id === g.id">
             <input v-model="sgEdit.title" />
@@ -192,7 +201,9 @@
             <button class="btn primary" @click="releaseSuggestion(g)">В журнал</button>
           </div>
         </div>
+        </div>
       </section>
+      <div class="journal">
       <div v-for="e in events" :key="e.id" class="ev" :style="{ '--ec': EVENT_TYPES[e.type]?.color }">
         <div class="ev-top">
           <img :src="icon(EVENT_TYPES[e.type]?.icon)" alt="" />
@@ -214,6 +225,7 @@
           <button v-if="master" class="ev-act del" @click="removeEvent(e)">удалить событие</button>
         </div>
       </div>
+      </div>
     </template>
     <!-- ================= ПРИКАЗЫ ================= -->
     <template v-else-if="tab === 'orders'">
@@ -230,6 +242,7 @@
       </div>
       <p v-else-if="!master" class="muted">Приказы отдают игроки, которых выбрал мастер.</p>
       <div v-if="!orders.length" class="muted">Приказов пока нет</div>
+      <div class="cards">
       <div v-for="o in orders" :key="o.id" class="ord" :class="o.status">
         <div class="ord-top">
           <b>{{ orderTitle(o) }}</b>
@@ -250,10 +263,11 @@
         </div>
         <button v-else-if="o.status === 'pending' && o.by === store.me?.id" class="ev-act" @click="cancelOrder(o)">отменить приказ</button>
       </div>
+      </div>
     </template>
 
     <!-- ================= ИСТОРИЯ ================= -->
-    <SettlementHistory v-else-if="tab === 'history'" :settlement="s" />
+    <SettlementHistory v-else-if="tab === 'history'" :settlement="s" :wide="wide" />
   </div>
 </template>
 
@@ -265,7 +279,7 @@ import { applyText } from '../shared/settlementEvents.js'
 import PriceChips from './PriceChips.vue'
 import SettlementHistory from './SettlementHistory.vue'
 
-const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean })
+const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean, wide: Boolean })
 const emit = defineEmits(['pick', 'edit'])
 const base = () => `/api/settlements/${props.settlement.id}`
 const s = computed(() => props.settlement)
@@ -519,6 +533,20 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .ev-dec { margin-top: 6px; padding: 6px 9px; border-radius: 8px; background: rgba(231, 197, 111, .07); border: 1px solid var(--a-line); font-size: 12.5px; color: var(--a-text); }
 .ev-dec small { display: block; color: var(--a-muted); font-weight: 800; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
 .ev-dec.none { color: #ffb36b; }
+
+/* большой формат: списки в несколько колонок, крупнее шрифт */
+.st.wide { font-size: 14px; }
+.st.wide h3 { font-size: 26px; }
+.st.wide .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 10px; align-items: start; }
+.st.wide .cards > * { margin-bottom: 0; }
+.st.wide .tiles { grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); }
+.st.wide .tile { font-size: 14px; padding: 9px 12px; }
+.st.wide .journal { max-width: 920px; }
+.st.wide .ev p, .st.wide .ord p { font-size: 14px; }
+.st.wide .res { font-size: 14px; }
+.st.wide .res td { padding: 8px 12px; }
+.st.wide .bcount { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.st.wide .asset-cols div, .st.wide .job-eff, .st.wide .cats { font-size: 13.5px; }
 .hero-link { color: var(--a-gold-2); font-weight: 800; text-decoration: underline dotted; text-underline-offset: 3px; }
 .hero-link.sm { font-size: 11px; color: var(--a-gold); }
 .hero-link.card { margin-left: 8px; font: 700 11.5px var(--a-sans); color: var(--a-gold); }

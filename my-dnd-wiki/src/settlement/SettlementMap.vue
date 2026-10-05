@@ -1,5 +1,5 @@
 <template>
-  <div ref="box" class="sm" :class="[{ grabbing: drag && !toolActive }, toolClass]" @wheel.prevent="onWheel" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @pointerleave="hover = null; cursor = null">
+  <div ref="box" class="sm" :class="[{ grabbing: panning }, toolClass]" @wheel.prevent="onWheel" @mousedown="e => e.button === 1 && e.preventDefault()" @contextmenu.prevent @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp" @pointerleave="hover = null; cursor = null">
     <svg v-if="size.w" :width="size.w" :height="size.h" class="sm-svg">
       <defs>
         <!-- туман: облачная текстура, неразведанное закрыто; края разведанного размыты -->
@@ -105,7 +105,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, placementProblems } from '../shared/settlement.js'
-import { paintTerrain } from './terrainPainter.js'
+import { paintTerrain } from './terrain.js'
 import { fogTexture } from '../map/fogTexture.js'
 
 const props = defineProps({
@@ -117,7 +117,7 @@ const props = defineProps({
   tool: { type: [String, Object], default: null },
   ghosts: { type: Array, default: () => [] } // приказы на рассмотрении
 })
-const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'ready'])
 
 const t = computed(() => props.settlement.terrain || { w: 1600, h: 1300 })
 const W = computed(() => t.value.w).value
@@ -165,8 +165,12 @@ async function repaint() {
   if (key === lastKey) return
   lastKey = key
   const old = terrainUrl.value
-  terrainUrl.value = await paintTerrain(props.settlement, matchMedia('(max-width: 700px)').matches ? 1.25 : 2)
+  const url = await paintTerrain(props.settlement, matchMedia('(max-width: 700px)').matches ? 1.25 : 2)
+  // картинку декодируем заранее, чтобы местность появилась целиком, а не кусками
+  await new Promise(res => { const im = new Image(); im.onload = im.onerror = res; im.src = url; im.decode?.().then(res, res) })
+  terrainUrl.value = url
   if (old) URL.revokeObjectURL(old)
+  else emit('ready')
 }
 watch(() => [props.settlement.terrain, placed.value], repaint, { deep: true })
 
@@ -200,12 +204,22 @@ function onWheel(e) {
 }
 const pointers = new Map()
 const drag = ref(false)
+const panning = ref(false)
 let moved = false, pinch = null
 function onDown(e) {
-  if (e.button > 0) return
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  const mouse = e.pointerType === 'mouse'
+  if (mouse && e.button > 2) return
+  // мышью карту двигают зажатым колёсиком (или правой кнопкой), левая — выбирать и ставить; пальцем — как обычно
+  const panBtn = mouse && e.button !== 0
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pan: !mouse || panBtn })
   moved = false
   drag.value = true
+  if (panBtn) {
+    e.preventDefault()
+    panning.value = true
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    return
+  }
   // мастер тянет постройку
   if (props.tool === 'move' && pointers.size === 1) {
     const g = e.target.closest?.('.sm-item[data-id]')
@@ -254,7 +268,8 @@ function onMove(e) {
     zoomAt((a.x + b.x) / 2 - rc.left, (a.y + b.y) / 2 - rc.top, d / pinch.d)
     pinch.d = d
   } else if (pointers.size === 1) {
-    if (!drag.value) return
+    if (!drag.value || !p.pan) return
+    if (moved) panning.value = true
     view.x += dx
     view.y += dy
     if (moved) e.currentTarget.setPointerCapture?.(e.pointerId)
@@ -276,17 +291,18 @@ function onUp(e) {
     drag.value = false
     return
   }
+  const primary = e.button === 0 && !pointers.get(e.pointerId)?.pan || e.pointerType !== 'mouse'
   // поставить постройку / выбрать точку разведки
-  if (!moved && e.type === 'pointerup' && toolActive.value && pointers.size === 1) {
+  if (!moved && e.type === 'pointerup' && primary && toolActive.value && pointers.size === 1) {
     const w = toWorld(e.clientX, e.clientY)
     if (props.tool.place && !cursorBad.value.length) emit('placed', { type: props.tool.place, ...w })
     if (props.tool.explore) emit('explore', w)
   }
   pointers.delete(e.pointerId)
   if (pointers.size < 2) pinch = null
-  if (!pointers.size) drag.value = false
+  if (!pointers.size) { drag.value = false; panning.value = false }
   // клик по пустому месту снимает выбор
-  if (!moved && !toolActive.value && e.type === 'pointerup' && e.target.closest && !e.target.closest('.sm-item') && !e.target.closest('.sm-ctrl')) emit('select', null)
+  if (!moved && primary && !toolActive.value && e.type === 'pointerup' && e.target.closest && !e.target.closest('.sm-item') && !e.target.closest('.sm-ctrl')) emit('select', null)
   setTimeout(() => { moved = false })
 }
 
@@ -327,7 +343,7 @@ defineExpose({ fit })
 </script>
 
 <style scoped>
-.sm { position: relative; overflow: hidden; background: #171b20; touch-action: none; cursor: grab; user-select: none; }
+.sm { position: relative; overflow: hidden; background: #171b20; touch-action: none; cursor: default; user-select: none; }
 .sm.grabbing { cursor: grabbing; }
 .sm-svg { display: block; }
 .sm-border { fill: none; stroke: rgba(231, 197, 111, .55); stroke-dasharray: 1 18; stroke-linecap: round; pointer-events: none; }

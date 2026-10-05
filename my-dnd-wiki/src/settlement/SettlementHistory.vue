@@ -85,7 +85,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import { RES, RESOURCES } from '../shared/settlement.js'
 
-const props = defineProps({ settlement: Object })
+const props = defineProps({ settlement: Object, wide: Boolean })
 const s = computed(() => props.settlement)
 const snaps = computed(() => s.value.history || [])
 const last = computed(() => snaps.value[snaps.value.length - 1] || {})
@@ -135,7 +135,9 @@ watch(resChoices, list => {
 /* геометрия графика */
 const box = ref(null)
 const W = ref(420)
-const H = 210, PL = 40, PR = 44, PT = 10, PB = 22
+const PL = 40, PR = 44, PT = 10, PB = 22
+// в большом формате график выше, чтобы не был сплюснутым
+const H = computed(() => (props.wide ? Math.round(Math.min(380, Math.max(210, W.value * 0.3))) : 210))
 let ro
 onMounted(() => {
   ro = new ResizeObserver(() => { if (box.value) W.value = Math.max(260, box.value.clientWidth) })
@@ -150,7 +152,7 @@ const yMax = computed(() => {
   return Math.ceil(m / step) * step
 })
 const x = d => PL + ((d - d0.value) / (d1.value - d0.value)) * (W.value - PL - PR)
-const y = v => PT + (1 - v / yMax.value) * (H - PT - PB)
+const y = v => PT + (1 - v / yMax.value) * (H.value - PT - PB)
 const yTicks = computed(() => [0, 0.25, 0.5, 0.75, 1].map(f => Math.round(yMax.value * f)))
 const xTicks = computed(() => {
   const n = Math.min(6, d1.value - d0.value)
