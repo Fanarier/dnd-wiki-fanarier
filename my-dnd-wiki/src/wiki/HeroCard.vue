@@ -1,28 +1,22 @@
 <template>
   <div class="slot" :id="'hero-' + hero.id"
-       :class="[hero.kind, theme && 'themed th-' + theme, { flip, mine, shade: hero.hidden, pulse, live, unique: hero.kind === 'companion' && hero.rarity === 'unique' }]"
-       :style="[{ '--gc': gc, '--rc': rarity?.color, animationDelay: delay + 'ms' }, tvars, mouse]"
-       @mousemove="tilt" @mouseenter="enter" @mouseleave="untilt" @touchstart.passive="tap">
+       :class="[hero.kind, { flip, mine, shade: hero.hidden, pulse, unique: hero.kind === 'companion' && hero.rarity === 'unique' }]"
+       :style="{ '--gc': gc, '--rc': rarity?.color, animationDelay: delay + 'ms' }"
+       @mousemove="tilt" @mouseleave="untilt">
     <div class="card" :style="tiltStyle">
       <!-- ===== лицо ===== -->
       <div class="face front">
-        <div v-if="theme" class="tdeco"><svg class="mark" viewBox="0 0 24 24"><path :d="THEMES[theme].icon" fill="currentColor" /></svg></div>
         <i class="rivet a" /><i class="rivet b" /><i class="rivet c" /><i class="rivet d" /><i class="stripe" />
-        <div class="port" :class="{ art: arts.length }" :title="arts.length ? 'Посмотреть арт целиком' : undefined"
-             @click="arts.length && (viewer = true)" @touchstart.passive="tStart" @touchend="tEnd">
-          <!-- колода артов: верхний — на виду, следующие выглядывают из-за него -->
-          <div v-for="c in deck" :key="c.a.id" class="dcard" :class="[c.anim, { top: c.d === 0 }]" :style="c.style" @animationend="c.anim && (anim = null)">
-            <img class="pimg" :src="heroPortraitUrl(c.a.thumb || c.a.file)" :style="focusStyle(c.a)" alt="" loading="lazy" />
-          </div>
+        <div class="port" :class="{ art: arts.length }" :title="arts.length ? (arts.length > 1 ? 'Веди мышкой — листай арты, клик — на весь экран' : 'Посмотреть арт целиком') : undefined"
+             @click="arts.length && (viewer = true)" @mousemove="scrub" @mouseleave="unscrub" @touchstart.passive="tStart" @touchend="tEnd">
+          <transition name="xf">
+            <img v-if="art" :key="art.id" class="pimg" :src="heroPortraitUrl(art.thumb || art.file)" :style="focusStyle" alt="" loading="lazy" />
+          </transition>
           <div v-if="!arts.length" class="ph">{{ initial }}</div>
-          <!-- полоски кадров: сколько артов и какой сейчас; по ним можно щёлкать -->
+          <!-- полоски кадров: сколько артов и какой сейчас -->
           <div v-if="arts.length > 1" class="frames" :class="{ left: hero.kind === 'companion' }">
-            <button v-for="(a, n) in arts" :key="a.id" type="button" :class="{ on: n === idx }" :aria-label="`Арт ${n + 1}`" @click.stop="go(n)" />
+            <i v-for="(a, n) in arts" :key="a.id" :class="{ on: n === idx }" />
           </div>
-          <template v-if="arts.length > 1">
-            <button type="button" class="dnav prev" aria-label="Предыдущий арт" @click.stop="step(-1)">‹</button>
-            <button type="button" class="dnav next" aria-label="Следующий арт" @click.stop="step(1)">›</button>
-          </template>
           <div v-if="hero.kind !== 'companion'" class="lvl"><div><small>УР.</small>{{ hero.level }}</div></div>
           <div v-if="hero.kind !== 'companion'" class="bm"><small>БМ</small>{{ hero.bm || '—' }}</div>
           <div v-else class="rar">{{ rarity.label }}</div>
@@ -68,12 +62,10 @@
           </div>
         </div>
         <button v-if="hero.kind === 'character'" class="turn" @click.stop="turn">↻ Расходы и отношения</button>
-        <HeroFx v-if="theme && live && !flip" :theme="theme" />
       </div>
 
       <!-- ===== оборот (только персонажи) ===== -->
       <div v-if="hero.kind === 'character'" class="face back">
-        <div v-if="theme" class="tdeco"><svg class="mark" viewBox="0 0 24 24"><path :d="THEMES[theme].icon" fill="currentColor" /></svg></div>
         <i class="rivet a" /><i class="rivet b" /><i class="rivet c" /><i class="rivet d" /><i class="stripe" />
         <div class="b-title">{{ hero.name }}</div>
         <div class="b-sub">ур. {{ hero.level }} · {{ hero.location || 'где-то в Анкарии' }}</div>
@@ -101,17 +93,15 @@
         <button class="turn" @click.stop="turn">↻ Назад</button>
       </div>
     </div>
-    <HeroGalleryViewer v-if="viewer" :arts="arts" :start="idx" :name="hero.name" :theme="theme" @close="viewer = false" @index="go" />
+    <HeroGalleryViewer v-if="viewer" :arts="arts" :start="idx" :name="hero.name" @close="viewer = false" />
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { mdiMapMarker, mdiHome, mdiFlag, mdiPaw } from '@mdi/js'
 import HexPips from './HexPips.vue'
 import HeroGalleryViewer from './HeroGalleryViewer.vue'
-import HeroFx from './HeroFx.vue'
-import { HERO_THEMES, heroThemeKey, themeVars } from './heroThemes.js'
 import { store, heroPortraitUrl, avatarUrl } from '../map/store.js'
 import { RARITY, ILLNESS_MAX, REL_LEVELS, REL_CELL, EXPENSES, groupColor, isNoGroup } from '../shared/catalog.js'
 
@@ -142,51 +132,22 @@ const relations = computed(() => (props.hero.relations || []).map(r => {
   return { ...r, hero, name: hero?.name || r.name }
 }))
 
-/* арты карточки: колода, первый — обложка; листаются стрелками, полосками и свайпом */
+/* арты карточки: первый — обложка; мышкой по портрету листаются, на телефоне — свайпом */
 const arts = computed(() => props.hero.gallery || [])
 const idx = ref(0)
+const art = computed(() => arts.value[idx.value] || arts.value[0] || null)
 watch(() => arts.value.length, n => { if (idx.value >= n) idx.value = 0 })
 // какая часть арта видна (выбирается в редакторе)
-function focusStyle(a) {
-  const p = { x: 50, y: 20, zoom: 1, ...a?.pos }
+const focusStyle = computed(() => {
+  const p = { x: 50, y: 20, zoom: 1, ...art.value?.pos }
   return { objectPosition: `${p.x}% ${p.y}%`, transformOrigin: `${p.x}% ${p.y}%`, '--z': p.zoom }
-}
-// куда сдвинут и повёрнут арт на глубине d колоды (0 — верхний)
-const SPOT = [
-  'none',
-  'translate(5px, -4px) rotate(2.2deg) scale(.985)',
-  'translate(9px, -7px) rotate(4.2deg) scale(.97)'
-]
-const SPOT_FAN = [
-  'none',
-  'translate(8px, -5px) rotate(3.4deg) scale(.985)',
-  'translate(14px, -8px) rotate(6.4deg) scale(.97)'
-]
-// последняя смена: 'toss' — верхний улетел назад в колоду, 'draw' — нижний вытянут наверх
-const anim = ref(null)
-const deck = computed(() => {
-  const n = arts.value.length
-  const out = []
-  arts.value.forEach((a, i) => {
-    const d = (i - idx.value + n) % n
-    const moving = anim.value?.id === a.id ? anim.value.kind : null
-    if (d > 2 && !moving) return
-    const spots = hover.value ? SPOT_FAN : SPOT
-    out.push({
-      a, d, anim: moving,
-      style: { '--rest': spots[Math.min(d, 2)], zIndex: 3 - Math.min(d, 3), '--dim': d ? 0.45 + 0.2 / d : 1, '--op': d > 2 ? 0 : 1 }
-    })
-  })
-  return out
 })
-function go(n) {
-  const len = arts.value.length
-  if (len < 2 || n === idx.value) return
-  const fwd = (n - idx.value + len) % len <= len / 2
-  anim.value = fwd ? { id: arts.value[idx.value].id, kind: 'toss' } : { id: arts.value[n].id, kind: 'draw' }
-  idx.value = (n + len) % len
+function scrub(e) {
+  if (arts.value.length < 2 || matchMedia('(hover: none)').matches) return
+  const r = e.currentTarget.getBoundingClientRect()
+  idx.value = Math.max(0, Math.min(arts.value.length - 1, Math.floor(((e.clientX - r.left) / r.width) * arts.value.length)))
 }
-const step = d => go((idx.value + d + arts.value.length) % arts.value.length)
+const unscrub = () => { idx.value = 0 }
 let tx = null
 const tStart = e => { tx = e.touches[0].clientX }
 function tEnd(e) {
@@ -195,27 +156,8 @@ function tEnd(e) {
   tx = null
   if (Math.abs(dx) < 40) return
   e.preventDefault() // свайп — не клик
-  step(dx < 0 ? 1 : -1)
+  idx.value = (idx.value + (dx < 0 ? 1 : -1) + arts.value.length) % arts.value.length
 }
-
-/* тема героя: рамка, узор, знак и эффекты при наведении */
-const THEMES = HERO_THEMES
-const theme = computed(() => heroThemeKey(props.hero))
-const tvars = computed(() => themeVars(theme.value))
-const hover = ref(false)
-// на телефоне касание тоже шлёт mouseenter, а mouseleave — нет; там эффекты включает tap()
-const enter = () => { if (!matchMedia('(hover: none)').matches) hover.value = true }
-// на телефоне наведения нет — эффекты показываем несколько секунд после касания
-const touchLive = ref(false)
-let touchTimer = null
-function tap() {
-  touchLive.value = true
-  clearTimeout(touchTimer)
-  touchTimer = setTimeout(() => { touchLive.value = false }, 3500)
-}
-onBeforeUnmount(() => clearTimeout(touchTimer))
-const live = computed(() => hover.value || touchLive.value)
-const mouse = ref(null)
 
 /* арты на весь экран */
 const viewer = ref(false)
@@ -231,14 +173,10 @@ function turn() {
 function tilt(e) {
   if (flip.value || matchMedia('(hover: none)').matches) return
   const r = e.currentTarget.getBoundingClientRect()
-  if (theme.value) mouse.value = { '--mx': `${Math.round(e.clientX - r.left)}px`, '--my': `${Math.round(e.clientY - r.top)}px` }
   ry.value = ((e.clientX - r.left) / r.width - 0.5) * 12
   rx.value = -((e.clientY - r.top) / r.height - 0.5) * 12
 }
-function untilt() {
-  rx.value = ry.value = 0
-  hover.value = false
-}
+function untilt() { rx.value = ry.value = 0 }
 </script>
 
 <style scoped>
@@ -256,58 +194,34 @@ function untilt() {
 .rivet.a { top: 7px; left: 7px; } .rivet.b { top: 7px; right: 7px; } .rivet.c { bottom: 7px; left: 7px; } .rivet.d { bottom: 7px; right: 7px; }
 .stripe { position: absolute; top: 0; left: 20%; right: 20%; height: 3px; border-radius: 0 0 4px 4px; background: var(--gc); box-shadow: 0 0 12px var(--gc); }
 
-/* портрет; арты лежат в нём колодой — края нижних выглядывают за рамку */
-.port { position: relative; z-index: 1; height: 250px; flex: none; border-radius: 12px; }
-.port:not(.art), .dcard { border: 1px solid #6b5127; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--gc) 28%, #2a2015), #120e09 75%); }
-.port:not(.art) { overflow: hidden; }
-.dcard { position: absolute; inset: 0; border-radius: 12px; overflow: hidden; transform: var(--rest); opacity: var(--op); filter: brightness(var(--dim)); box-shadow: 0 4px 14px rgba(0, 0, 0, .55); transition: transform .5s cubic-bezier(.2, .8, .2, 1), filter .5s, opacity .4s; }
-.dcard.toss { animation: toss .75s cubic-bezier(.3, .7, .25, 1) both; }
-.dcard.draw { animation: draw .75s cubic-bezier(.3, .7, .25, 1) both; }
-@keyframes toss {
-  0% { transform: none; filter: none; opacity: 1; z-index: 4; }
-  42% { transform: translate(-58%, -5%) rotate(-12deg) scale(.92); filter: none; opacity: 1; z-index: 4; }
-  43% { z-index: 0; }
-  100% { transform: var(--rest); filter: brightness(var(--dim)); opacity: var(--op); z-index: 0; }
-}
-@keyframes draw {
-  0% { transform: translate(9px, -7px) rotate(4.2deg) scale(.97); filter: brightness(.5); opacity: 0; z-index: 0; }
-  20% { opacity: 1; }
-  42% { transform: translate(-58%, -5%) rotate(-12deg) scale(.92); filter: none; opacity: 1; z-index: 0; }
-  43% { z-index: 4; }
-  100% { transform: none; filter: none; z-index: 4; }
-}
-.pimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(var(--z, 1)); transition: transform 6s ease; }
-.frames { position: absolute; z-index: 6; top: 3px; left: 62px; right: 74px; display: flex; gap: 3px; }
+.port { position: relative; height: 250px; flex: none; border-radius: 12px; overflow: hidden; border: 1px solid #6b5127; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--gc) 28%, #2a2015), #120e09 75%); }
+.pimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scale(var(--z, 1)); transition: transform 6s ease, opacity .35s ease; }
+.xf-enter-from, .xf-leave-to { opacity: 0; }
+.frames { position: absolute; z-index: 3; top: 9px; left: 62px; right: 74px; display: flex; gap: 3px; pointer-events: none; }
 .frames.left { left: 12px; right: 120px; }
-.frames button { flex: 1; height: 15px; padding: 6px 0; border: 0; border-radius: 2px; background: rgba(255, 240, 210, .3) content-box; cursor: pointer; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .8)); transition: background-color .2s; }
-.frames button:hover { background-color: rgba(255, 240, 210, .6); }
-.frames button.on { background-color: #f3d99a; }
-.dnav { position: absolute; z-index: 6; top: 50%; width: 30px; height: 30px; margin-top: -15px; border-radius: 50%; border: 1px solid rgba(201, 162, 79, .6); background: rgba(16, 12, 8, .72); color: #f3d99a; font-size: 20px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .2s, transform .2s, background .2s; }
-.dnav.prev { left: 6px; } .dnav.next { right: 6px; }
-.port:hover .dnav, .dnav:focus-visible { opacity: 1; }
-.dnav:hover { background: rgba(201, 162, 79, .3); transform: scale(1.1); }
-@media (hover: none) { .dnav { opacity: .75; } }
+.frames i { flex: 1; height: 3px; border-radius: 2px; background: rgba(255, 240, 210, .28); box-shadow: 0 1px 3px rgba(0, 0, 0, .6); transition: background .2s; }
+.frames i.on { background: #f3d99a; box-shadow: 0 0 6px rgba(243, 217, 154, .8); }
 .port.art { cursor: zoom-in; }
-.slot:hover .dcard.top .pimg { transform: scale(calc(var(--z, 1) * 1.07)); }
+.slot:hover .pimg { transform: scale(calc(var(--z, 1) * 1.07)); }
 /* портрет при наклоне карточки (3D) иначе перехватывает клики у кнопок поверх него */
 .pimg, .ph { pointer-events: none; }
 .ph { width: 100%; height: 100%; display: grid; place-items: center; font: 700 120px 'Cormorant Garamond', Georgia, serif; color: rgba(255, 240, 210, .16); }
-.port::after { content: ''; position: absolute; z-index: 4; inset: 0; border-radius: 12px; pointer-events: none; background: linear-gradient(180deg, transparent 50%, rgba(16, 12, 8, .94)); }
-.lvl { position: absolute; z-index: 5; top: 8px; left: 8px; width: 46px; height: 52px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(180deg, #f2d58f, #a87a33); display: grid; place-items: center; text-align: center; color: #1e150a; font: 800 18px/1 'Manrope', sans-serif; }
+.port::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, transparent 50%, rgba(16, 12, 8, .94)); }
+.lvl { position: absolute; z-index: 2; top: 8px; left: 8px; width: 46px; height: 52px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: linear-gradient(180deg, #f2d58f, #a87a33); display: grid; place-items: center; text-align: center; color: #1e150a; font: 800 18px/1 'Manrope', sans-serif; }
 .lvl small { display: block; font-size: 8px; letter-spacing: .5px; }
-.bm, .rar { position: absolute; z-index: 5; top: 10px; right: 10px; background: rgba(16, 12, 8, .78); border: 1px solid #b8893f; border-radius: 99px; padding: 3px 10px; font: 800 13px 'Manrope', sans-serif; color: #f3d99a; }
+.bm, .rar { position: absolute; z-index: 2; top: 10px; right: 10px; background: rgba(16, 12, 8, .78); border: 1px solid #b8893f; border-radius: 99px; padding: 3px 10px; font: 800 13px 'Manrope', sans-serif; color: #f3d99a; }
 .bm small { color: #a8936c; margin-right: 4px; }
 .rar { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--rc); border-color: var(--rc); }
-.name { position: absolute; z-index: 5; left: 12px; right: 12px; bottom: 8px; font: 700 25px/1.05 'Cormorant Garamond', Georgia, serif; color: #fff3d6; text-shadow: 0 2px 8px #000; }
+.name { position: absolute; z-index: 2; left: 12px; right: 12px; bottom: 8px; font: 700 25px/1.05 'Cormorant Garamond', Georgia, serif; color: #fff3d6; text-shadow: 0 2px 8px #000; }
 .sub { display: block; margin-top: 3px; font: 700 11px 'Manrope', sans-serif; letter-spacing: .3px; color: #e6c27a; }
 .sub svg { width: 11px; height: 11px; vertical-align: -1px; }
 .sub a { color: inherit; }
 .sub.me { color: #9be07a; }
 .sub.sk { color: #5fd3bd; }
-.stamp { position: absolute; z-index: 5; right: 12px; top: 52px; transform: rotate(-12deg); border: 2px solid #9be07a; color: #9be07a; padding: 2px 8px; border-radius: 6px; background: rgba(20, 40, 20, .6); font: 800 12px 'Manrope', sans-serif; letter-spacing: 1px; text-transform: uppercase; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: stamp .5s .9s cubic-bezier(.3, 1.6, .5, 1) both; }
-.shade-tag { position: absolute; z-index: 5; left: 62px; top: 14px; padding: 2px 8px; border-radius: 99px; background: rgba(40, 30, 70, .85); color: #cfc2ff; font: 800 11px 'Manrope', sans-serif; }
-.owner-av { position: absolute; z-index: 5; right: 10px; bottom: 12px; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gc); }
-.edit { position: absolute; z-index: 7; left: 12px; top: 68px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid #b8893f; background: rgba(16, 12, 8, .85); color: #f3d99a; font-size: 15px; cursor: pointer; opacity: 0; transition: opacity .2s, transform .2s; }
+.stamp { position: absolute; z-index: 3; right: 12px; top: 52px; transform: rotate(-12deg); border: 2px solid #9be07a; color: #9be07a; padding: 2px 8px; border-radius: 6px; background: rgba(20, 40, 20, .6); font: 800 12px 'Manrope', sans-serif; letter-spacing: 1px; text-transform: uppercase; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: stamp .5s .9s cubic-bezier(.3, 1.6, .5, 1) both; }
+.shade-tag { position: absolute; z-index: 3; left: 62px; top: 14px; padding: 2px 8px; border-radius: 99px; background: rgba(40, 30, 70, .85); color: #cfc2ff; font: 800 11px 'Manrope', sans-serif; }
+.owner-av { position: absolute; z-index: 3; right: 10px; bottom: 12px; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gc); }
+.edit { position: absolute; z-index: 6; left: 12px; top: 68px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid #b8893f; background: rgba(16, 12, 8, .85); color: #f3d99a; font-size: 15px; cursor: pointer; opacity: 0; transition: opacity .2s, transform .2s; }
 .slot:hover .edit, .edit:focus-visible { opacity: 1; }
 .edit:hover { transform: rotate(-15deg) scale(1.1); }
 @media (hover: none) { .edit { opacity: 1; } }
@@ -358,46 +272,6 @@ function untilt() {
 .shade .face { filter: saturate(.55) brightness(.85); }
 .pulse .face { animation: pulse 1.4s ease 2; }
 
-/* ===== темы героев (heroThemes.js) ===== */
-.themed { --ring: color-mix(in srgb, var(--ta) 45%, transparent); }
-.themed.mine { --ring: rgba(155, 224, 122, .6); }
-.themed .face { background: var(--tpat), linear-gradient(180deg, var(--tbg1), var(--tbg2)); border-color: var(--tf); box-shadow: 0 0 0 3px var(--tbg2), 0 0 0 4px var(--ring), 0 0 var(--glow-r, 18px) color-mix(in srgb, var(--ta) var(--glow-a, 12%), transparent), 0 18px 40px rgba(0, 0, 0, .55); transition: box-shadow .5s; }
-.themed.live .face { --glow-r: 38px; --glow-a: 36%; }
-.face > :not(.tdeco, .rivet, .stripe, .hfx, .port) { position: relative; z-index: 1; }
-.tdeco { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.mark { position: absolute; right: -28px; bottom: -30px; width: 170px; height: 170px; color: var(--ta); opacity: .07; transition: opacity .6s, filter .6s; }
-.themed.live .mark { opacity: .17; filter: drop-shadow(0 0 10px var(--ta)); }
-.themed .port:not(.art), .themed .dcard { border-color: color-mix(in srgb, var(--ta) 50%, #000); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--ta) 26%, var(--tbg1)), var(--tbg2) 75%); }
-.themed .port::after { background: linear-gradient(180deg, transparent 50%, color-mix(in srgb, var(--tbg2) 94%, transparent)); }
-.themed .lvl { background: linear-gradient(180deg, var(--tl), var(--ta)); color: var(--tbg2); }
-.themed .bm { border-color: var(--ta); color: var(--tl); }
-.themed .bm small, .themed .stam .k, .themed .row .k, .themed .sect h4, .themed .kv .k, .themed .b-sub, .themed .turn, .themed .e, .themed .who small { color: color-mix(in srgb, var(--tl) 52%, #6b6862); }
-.themed .row svg { color: var(--ta); }
-.themed .v.link, .themed .b-title { color: var(--tl); }
-.themed .turn:hover { color: var(--ta); }
-.themed .sect { border-top-color: color-mix(in srgb, var(--ta) 28%, transparent); }
-.themed .rivet { background: radial-gradient(circle at 35% 35%, var(--tl), var(--ta) 60%, var(--tbg2)); box-shadow: 0 0 6px color-mix(in srgb, var(--ta) 55%, transparent); }
-.themed .frames button.on { background-color: var(--tl); }
-.themed .dnav { border-color: color-mix(in srgb, var(--ta) 65%, transparent); color: var(--tl); background: color-mix(in srgb, var(--tbg2) 75%, transparent); }
-.themed .dnav:hover { background: color-mix(in srgb, var(--ta) 32%, var(--tbg2)); }
-/* знак темы оживает при наведении */
-.th-steam.live .mark, .th-frost.live .mark { animation: spin 9s linear infinite; }
-.th-sun.live .mark { animation: spin 20s linear infinite; }
-.th-chi.live .mark { animation: spin 5s linear infinite; }
-.th-maps.live .mark { animation: compass 3s ease-in-out infinite; }
-.th-demon.live .mark, .th-dragon.live .mark, .th-marksman.live .mark { animation: throb 1.8s ease-in-out infinite; }
-/* мелочи под тему */
-.th-steam .gauge { border-color: #8a6233; background: repeating-linear-gradient(90deg, rgba(217, 162, 90, .14) 0 2px, transparent 2px 9px), rgba(0, 0, 0, .3); }
-.th-frost .face { background: var(--tpat), radial-gradient(ellipse at 50% 120%, rgba(127, 214, 255, .12), transparent 60%), linear-gradient(180deg, var(--tbg1), var(--tbg2)); }
-.th-frost .gauge i { background: linear-gradient(90deg, #2b7fb8, #9fe3ff); }
-.th-sun .face { background: var(--tpat), radial-gradient(ellipse at 50% -10%, rgba(255, 201, 74, .2), transparent 55%), linear-gradient(180deg, var(--tbg1), var(--tbg2)); }
-.th-demon .face { background: var(--tpat), radial-gradient(ellipse at 50% 115%, rgba(155, 77, 255, .16), transparent 60%), linear-gradient(180deg, var(--tbg1), var(--tbg2)); }
-.th-dragon .face { background: var(--tpat), radial-gradient(ellipse at 80% 100%, rgba(169, 112, 255, .16), transparent 55%), linear-gradient(180deg, var(--tbg1), var(--tbg2)); }
-.th-chi .gauge i { background: linear-gradient(90deg, #8d1420, #ff6a4c); }
-
-@keyframes spin { to { rotate: 360deg; } }
-@keyframes compass { 0%, 100% { rotate: -14deg; } 50% { rotate: 18deg; } }
-@keyframes throb { 50% { scale: 1.08; } }
 @property --a { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
 @keyframes rot { to { --a: 360deg; } }
 @keyframes deal { from { opacity: 0; transform: translateY(60px) rotate(-6deg) scale(.9); } }
@@ -405,7 +279,7 @@ function untilt() {
 @keyframes stamp { from { opacity: 0; transform: rotate(-12deg) scale(2.5); } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 3px #241c13, 0 0 0 6px #f3d99a, 0 0 40px rgba(243, 217, 154, .6); } }
 @media (prefers-reduced-motion: reduce) {
-  .slot, .stamp, .gauge i, .relbar i, .companion .front::after, .mark, .dcard { animation: none !important; }
+  .slot, .stamp, .gauge i, .relbar i, .companion .front::after { animation: none !important; }
   .card { transition: none !important; }
 }
 </style>
