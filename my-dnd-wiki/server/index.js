@@ -35,17 +35,18 @@ if (!hasMasters()) {
 
 /* ------------------------- Валидация входных данных ------------------------- */
 
+const bad = msg => Object.assign(new Error(msg), { status: 400 })
 const T = {
   str: (max = 200) => v => (v == null ? '' : String(v).slice(0, max)),
   num: (min = -1e9, max = 1e9) => v => {
     const n = Number(v)
-    if (!Number.isFinite(n)) throw new Error('ожидалось число')
+    if (!Number.isFinite(n)) throw bad('Ожидалось число')
     return Math.max(min, Math.min(max, n))
   },
   numOrNull: (min, max) => v => (v === null || v === '' || v === undefined ? null : T.num(min, max)(v)),
   bool: () => v => !!v,
   oneOf: list => v => {
-    if (!list.includes(v)) throw new Error('недопустимое значение: ' + v)
+    if (!list.includes(v)) throw bad('Недопустимое значение: ' + v)
     return v
   },
   color: () => v => {
@@ -1158,7 +1159,7 @@ const T_EVENT = v => ({
   id: v.id || newId('e'), title: T.str(120)(v.title) || 'Событие', type: EVENT_TYPES[v.type] ? v.type : 'message',
   duration: (Array.isArray(v.duration) ? v.duration : []).filter(d => EVENT_DURATIONS[d]).slice(0, 3),
   deadline: v.deadline ? T.str(20)(v.deadline) : null, text: T.str(4000)(v.text), effect: T.str(300)(v.effect),
-  decision: T.str(2000)(v.decision), decidedBy: v.decidedBy ? T.str(60)(v.decidedBy) : null,
+  decision: T.str(2000)(v.decision), decidedBy: v.decidedBy ? T.str(60)(v.decidedBy) : null, decidedAt: Number(v.decidedAt) || null,
   location: T.str(80)(v.location), createdAt: Number(v.createdAt) || Date.now()
 })
 function addEvent(s, ev, notifyThem = true) {
