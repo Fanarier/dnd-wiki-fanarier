@@ -7,6 +7,7 @@
       <!-- ===== лицо ===== -->
       <div class="face front">
         <div v-if="theme" class="tdeco"><svg class="mark" viewBox="0 0 24 24"><path :d="THEMES[theme].icon" fill="currentColor" /></svg></div>
+        <HeroFx v-if="theme && live && !flip" :theme="theme" layer="back" />
         <i class="rivet a" /><i class="rivet b" /><i class="rivet c" /><i class="rivet d" /><i class="stripe" />
         <div class="port" :class="{ art: arts.length }" :title="arts.length ? 'Посмотреть арт целиком' : undefined"
              @click="arts.length && (viewer = true)" @touchstart.passive="tStart" @touchend="tEnd">
@@ -68,7 +69,7 @@
           </div>
         </div>
         <button v-if="hero.kind === 'character'" class="turn" @click.stop="turn">↻ Расходы и отношения</button>
-        <HeroFx v-if="theme && live && !flip" :theme="theme" />
+        <HeroFx v-if="theme && live && !flip" :theme="theme" layer="front" />
       </div>
 
       <!-- ===== оборот (только персонажи) ===== -->
@@ -386,6 +387,21 @@ function untilt() {
 .th-chi.live .mark { animation: spin 5s linear infinite; }
 .th-maps.live .mark { animation: compass 3s ease-in-out infinite; }
 .th-demon.live .mark, .th-dragon.live .mark, .th-marksman.live .mark { animation: throb 1.8s ease-in-out infinite; }
+/* при наведении арт подсвечивается по краю — сам арт эффекты не закрывают */
+.themed .dcard.top, .themed .port:not(.art) { transition: transform .5s cubic-bezier(.2, .8, .2, 1), filter .5s, opacity .4s, box-shadow .6s; }
+.th-demon.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(224, 51, 90, .55), 0 0 22px rgba(224, 51, 90, .45), 0 0 40px rgba(155, 77, 255, .25); }
+.th-sun.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(255, 220, 140, .6), 0 0 26px rgba(255, 201, 74, .55), 0 0 60px rgba(255, 138, 42, .25); }
+.th-chi.live :is(.dcard.top, .port:not(.art)) { animation: chi-breathe 3s ease-in-out infinite alternate; }
+.th-frost.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(225, 247, 255, .75), 0 0 16px rgba(127, 214, 255, .55); }
+.th-frost.live .gauge { border-color: rgba(220, 245, 255, .6); box-shadow: 0 0 8px rgba(127, 214, 255, .6); }
+.th-frost.live .sect { border-top-color: rgba(200, 238, 255, .55); }
+.th-dragon.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(169, 112, 255, .55), 0 0 22px rgba(169, 112, 255, .45); }
+.th-maps.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(79, 216, 198, .5), 0 0 18px rgba(79, 216, 198, .35); }
+.th-steam.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(217, 162, 90, .6), 0 0 18px rgba(240, 244, 247, .25); }
+@keyframes chi-breathe {
+  from { box-shadow: 0 0 0 1px rgba(236, 47, 66, .45), 0 0 14px rgba(236, 47, 66, .3); }
+  to { box-shadow: 0 0 0 1px rgba(255, 110, 70, .65), 0 0 28px rgba(236, 47, 66, .5); }
+}
 /* мелочи под тему */
 .th-steam .gauge { border-color: #8a6233; background: repeating-linear-gradient(90deg, rgba(217, 162, 90, .14) 0 2px, transparent 2px 9px), rgba(0, 0, 0, .3); }
 .th-frost .face { background: var(--tpat), radial-gradient(ellipse at 50% 120%, rgba(127, 214, 255, .12), transparent 60%), linear-gradient(180deg, var(--tbg1), var(--tbg2)); }
@@ -405,7 +421,7 @@ function untilt() {
 @keyframes stamp { from { opacity: 0; transform: rotate(-12deg) scale(2.5); } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 3px #241c13, 0 0 0 6px #f3d99a, 0 0 40px rgba(243, 217, 154, .6); } }
 @media (prefers-reduced-motion: reduce) {
-  .slot, .stamp, .gauge i, .relbar i, .companion .front::after, .mark, .dcard { animation: none !important; }
+  .slot, .stamp, .gauge i, .relbar i, .companion .front::after, .mark, .dcard, .port { animation: none !important; }
   .card { transition: none !important; }
 }
 </style>
