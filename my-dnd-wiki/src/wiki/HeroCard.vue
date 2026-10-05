@@ -22,7 +22,12 @@
               <circle r="18" class="rim" /><circle r="14.5" class="dial" />
               <path class="ticks" d="M0-12.5v3M8.8-8.8l-2 2M12.5 0h-3M-12.5 0h3M-8.8-8.8l2 2M8.8 8.8l-2-2M-8.8 8.8l2-2" />
               <path class="red" d="M8.8-8.8A12.5 12.5 0 0 1 12.5 0" />
-              <path class="needle" d="M0 2V-11" /><circle r="2" class="hub" />
+              <!-- стрелку крутит сам SVG вокруг центра шкалы (0,0) — CSS-повороты в SVG браузеры считают по-разному -->
+              <g transform="rotate(-110)"><path class="needle" d="M0 2V-11" />
+                <animateTransform ref="needleAnim" attributeName="transform" type="rotate" begin="indefinite" dur="2.8s" repeatCount="indefinite"
+                                  values="-110;30;18;38;26;26;-110" keyTimes="0;.35;.45;.55;.65;.8;1" />
+              </g>
+              <circle r="2" class="hub" />
             </svg>
           </template>
         </div>
@@ -235,6 +240,13 @@ function tap() {
 }
 onBeforeUnmount(() => clearTimeout(touchTimer))
 const live = computed(() => hover.value || touchLive.value)
+// стрелка манометра Энди скачет, пока карточка «живая»
+const needleAnim = ref(null)
+watch(live, on => {
+  const a = needleAnim.value
+  if (!a || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  try { on ? a.beginElement() : a.endElement() } catch { /* SMIL нет — стрелка просто стоит */ }
+})
 const mouse = ref(null)
 
 /* арты на весь экран */
@@ -440,17 +452,8 @@ function untilt() {
 .mano .dial { fill: #e8dcc0; opacity: .9; }
 .mano .ticks { stroke: #3a2a18; stroke-width: 1.2; }
 .mano .red { fill: none; stroke: #c0392b; stroke-width: 2.2; }
-.mano .needle { stroke: #9b1c1c; stroke-width: 1.6; stroke-linecap: round; transform-box: view-box; transform-origin: 50% 50%; transform: rotate(-110deg); transition: transform .8s; }
+.mano .needle { stroke: #9b1c1c; stroke-width: 1.6; stroke-linecap: round; }
 .mano .hub { fill: #6b4320; }
-.th-steam.live .mano .needle { animation: pressure 2.8s ease-in-out infinite; }
-@keyframes pressure {
-  0% { transform: rotate(-110deg); }
-  35% { transform: rotate(30deg); }
-  45% { transform: rotate(18deg); }
-  55% { transform: rotate(38deg); }
-  65%, 80% { transform: rotate(26deg); }
-  100% { transform: rotate(-110deg); }
-}
 .th-steam .gauge { border-color: #8a6233; background: repeating-linear-gradient(90deg, rgba(217, 162, 90, .14) 0 2px, transparent 2px 9px), rgba(0, 0, 0, .3); }
 .th-frost .face { background: var(--tpat), radial-gradient(ellipse at 50% 120%, rgba(127, 214, 255, .12), transparent 60%), linear-gradient(180deg, var(--tbg1), var(--tbg2)); }
 .th-frost .gauge i { background: linear-gradient(90deg, #2b7fb8, #9fe3ff); }
@@ -469,7 +472,7 @@ function untilt() {
 @keyframes stamp { from { opacity: 0; transform: rotate(-12deg) scale(2.5); } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 3px #241c13, 0 0 0 6px #f3d99a, 0 0 40px rgba(243, 217, 154, .6); } }
 @media (prefers-reduced-motion: reduce) {
-  .slot, .stamp, .gauge i, .relbar i, .companion .front::after, .mark, .dcard, .port, .wheel, .needle { animation: none !important; }
+  .slot, .stamp, .gauge i, .relbar i, .companion .front::after, .mark, .dcard, .port, .wheel { animation: none !important; }
   .card { transition: none !important; }
 }
 </style>
