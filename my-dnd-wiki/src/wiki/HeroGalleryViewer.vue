@@ -1,14 +1,22 @@
 <template>
   <teleport to="body">
-    <div class="gv" @click.self="$emit('close')" @touchstart.passive="tStart" @touchend="tEnd">
+    <div class="gv" :class="theme && 'themed'" :style="themeVars(theme)" @click.self="$emit('close')" @touchstart.passive="tStart" @touchend="tEnd">
       <!-- размытая подложка из текущего арта -->
       <transition name="gv-bg">
         <div :key="cur.id" class="gv-bg" :style="{ backgroundImage: `url(${heroPortraitUrl(cur.thumb || cur.file)})` }" />
       </transition>
+      <!-- эффекты темы героя фоном: пар, снег, лучи… -->
+      <HeroFx v-if="theme" :theme="theme" mode="ambient" />
 
       <div class="gv-stage" @click.self="$emit('close')">
         <transition :name="dir > 0 ? 'gv-next' : 'gv-prev'">
-          <img :key="cur.id" :src="heroPortraitUrl(cur.file)" class="gv-img" alt="" @click.stop="step(1)" />
+          <div :key="cur.id" class="gv-slide" @click.self="$emit('close')">
+            <!-- пока большой файл грузится, показываем лёгкую копию с карточки -->
+            <img v-if="!loaded[cur.id]" :src="heroPortraitUrl(cur.thumb || cur.file)" class="gv-ph" alt="" />
+            <img :src="failed[cur.id] ? heroPortraitUrl(cur.thumb) : heroPortraitUrl(cur.file)" class="gv-img" :class="{ ready: loaded[cur.id] }" alt=""
+                 @load="loaded[cur.id] = true" @error="onFail(cur)" @click.stop="step(1)" />
+            <div v-if="!loaded[cur.id]" class="gv-spin" />
+          </div>
         </transition>
       </div>
 
@@ -35,15 +43,18 @@
 
 <script setup>
 // Арты карточки на весь экран: листание стрелками, клавишами, свайпом и по ленте миниатюр
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { heroPortraitUrl } from '../map/store.js'
+import HeroFx from './HeroFx.vue'
+import { themeVars } from './heroThemes.js'
 
 const props = defineProps({
   arts: { type: Array, required: true },
   start: { type: Number, default: 0 },
-  name: { type: String, default: '' }
+  name: { type: String, default: '' },
+  theme: { type: String, default: null }
 })
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'index'])
 
 const i = ref(Math.min(props.start, props.arts.length - 1))
 const dir = ref(1)
@@ -54,6 +65,21 @@ async function show(n) {
   await nextTick()
   strip.value?.children[i.value]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
 }
+// большой файл не открылся — показываем лёгкую копию, лишь бы не пустой экран
+const loaded = reactive({})
+const failed = reactive({})
+function onFail(a) {
+  if (!failed[a.id] && a.thumb) failed[a.id] = true
+  else loaded[a.id] = true
+}
+// соседние арты подгружаем заранее — листание без ожидания
+watch(i, n => {
+  emit('index', n)
+  for (const d of [1, -1]) {
+    const a = props.arts[(n + d + props.arts.length) % props.arts.length]
+    if (a) new Image().src = heroPortraitUrl(a.file)
+  }
+}, { immediate: true })
 const go = n => { dir.value = n >= i.value ? 1 : -1; show(n) }
 const step = d => { if (props.arts.length > 1) { dir.value = d; show(i.value + d) } }
 
@@ -72,46 +98,57 @@ function tEnd(e) {
 }
 onMounted(() => {
   window.addEventListener('keydown', onKey)
-  document.body.style.overflow = 'hidden'
+  document.documentElement.style.overflow = document.body.style.overflow = 'hidden'
   nextTick(() => strip.value?.children[i.value]?.scrollIntoView({ inline: 'center', block: 'nearest' }))
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
-  document.body.style.overflow = ''
+  document.documentElement.style.overflow = document.body.style.overflow = ''
 })
 </script>
 
 <style scoped>
-.gv { position: fixed; inset: 0; z-index: 210; overflow: hidden; background: #070504; animation: gv-in .25s; font-family: 'Manrope', sans-serif; }
+.gv { --gv-acc: #e6c27a; --gv-txt: #f3d99a; --gv-line: rgba(201, 162, 79, .4); position: fixed; inset: 0; z-index: 210; overflow: hidden; background: #070504; animation: gv-in .25s; font-family: 'Manrope', sans-serif; }
+.gv.themed { --gv-acc: var(--ta); --gv-txt: var(--tl); --gv-line: color-mix(in srgb, var(--ta) 45%, transparent); background: var(--tbg2); }
+.gv.themed .gv-bg { filter: blur(40px) brightness(.3) saturate(1.2); }
+.gv.themed::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 40%, color-mix(in srgb, var(--ta) 14%, transparent) 100%); }
 .gv-bg { position: absolute; inset: -60px; background-size: cover; background-position: center; filter: blur(40px) brightness(.35) saturate(1.3); transform: scale(1.1); }
 .gv-bg-enter-active, .gv-bg-leave-active { transition: opacity .6s; }
 .gv-bg-enter-from, .gv-bg-leave-to { opacity: 0; }
-.gv-stage { position: absolute; inset: 56px 70px 104px; display: grid; place-items: center; }
-.gv-img { grid-area: 1 / 1; max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: #120e09; box-shadow: 0 0 0 1px rgba(201, 162, 79, .4), 0 30px 80px rgba(0, 0, 0, .8); cursor: pointer; }
+/* арт вписан в сцену целиком: ни обрезки, ни прокрутки */
+.gv-stage { position: absolute; z-index: 1; inset: 56px 70px 104px; }
+.gv-slide { position: absolute; inset: 0; }
+.gv-img, .gv-ph { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; }
+.gv-img { border-radius: 8px; box-shadow: 0 0 0 1px var(--gv-line), 0 30px 80px rgba(0, 0, 0, .8); cursor: pointer; opacity: 0; transition: opacity .35s; }
+.gv-img.ready { opacity: 1; }
+.gv-ph { width: 100%; height: 100%; object-fit: contain; filter: blur(6px); opacity: .85; pointer-events: none; }
+.gv-spin { position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; margin: -21px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .15); border-top-color: var(--gv-acc); animation: gv-spin .9s linear infinite; pointer-events: none; }
+@keyframes gv-spin { to { transform: rotate(360deg); } }
 .gv-next-enter-active, .gv-next-leave-active, .gv-prev-enter-active, .gv-prev-leave-active { transition: transform .45s cubic-bezier(.2, .8, .2, 1), opacity .45s; }
 .gv-next-enter-from { opacity: 0; transform: translateX(80px) rotate(2deg) scale(.96); }
 .gv-next-leave-to { opacity: 0; transform: translateX(-80px) rotate(-2deg) scale(.96); }
 .gv-prev-enter-from { opacity: 0; transform: translateX(-80px) rotate(-2deg) scale(.96); }
 .gv-prev-leave-to { opacity: 0; transform: translateX(80px) rotate(2deg) scale(.96); }
-.gv-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: linear-gradient(180deg, rgba(0, 0, 0, .55), transparent); }
-.gv-name { font: 700 24px 'Cormorant Garamond', Georgia, serif; color: #f3d99a; text-shadow: 0 2px 8px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gv-top { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: linear-gradient(180deg, rgba(0, 0, 0, .55), transparent); }
+.gv-name { font: 700 24px 'Cormorant Garamond', Georgia, serif; color: var(--gv-txt); text-shadow: 0 2px 8px #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gv-count { color: #c9b88f; font-size: 13px; font-weight: 700; }
 .grow { flex: 1; }
-.gv-dl { color: #f3d99a; font-weight: 800; font-size: 13px; }
+.gv-dl { color: var(--gv-txt); font-weight: 800; font-size: 13px; }
 .gv-x { border: 0; background: none; color: #efe3c8; font-size: 38px; line-height: 1; cursor: pointer; }
-.gv-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; border-radius: 50%; border: 1px solid rgba(201, 162, 79, .5); background: rgba(20, 15, 10, .7); color: #f3d99a; font-size: 32px; line-height: 1; cursor: pointer; transition: background .2s, transform .2s; }
-.gv-nav:hover { background: rgba(201, 162, 79, .25); transform: translateY(-50%) scale(1.08); }
+.gv-nav { position: absolute; z-index: 2; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; border-radius: 50%; border: 1px solid var(--gv-line); background: rgba(20, 15, 10, .7); color: var(--gv-txt); font-size: 32px; line-height: 1; cursor: pointer; transition: background .2s, transform .2s; }
+.gv-nav:hover { background: color-mix(in srgb, var(--gv-acc) 25%, transparent); transform: translateY(-50%) scale(1.08); }
 .prev { left: 12px; } .next { right: 12px; }
-.gv-strip { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; gap: 8px; padding: 6px 16px; overflow-x: auto; scrollbar-width: none; justify-content: safe center; }
+.gv-strip { position: absolute; z-index: 2; left: 0; right: 0; bottom: 14px; display: flex; gap: 8px; padding: 6px 16px; overflow-x: auto; scrollbar-width: none; justify-content: safe center; }
 .gv-strip::-webkit-scrollbar { display: none; }
 .gv-th { flex: none; width: 64px; height: 76px; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid transparent; background: #120e09; cursor: pointer; opacity: .55; transition: opacity .2s, transform .2s, border-color .2s; }
 .gv-th img { width: 100%; height: 100%; object-fit: cover; }
 .gv-th:hover { opacity: .9; }
-.gv-th.on { opacity: 1; border-color: #e6c27a; transform: translateY(-4px); box-shadow: 0 6px 16px rgba(0, 0, 0, .6); }
+.gv-th.on { opacity: 1; border-color: var(--gv-acc); transform: translateY(-4px); box-shadow: 0 6px 16px rgba(0, 0, 0, .6); }
 @keyframes gv-in { from { opacity: 0; } }
 @media (max-width: 640px) {
   .gv-stage { inset: 52px 0 100px; }
   .gv-img { border-radius: 0; }
+  .gv-strip { bottom: 8px; }
   .gv-nav { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
