@@ -19,7 +19,7 @@
     </header>
 
     <!-- загрузка: топор рубит дерево, пока не готовы данные и местность -->
-    <AxeLoader v-if="loaderShown" :out="!loading" :title="s?.name || 'Поселение'" />
+    <AxeLoader v-if="loaderShown" :ready="!loading" :title="s?.name || 'Поселение'" @gone="loaderShown = false" />
     <div v-if="!store.ready" class="sp-load" />
     <div v-else-if="!s" class="sp-load">Поселение не найдено</div>
     <div v-else class="sp-body" :class="{ wide }">
@@ -129,14 +129,12 @@ const s = computed(() => {
 })
 const calc = computed(() => computeSettlement(s.value || {}))
 
-/* загрузочный экран: держим, пока не пришли данные и не нарисована местность (и хотя бы полтора броска топора) */
+/* загрузочный экран: держим, пока не пришли данные и не нарисована местность;
+   сам экран уходит в конце броска топора и не раньше, чем через два броска (2 секунды) */
 const mapReady = ref(false)
-const minTime = ref(false)
 const loaderShown = ref(true)
-const loading = computed(() => !minTime.value || !store.ready || (!!s.value && !mapReady.value))
-setTimeout(() => { minTime.value = true }, 1500)
+const loading = computed(() => !store.ready || (!!s.value && !mapReady.value))
 setTimeout(() => { mapReady.value = true }, 9000) // страховка, если что-то пошло не так
-watch(loading, v => { if (!v) setTimeout(() => { loaderShown.value = false }, 600) })
 const city = computed(() => s.value?.cityId && store.data.cities?.find(c => c.id === s.value.cityId))
 watch(s, v => { if (v) document.title = `${v.name} — Анкария` }, { immediate: true })
 
