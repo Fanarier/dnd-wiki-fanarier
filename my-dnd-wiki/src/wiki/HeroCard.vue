@@ -23,15 +23,12 @@
               <path class="ticks" d="M0-12.5v3M8.8-8.8l-2 2M12.5 0h-3M-12.5 0h3M-8.8-8.8l2 2M8.8 8.8l-2-2M-8.8 8.8l2-2" />
               <path class="red" d="M8.8-8.8A12.5 12.5 0 0 1 12.5 0" />
               <!-- стрелку крутит сам SVG вокруг центра шкалы (0,0) — CSS-повороты в SVG браузеры считают по-разному -->
-              <g transform="rotate(-110)"><path class="needle" d="M0 2V-11" />
-                <animateTransform ref="needleAnim" attributeName="transform" type="rotate" begin="indefinite" dur="2.8s" repeatCount="indefinite"
-                                  values="-110;30;18;38;26;26;-110" keyTimes="0;.35;.45;.55;.65;.8;1" />
-              </g>
+              <g ref="needle" transform="rotate(-110)"><path class="needle" d="M0 2V-11" /></g>
               <circle r="2" class="hub" />
             </svg>
           </template>
         </div>
-        <HeroFx v-if="theme && live && !flip" :theme="theme" layer="back" />
+        <HeroFx v-if="theme && fxOn && !flip" :theme="theme" layer="back" :out="!live" />
         <i class="rivet a" /><i class="rivet b" /><i class="rivet c" /><i class="rivet d" /><i class="stripe" />
         <div class="port" :class="{ art: arts.length }" :title="arts.length ? 'Посмотреть арт целиком' : undefined"
              @click="arts.length && (viewer = true)" @touchstart.passive="tStart" @touchend="tEnd">
@@ -93,7 +90,7 @@
           </div>
         </div>
         <button v-if="hero.kind === 'character'" class="turn" @click.stop="turn">↻ Расходы и отношения</button>
-        <HeroFx v-if="theme && live && !flip" :theme="theme" layer="front" />
+        <HeroFx v-if="theme && fxOn && !flip" :theme="theme" layer="front" :out="!live" />
       </div>
 
       <!-- ===== оборот (только персонажи) ===== -->
@@ -131,12 +128,13 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { mdiMapMarker, mdiHome, mdiFlag, mdiPaw } from '@mdi/js'
 import HexPips from './HexPips.vue'
 import HeroGalleryViewer from './HeroGalleryViewer.vue'
 import HeroFx from './HeroFx.vue'
 import { HERO_THEMES, heroThemeKey, themeVars } from './heroThemes.js'
+import { warmHeroTextures } from './heroTextures.js'
 import { store, heroPortraitUrl, avatarUrl } from '../map/store.js'
 import { RARITY, ILLNESS_MAX, REL_LEVELS, REL_CELL, EXPENSES, groupColor, isNoGroup } from '../shared/catalog.js'
 
@@ -227,6 +225,8 @@ function tEnd(e) {
 const THEMES = HERO_THEMES
 const theme = computed(() => heroThemeKey(props.hero))
 const tvars = computed(() => themeVars(theme.value))
+// текстуры пара и инея рисуем заранее, чтобы первое наведение не дёргалось
+onMounted(() => warmHeroTextures(theme.value))
 const hover = ref(false)
 // на телефоне касание тоже шлёт mouseenter, а mouseleave — нет; там эффекты включает tap()
 const enter = () => { if (!matchMedia('(hover: none)').matches) hover.value = true }
@@ -240,13 +240,34 @@ function tap() {
 }
 onBeforeUnmount(() => clearTimeout(touchTimer))
 const live = computed(() => hover.value || touchLive.value)
-// стрелка манометра Энди скачет, пока карточка «живая»
-const needleAnim = ref(null)
+// эффекты после ухода мыши ещё 1,2 с гаснут
+const fxOn = ref(false)
+let fxTimer = null
 watch(live, on => {
-  const a = needleAnim.value
-  if (!a || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  try { on ? a.beginElement() : a.endElement() } catch { /* SMIL нет — стрелка просто стоит */ }
+  clearTimeout(fxTimer)
+  if (on) fxOn.value = true
+  else fxTimer = setTimeout(() => { fxOn.value = false }, 1200)
 })
+
+// манометр Энди показывает уровень пара: давление растёт вместе с паром (те же ~4,5 с),
+// на полном дрожит у красной зоны, а когда пар уходит — падает
+const needle = ref(null)
+let pressure = 0, raf = 0, last = 0
+function tick(t) {
+  const dt = Math.min(0.1, (t - (last || t)) / 1000)
+  last = t
+  pressure += ((live.value ? 1 : 0) - pressure) * (1 - Math.exp(-(live.value ? 0.9 : 2.6) * dt))
+  const shake = pressure * pressure * (Math.sin(t / 77) * 3 + Math.sin(t / 137) * 2.2)
+  needle.value?.setAttribute('transform', `rotate(${(-110 + pressure * 138 + shake).toFixed(1)})`)
+  raf = !live.value && pressure < 0.005 ? 0 : requestAnimationFrame(tick)
+  if (!raf) needle.value?.setAttribute('transform', 'rotate(-110)')
+}
+watch(live, on => {
+  if (theme.value !== 'steam' || !on || raf || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  last = 0
+  raf = requestAnimationFrame(tick)
+})
+onBeforeUnmount(() => { cancelAnimationFrame(raf); clearTimeout(fxTimer) })
 const mouse = ref(null)
 
 /* арты на весь экран */

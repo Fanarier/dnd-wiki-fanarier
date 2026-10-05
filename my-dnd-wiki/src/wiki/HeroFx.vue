@@ -1,10 +1,10 @@
 <template>
   <!-- живые эффекты темы. На карточке два слоя: back — под текстом и портретом (печати, лучи, туман),
        front — поверх, только мелкие частицы по краям, чтобы не закрывать арт. В просмотрщике — всё фоном -->
-  <div class="hfx" :class="[theme, 'm-' + mode, 'l-' + layer]" aria-hidden="true">
+  <div class="hfx" :class="[theme, 'm-' + mode, 'l-' + layer, { out }]" aria-hidden="true">
     <!-- ПАР: клубящийся туман снизу (патрубки и манометр — в узоре карточки, HeroCard) -->
     <template v-if="theme === 'steam'">
-      <div v-if="on('back')" class="steambank" :style="{ '--fog': `url(${fogTile()})` }"><i class="fog f1" /><i class="fog f2" /></div>
+      <div v-if="on('back')" class="steambank" :style="{ '--fog1': `url(${fogTile(...FOG_LAYERS[0])})`, '--fog2': `url(${fogTile(...FOG_LAYERS[1])})` }"><i class="fog f1" /><i class="fog f2" /></div>
     </template>
 
     <!-- ТЁМНАЯ МАГИЯ: печать под характеристиками, тёмный дым, искры -->
@@ -61,23 +61,18 @@
 
 <script setup>
 import { computed } from 'vue'
+import { rng, fogTile, frostImage, FOG_LAYERS } from './heroTextures.js'
 
 const props = defineProps({
   theme: { type: String, required: true },
   mode: { type: String, default: 'card' }, // card | ambient
-  layer: { type: String, default: 'all' } // back | front | all
+  layer: { type: String, default: 'all' }, // back | front | all
+  out: { type: Boolean, default: false } // гаснет
 })
 const card = computed(() => props.mode === 'card')
 const on = l => props.layer === 'all' || props.layer === l
 const RUNES = ['ᚦ', 'ᛉ', 'ᛟ', 'ᚱ', 'ᛞ', 'ᚹ', 'ᛇ', 'ᛝ']
 
-// одинаковый «случайный» узор при каждом наведении
-function rng(seed) {
-  return () => {
-    seed = (seed * 16807) % 2147483647
-    return (seed - 1) / 2147483646
-  }
-}
 const pct = v => `${(v * 100).toFixed(1)}%`
 const s = v => `${v.toFixed(2)}s`
 // длительность и задержка; у половины частиц задержка отрицательная — при наведении они уже в полёте
@@ -123,120 +118,43 @@ const parts = computed(() => {
 })
 const shown = computed(() => parts.value.filter(p => on(p.l)))
 
-// иней: перистые ледяные узоры, как мороз на стекле, растут от нижнего края и боков портрета.
-// Ствол идёт короткими шагами и чуть изгибается, на каждом шаге — веточки под 60°, к кончику короче.
-// Рисуется один раз на страницу, тремя слоями толщины (каждый — одним штрихом, это быстро)
-let frost = null
-function frostImage() {
-  if (frost) return frost
-  const W = 330, H = 548, S = 2
-  const r = rng(7331)
-  const c = document.createElement('canvas')
-  c.width = W * S
-  c.height = H * S
-  const g = c.getContext('2d')
-  g.scale(S, S)
-  const paths = [new Path2D(), new Path2D(), new Path2D()] // стволы, ветки, иголки
-  function stem(x, y, a, L, d, curve) {
-    const path = paths[2 - d]
-    const step = 3
-    path.moveTo(x, y)
-    for (let len = 0; len < L; len += step) {
-      a += curve + (r() - 0.5) * 0.14
-      x += Math.cos(a) * step
-      y += Math.sin(a) * step
-      path.lineTo(x, y)
-      if (d > 0 && y < H && r() < (d === 2 ? 0.7 : 0.55)) {
-        const rest = (L - len) * (0.42 + r() * 0.18) + 2
-        for (const side of r() < 0.6 ? [-1, 1] : [r() < 0.5 ? -1 : 1]) stem(x, y, a + side * (Math.PI / 3 + (r() - 0.5) * 0.15), rest, d - 1, -side * 0.012)
-        path.moveTo(x, y)
-      }
-    }
-  }
-  const PB = 262, PL = 12, PR = W - 12 // низ и бока портрета
-  for (let x = PL + 8; x < PR; x += 18 + r() * 14) stem(x, PB, Math.PI / 2 + (r() - 0.5) * 1, 50 + r() * 45, 2, (r() - 0.5) * 0.02)
-  for (let y = 36; y < PB; y += 24 + r() * 18) {
-    stem(PL, y, Math.PI * (0.62 + r() * 0.2), 20 + r() * 16, 2, 0.01)
-    stem(PR, y, Math.PI * (0.38 - r() * 0.2), 20 + r() * 16, 2, -0.01)
-  }
-  g.lineCap = g.lineJoin = 'round'
-  g.shadowColor = 'rgba(127, 214, 255, .95)'
-  const STYLE = [[1.3, 0.6, 4], [0.8, 0.42, 2], [0.5, 0.3, 0]] // толщина, яркость, свечение
-  STYLE.forEach(([w, al, blur], i) => {
-    g.lineWidth = w
-    g.strokeStyle = `rgba(238, 250, 255, ${al})`
-    g.shadowBlur = blur
-    g.stroke(paths[i])
-  })
-  // изморозь: мелкие крупинки гуще у портрета
-  g.shadowBlur = 0
-  for (let i = 0; i < 900; i++) {
-    const y = PB + -Math.log(1 - r() * 0.999) * 90
-    if (y > H) continue
-    const x = PL + r() * (PR - PL)
-    g.fillStyle = `rgba(236, 249, 255, ${(0.4 * Math.max(0, 1 - (y - PB) / 300)).toFixed(3)})`
-    g.fillRect(x, y, 0.6 + r() * 1.1, 0.6 + r() * 1.1)
-  }
-  return (frost = c.toDataURL())
-}
 
-// текстура тумана: бесшовный фрактальный шум, рисуется один раз на всю страницу
-let fog = null
-function fogTile() {
-  if (fog) return fog
-  const N = 256
-  const r = rng(4242)
-  const oct = [[4, 0.5], [8, 0.27], [16, 0.15], [32, 0.08]].map(([p, w]) => ({ p, w, ox: r() * p, oy: r() * p, g: Float32Array.from({ length: p * p }, r) }))
-  const sm = t => t * t * (3 - 2 * t)
-  const c = document.createElement('canvas')
-  c.width = c.height = N
-  const ctx = c.getContext('2d')
-  const img = ctx.createImageData(N, N)
-  for (let y = 0; y < N; y++) {
-    for (let x = 0; x < N; x++) {
-      let v = 0
-      for (const { p, w, ox, oy, g } of oct) {
-        const fx = (x / N) * p + ox, fy = (y / N) * p + oy
-        const ix = Math.floor(fx) % p, iy = Math.floor(fy) % p
-        const tx = sm(fx - Math.floor(fx)), ty = sm(fy - Math.floor(fy))
-        const x1 = (ix + 1) % p, y1 = (iy + 1) % p
-        const a = g[iy * p + ix] + (g[iy * p + x1] - g[iy * p + ix]) * tx
-        const b = g[y1 * p + ix] + (g[y1 * p + x1] - g[y1 * p + ix]) * tx
-        v += (a + (b - a) * ty) * w
-      }
-      const o = (y * N + x) * 4
-      img.data[o] = 242; img.data[o + 1] = 245; img.data[o + 2] = 248
-      img.data[o + 3] = Math.max(0, Math.min(255, (v - 0.47) * 2.6 * 255))
-    }
-  }
-  ctx.putImageData(img, 0, 0)
-  return (fog = c.toDataURL())
-}
 </script>
 
 <style scoped>
 .hfx { position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; border-radius: inherit; --rise: 330px; --fall: 560px; --w: 330px; --port-top: 12px; --port-h: 250px; }
 /* нижний слой — над узором фона, но под текстом и портретом */
 .hfx.l-back { z-index: 0; }
+/* мышь ушла — эффекты гаснут, а не пропадают разом */
+.hfx.out { opacity: 0; transition: opacity 1.2s ease; }
 .hfx.m-ambient { z-index: 0; --rise: 75vh; --fall: 110vh; --w: 100vw; --port-top: 30vh; --port-h: 40vh; }
 .hfx > * { position: absolute; display: block; }
 .hfx svg { overflow: visible; fill: none; }
 
 /* ---------- пар ---------- */
 /* туман — бесшовный шум, который плывёт вверх; маска гасит его к середине карточки */
-.steambank { left: 0; right: 0; bottom: 0; top: 40%; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); animation: steam-build 4.5s cubic-bezier(.3, .1, .3, 1) both; }
+.steambank { left: 0; right: 0; bottom: 0; top: 40%; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); animation: fade-in 4.5s cubic-bezier(.2, .6, .35, 1) both; }
 .m-ambient .steambank { top: 0; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); }
-.fog { position: absolute; display: block; left: -20%; right: -20%; top: 0; height: calc(100% + var(--t)); background: var(--fog) 0 0 / var(--t) var(--t) repeat; will-change: transform; animation: fog-rise linear infinite; }
+.fog { position: absolute; display: block; left: -25%; right: -25%; top: calc(-15% - 120px); height: calc(130% + var(--t) + 160px); background: var(--img) 0 0 / var(--t) var(--t) repeat; will-change: transform; animation: fog-rise linear infinite; }
 /* цикл бесшовный: за один оборот слой сдвигается ровно на плитку — по вертикали, а второй ещё и вбок */
-.f1 { --t: 256px; animation-duration: 8s; opacity: .5; }
+/* слои разного размера и с некратными периодами (и сдвига, и «дыхания» плотности) — общий рисунок не повторяется на глазах */
+.f1 { --t: 512px; --img: var(--fog1); animation: fog-rise 13s linear infinite, breathe-a 5.3s ease-in-out infinite alternate, rise-in 4.5s cubic-bezier(.2, .6, .35, 1) both; }
 /* в просмотрщике экран большой: плитки крупнее и разного размера, чтобы узор не повторялся на глазах */
-.m-ambient .fog { left: -30%; right: -30%; top: -20%; height: calc(140% + var(--t)); }
-.m-ambient .f1 { --t: 760px; opacity: .3; }
-.m-ambient .f2 { --t: 530px; opacity: .18; right: calc(-30% - var(--t)); }
-.f2 { --t: 180px; animation-name: fog-drift; animation-duration: 6.5s; opacity: .32; background-position: 90px 40px; right: calc(-20% - var(--t)); }
-@keyframes steam-build { from { opacity: 0; transform: translateY(55%); } 40% { opacity: .6; } to { opacity: 1; transform: none; } }
-@keyframes fog-rise { from { transform: rotate(-9deg) translate3d(0, 0, 0); } to { transform: rotate(-9deg) translate3d(0, calc(var(--t) * -1), 0); } }
-@keyframes fog-drift { from { transform: rotate(7deg) translate3d(0, 0, 0); } to { transform: rotate(7deg) translate3d(calc(var(--t) * -1), calc(var(--t) * -1), 0); } }
+/* в просмотрщике слои ещё и повёрнуты — запас по краям больше */
+.m-ambient .fog { left: -45%; right: -45%; top: -45%; height: calc(190% + var(--t)); }
+.m-ambient .f1 { --t: 1024px; animation-name: fog-rise-r, breathe-amb-a, rise-in; }
+@keyframes breathe-amb-a { from { opacity: .22; } to { opacity: .34; } }
+.m-ambient .f2 { --t: 768px; right: calc(-45% - var(--t)); animation-name: fog-drift-r, breathe-amb-b, rise-in; }
+@keyframes breathe-amb-b { from { opacity: .2; } to { opacity: .1; } }
+.f2 { --t: 384px; --img: var(--fog2); animation: fog-drift 9.7s linear infinite, breathe-b 7.9s ease-in-out infinite alternate, rise-in 4.5s cubic-bezier(.2, .6, .35, 1) both; right: calc(-25% - var(--t) - 20px); }
+@keyframes breathe-a { from { opacity: .38; } to { opacity: .6; } }
+@keyframes breathe-b { from { opacity: .36; } to { opacity: .2; } }
+/* пар нагнетается: слои поднимаются снизу отдельным свойством translate (не трогая контейнер с маской — так дёшево) */
+@keyframes rise-in { from { translate: 0 120px; } to { translate: 0 0; } }
+@keyframes fog-rise { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, calc(var(--t) * -1), 0); } }
+@keyframes fog-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(calc(var(--t) * -1), calc(var(--t) * -1), 0); } }
+@keyframes fog-rise-r { from { transform: rotate(-9deg) translate3d(0, 0, 0); } to { transform: rotate(-9deg) translate3d(0, calc(var(--t) * -1), 0); } }
+@keyframes fog-drift-r { from { transform: rotate(7deg) translate3d(0, 0, 0); } to { transform: rotate(7deg) translate3d(calc(var(--t) * -1), calc(var(--t) * -1), 0); } }
 
 /* ---------- тёмная магия ---------- */
 .sigil { top: 300px; left: calc(50% - 130px); width: 260px; height: 260px; stroke: var(--ta); stroke-width: .8; opacity: .5; filter: drop-shadow(0 0 4px var(--ta)); animation: sigil-in 1s ease-out both, spin 18s linear infinite; }
