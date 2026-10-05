@@ -6,7 +6,26 @@
     <div class="card" :style="tiltStyle">
       <!-- ===== лицо ===== -->
       <div class="face front">
-        <div v-if="theme" class="tdeco"><svg class="mark" viewBox="0 0 24 24"><path :d="THEMES[theme].icon" fill="currentColor" /></svg></div>
+        <div v-if="theme" class="tdeco">
+          <svg class="mark" viewBox="0 0 24 24"><path :d="THEMES[theme].icon" fill="currentColor" /></svg>
+          <!-- Энди: медные патрубки вокруг характеристик, манометр и вентиль -->
+          <template v-if="theme === 'steam'">
+            <svg class="pipes" viewBox="0 0 330 548" preserveAspectRatio="none">
+              <g vector-effect="non-scaling-stroke">
+                <path class="p-body" d="M7 284V522Q7 543 28 543H302Q323 543 323 522V284" />
+                <path class="p-shine" d="M6 284V522Q6 542 28 542H302Q322 542 322 522V284" />
+                <path class="p-flange" d="M1 300h12M1 430h12M317 300h12M317 470h12M90 537v12M240 537v12" />
+              </g>
+            </svg>
+            <svg class="valve" viewBox="-12 -12 24 24"><g class="wheel"><circle r="9" /><path d="M0-9V9M-9 0H9" /><circle r="2.4" class="hub" /></g></svg>
+            <svg class="mano" viewBox="-20 -20 40 40">
+              <circle r="18" class="rim" /><circle r="14.5" class="dial" />
+              <path class="ticks" d="M0-12.5v3M8.8-8.8l-2 2M12.5 0h-3M-12.5 0h3M-8.8-8.8l2 2M8.8 8.8l-2-2M-8.8 8.8l2-2" />
+              <path class="red" d="M8.8-8.8A12.5 12.5 0 0 1 12.5 0" />
+              <path class="needle" d="M0 2V-11" /><circle r="2" class="hub" />
+            </svg>
+          </template>
+        </div>
         <HeroFx v-if="theme && live && !flip" :theme="theme" layer="back" />
         <i class="rivet a" /><i class="rivet b" /><i class="rivet c" /><i class="rivet d" /><i class="stripe" />
         <div class="port" :class="{ art: arts.length }" :title="arts.length ? 'Посмотреть арт целиком' : undefined"
@@ -232,7 +251,7 @@ function turn() {
 function tilt(e) {
   if (flip.value || matchMedia('(hover: none)').matches) return
   const r = e.currentTarget.getBoundingClientRect()
-  if (theme.value) mouse.value = { '--mx': `${Math.round(e.clientX - r.left)}px`, '--my': `${Math.round(e.clientY - r.top)}px` }
+  if (theme.value === 'marksman') mouse.value = { '--mx': `${Math.round(e.clientX - r.left)}px`, '--my': `${Math.round(e.clientY - r.top)}px` }
   ry.value = ((e.clientX - r.left) / r.width - 0.5) * 12
   rx.value = -((e.clientY - r.top) / r.height - 0.5) * 12
 }
@@ -385,7 +404,7 @@ function untilt() {
 .th-steam.live .mark, .th-frost.live .mark { animation: spin 9s linear infinite; }
 .th-sun.live .mark { animation: spin 20s linear infinite; }
 .th-chi.live .mark { animation: spin 5s linear infinite; }
-.th-maps.live .mark { animation: compass 3s ease-in-out infinite; }
+.th-tarot.live .mark { animation: throb 1.8s ease-in-out infinite; }
 .th-demon.live .mark, .th-dragon.live .mark, .th-marksman.live .mark { animation: throb 1.8s ease-in-out infinite; }
 /* при наведении арт подсвечивается по краю — сам арт эффекты не закрывают */
 .themed .dcard.top, .themed .port:not(.art) { transition: transform .5s cubic-bezier(.2, .8, .2, 1), filter .5s, opacity .4s, box-shadow .6s; }
@@ -396,13 +415,42 @@ function untilt() {
 .th-frost.live .gauge { border-color: rgba(220, 245, 255, .6); box-shadow: 0 0 8px rgba(127, 214, 255, .6); }
 .th-frost.live .sect { border-top-color: rgba(200, 238, 255, .55); }
 .th-dragon.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(169, 112, 255, .55), 0 0 22px rgba(169, 112, 255, .45); }
-.th-maps.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(79, 216, 198, .5), 0 0 18px rgba(79, 216, 198, .35); }
+.th-tarot.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(217, 180, 90, .65), 0 0 22px rgba(232, 52, 74, .4); }
 .th-steam.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(217, 162, 90, .6), 0 0 18px rgba(240, 244, 247, .25); }
 @keyframes chi-breathe {
   from { box-shadow: 0 0 0 1px rgba(236, 47, 66, .45), 0 0 14px rgba(236, 47, 66, .3); }
   to { box-shadow: 0 0 0 1px rgba(255, 110, 70, .65), 0 0 28px rgba(236, 47, 66, .5); }
 }
 /* мелочи под тему */
+/* Энди: патрубки, вентиль и манометр — часть узора; при наведении вентиль крутится, стрелка прыгает */
+.pipes, .valve, .mano { position: absolute; opacity: .4; transition: opacity .6s; }
+.pipes { inset: 0; width: 100%; height: 100%; }
+.themed.live .pipes, .themed.live .valve, .themed.live .mano { opacity: .85; }
+.pipes path { vector-effect: non-scaling-stroke; }
+.p-body { fill: none; stroke: #6b4320; stroke-width: 7; }
+.p-shine { fill: none; stroke: #e0a95e; stroke-width: 1.6; opacity: .7; }
+.p-flange { stroke: #b8843f; stroke-width: 4; }
+.valve { right: -3px; top: 380px; width: 28px; height: 28px; }
+.valve circle, .valve path { fill: none; stroke: #d9a25a; stroke-width: 2.4; }
+.valve .hub { fill: #8a6233; }
+.wheel { transform-box: fill-box; transform-origin: center; }
+.th-steam.live .wheel { animation: spin 2.4s linear infinite; }
+.mano { left: 6px; bottom: 14px; width: 42px; height: 42px; }
+.mano .rim { fill: #2a1c10; stroke: #c99248; stroke-width: 2.5; }
+.mano .dial { fill: #e8dcc0; opacity: .9; }
+.mano .ticks { stroke: #3a2a18; stroke-width: 1.2; }
+.mano .red { fill: none; stroke: #c0392b; stroke-width: 2.2; }
+.mano .needle { stroke: #9b1c1c; stroke-width: 1.6; stroke-linecap: round; transform-box: view-box; transform-origin: 50% 50%; transform: rotate(-110deg); transition: transform .8s; }
+.mano .hub { fill: #6b4320; }
+.th-steam.live .mano .needle { animation: pressure 2.8s ease-in-out infinite; }
+@keyframes pressure {
+  0% { transform: rotate(-110deg); }
+  35% { transform: rotate(30deg); }
+  45% { transform: rotate(18deg); }
+  55% { transform: rotate(38deg); }
+  65%, 80% { transform: rotate(26deg); }
+  100% { transform: rotate(-110deg); }
+}
 .th-steam .gauge { border-color: #8a6233; background: repeating-linear-gradient(90deg, rgba(217, 162, 90, .14) 0 2px, transparent 2px 9px), rgba(0, 0, 0, .3); }
 .th-frost .face { background: var(--tpat), radial-gradient(ellipse at 50% 120%, rgba(127, 214, 255, .12), transparent 60%), linear-gradient(180deg, var(--tbg1), var(--tbg2)); }
 .th-frost .gauge i { background: linear-gradient(90deg, #2b7fb8, #9fe3ff); }
@@ -421,7 +469,7 @@ function untilt() {
 @keyframes stamp { from { opacity: 0; transform: rotate(-12deg) scale(2.5); } }
 @keyframes pulse { 50% { box-shadow: 0 0 0 3px #241c13, 0 0 0 6px #f3d99a, 0 0 40px rgba(243, 217, 154, .6); } }
 @media (prefers-reduced-motion: reduce) {
-  .slot, .stamp, .gauge i, .relbar i, .companion .front::after, .mark, .dcard, .port { animation: none !important; }
+  .slot, .stamp, .gauge i, .relbar i, .companion .front::after, .mark, .dcard, .port, .wheel, .needle { animation: none !important; }
   .card { transition: none !important; }
 }
 </style>

@@ -1,6 +1,6 @@
 // Свои темы карточек героев: цвета, узор фона, знак и эффекты при наведении (см. HeroFx.vue).
 // Тема привязана к герою: по id стартовой карточки, а если карточку пересоздали — по имени.
-import { mdiCog, mdiPentagram, mdiSnowflake, mdiWhiteBalanceSunny, mdiYinYang, mdiCompassRose, mdiMoonWaningCrescent, mdiCrosshairsGps } from '@mdi/js'
+import { mdiCog, mdiPentagram, mdiSnowflake, mdiWhiteBalanceSunny, mdiYinYang, mdiCardsPlaying, mdiMoonWaningCrescent, mdiCrosshairsGps } from '@mdi/js'
 
 const svg = s => `url("data:image/svg+xml,${encodeURIComponent(s)}")`
 
@@ -46,15 +46,12 @@ export const HERO_THEMES = {
       <g id='w'><circle cx='24' cy='24' r='22'/><circle cx='24' cy='24' r='16'/><circle cx='24' cy='24' r='10'/></g>
       <use href='#w' x='-24' y='-12'/><use href='#w' x='24' y='-12'/></svg>`)
   },
-  maps: {
-    label: 'Магические карты', icon: mdiCompassRose,
-    c: { a: '#4fd8c6', b: '#e8d29a', l: '#dcf8f2', bg1: '#11211f', bg2: '#070f0e', f: '#2e6c64' },
-    // горизонтали, как на топографической карте
-    pattern: svg(`<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220' fill='none' stroke='#4fd8c6' stroke-opacity='.09'>
-      <path d='M60 40c40-10 70 20 60 50s-60 40-80 10S30 46 60 40z'/><path d='M64 56c24-6 40 12 34 30s-36 22-48 6-4-32 14-36z'/>
-      <path d='M70 70c10-2 16 6 13 12s-14 8-18 2 0-12 5-14z'/>
-      <path d='M150 130c34 4 56 30 44 58s-58 30-78 6-4-68 34-64z'/><path d='M152 150c20 2 32 18 25 34s-34 16-45 3-2-39 20-37z'/>
-      <path d='M0 200c30-20 50 10 80-6M140 0c-6 24 18 36 10 60M220 96c-30 0-40 20-70 14'/></svg>`)
+  tarot: {
+    label: 'Карты таро', icon: mdiCardsPlaying,
+    c: { a: '#d9b45a', b: '#e8344a', l: '#f7e4b5', bg1: '#1a0d0e', bg2: '#080506', f: '#7a5a28' },
+    // китайская решётка, как в круглом окне на её арте
+    pattern: svg(`<svg xmlns='http://www.w3.org/2000/svg' width='44' height='44' fill='none' stroke='#d9b45a' stroke-opacity='.085'>
+      <path d='M0 .5h44M.5 0v44M11 11h22v22H11zM22 0v11M22 33v11M0 22h11M33 22h11'/></svg>`)
   },
   dragon: {
     label: 'Фиолетовый дракон', icon: mdiMoonWaningCrescent,
@@ -71,8 +68,8 @@ export const HERO_THEMES = {
   }
 }
 
-const BY_ID = { hs01: 'steam', hs02: 'sun', hs03: 'frost', hs06: 'marksman', hs07: 'demon', hs10: 'dragon', hs11: 'chi', hs12: 'maps' }
-const BY_NAME = { энди: 'steam', белатор: 'sun', джилл: 'frost', лева: 'marksman', цуруя: 'demon', элиас: 'dragon', хироши: 'chi', касуми: 'maps' }
+const BY_ID = { hs01: 'steam', hs02: 'sun', hs03: 'frost', hs06: 'marksman', hs07: 'demon', hs10: 'dragon', hs11: 'chi', hs12: 'tarot' }
+const BY_NAME = { энди: 'steam', белатор: 'sun', джилл: 'frost', лева: 'marksman', цуруя: 'demon', элиас: 'dragon', хироши: 'chi', касуми: 'tarot' }
 
 export function heroThemeKey(h) {
   if (!h || h.kind !== 'character') return null

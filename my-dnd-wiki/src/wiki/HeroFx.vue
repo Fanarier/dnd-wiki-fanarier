@@ -2,10 +2,9 @@
   <!-- живые эффекты темы. На карточке два слоя: back — под текстом и портретом (печати, лучи, туман),
        front — поверх, только мелкие частицы по краям, чтобы не закрывать арт. В просмотрщике — всё фоном -->
   <div class="hfx" :class="[theme, 'm-' + mode, 'l-' + layer]" aria-hidden="true">
-    <!-- ПАР: клубящийся туман снизу, струи из клапанов по бокам, редкие клубы -->
+    <!-- ПАР: клубящийся туман снизу (патрубки и манометр — в узоре карточки, HeroCard) -->
     <template v-if="theme === 'steam'">
       <div v-if="on('back')" class="steambank" :style="{ '--fog': `url(${fogTile()})` }"><i class="fog f1" /><i class="fog f2" /></div>
-      <template v-if="on('front') && card"><i class="jet jl" /><i class="jet jr" /></template>
     </template>
 
     <!-- ТЁМНАЯ МАГИЯ: печать под характеристиками, тёмный дым, искры -->
@@ -16,9 +15,9 @@
       </svg>
     </template>
 
-    <!-- ЛЁД: иней наползает с краёв карточки, снег, блик -->
+    <!-- ЛЁД: ледяные папоротники растут из-под арта по карточке, снег, блик -->
     <template v-else-if="theme === 'frost'">
-      <i v-if="on('back') && card" class="rime" />
+      <i v-if="on('back') && card" class="rime" :style="{ '--frost': `url(${frostImage()})` }" />
       <i v-if="on('front')" class="sheen" />
     </template>
 
@@ -32,12 +31,9 @@
       <svg v-if="on('back')" class="enso" viewBox="0 0 100 100"><path d="M71 16C55 6 30 9 18 28 5 48 13 76 36 86c21 9 46 0 56-21 7-15 4-32-6-43" /></svg>
     </template>
 
-    <!-- МАГИЧЕСКИЕ КАРТЫ: светящиеся горизонтали и летающие колдовские карты -->
-    <template v-else-if="theme === 'maps'">
-      <svg v-if="on('back')" class="contours" viewBox="0 0 300 200" preserveAspectRatio="none">
-        <path d="M-10 150c50-40 90 10 140-20s80-50 180-10" /><path d="M-10 175c60-30 100 15 150-10s90-40 170-5" />
-        <path d="M40 120c30-30 70-20 80 5s-40 45-70 25-20-20-10-30z" /><path d="M200 70c25-15 60 0 55 25s-45 30-60 10 0-30 5-35z" />
-      </svg>
+    <!-- КАРТЫ ТАРО: красное круглое окно с решёткой (как на арте Касуми), чёрные карты, лисьи огоньки -->
+    <template v-else-if="theme === 'tarot'">
+      <i v-if="on('back')" class="moon"><b class="lattice" /></i>
     </template>
 
     <!-- ФИОЛЕТОВЫЙ ДРАКОН: блеск по чешуе, драконий огонь снизу, угли -->
@@ -58,7 +54,7 @@
 
     <!-- частицы (у каждой свой слой) -->
     <i v-for="(p, n) in shown" :key="n" :class="p.k" :style="p.st">
-      <template v-if="p.k === 'mcard'"><b class="rune">{{ p.rune }}</b></template>
+      <template v-if="p.k === 'tcard'"><b class="seal" /></template>
     </i>
   </div>
 </template>
@@ -74,7 +70,6 @@ const props = defineProps({
 const card = computed(() => props.mode === 'card')
 const on = l => props.layer === 'all' || props.layer === l
 const RUNES = ['ᚦ', 'ᛉ', 'ᛟ', 'ᚱ', 'ᛞ', 'ᚹ', 'ᛇ', 'ᛝ']
-const CARD_RUNES = ['✦', '☾', '✧', '◈', '✶', '⟡', '☼']
 
 // одинаковый «случайный» узор при каждом наведении
 function rng(seed) {
@@ -97,11 +92,6 @@ const parts = computed(() => {
   const many = (n, l, kind, f) => Array.from({ length: Math.round(n * k) }, (_, i) => ({ l, k: kind, ...f(i) }))
   const ember = (n, colors) => many(n, 'front', 'ember', i => ({ st: { left: pct(0.04 + r() * 0.92), '--dx': `${(r() - 0.5) * 50}px`, color: colors[i % colors.length], ...timing(r, 2.4, 2, i) } }))
   switch (props.theme) {
-    case 'steam':
-      return many(6, 'front', 'puff', i => {
-        const left = i % 2 === 0
-        return { st: { left: pct(left ? -0.04 + r() * 0.12 : 0.92 + r() * 0.12), '--dx': `${(left ? 1 : -1) * (20 + r() * 40)}px`, '--sz': `${46 + r() * 40}px`, ...timing(r, 3, 1.8, i) } }
-      })
     case 'demon':
       return [
         ...many(7, 'back', 'smoke', i => ({ st: { left: pct(r() * 0.9 - 0.05), '--sz': `${90 + r() * 70}px`, '--dx': `${(r() - 0.5) * 60}px`, ...timing(r, 3.8, 2, i) } })),
@@ -116,11 +106,11 @@ const parts = computed(() => {
         ...many(10, 'back', 'flame', i => ({ st: { left: pct(-0.04 + (i / 10) * 1.08 + r() * 0.04), '--sz': `${30 + r() * 22}px`, animationDelay: s(-r() * 2.4), animationDuration: s(1.8 + r() * 1.2) } })),
         ...many(10, 'front', 'spark', i => ({ st: { left: pct(0.03 + r() * 0.94), ...timing(r, 1.6, 1.4, i) } }))
       ]
-    case 'maps':
-      return many(6, 'front', 'mcard', i => ({
-        rune: CARD_RUNES[i % CARD_RUNES.length],
-        st: { left: pct(i % 2 ? 0.8 + r() * 0.12 : 0.02 + r() * 0.12), '--dx': `${(i % 2 ? -1 : 1) * (10 + r() * 30)}px`, '--rot': `${(r() - 0.5) * 50}deg`, '--rot2': `${(r() - 0.5) * 260}deg`, ...timing(r, 5, 2.5, i) }
-      }))
+    case 'tarot':
+      return [
+        ...many(5, 'front', 'tcard', i => ({ st: { left: pct(i % 2 ? 0.8 + r() * 0.12 : 0.02 + r() * 0.12), '--dx': `${(i % 2 ? -1 : 1) * (10 + r() * 30)}px`, '--rot': `${(r() - 0.5) * 50}deg`, '--rot2': `${(r() - 0.5) * 260}deg`, ...timing(r, 5.5, 2.5, i) } })),
+        ...many(8, 'front', 'foxfire', i => ({ st: { left: pct(i % 2 ? 0.7 + r() * 0.28 : 0.02 + r() * 0.28), '--dx': `${(r() - 0.5) * 40}px`, '--sz': `${8 + r() * 7}px`, ...timing(r, 3.2, 2, i) } }))
+      ]
     case 'dragon':
       return [
         ...many(8, 'back', 'dflame', i => ({ st: { left: pct(-0.05 + (i / 8) * 1.05 + r() * 0.05), '--sz': `${70 + r() * 50}px`, animationDelay: s(-r() * 2), animationDuration: s(2 + r() * 1.2) } })),
@@ -132,6 +122,63 @@ const parts = computed(() => {
   return []
 })
 const shown = computed(() => parts.value.filter(p => on(p.l)))
+
+// иней: перистые ледяные узоры, как мороз на стекле, растут от нижнего края и боков портрета.
+// Ствол идёт короткими шагами и чуть изгибается, на каждом шаге — веточки под 60°, к кончику короче.
+// Рисуется один раз на страницу, тремя слоями толщины (каждый — одним штрихом, это быстро)
+let frost = null
+function frostImage() {
+  if (frost) return frost
+  const W = 330, H = 548, S = 2
+  const r = rng(7331)
+  const c = document.createElement('canvas')
+  c.width = W * S
+  c.height = H * S
+  const g = c.getContext('2d')
+  g.scale(S, S)
+  const paths = [new Path2D(), new Path2D(), new Path2D()] // стволы, ветки, иголки
+  function stem(x, y, a, L, d, curve) {
+    const path = paths[2 - d]
+    const step = 3
+    path.moveTo(x, y)
+    for (let len = 0; len < L; len += step) {
+      a += curve + (r() - 0.5) * 0.14
+      x += Math.cos(a) * step
+      y += Math.sin(a) * step
+      path.lineTo(x, y)
+      if (d > 0 && y < H && r() < (d === 2 ? 0.7 : 0.55)) {
+        const rest = (L - len) * (0.42 + r() * 0.18) + 2
+        for (const side of r() < 0.6 ? [-1, 1] : [r() < 0.5 ? -1 : 1]) stem(x, y, a + side * (Math.PI / 3 + (r() - 0.5) * 0.15), rest, d - 1, -side * 0.012)
+        path.moveTo(x, y)
+      }
+    }
+  }
+  const PB = 262, PL = 12, PR = W - 12 // низ и бока портрета
+  for (let x = PL + 8; x < PR; x += 18 + r() * 14) stem(x, PB, Math.PI / 2 + (r() - 0.5) * 1, 50 + r() * 45, 2, (r() - 0.5) * 0.02)
+  for (let y = 36; y < PB; y += 24 + r() * 18) {
+    stem(PL, y, Math.PI * (0.62 + r() * 0.2), 20 + r() * 16, 2, 0.01)
+    stem(PR, y, Math.PI * (0.38 - r() * 0.2), 20 + r() * 16, 2, -0.01)
+  }
+  g.lineCap = g.lineJoin = 'round'
+  g.shadowColor = 'rgba(127, 214, 255, .95)'
+  const STYLE = [[1.3, 0.6, 4], [0.8, 0.42, 2], [0.5, 0.3, 0]] // толщина, яркость, свечение
+  STYLE.forEach(([w, al, blur], i) => {
+    g.lineWidth = w
+    g.strokeStyle = `rgba(238, 250, 255, ${al})`
+    g.shadowBlur = blur
+    g.stroke(paths[i])
+  })
+  // изморозь: мелкие крупинки гуще у портрета
+  g.shadowBlur = 0
+  for (let i = 0; i < 900; i++) {
+    const y = PB + -Math.log(1 - r() * 0.999) * 90
+    if (y > H) continue
+    const x = PL + r() * (PR - PL)
+    g.fillStyle = `rgba(236, 249, 255, ${(0.4 * Math.max(0, 1 - (y - PB) / 300)).toFixed(3)})`
+    g.fillRect(x, y, 0.6 + r() * 1.1, 0.6 + r() * 1.1)
+  }
+  return (frost = c.toDataURL())
+}
 
 // текстура тумана: бесшовный фрактальный шум, рисуется один раз на всю страницу
 let fog = null
@@ -177,30 +224,16 @@ function fogTile() {
 
 /* ---------- пар ---------- */
 /* туман — бесшовный шум, который плывёт вверх; маска гасит его к середине карточки */
-.steambank { inset: 0; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 18%, transparent 62%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 18%, transparent 62%); animation: fade-in 1.2s ease-out both; }
-.m-ambient .steambank { -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); }
+.steambank { left: 0; right: 0; bottom: 0; top: 40%; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .75) 30%, transparent 100%); animation: fade-in 1.2s ease-out both; }
+.m-ambient .steambank { top: 0; -webkit-mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); mask: linear-gradient(to top, #000 0, rgba(0, 0, 0, .7) 30%, transparent 85%); }
 .fog { position: absolute; display: block; left: -20%; right: -20%; top: 0; height: calc(100% + var(--t)); background: var(--fog) 0 0 / var(--t) var(--t) repeat; will-change: transform; animation: fog-rise linear infinite; }
-.f1 { --t: 256px; animation-duration: 7s; opacity: .5; }
+/* цикл бесшовный: за один оборот слой сдвигается ровно на плитку — по вертикали, а второй ещё и вбок */
+.f1 { --t: 256px; animation-duration: 8s; opacity: .5; }
 .m-ambient .f1 { opacity: .32; }
 .m-ambient .f2 { opacity: .2; }
-.f2 { --t: 180px; animation-duration: 4.4s; opacity: .32; background-position: 90px 40px; filter: sepia(.5); }
-@keyframes fog-rise { from { transform: translate(0, 0); } to { transform: translate(-30px, calc(var(--t) * -1)); } }
-/* струи из клапанов: «пшш» по очереди слева и справа */
-.jet { width: 120px; height: 26px; border-radius: 50%; background: radial-gradient(ellipse at var(--from) 50%, rgba(248, 250, 252, .95), rgba(225, 233, 239, .45) 35%, transparent 70%); filter: blur(2.5px); opacity: 0; animation: jet 3.2s ease-out infinite; }
-.jl { --from: 0%; left: -6px; top: 300px; transform-origin: left center; }
-.jr { --from: 100%; right: -6px; top: 420px; transform-origin: right center; animation-delay: 1.6s; }
-@keyframes jet {
-  0%, 50% { opacity: 0; transform: scaleX(.15); }
-  56% { opacity: 1; }
-  100% { opacity: 0; transform: scaleX(1.5) translateY(-22px) scaleY(1.8); }
-}
-.puff { bottom: -30px; width: var(--sz); height: var(--sz); margin-left: calc(var(--sz) / -2); border-radius: 50%; background: radial-gradient(circle, rgba(240, 244, 247, .6), rgba(205, 218, 228, .2) 45%, transparent 70%); filter: blur(4px); opacity: 0; animation: puff linear infinite both; }
-.m-ambient .puff { --sz: 170px !important; filter: blur(10px); }
-@keyframes puff {
-  0% { opacity: 0; transform: translate(0, 0) scale(.4); }
-  20% { opacity: .6; }
-  100% { opacity: 0; transform: translate(var(--dx), calc(var(--rise) * -.8)) scale(2.2); }
-}
+.f2 { --t: 180px; animation-name: fog-drift; animation-duration: 6.5s; opacity: .32; background-position: 90px 40px; right: calc(-20% - var(--t)); }
+@keyframes fog-rise { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, calc(var(--t) * -1), 0); } }
+@keyframes fog-drift { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(calc(var(--t) * -1), calc(var(--t) * -1), 0); } }
 
 /* ---------- тёмная магия ---------- */
 .sigil { top: 300px; left: calc(50% - 130px); width: 260px; height: 260px; stroke: var(--ta); stroke-width: .8; opacity: .5; filter: drop-shadow(0 0 4px var(--ta)); animation: sigil-in 1s ease-out both, spin 18s linear infinite; }
@@ -227,10 +260,10 @@ function fogTile() {
 }
 
 /* ---------- лёд ---------- */
-/* иней: кристаллы, которые нарастают от краёв карточки к середине */
-.rime { inset: 0; border-radius: inherit; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90' fill='none' stroke='%23eaf8ff' stroke-linecap='round'%3E%3Cpath d='M10 80 34 50 44 18M34 50l20-6M24 63l-12-6M40 30l-10-8M40 30l12-2M54 44l14 10M54 44l6-14' stroke-width='1.1'/%3E%3Cpath d='M60 88l14-22 4-20M74 66l12 2M77 52l-10-4M88 10 66 20 58 6M66 20l-2 12M74 16l6 8' stroke-width='.8'/%3E%3Cpath d='M2 30l12-4M8 28l-2-8M8 28l2 8' stroke-width='.7'/%3E%3C/svg%3E") 0 0 / 90px 90px; filter: drop-shadow(0 0 2px rgba(127, 214, 255, .9)); -webkit-mask: radial-gradient(ellipse 120% 115% at 50% 50%, transparent var(--fr), #000 calc(var(--fr) + 18%)); mask: radial-gradient(ellipse 120% 115% at 50% 50%, transparent var(--fr), #000 calc(var(--fr) + 18%)); opacity: .95; animation: rime 1.6s cubic-bezier(.2, .7, .2, 1) both; }
-@property --fr { syntax: '<percentage>'; inherits: false; initial-value: 70%; }
-@keyframes rime { from { --fr: 70%; opacity: 0; } to { --fr: 34%; opacity: .95; } }
+/* иней растёт из-под портрета: маска-эллипс раскрывается от центра арта */
+.rime { inset: 0; opacity: .68; background: var(--frost) 0 0 / 100% 100% no-repeat; -webkit-mask: radial-gradient(ellipse calc(var(--fr) * 1.15) var(--fr) at 50% 24%, #000 72%, transparent 100%); mask: radial-gradient(ellipse calc(var(--fr) * 1.15) var(--fr) at 50% 24%, #000 72%, transparent 100%); animation: rime 2.4s cubic-bezier(.25, .6, .2, 1) both; }
+@property --fr { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+@keyframes rime { from { --fr: 20%; } to { --fr: 135%; } }
 .flake { top: -10px; width: var(--sz); height: var(--sz); border-radius: 50%; background: #f2fbff; box-shadow: 0 0 6px #bfeaff; opacity: 0; animation: fall linear infinite both; }
 .m-ambient .flake { width: calc(var(--sz) * 1.6); height: calc(var(--sz) * 1.6); }
 @keyframes fall {
@@ -269,22 +302,36 @@ function fogTile() {
 .m-ambient .enso { top: calc(50% - 38vmin); left: calc(50% - 38vmin); width: 76vmin; height: 76vmin; opacity: .16; }
 @keyframes enso { from { stroke-dashoffset: 300; } to { stroke-dashoffset: 0; } }
 
-/* ---------- магические карты ---------- */
-.contours { left: 0; right: 0; bottom: 0; width: 100%; height: 50%; stroke: var(--ta); stroke-width: 1.2; opacity: .5; filter: drop-shadow(0 0 3px var(--ta)); }
-.contours path { stroke-dasharray: 14 10; animation: march 3s linear infinite; }
-.contours path:nth-child(even) { animation-direction: reverse; }
-@keyframes march { to { stroke-dashoffset: -96; } }
-/* колдовская карта: рубашка с рамкой и светящейся руной */
-.mcard { bottom: -60px; width: 30px; height: 44px; display: grid; place-items: center; border-radius: 4px; background: radial-gradient(circle at 50% 50%, rgba(79, 216, 198, .35), transparent 60%), linear-gradient(160deg, #173a40, #0c1f24); border: 1px solid #e8d29a; box-shadow: inset 0 0 0 2px #0c1f24, inset 0 0 0 3px rgba(232, 210, 154, .55), 0 0 10px rgba(79, 216, 198, .6), 0 6px 10px rgba(0, 0, 0, .5); opacity: 0; animation: flutter ease-in-out infinite both; }
-.m-ambient .mcard { width: 64px; height: 94px; border-radius: 7px; }
-.rune { color: #9ff3e6; font: 700 15px/1 serif; text-shadow: 0 0 6px #4fd8c6, 0 0 12px #4fd8c6; }
-.m-ambient .rune { font-size: 32px; }
+/* ---------- карты таро ---------- */
+/* красное круглое окно с чёрной решёткой — под характеристиками */
+.moon { top: 300px; left: calc(50% - 120px); width: 240px; height: 240px; border-radius: 50%; overflow: hidden; background: radial-gradient(circle at 50% 60%, #ffcf6a, #ff7a2a 30%, #d4202f 62%, #5a0b14 100%); box-shadow: 0 0 40px rgba(232, 52, 74, .45); opacity: 0; animation: moon-in 1.2s ease-out forwards; }
+.lattice { position: absolute; inset: 0; background: linear-gradient(#0d0708, #0d0708) 50% 0 / 7px 100% no-repeat, linear-gradient(#0d0708, #0d0708) 0 50% / 100% 7px no-repeat, repeating-linear-gradient(90deg, transparent 0 34px, rgba(13, 7, 8, .92) 34px 38px), repeating-linear-gradient(0deg, transparent 0 34px, rgba(13, 7, 8, .92) 34px 38px); box-shadow: inset 0 0 0 6px #0d0708, inset 0 0 30px rgba(0, 0, 0, .7); border-radius: 50%; }
+.m-ambient .moon { top: calc(50% - 42vmin); left: calc(50% - 42vmin); width: 84vmin; height: 84vmin; }
+.m-ambient .lattice { background-size: 14px 100%, 100% 14px, auto, auto; }
+@keyframes moon-in { from { opacity: 0; transform: scale(.85); } to { opacity: .42; transform: none; } }
+.m-ambient .moon { animation-name: moon-in-amb; }
+@keyframes moon-in-amb { from { opacity: 0; } to { opacity: .3; } }
+/* чёрная карта таро: золотая рамка и красная печать, как в руке у Касуми */
+.tcard { bottom: -60px; width: 30px; height: 46px; border-radius: 3px; background: linear-gradient(160deg, #1d1416, #070505); border: 1px solid #d9b45a; box-shadow: inset 0 0 0 2px #070505, inset 0 0 0 3px rgba(217, 180, 90, .6), 0 0 10px rgba(232, 52, 74, .45), 0 6px 10px rgba(0, 0, 0, .6); opacity: 0; animation: flutter ease-in-out infinite both; }
+.m-ambient .tcard { width: 66px; height: 100px; border-radius: 6px; }
+.seal { position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px; border-radius: 50%; border: 1.5px solid #e8344a; box-shadow: 0 0 6px #e8344a, inset 0 0 4px #e8344a; background: radial-gradient(circle, #e8344a 0 2px, transparent 2.5px), conic-gradient(from 0deg, transparent 0 40deg, rgba(232, 52, 74, .8) 40deg 50deg, transparent 50deg 130deg, rgba(232, 52, 74, .8) 130deg 140deg, transparent 140deg 220deg, rgba(232, 52, 74, .8) 220deg 230deg, transparent 230deg 310deg, rgba(232, 52, 74, .8) 310deg 320deg, transparent 320deg); }
+.m-ambient .seal { width: 36px; height: 36px; margin: -18px; border-width: 2.5px; }
 @keyframes flutter {
   0% { opacity: 0; transform: translate(0, 0) rotate(var(--rot)) rotateY(0); }
   15% { opacity: 1; }
   50% { transform: translate(var(--dx), calc(var(--rise) * -.55)) rotate(calc(var(--rot) + 20deg)) rotateY(180deg); }
   85% { opacity: .9; }
   100% { opacity: 0; transform: translate(0, calc(var(--rise) * -1.1)) rotate(var(--rot2)) rotateY(360deg); }
+}
+/* лисий огонь (кицунэ-би): огонёк с белым сердцем, покачивается и мерцает */
+.foxfire { bottom: -20px; width: var(--sz); height: calc(var(--sz) * 1.5); border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: radial-gradient(ellipse at 50% 65%, #fff4d6 0 15%, #ffb347 30%, #ff4a2a 55%, transparent 72%); filter: blur(.6px) drop-shadow(0 0 6px #ff4a2a); opacity: 0; animation: foxfire ease-in-out infinite both; }
+.m-ambient .foxfire { --sz: 26px !important; }
+@keyframes foxfire {
+  0% { opacity: 0; transform: translate(0, 0) scale(.6); }
+  15% { opacity: 1; }
+  35% { transform: translate(calc(var(--dx) * -.6), calc(var(--rise) * -.3)) scale(1); }
+  60% { opacity: .85; transform: translate(var(--dx), calc(var(--rise) * -.55)) scale(.9, 1.1); }
+  100% { opacity: 0; transform: translate(calc(var(--dx) * .3), calc(var(--rise) * -.9)) scale(.4); }
 }
 
 /* ---------- фиолетовый дракон ---------- */
