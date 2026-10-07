@@ -31,17 +31,31 @@
         <!-- край карты -->
         <rect x="0" y="0" :width="WORLD" :height="WORLD" class="sm-world" vector-effect="non-scaling-stroke" />
 
-        <!-- дороги -->
-        <g v-for="r in roadsView" :key="r.id" class="sm-road" :class="{ sel: isSel('road', r.id) }">
-          <path v-for="(l, i) in roadLayers(r.type)" :key="i" :d="r.d" fill="none" :stroke="l.c" :stroke-width="l.w" :stroke-dasharray="l.dash" stroke-linecap="round" stroke-linejoin="round" />
-          <path :d="r.d" class="sm-road-hit" :stroke-width="Math.max(ROAD_TYPES[r.type]?.w || 4, 14 * px)"
+        <!-- дороги: слоями по всем сразу (тени → кромки → покрытие с разметкой), главная ложится поверх второстепенной,
+             поэтому перекрёстки сливаются; там, где дорога упирается в другую, — плавный раструб -->
+        <g class="sm-roads">
+          <path v-for="r in roadsDraw.filter(x => isSel('road', x.id))" :key="'g' + r.id" :d="r.d" class="rd" stroke="rgba(255, 236, 170, .55)" :stroke-width="r.st.edge.w + 8 * px" />
+          <path v-for="r in roadsDraw" :key="'s' + r.id" :d="r.d" class="rd" :stroke="r.st.shadow.c" :stroke-width="r.st.shadow.w" />
+          <template v-for="r in roadsDraw" :key="'e' + r.id">
+            <path v-for="(f, i) in r.flares" :key="i" :d="f" :fill="r.st.edge.c" :stroke="r.st.edge.c" :stroke-width="r.st.edge.w - r.st.fill.w" stroke-linejoin="round" />
+            <path :d="r.d" class="rd" :stroke="r.st.edge.c" :stroke-width="r.st.edge.w" />
+          </template>
+          <template v-for="r in roadsDraw" :key="'f' + r.id">
+            <path v-for="(f, i) in r.flares" :key="i" :d="f" :fill="r.st.fill.c" />
+            <path :d="r.d" class="rd" :stroke="r.st.fill.c" :stroke-width="r.st.fill.w" />
+            <path v-for="(l, i) in r.st.extra" :key="'x' + i" :d="r.dInner" class="rd" :stroke="l.c" :stroke-width="l.w" :stroke-dasharray="l.dash" stroke-linecap="butt" />
+          </template>
+          <path v-for="r in roadsDraw" :key="'h' + r.id" :d="r.d" class="sm-road-hit" :stroke-width="Math.max(ROAD_TYPES[r.type]?.w || 4, 14 * px)"
                 @pointerenter="hover = { kind: 'road', item: r }" @pointerleave="hover = null" @click.stop="pick('road', r)" />
         </g>
-        <!-- новая дорога, пока её рисуют -->
-        <template v-if="draft.length">
-          <path :d="draftD" fill="none" class="sm-draft" :stroke-width="Math.max(ROAD_TYPES[tool?.road]?.w || 4, 3 * px)" />
+        <!-- новая дорога, пока её рисуют; кольцо — куда прилипнет точка -->
+        <template v-if="tool?.road">
+          <path v-if="draft.length" :d="draftD" fill="none" class="sm-draft" :stroke-width="Math.max(ROAD_TYPES[tool.road]?.w || 4, 3 * px)" />
           <circle v-for="(p, i) in draft" :key="i" :cx="p[0]" :cy="p[1]" :r="4 * px" class="sm-draft-pt" vector-effect="non-scaling-stroke" />
+          <circle v-if="snapHint" :cx="snapHint[0]" :cy="snapHint[1]" :r="8 * px" class="sm-snap" vector-effect="non-scaling-stroke" />
         </template>
+        <!-- какое дерево срубим -->
+        <circle v-if="tool === 'fell' && fellTarget" :cx="fellTarget.x" :cy="fellTarget.y" :r="Math.max(fellTarget.r + 0.6, 6 * px)" class="sm-fell" vector-effect="non-scaling-stroke" />
 
         <!-- постройки в настоящем размере (издалека — не меньше значка) -->
         <g v-for="b in placedView" :key="b.id" class="sm-item" :class="{ sel: isSel('building', b.id), dragging: b.id === dragId, bad: b.id === dragId && dragBad.length, building: b.state === 'construction' }"
@@ -85,7 +99,7 @@
             <rect :x="-placeShown / 2" :y="-placeShown / 2" :width="placeShown" :height="placeShown" :rx="placeShown / 8" class="sm-ghost-plate" vector-effect="non-scaling-stroke" />
             <image :href="iconUrl(BUILDINGS[placeType]?.icon)" :x="-placeShown * 0.39" :y="-placeShown * 0.39" :width="placeShown * 0.78" :height="placeShown * 0.78" opacity=".8" />
           </template>
-          <circle v-else :r="brushR" class="sm-brush" :class="brushClass" vector-effect="non-scaling-stroke" />
+          <circle v-else-if="tool !== 'fell'" :r="brushR" class="sm-brush" :class="brushClass" vector-effect="non-scaling-stroke" />
         </g>
 
         <!-- туман неразведанного -->
@@ -131,10 +145,10 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, placementProblems } from '../shared/settlement.js'
+import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, placementProblems, footprint, roadCurve, nearestRoad, roadJunctions } from '../shared/settlement.js'
 import { WORLD, CENTER, makeTerrain, BIOME_LABEL } from '../shared/terrainGen.js'
 import { createTileStore } from './tiles.js'
-import { TILE, MAX_Z } from './tileRender.js'
+import { TILE, MAX_Z, treeAt } from './tileRender.js'
 import { fogTexture } from '../map/fogTexture.js'
 
 const props = defineProps({
@@ -148,7 +162,7 @@ const props = defineProps({
   brush: { type: Number, default: 60 }, // радиус кисти, м
   master: Boolean
 })
-const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'road', 'roadEdit', 'ready'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'ready'])
 
 const fogUrl = fogTexture()
 const iconUrl = name => `/settlement/${name || 'help'}.png`
@@ -254,8 +268,8 @@ function drawTiles() {
   const main = []
   for (let y = c2; y <= d; y++) for (let x = a; x <= b; x++) main.push({ z, x, y })
   main.sort((p, q) => Math.hypot(p.x + 0.5 - cx, p.y + 0.5 - cy) - Math.hypot(q.x + 0.5 - cx, q.y + 0.5 - cy))
-  const terrain = props.settlement.terrain, clearings = props.settlement.clearings || []
-  const got = tiles.want(terrain, clearings, [...list, ...main])
+  const world = tileWorld.value
+  const got = tiles.want(world, [...list, ...main])
   g.setTransform(dpr * k, 0, 0, dpr * k, dpr * view.x, dpr * view.y)
   g.imageSmoothingEnabled = true
   const ov = 0.6 / (k * dpr) // плитки чуть внахлёст — без швов
@@ -264,7 +278,7 @@ function drawTiles() {
     if (t.z !== z) continue
     if (t.img) { g.drawImage(t.img, t.x * T - ov, t.y * T - ov, T + ov * 2, T + ov * 2); continue }
     missing++
-    const an = tiles.ancestor(terrain, clearings, t.z, t.x, t.y)
+    const an = tiles.ancestor(world, t.z, t.x, t.y)
     if (!an) continue
     const TA = WORLD / 2 ** an.z, s = TILE / TA
     g.drawImage(an.img, (t.x * T - an.x * TA) * s, (t.y * T - an.y * TA) * s, T * s, T * s, t.x * T - ov, t.y * T - ov, T + ov * 2, T + ov * 2)
@@ -272,50 +286,141 @@ function drawTiles() {
   if (!missing && !readySent) { readySent = true; emit('ready') }
 }
 watch(() => [view.x, view.y, view.k, size.w, size.h], scheduleDraw)
-watch(() => [props.settlement.terrain, props.settlement.clearings], scheduleDraw, { deep: true })
+// что плитки должны знать, кроме местности: вырубки, дороги и постройки (под ними деревьев нет)
+const tileWorld = computed(() => ({
+  terrain: props.settlement.terrain,
+  clearings: props.settlement.clearings || [],
+  roads: (props.settlement.roads || []).map(r => {
+    const pts = roadCurve(r)
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1])
+    return { w: ROAD_TYPES[r.type]?.w || 4, pts, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }
+  }),
+  boxes: placed.value.map(b => footprint(b))
+}))
+watch(tileWorld, scheduleDraw)
 
 /* ---------- дороги ---------- */
-function smoothPath(pts, straight) {
-  if (pts.length < 2) return ''
-  if (straight || pts.length < 3) return 'M' + pts.map(p => `${p[0]} ${p[1]}`).join(' L')
-  let d = `M${pts[0][0]} ${pts[0][1]}`
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]
-    const t = 0.18
-    d += ` C${p1[0] + (p2[0] - p0[0]) * t} ${p1[1] + (p2[1] - p0[1]) * t} ${p2[0] - (p3[0] - p1[0]) * t} ${p2[1] - (p3[1] - p1[1]) * t} ${p2[0]} ${p2[1]}`
-  }
-  return d
-}
+const pathOf = pts => (pts.length < 2 ? '' : 'M' + pts.map(p => `${Math.round(p[0] * 100) / 100} ${Math.round(p[1] * 100) / 100}`).join(' L'))
 const roadEdit = ref(null) // { id, points } — пока тянут ручку
-const roadsView = computed(() => (props.settlement.roads || []).map(r => {
-  const points = roadEdit.value?.id === r.id ? roadEdit.value.points : r.points
-  return { ...r, points, d: smoothPath(points, r.type === 'bridge') }
-}))
-// слои обводки: ширина в метрах, но не тоньше нескольких пикселей издалека
-function roadLayers(type) {
+const roadsView = computed(() => (props.settlement.roads || []).map(r => (roadEdit.value?.id === r.id ? { ...r, points: roadEdit.value.points } : r)))
+// оформление вида дороги: ширины в метрах, но не тоньше нескольких пикселей издалека
+function roadStyle(type) {
   const w = ROAD_TYPES[type]?.w || 4, p = px.value
   const m = (meters, pixels) => Math.max(meters, pixels * p)
-  const dash = (a, b) => `${m(a, a * 4)} ${m(b, b * 4)}`
   switch (type) {
-    case 'trail': return [{ c: 'rgba(60, 44, 24, .35)', w: m(w + 0.8, 2.4) }, { c: '#cdb17c', w: m(w, 1.4), dash: dash(2.2, 1.4) }]
-    case 'tract': return [{ c: 'rgba(30, 22, 12, .35)', w: m(w + 4, 4.6) }, { c: '#5e472c', w: m(w + 1.6, 3.4) }, { c: '#977652', w: m(w, 2.6) }, { c: '#7b5d3c', w: m(w * 0.62, 1.4) }, { c: '#977652', w: m(w * 0.36, 0.8) }]
-    case 'paved': return [{ c: 'rgba(20, 20, 18, .35)', w: m(w + 3.5, 4.2) }, { c: '#4c4a45', w: m(w + 1.4, 3.2) }, { c: '#9a958a', w: m(w, 2.4) }, ...(view.k > 1.2 ? [{ c: '#b6b1a5', w: w * 0.9, dash: '0.45 0.8' }] : [])]
-    case 'bridge': return [{ c: 'rgba(10, 8, 4, .45)', w: m(w + 3, 4.4) }, { c: '#3b2a18', w: m(w + 1.6, 3.4) }, { c: '#a77d4c', w: m(w, 2.6) }, ...(view.k > 0.8 ? [{ c: '#7a5a34', w: w * 0.94, dash: '0.28 0.5' }] : [])]
-    default: return [{ c: 'rgba(40, 30, 18, .35)', w: m(w + 3, 3.6) }, { c: '#6b5235', w: m(w + 1.2, 2.8) }, { c: '#a3835a', w: m(w, 2) }, { c: 'rgba(196, 166, 120, .55)', w: m(w * 0.4, 0.7) }]
+    case 'trail': return { shadow: { c: 'rgba(40, 30, 18, .22)', w: m(w + 1.4, 3) }, edge: { c: '#9a7d55', w: m(w + 0.5, 2.2) }, fill: { c: '#c4a676', w: m(w, 1.4) }, extra: [] }
+    case 'tract': return { shadow: { c: 'rgba(30, 22, 12, .35)', w: m(w + 4, 4.6) }, edge: { c: '#5e472c', w: m(w + 1.6, 3.4) }, fill: { c: '#977652', w: m(w, 2.6) }, extra: [{ c: '#83653f', w: m(w * 0.62, 1.4) }, { c: '#977652', w: m(w * 0.36, 0.8) }] }
+    case 'paved': return { shadow: { c: 'rgba(20, 20, 18, .35)', w: m(w + 3.5, 4.2) }, edge: { c: '#4c4a45', w: m(w + 1.4, 3.2) }, fill: { c: '#9a958a', w: m(w, 2.4) }, extra: view.k > 1.2 ? [{ c: '#b6b1a5', w: w * 0.9, dash: '0.45 0.8' }] : [] }
+    case 'bridge': return { shadow: { c: 'rgba(10, 8, 4, .45)', w: m(w + 3, 4.4) }, edge: { c: '#3b2a18', w: m(w + 1.6, 3.4) }, fill: { c: '#a77d4c', w: m(w, 2.6) }, extra: view.k > 0.8 ? [{ c: '#7a5a34', w: w * 0.94, dash: '0.28 0.5' }] : [] }
+    default: return { shadow: { c: 'rgba(40, 30, 18, .32)', w: m(w + 3, 3.6) }, edge: { c: '#6b5235', w: m(w + 1.2, 2.8) }, fill: { c: '#a3835a', w: m(w, 2) }, extra: [{ c: 'rgba(196, 166, 120, .5)', w: m(w * 0.38, 0.7) }] }
   }
 }
+// точка на ломаной на расстоянии dist от начала
+function pointAlong(pts, dist) {
+  for (let i = 1; i < pts.length; i++) {
+    const seg = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+    if (dist <= seg) { const u = seg ? dist / seg : 0; return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * u, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * u] }
+    dist -= seg
+  }
+  return pts[pts.length - 1]
+}
+// отрезать от начала ломаной кусок длиной cut
+function trimStart(pts, cut) {
+  let i = 1
+  while (i < pts.length) {
+    const seg = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+    if (cut < seg) { const u = cut / seg; return [[pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * u, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * u], ...pts.slice(i)] }
+    cut -= seg
+    i++
+  }
+  return pts.slice(-1)
+}
+const f2 = p => `${Math.round(p[0] * 100) / 100} ${Math.round(p[1] * 100) / 100}`
+// раструб примыкания: оба угла между кромкой главной дороги и второстепенной скругляются (как на картах).
+// J — точка примыкания на оси главной, tI — направление главной там, wN / wI — ширина второстепенной и главной
+function flarePath(curve, end, J, tI, wN, wI) {
+  const pts = end ? [...curve].reverse() : curve
+  const P = pointAlong(pts, wI / 2 + Math.max(wN * 2, 4))
+  let dx = P[0] - J[0], dy = P[1] - J[1]
+  const len = Math.hypot(dx, dy)
+  if (len < 0.05) return null
+  dx /= len; dy /= len
+  const nx = -dy, ny = dx, h = wN / 2
+  const tl = Math.hypot(tI[0], tI[1]) || 1
+  const ix = tI[0] / tl, iy = tI[1] / tl
+  // кромка главной со стороны, откуда пришла второстепенная
+  const sg = Math.sign(dx * -iy + dy * ix) || 1
+  const ex = J[0] - iy * sg * (wI / 2), ey = J[1] + ix * sg * (wI / 2)
+  const r = Math.min(Math.max(wN * 0.9, 1.4), 4.5) // радиус скругления
+  const side = k => {
+    // пересечение кромки второстепенной (смещение k·h) с кромкой главной: E + tI·u = J + n·k·h + d·v
+    const bx = J[0] + nx * k * h - ex, by = J[1] + ny * k * h - ey
+    const det = ix * -dy - iy * -dx
+    if (Math.abs(det) < 0.15) return null // почти параллельно — раструб не нужен
+    const u = (bx * -dy - by * -dx) / det
+    const Cx = ex + ix * u, Cy = ey + iy * u
+    const away = Math.sign((nx * k) * ix + (ny * k) * iy) || k
+    return { S: [Cx + ix * away * r, Cy + iy * away * r], C: [Cx, Cy], Q: [Cx + dx * r, Cy + dy * r] }
+  }
+  const a = side(1), b = side(-1)
+  if (!a || !b) return null
+  return `M${f2(J)} L${f2(a.S)} Q${f2(a.C)} ${f2(a.Q)} L${f2(b.Q)} Q${f2(b.C)} ${f2(b.S)} Z`
+}
+const roadsDraw = computed(() => {
+  const roads = roadsView.value
+  const juncs = roadJunctions(roads)
+  return roads.map(r => {
+    const st = roadStyle(r.type)
+    const full = roadCurve(r)
+    let curve = full
+    const flares = []
+    let inner = full
+    for (const j of juncs.filter(x => x.road === r)) {
+      const sti = roadStyle(j.into.type)
+      const ci = roadCurve(j.into)
+      // упёрлись в конец другой дороги — это угол или продолжение, раструб не нужен
+      const atEnd = [ci[0], ci[ci.length - 1]].some(p => Math.hypot(p[0] - j.x, p[1] - j.y) < sti.fill.w / 2 + 0.5)
+      if (!atEnd && (ROAD_TYPES[j.into.type]?.rank || 0) >= (ROAD_TYPES[r.type]?.rank || 0)) {
+        // направление главной дороги в точке примыкания
+        const q = nearestRoad([j.into], j.x, j.y)
+        const tI = q ? [ci[q.seg][0] - ci[q.seg - 1][0], ci[q.seg][1] - ci[q.seg - 1][1]] : [1, 0]
+        const fp = flarePath(full, j.end, [j.x, j.y], tI, st.fill.w, sti.fill.w)
+        if (fp) {
+          flares.push(fp)
+          // сама дорога кончается у оси главной, не доходя до неё: круглый конец не вылезает за дальнюю кромку
+          const cut = sti.fill.w / 2 * 0.9
+          curve = j.end ? trimStart([...curve].reverse(), cut).reverse() : trimStart(curve, cut)
+        }
+      }
+      // разметка не заходит на покрытие главной дороги
+      inner = j.end ? trimStart([...inner].reverse(), sti.fill.w / 2 + 0.3).reverse() : trimStart(inner, sti.fill.w / 2 + 0.3)
+    }
+    return { ...r, st, flares, d: pathOf(curve), dInner: pathOf(inner), rank: ROAD_TYPES[r.type]?.rank || 0 }
+  }).sort((a, b) => a.rank - b.rank)
+})
 const roadLen = pts => pts.reduce((n, p, i) => (i ? n + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0), 0)
 const fmtLen = m => (m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 0 : 1).replace('.', ',')} км` : `${Math.round(m)} м`)
 // рисование новой дороги: щелчки ставят точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена
 const draft = ref([])
-const draftD = computed(() => smoothPath(cursor.value && props.tool?.road ? [...draft.value, [cursor.value.x, cursor.value.y]] : draft.value, props.tool?.road === 'bridge'))
+const draftD = computed(() => pathOf(roadCurve({ type: props.tool?.road, points: snapHint.value || cursor.value ? [...draft.value, snapHint.value || [cursor.value.x, cursor.value.y]] : draft.value })))
 watch(() => props.tool, () => { draft.value = [] })
-function snap(w) {
-  // к точкам других дорог — чтобы перекрёстки сходились
-  let best = null, bd = 10 * px.value
-  for (const r of props.settlement.roads || []) for (const p of r.points) { const d = Math.hypot(p[0] - w.x, p[1] - w.y); if (d < bd) { bd = d; best = p } }
-  return best ? [best[0], best[1]] : [w.x, w.y]
+// прилипание: к концам дорог (продолжить), иначе — к любой точке дороги (примыкание); null — не прилипло
+function snapTo(w) {
+  const tol = 12 * px.value
+  let best = null, bd = tol
+  for (const r of roadsView.value) for (const p of [r.points[0], r.points[r.points.length - 1]]) {
+    const d = Math.hypot(p[0] - w.x, p[1] - w.y)
+    if (d < bd) { bd = d; best = [p[0], p[1]] }
+  }
+  if (best) return best
+  const q = nearestRoad(roadsView.value, w.x, w.y)
+  if (q && q.dist < Math.max(tol, (ROAD_TYPES[q.road.type]?.w || 4) / 2)) return [Math.round(q.x * 10) / 10, Math.round(q.y * 10) / 10]
+  return null
 }
+const snap = w => snapTo(w) || [w.x, w.y]
+const snapHint = computed(() => (props.tool?.road && cursor.value ? snapTo(cursor.value) : null))
+// инструмент «срубить дерево»: ближайшее к курсору дерево или куст
+const fellTarget = computed(() => (props.tool === 'fell' && cursor.value ? treeAt(props.settlement.terrain, props.settlement.clearings, cursor.value.x, cursor.value.y, 6 * px.value) : null))
 function finishRoad() {
   const pts = draft.value.filter((p, i, a) => !i || Math.hypot(p[0] - a[i - 1][0], p[1] - a[i - 1][1]) > 2 * px.value)
   if (pts.length >= 2) emit('road', { type: props.tool.road, points: pts })
@@ -458,7 +563,8 @@ function onUp(e) {
   const primary = (e.button === 0 && !pointers.get(e.pointerId)?.pan) || e.pointerType !== 'mouse'
   if (!moved && up && primary && toolActive.value && pointers.size === 1) {
     const w = toWorld(e.clientX, e.clientY)
-    if (props.tool.road) draft.value = [...draft.value, snap(w)]
+    if (props.tool === 'fell') { const tr = treeAt(props.settlement.terrain, props.settlement.clearings, w.x, w.y, 6 * px.value); if (tr) emit('fell', tr) }
+    else if (props.tool.road) draft.value = [...draft.value, snap(w)]
     else if (placeType.value && !cursorBad.value.length) emit('placed', { type: placeType.value, id: props.tool.placeExisting, ...w })
     else if (props.tool.explore) emit('explore', w)
   }
@@ -550,8 +656,11 @@ defineExpose({ fit, fitAll, finishRoad, draft })
 .sm-svg { position: relative; display: block; }
 .sm-world { fill: none; stroke: rgba(231, 197, 111, .55); stroke-width: 2; stroke-dasharray: 2 10; stroke-linecap: round; pointer-events: none; }
 .sm-fog { pointer-events: none; opacity: .86; }
-.sm-road-hit { fill: none; stroke: transparent; cursor: pointer; pointer-events: stroke; }
-.sm-road.sel path:first-child { stroke: rgba(255, 240, 190, .55); }
+.rd { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.sm-roads path:not(.sm-road-hit) { pointer-events: none; }
+.sm-road-hit { fill: none; stroke: transparent; stroke-linecap: round; stroke-linejoin: round; cursor: pointer; pointer-events: stroke; }
+.sm-snap { fill: rgba(255, 243, 196, .2); stroke: #fff3c4; stroke-width: 2; pointer-events: none; }
+.sm-fell { fill: rgba(224, 180, 124, .18); stroke: #e0b47c; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
 .sm-draft { stroke: rgba(243, 217, 154, .75); stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
 .sm-draft-pt { fill: #f3d99a; stroke: #3a2a14; stroke-width: 1.5; }
 .sm-item { cursor: pointer; }

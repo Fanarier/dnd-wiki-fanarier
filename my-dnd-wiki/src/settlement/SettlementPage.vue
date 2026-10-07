@@ -26,7 +26,7 @@
       <div class="sp-mapwrap">
         <SettlementMap ref="mapRef" class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts" :brush="brush" :master="master"
                        @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog"
-                       @cut="onCut" @road="onRoad" @road-edit="onRoadEdit" />
+                       @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" />
         <!-- инструменты: мастеру — правка карты, главе — приказы -->
         <div v-if="master || decider" class="sp-tools">
           <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="setTool(null)">👁 Смотреть</button>
@@ -86,8 +86,9 @@
         <div v-if="pop === 'forest'" class="sp-pop small">
           <div class="pop-head"><b>Лес</b><button @click="pop = null">×</button></div>
           <button class="pal-item plain" :class="{ on: tool === 'cut' }" @click="setTool('cut')"><span>🪓 Вырубить</span><em>кистью</em></button>
-          <button class="pal-item plain" :class="{ on: tool === 'grow' }" @click="setTool('grow')"><span>🌳 Вернуть лес</span><em>стирает вырубку</em></button>
-          <p class="pal-note">Под постройку в лесу вырубка делается сама. Вырубок сейчас: {{ s.clearings?.length || 0 }}.</p>
+          <button class="pal-item plain" :class="{ on: tool === 'fell' }" @click="setTool('fell')"><span>🌲 Срубить дерево</span><em>щелчком, останется пень</em></button>
+          <button class="pal-item plain" :class="{ on: tool === 'grow' }" @click="setTool('grow')"><span>🌳 Вернуть лес</span><em>стирает вырубку и пни</em></button>
+          <p class="pal-note">Дороги и постройки сами убирают деревья, которые на них стоят; под постройкой в лесу ещё и вырубка. Вырубок сейчас: {{ s.clearings?.length || 0 }}.</p>
         </div>
         <!-- туман -->
         <div v-if="pop === 'fog'" class="sp-pop small">
@@ -241,8 +242,9 @@ const hint = computed(() => {
   if (t?.placeExisting) { const b = s.value.buildings.find(x => x.id === t.placeExisting); return `Кликни, куда поставить «${b?.name || BUILDINGS[t.type]?.label}». Esc — отмена.` }
   if (t?.place) return `Кликни по разведанной земле, куда поставить «${BUILDINGS[t.place]?.label}». Esc — отмена.`
   if (t?.explore) return 'Кликни, какой участок разведать — мастер получит приказ.'
-  if (t?.road) return `${ROAD_TYPES[t.road].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена.`
+  if (t?.road) return `${ROAD_TYPES[t.road].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Точка прилипает к другим дорогам (кольцо); начни с конца такой же дороги — продолжишь её.`
   if (t === 'cut') return 'Води кистью по лесу — вырубка.'
+  if (t === 'fell') return 'Наведи на дерево или куст и щёлкни — останется пень. Esc — отмена.'
   if (t === 'grow') return 'Води кистью по вырубке — лес вернётся.'
   if (t === 'fog-add') return 'Води кистью — земля станет разведанной.'
   if (t === 'fog-erase') return 'Води кистью — вернёт туман на кружки разведки.'
@@ -294,9 +296,30 @@ const brushApply = (list, { erase, points, r }) => (erase
   : [...list, ...points.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), r: Math.round(r) }))])
 const onFog = ev => patch({ explored: brushApply(s.value.explored || [], ev) })
 const onCut = ev => patch({ clearings: brushApply(s.value.clearings || [], ev) })
+const onFell = tr => patch({ clearings: [...(s.value.clearings || []), { x: Math.round(tr.x * 10) / 10, y: Math.round(tr.y * 10) / 10, r: Math.max(1, Math.round(tr.r + 0.4)), tree: true }] })
+// новая дорога, начатая или законченная на конце такой же дороги, продолжает её — одна плавная линия без стыка
+function mergeRoad(roads, type, points) {
+  const same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 0.6
+  let pts = points, keep = null
+  const rest = [...roads]
+  for (let pass = 0; pass < 2; pass++) {
+    const i = rest.findIndex(r => r.type === type && r !== keep && [r.points[0], r.points[r.points.length - 1]].some(e => same(e, pts[0]) || same(e, pts[pts.length - 1])))
+    if (i < 0) break
+    const r = rest[i]
+    const a = r.points[0], b = r.points[r.points.length - 1]
+    if (same(pts[0], b)) pts = [...r.points, ...pts.slice(1)]
+    else if (same(pts[0], a)) pts = [...[...r.points].reverse(), ...pts.slice(1)]
+    else if (same(pts[pts.length - 1], a)) pts = [...pts, ...r.points.slice(1)]
+    else pts = [...pts, ...[...r.points].reverse().slice(1)]
+    keep = keep ? { ...keep, points: pts } : { ...r, points: pts }
+    rest.splice(i, 1)
+  }
+  return keep ? { roads: [...rest, { ...keep, points: pts }], id: keep.id, merged: true } : null
+}
 async function onRoad({ type, points }) {
-  const id = 'r' + Date.now().toString(36)
-  const r = await patch({ roads: [...(s.value.roads || []), { id, type, points }] }, `${ROAD_TYPES[type].label} проложена`)
+  const m = mergeRoad(s.value.roads || [], type, points)
+  const id = m?.id || 'r' + Date.now().toString(36)
+  const r = await patch({ roads: m ? m.roads : [...(s.value.roads || []), { id, type, points }] }, m ? `${ROAD_TYPES[type].label} продолжена` : `${ROAD_TYPES[type].label} проложена`)
   if (r) sel.value = { kind: 'road', id }
 }
 const onRoadEdit = ({ id, points }) => patch({ roads: s.value.roads.map(r => (r.id === id ? { ...r, points } : r)) })

@@ -1158,7 +1158,7 @@ const T_ROAD = r => {
   if (pts.length < 2) throw Object.assign(new Error('В дороге нужно хотя бы две точки'), { status: 400 })
   return { id: T.str(40)(r.id) || newId('r'), type: SETTLE_ROADS[r.type] ? r.type : 'dirt', points: pts, ...(r.name ? { name: T.str(80)(r.name) } : {}) }
 }
-const T_CIRCLE = c => ({ x: coord(c?.x), y: coord(c?.y), r: Math.round(T.num(1, 5000)(c?.r)), ...(c?.name ? { name: T.str(60)(c.name) } : {}) })
+const T_CIRCLE = c => ({ x: coord(c?.x), y: coord(c?.y), r: Math.round(T.num(1, 5000)(c?.r)), ...(c?.name ? { name: T.str(60)(c.name) } : {}), ...(c?.tree ? { tree: true } : {}) })
 const T_TERRAIN = v => ({
   v: 2, seed: Math.round(T.num(0, 2 ** 31 - 1)(v?.seed ?? 1917)),
   params: Object.fromEntries(Object.entries(TERRAIN_PARAMS).filter(([k]) => v?.params?.[k] != null).map(([k, d]) => [k, T.num(d.min, d.max)(v.params[k])]))
