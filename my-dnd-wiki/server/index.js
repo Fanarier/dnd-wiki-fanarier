@@ -14,7 +14,8 @@ import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
-import { computeSettlement, placementProblems, shortFor, priceText, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS } from '../src/shared/settlement.js'
+import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
+import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
@@ -1147,8 +1148,21 @@ setInterval(() => {
 const SETTLE_KEYS = {
   name: 'string', kind: 'string', status: 'string', cityId: 'string', headHeroId: 'string', managers: 'array', managerSlots: 'number',
   deciders: 'array', stats: 'object', stock: 'object', races: 'array', buildings: 'array', jobs: 'object', assets: 'array',
-  outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array', orders: 'array', day: 'number'
+  outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array', orders: 'array', day: 'number',
+  roads: 'array', clearings: 'array'
 }
+// дороги, вырубки, круги разведки и настройки местности — проверяем форму, лишнее отбрасываем
+const coord = v => Math.round(T.num(-2000, SETTLE_WORLD + 2000)(v) * 10) / 10
+const T_ROAD = r => {
+  const pts = (Array.isArray(r?.points) ? r.points : []).slice(0, 600).map(p => [coord(p?.[0]), coord(p?.[1])])
+  if (pts.length < 2) throw Object.assign(new Error('В дороге нужно хотя бы две точки'), { status: 400 })
+  return { id: T.str(40)(r.id) || newId('r'), type: SETTLE_ROADS[r.type] ? r.type : 'dirt', points: pts, ...(r.name ? { name: T.str(80)(r.name) } : {}) }
+}
+const T_CIRCLE = c => ({ x: coord(c?.x), y: coord(c?.y), r: Math.round(T.num(1, 5000)(c?.r)), ...(c?.name ? { name: T.str(60)(c.name) } : {}) })
+const T_TERRAIN = v => ({
+  v: 2, seed: Math.round(T.num(0, 2 ** 31 - 1)(v?.seed ?? 1917)),
+  params: Object.fromEntries(Object.entries(TERRAIN_PARAMS).filter(([k]) => v?.params?.[k] != null).map(([k, d]) => [k, T.num(d.min, d.max)(v.params[k])]))
+})
 const findSettlement = id => (getDb().settlements || []).find(x => x.id === id)
 // решать по событиям и отдавать приказы могут мастер и выбранные им игроки
 const canDecide = (u, s) => u?.role === 'master' || (u?.role === 'player' && s.deciders?.includes(u.id))
@@ -1224,6 +1238,10 @@ app.patch('/api/settlements/:id', requireMaster, (req, res) => {
     if (!ok && !(k === 'headHeroId' && v === null)) return res.status(400).json({ error: 'Неверный формат поля: ' + k })
   }
   if (Array.isArray(body.deciders)) body.deciders = body.deciders.filter(id => typeof id === 'string').slice(0, 20)
+  if (Array.isArray(body.roads)) body.roads = body.roads.slice(0, 500).map(T_ROAD)
+  if (Array.isArray(body.clearings)) body.clearings = body.clearings.slice(0, 8000).map(T_CIRCLE)
+  if (Array.isArray(body.explored)) body.explored = body.explored.slice(0, 4000).map(e => (e?.points ? e : T_CIRCLE(e)))
+  if (body.terrain) body.terrain = T_TERRAIN(body.terrain)
   // новые события из правки мастера — решающим в колокольчик
   const known = new Set((s.events || []).map(e => e.id))
   if (Array.isArray(body.events)) body.events = body.events.map(T_EVENT)
@@ -1281,7 +1299,7 @@ app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
   const o = { id: newId('o'), kind: b.kind, text: T.str(1000)(b.text).trim(), by: req.user.id, byName: req.user.name, status: 'pending', createdAt: Date.now() }
   if (b.kind === 'build') {
     if (!BUILDINGS[b.type] || BUILDINGS[b.type].personal) return res.status(400).json({ error: 'Такую постройку не построить' })
-    o.build = { type: b.type, x: Math.round(T.num(0, 5000)(b.x)), y: Math.round(T.num(0, 5000)(b.y)) }
+    o.build = { type: b.type, x: Math.round(coord(b.x)), y: Math.round(coord(b.y)) }
     if (BUILDINGS[b.type].size !== 'settlement') {
       const p = placementProblems(s, { id: 'new', ...o.build })
       if (p.length) return res.status(400).json({ error: 'Сюда не поставить: ' + p.join(', ') })
@@ -1290,7 +1308,7 @@ app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
     if (!JOBS[b.job]) return res.status(400).json({ error: 'Неизвестная работа' })
     o.workers = { job: b.job, count: Math.round(T.num(0, 999)(b.count)) }
   } else if (b.kind === 'explore') {
-    o.explore = { x: Math.round(T.num(-500, 5000)(b.x)), y: Math.round(T.num(-500, 5000)(b.y)), r: 90 }
+    o.explore = { x: Math.round(coord(b.x)), y: Math.round(coord(b.y)), r: 300 }
   } else if (!o.text) return res.status(400).json({ error: 'Напиши, что нужно сделать' })
   ;(s.orders ||= []).push(o)
   if (s.orders.length > 200) s.orders = s.orders.slice(-200)
@@ -1333,6 +1351,7 @@ app.post('/api/settlements/:id/orders/:oid/:action(approve|reject)', requireMast
       }
       o.paid = free ? null : def.price || {}
       ;(s.buildings ||= []).push(b)
+      clearUnder(s, b)
       addEvent(s, { title: 'Стройка начата', type: 'done', duration: ['quick'], text: `По приказу главы заложили «${def.label}». Сложность ${def.cost}.${free ? '' : ` Со склада ушло: ${priceText(def.price)}.`}`, location: s.name }, false)
       logEntry(s, 'build', `Заложена «${def.label}» по приказу ${o.byName}${free ? ' (бесплатно)' : ` — ${priceText(def.price)}`}`)
     } else if (o.kind === 'workers') {
@@ -1414,24 +1433,46 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
 })
 
 // мастер ставит постройку на карту: сразу готовую или стройкой (стройку можно оплатить со склада)
+// постройка в лесу — лес под ней вырубаем
+function clearUnder(s, b) {
+  const c = clearingFor(s, b)
+  if (c) (s.clearings ||= []).push(c)
+}
+// мастер ставит постройку на карту: новую (сразу готовую или стройкой, стройку можно оплатить со склада),
+// из списка «не расставлены» или передвигает уже стоящую (id)
 app.post('/api/settlements/:id/buildings', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
   const b = req.body || {}
-  const def = BUILDINGS[b.type]
+  const old = b.id ? (s.buildings || []).find(x => x.id === b.id) : null
+  if (b.id && !old) return res.status(404).json({ error: 'Постройка не найдена' })
+  const type = old ? old.type : b.type
+  const def = BUILDINGS[type]
   if (!def) return res.status(400).json({ error: 'Нет такой постройки' })
   const whole = def.size === 'settlement'
-  const nb = { id: newId('b'), type: b.type, x: whole ? 0 : Math.round(T.num(0, 5000)(b.x)), y: whole ? 0 : Math.round(T.num(0, 5000)(b.y)), state: b.built ? 'built' : 'construction', ...(b.built ? {} : { progress: 0 }) }
+  const x = whole ? null : Math.round(coord(b.x)), y = whole ? null : Math.round(coord(b.y))
   if (!whole) {
-    const p = placementProblems(s, nb)
+    const p = placementProblems(s, { id: old?.id || '_new', type, x, y })
     if (p.length) return res.status(400).json({ error: 'Сюда не поставить: ' + p.join(', ') })
   }
+  if (old) {
+    const first = old.x == null
+    Object.assign(old, { x, y })
+    if (!whole) clearUnder(s, old)
+    logEntry(s, 'build', first ? `Поставлена на карту «${old.name || def.label}»` : `Передвинута «${old.name || def.label}»`)
+    s.updatedAt = Date.now()
+    saveDb()
+    broadcast()
+    return res.json(old)
+  }
+  const nb = { id: newId('b'), type, x, y, state: b.built ? 'built' : 'construction', ...(b.built ? {} : { progress: 0 }) }
   const pay = !b.built && !!b.pay && !def.personal
   if (pay) {
-    const miss = payFor(s, b.type)
+    const miss = payFor(s, type)
     if (miss) return res.status(400).json({ error: miss })
   }
   ;(s.buildings ||= []).push(nb)
+  if (!whole) clearUnder(s, nb)
   logEntry(s, 'build', b.built ? `Поставлена «${def.label}»` : `Заложена «${def.label}»${pay ? ' — ' + priceText(def.price) : ''}`)
   s.updatedAt = Date.now()
   saveDb()

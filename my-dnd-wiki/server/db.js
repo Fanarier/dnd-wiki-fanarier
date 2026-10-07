@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { upgradeSettlementMap } from '../src/shared/settlement.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const DB_FILE = path.join(DATA_DIR, 'db.json')
@@ -68,6 +69,8 @@ function migrate(d) {
     d.settlementsSeeded = true
     changed = true
   }
+  // поселения на старой маленькой карте → большая карта из генератора (один раз)
+  for (const s of d.settlements || []) if (upgradeSettlementMap(s)) { console.log(`[db] ${s.name}: переведено на большую карту, постройки — в списке «не расставлены»`); changed = true }
   // один портрет → галерея артов (первый — обложка)
   for (const h of d.heroes || []) {
     if (h.gallery) continue
