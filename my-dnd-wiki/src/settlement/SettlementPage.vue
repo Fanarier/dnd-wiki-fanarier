@@ -24,27 +24,43 @@
     <div v-else-if="!s" class="sp-load">Поселение не найдено</div>
     <div v-else class="sp-body" :class="{ wide }">
       <div class="sp-mapwrap">
-        <SettlementMap class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts"
-                       @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog" />
+        <SettlementMap ref="mapRef" class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts" :brush="brush" :master="master"
+                       @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog"
+                       @cut="onCut" @road="onRoad" @road-edit="onRoadEdit" />
         <!-- инструменты: мастеру — правка карты, главе — приказы -->
         <div v-if="master || decider" class="sp-tools">
-          <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="tool = null">👁 Смотреть</button>
+          <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="setTool(null)">👁 Смотреть</button>
           <template v-if="master">
-            <button :class="{ on: tool === 'move' }" title="Перетаскивай постройки и аванпосты" @click="tool = 'move'">✥ Двигать</button>
-            <button :class="{ on: tool?.place }" @click="palette = !palette">＋ Поставить</button>
-            <button :class="{ on: tool === 'fog-add' }" title="Кистью открыть землю" @click="tool = 'fog-add'">☀ Разведать</button>
-            <button :class="{ on: tool === 'fog-erase' }" title="Кистью вернуть туман" @click="tool = 'fog-erase'">☁ Скрыть</button>
-            <button class="day" @click="dayOpen = !dayOpen">⏳ Прошёл день</button>
+            <button :class="{ on: tool === 'move' }" title="Перетаскивай постройки и аванпосты" @click="setTool('move')">✥ Двигать</button>
+            <button :class="{ on: tool?.place || tool?.placeExisting }" @click="openPop('palette')">＋ Поставить<em v-if="unplaced.length" class="cnt">{{ unplaced.length }}</em></button>
+            <button :class="{ on: tool?.road }" @click="openPop('roads')">🛣 Дорога</button>
+            <button :class="{ on: tool === 'cut' || tool === 'grow' }" @click="openPop('forest')">🪓 Лес</button>
+            <button :class="{ on: tool === 'fog-add' || tool === 'fog-erase' }" @click="openPop('fog')">☀ Туман</button>
+            <button :class="{ on: pop === 'terrain' }" title="Генератор местности" @click="openPop('terrain')">🗺 Местность</button>
+            <button class="day" @click="openPop('day')">⏳ Прошёл день</button>
           </template>
           <template v-else>
-            <button :class="{ on: tool?.place }" @click="palette = !palette">⚒ Приказ: построить</button>
-            <button :class="{ on: tool?.explore }" @click="tool = { explore: true }">🧭 Приказ: разведать</button>
+            <button :class="{ on: tool?.place }" @click="openPop('palette')">⚒ Приказ: построить</button>
+            <button :class="{ on: tool?.explore }" @click="setTool({ explore: true })">🧭 Приказ: разведать</button>
           </template>
         </div>
-        <div v-if="tool && hint" class="sp-hint">{{ hint }}</div>
-        <!-- палитра построек -->
-        <div v-if="palette" class="sp-pop palette">
-          <div class="pop-head"><b>{{ master ? 'Поставить постройку' : 'Что построить?' }}</b><button @click="palette = false">×</button></div>
+        <div v-if="tool && hint" class="sp-hint">
+          <span>{{ hint }}</span>
+          <label v-if="brushTool" class="brush">кисть {{ brushLabel }}<input v-model.number="brush" type="range" :min="brushRange[0]" :max="brushRange[1]" :step="brushRange[2]" /></label>
+          <button v-if="tool?.road" class="mini" @click="mapRef?.finishRoad()">Готово</button>
+        </div>
+        <!-- палитра построек: сначала «не расставлены» -->
+        <div v-if="pop === 'palette'" class="sp-pop palette">
+          <div class="pop-head"><b>{{ master ? 'Поставить постройку' : 'Что построить?' }}</b><button @click="pop = null">×</button></div>
+          <template v-if="master && unplaced.length">
+            <small class="pal-sub">Не расставлены — {{ unplaced.length }} <span>считаются, но на карте их нет</span></small>
+            <button v-for="b in unplaced" :key="b.id" class="pal-item" :class="{ on: tool?.placeExisting === b.id }" @click="startPlaceExisting(b)">
+              <img :src="`/settlement/${BUILDINGS[b.type].icon}.png`" alt="" />
+              <span>{{ b.name || BUILDINGS[b.type].label }}</span>
+              <em>{{ SIZES[BUILDINGS[b.type].size]?.area }}{{ b.state === 'construction' ? ' · стройка' : '' }}</em>
+            </button>
+            <small class="pal-sub">Новая постройка</small>
+          </template>
           <label v-if="master" class="chk"><input v-model="placeBuilt" type="checkbox" /> сразу построена (иначе — стройка)</label>
           <label v-if="master && !placeBuilt" class="chk"><input v-model="payBuild" type="checkbox" /> оплатить стройку со склада</label>
           <p v-else-if="!master" class="pal-note">Цена уйдёт со склада, когда мастер одобрит приказ. Красным — чего сейчас не хватает.</p>
@@ -53,14 +69,51 @@
             <button v-for="b in list" :key="b.type" class="pal-item" :class="{ on: tool?.place === b.type }" @click="startPlace(b.type)">
               <img :src="`/settlement/${b.icon}.png`" alt="" />
               <span>{{ b.label }}</span>
-              <em>{{ SIZES[b.size]?.label }} · {{ b.cost }}</em>
+              <em>{{ SIZES[b.size]?.label }}{{ SIZES[b.size]?.area ? ' · ' + SIZES[b.size].area : '' }}</em>
               <PriceChips v-if="!b.personal && (!master || !placeBuilt)" class="pal-price" :price="b.price" :stock="s.stock || {}" short />
             </button>
           </div>
         </div>
+        <!-- дороги -->
+        <div v-if="pop === 'roads'" class="sp-pop small">
+          <div class="pop-head"><b>Какую дорогу?</b><button @click="pop = null">×</button></div>
+          <button v-for="(r, k) in ROAD_TYPES" :key="k" class="pal-item road" :class="{ on: tool?.road === k }" @click="setTool({ road: k })">
+            <i class="rd" :class="k" /><span>{{ r.label }}</span><em>{{ String(r.w).replace('.', ',') }} м</em>
+          </button>
+          <p class="pal-note">Готовую дорогу можно выбрать на карте: тянуть точки, добавлять (за середину отрезка), убирать (двойной щелчок), сменить вид или удалить.</p>
+        </div>
+        <!-- лес -->
+        <div v-if="pop === 'forest'" class="sp-pop small">
+          <div class="pop-head"><b>Лес</b><button @click="pop = null">×</button></div>
+          <button class="pal-item plain" :class="{ on: tool === 'cut' }" @click="setTool('cut')"><span>🪓 Вырубить</span><em>кистью</em></button>
+          <button class="pal-item plain" :class="{ on: tool === 'grow' }" @click="setTool('grow')"><span>🌳 Вернуть лес</span><em>стирает вырубку</em></button>
+          <p class="pal-note">Под постройку в лесу вырубка делается сама. Вырубок сейчас: {{ s.clearings?.length || 0 }}.</p>
+        </div>
+        <!-- туман -->
+        <div v-if="pop === 'fog'" class="sp-pop small">
+          <div class="pop-head"><b>Туман войны</b><button @click="pop = null">×</button></div>
+          <button class="pal-item plain" :class="{ on: tool === 'fog-add' }" @click="setTool('fog-add')"><span>☀ Разведать</span><em>открыть землю</em></button>
+          <button class="pal-item plain" :class="{ on: tool === 'fog-erase' }" @click="setTool('fog-erase')"><span>☁ Скрыть</span><em>вернуть туман</em></button>
+        </div>
+        <!-- генератор местности -->
+        <div v-if="pop === 'terrain'" class="sp-pop terrain">
+          <div class="pop-head"><b>Местность</b><button @click="pop = null">×</button></div>
+          <p class="pal-note">Округа ≈17×17 км (300 км²) рисуется сама по «зерну» и ползункам. Дороги, вырубки, туман и постройки остаются на своих местах.</p>
+          <label class="tr-row">Зерно <input v-model.number="gen.seed" type="number" min="0" /><button class="mini" title="Случайное зерно" @click="gen.seed = Math.floor(Math.random() * 1e6)">🎲</button></label>
+          <label v-for="(d, k) in TERRAIN_PARAMS" :key="k" class="tr-row">
+            <span>{{ d.label }}</span>
+            <input v-model.number="gen.params[k]" type="range" :min="d.min" :max="d.max" :step="d.step" />
+            <em>{{ k === 'ponds' ? gen.params[k] : Math.round(gen.params[k] * 100) + '%' }}</em>
+          </label>
+          <div class="day-row">
+            <button @click="resetGen">Как было</button>
+            <button @click="gen.params = { ...TERRAIN_DEFAULTS }">По умолчанию</button>
+            <button class="primary" @click="applyGen">Применить</button>
+          </div>
+        </div>
         <!-- «прошёл день» -->
-        <div v-if="dayOpen" class="sp-pop day">
-          <div class="pop-head"><b>Сколько прошло?</b><button @click="dayOpen = false">×</button></div>
+        <div v-if="pop === 'day'" class="sp-pop day">
+          <div class="pop-head"><b>Сколько прошло?</b><button @click="pop = null">×</button></div>
           <p>Запасы изменятся на итог за эти дни, нехватки попадут в журнал, стройка продвинется, а сайт подкинет заготовки событий.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
           <div class="day-row">
             <button @click="advance(1)">1 день</button><button @click="advance(7)">Неделя</button>
@@ -93,7 +146,7 @@
         </section>
 
         <!-- выбранная на карте постройка или аванпост -->
-        <BuildingCard v-if="selItem" :settlement="s" :calc="calc" :sel="sel" :item="selItem" :master="master" @close="sel = null" @save="saveItem" @remove="removeItem" />
+        <BuildingCard v-if="selItem" :settlement="s" :calc="calc" :sel="sel" :item="selItem" :master="master" @close="sel = null" @save="saveItem" @remove="removeItem" @place="startPlaceExisting" />
 
         <nav class="sp-tabbar">
           <button v-for="tb in TABS" :key="tb.id" :class="{ on: tab === tb.id }" @click="setTab(tb.id)">
@@ -119,7 +172,8 @@ import BuildingCard from './BuildingCard.vue'
 import SettlementEditor from './SettlementEditor.vue'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
-import { computeSettlement, shortFor, priceText, BUILDINGS, CATEGORIES, SIZES, RES } from '../shared/settlement.js'
+import { computeSettlement, shortFor, priceText, placementProblems, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
+import { TERRAIN_DEFAULTS, TERRAIN_PARAMS } from '../shared/terrainGen.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -152,12 +206,23 @@ const decider = computed(() => !!store.me && store.me.role === 'player' && !!s.v
 const editing = ref(null)
 
 /* ---------- инструменты карты ---------- */
+const mapRef = ref(null)
 const tool = ref(null)
-const palette = ref(false)
+const pop = ref(null) // открытое окошко: palette | roads | forest | fog | terrain | day
 const placeBuilt = ref(true)
 const payBuild = ref(true)
-const dayOpen = ref(false)
 const customDays = ref(3)
+const brush = ref(60)
+function openPop(name) { pop.value = pop.value === name ? null : name; if (name === 'terrain') resetGen() }
+function setTool(t) {
+  tool.value = t
+  if (t === 'cut' || t === 'grow') brush.value = Math.min(Math.max(brush.value, 10), 300)
+  if (t === 'fog-add' || t === 'fog-erase') brush.value = Math.max(brush.value, 150)
+  pop.value = null
+}
+const brushTool = computed(() => ['cut', 'grow', 'fog-add', 'fog-erase'].includes(tool.value))
+const brushRange = computed(() => (tool.value === 'cut' || tool.value === 'grow' ? [5, 300, 5] : [50, 2000, 50]))
+const brushLabel = computed(() => (brush.value >= 1000 ? `${(brush.value / 1000).toFixed(1).replace('.', ',')} км` : `${brush.value} м`))
 const paletteGroups = computed(() => {
   const out = {}
   for (const [type, b] of Object.entries(BUILDINGS)) {
@@ -166,33 +231,45 @@ const paletteGroups = computed(() => {
   }
   return out
 })
-function startPlace(type) {
-  tool.value = { place: type }
-  palette.value = false
-}
+// постройки без места на карте (стена «на всё поселение» на карте не стоит вовсе)
+const unplaced = computed(() => (s.value?.buildings || []).filter(b => b.x == null && BUILDINGS[b.type]?.size !== 'settlement'))
+function startPlace(type) { setTool({ place: type }) }
+function startPlaceExisting(b) { setTool({ placeExisting: b.id, type: b.type }) }
 const hint = computed(() => {
   const t = tool.value
   if (t === 'move') return 'Тяни постройку или аванпост. Красным — сюда нельзя.'
+  if (t?.placeExisting) { const b = s.value.buildings.find(x => x.id === t.placeExisting); return `Кликни, куда поставить «${b?.name || BUILDINGS[t.type]?.label}». Esc — отмена.` }
   if (t?.place) return `Кликни по разведанной земле, куда поставить «${BUILDINGS[t.place]?.label}». Esc — отмена.`
   if (t?.explore) return 'Кликни, какой участок разведать — мастер получит приказ.'
+  if (t?.road) return `${ROAD_TYPES[t.road].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена.`
+  if (t === 'cut') return 'Води кистью по лесу — вырубка.'
+  if (t === 'grow') return 'Води кистью по вырубке — лес вернётся.'
   if (t === 'fog-add') return 'Води кистью — земля станет разведанной.'
   if (t === 'fog-erase') return 'Води кистью — вернёт туман на кружки разведки.'
   return ''
 })
 // приказы на рассмотрении — призраки на карте
 const ghosts = computed(() => (s.value?.orders || []).filter(o => o.status === 'pending' && (o.build || o.explore)).map(o => (o.build
-  ? { id: o.id, type: o.build.type, x: o.build.x, y: o.build.y, side: SIZES[BUILDINGS[o.build.type]?.size]?.side || 56 }
+  ? { id: o.id, type: o.build.type, x: o.build.x, y: o.build.y }
   : { id: o.id, explore: true, x: o.explore.x, y: o.explore.y, r: o.explore.r })))
 
-const patch = (body, ok) => act('PATCH', `/api/settlements/${s.value.id}`, body, ok)
-function onMoved({ id, x, y }) {
-  if (s.value.buildings.some(b => b.id === id)) patch({ buildings: s.value.buildings.map(b => (b.id === id ? { ...b, x, y } : b)) })
-  else if (s.value.outposts.some(o => o.id === id)) patch({ outposts: s.value.outposts.map(o => (o.id === id ? { ...o, x, y } : o)) })
+const base = () => `/api/settlements/${s.value.id}`
+const patch = (body, ok) => act('PATCH', base(), body, ok).catch(() => null)
+function onMoved({ id, kind, x, y }) {
+  if (kind === 'outpost') patch({ outposts: s.value.outposts.map(o => (o.id === id ? { ...o, x: Math.round(x), y: Math.round(y) } : o)) })
+  else act('POST', `${base()}/buildings`, { id, x, y }).catch(() => null)
 }
-async function onPlaced({ type, x, y }) {
+async function onPlaced({ type, id, x, y }) {
   const def = BUILDINGS[type]
-  if (master.value) {
-    const b = await act('POST', `/api/settlements/${s.value.id}/buildings`, { type, x, y, built: placeBuilt.value, pay: payBuild.value },
+  if (master.value && id) {
+    // из списка «не расставлены»; дальше — следующая такая же, чтобы быстро расставить все дома
+    const b = await act('POST', `${base()}/buildings`, { id, x, y }, `«${def.label}» на месте`).catch(() => null)
+    if (!b) return
+    const next = unplaced.value.find(u => u.type === type && u.id !== id)
+    tool.value = next ? { placeExisting: next.id, type } : null
+    if (!next) sel.value = { kind: 'building', id }
+  } else if (master.value) {
+    const b = await act('POST', `${base()}/buildings`, { type, x, y, built: placeBuilt.value, pay: payBuild.value },
       `«${def.label}» ${placeBuilt.value ? 'поставлена' : 'заложена'}`).catch(() => null)
     if (b?.id) sel.value = { kind: 'building', id: b.id }
   } else {
@@ -201,43 +278,74 @@ async function onPlaced({ type, x, y }) {
     const warn = miss.length ? `\nСейчас не хватает: ${miss.map(m => `${RES[m.res]?.label} ${m.have} из ${m.need}`).join(', ')} — мастер может отложить.` : ''
     const text = prompt(`Приказ: построить «${def.label}».${cost}${warn}\nКомментарий для мастера (необязательно):`, '')
     if (text === null) return
-    await act('POST', `/api/settlements/${s.value.id}/orders`, { kind: 'build', type, x, y, text }, 'Приказ отправлен мастеру')
+    await act('POST', `${base()}/orders`, { kind: 'build', type, x, y, text }, 'Приказ отправлен мастеру').catch(() => null)
     tool.value = null
   }
 }
 async function onExplore({ x, y }) {
   const text = prompt('Приказ: разведать этот участок. Комментарий для мастера (необязательно):', '')
   if (text === null) return
-  await act('POST', `/api/settlements/${s.value.id}/orders`, { kind: 'explore', x, y, text }, 'Приказ отправлен мастеру')
+  await act('POST', `${base()}/orders`, { kind: 'explore', x, y, text }, 'Приказ отправлен мастеру').catch(() => null)
   tool.value = null
 }
-function onFog({ erase, points, r }) {
-  const ex = s.value.explored || []
-  const next = erase
-    ? ex.filter(e => !e.r || !points.some(p => Math.hypot(p.x - e.x, p.y - e.y) < r + e.r * 0.5))
-    : [...ex, ...points.map(p => ({ x: p.x, y: p.y, r }))]
-  patch({ explored: next })
+// кисть: добавить круги или стереть те, что под ней
+const brushApply = (list, { erase, points, r }) => (erase
+  ? list.filter(e => !e.r || !points.some(p => Math.hypot(p.x - e.x, p.y - e.y) < r + e.r * 0.5))
+  : [...list, ...points.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), r: Math.round(r) }))])
+const onFog = ev => patch({ explored: brushApply(s.value.explored || [], ev) })
+const onCut = ev => patch({ clearings: brushApply(s.value.clearings || [], ev) })
+async function onRoad({ type, points }) {
+  const id = 'r' + Date.now().toString(36)
+  const r = await patch({ roads: [...(s.value.roads || []), { id, type, points }] }, `${ROAD_TYPES[type].label} проложена`)
+  if (r) sel.value = { kind: 'road', id }
 }
+const onRoadEdit = ({ id, points }) => patch({ roads: s.value.roads.map(r => (r.id === id ? { ...r, points } : r)) })
+
+/* ---------- генератор местности ---------- */
+const gen = ref({ seed: 1917, params: { ...TERRAIN_DEFAULTS } })
+function resetGen() { gen.value = { seed: s.value?.terrain?.seed ?? 1917, params: { ...TERRAIN_DEFAULTS, ...(s.value?.terrain?.params || {}) } } }
+async function applyGen() {
+  const next = { v: 2, seed: Math.round(gen.value.seed) || 0, params: gen.value.params }
+  const r = await patch({ terrain: next }, 'Местность перерисована')
+  if (!r) return
+  // какие постройки оказались в воде или болоте на новой местности
+  const bad = r.buildings.filter(b => b.x != null && placementProblems(r, b).some(p => p.startsWith('в ')))
+  if (bad.length) toast(`На новой местности не на месте: ${bad.map(b => b.name || BUILDINGS[b.type].label).join(', ')} — передвинь их`, 'error')
+}
+
 async function advance(days) {
-  const r = await act('POST', `/api/settlements/${s.value.id}/advance`, { days }).catch(() => null)
-  dayOpen.value = false
+  const r = await act('POST', `${base()}/advance`, { days }).catch(() => null)
+  pop.value = null
   if (!r) return
   toast(`Прошло дней: ${days}${r.done?.length ? ' · достроено: ' + r.done.join(', ') : ''}${r.suggestions ? ' · заготовок событий: ' + r.suggestions : ''}`)
   if (r.short?.length || r.suggestions) setTab('journal')
 }
 function saveItem(kind, item) {
   if (kind === 'building') patch({ buildings: s.value.buildings.map(b => (b.id === item.id ? item : b)) }, 'Сохранено')
+  else if (kind === 'road') patch({ roads: s.value.roads.map(r => (r.id === item.id ? item : r)) }, 'Сохранено')
   else patch({ outposts: s.value.outposts.map(o => (o.id === item.id ? item : o)) }, 'Сохранено')
 }
-function removeItem(kind, id) {
-  if (!confirm('Убрать с карты?')) return
-  if (kind === 'building') patch({ buildings: s.value.buildings.filter(b => b.id !== id) }, 'Убрано')
-  else patch({ outposts: s.value.outposts.filter(o => o.id !== id) }, 'Убрано')
+// убрать с карты: постройка уходит в «не расставлены»; снести — совсем
+function removeItem(kind, id, how) {
+  if (kind === 'building' && how === 'unplace') {
+    patch({ buildings: s.value.buildings.map(b => (b.id === id ? { ...b, x: null, y: null } : b)) }, 'Убрано в «не расставлены»')
+  } else {
+    if (!confirm(kind === 'road' ? 'Удалить дорогу?' : kind === 'building' ? 'Снести постройку совсем?' : 'Убрать аванпост?')) return
+    if (kind === 'building') patch({ buildings: s.value.buildings.filter(b => b.id !== id) }, 'Снесено')
+    else if (kind === 'road') patch({ roads: s.value.roads.filter(r => r.id !== id) }, 'Дорога удалена')
+    else patch({ outposts: s.value.outposts.filter(o => o.id !== id) }, 'Убрано')
+  }
   sel.value = null
 }
 onKey()
 function onKey() {
-  const h = e => { if (e.key === 'Escape') { tool.value = null; palette.value = false; dayOpen.value = false } }
+  const h = e => {
+    if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) return
+    // дорогу, которую рисуют, Esc сбрасывает сам; второй Esc — снять инструмент
+    if (tool.value?.road && mapRef.value?.draft?.length) return
+    tool.value = null
+    pop.value = null
+  }
   window.addEventListener('keydown', h)
   onBeforeUnmount(() => window.removeEventListener('keydown', h))
 }
@@ -245,7 +353,7 @@ function onKey() {
 const sel = ref(route.query.b ? { kind: 'building', id: String(route.query.b) } : null)
 const selItem = computed(() => {
   if (!sel.value || !s.value) return null
-  const list = sel.value.kind === 'outpost' ? s.value.outposts : s.value.buildings
+  const list = sel.value.kind === 'outpost' ? s.value.outposts : sel.value.kind === 'road' ? s.value.roads : s.value.buildings
   return list?.find(x => x.id === sel.value.id) || null
 })
 
@@ -287,7 +395,27 @@ function setTab(id) {
 .sp-tools button:hover { color: var(--a-text); background: rgba(255, 255, 255, .05); }
 .sp-tools button.on { background: rgba(231, 197, 111, .16); border-color: rgba(231, 197, 111, .4); color: var(--a-gold-2); }
 .sp-tools .day { color: #9fd0ff; }
-.sp-hint { position: absolute; top: 62px; left: 12px; padding: 6px 10px; border-radius: 9px; background: rgba(23, 19, 14, .9); border: 1px solid #8a6630; color: #e6d6b0; font: 600 12px var(--a-sans); pointer-events: none; }
+.sp-hint { position: absolute; z-index: 5; top: 62px; left: 12px; right: 60px; width: max-content; max-width: calc(100% - 72px); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px; border-radius: 9px; background: rgba(23, 19, 14, .92); border: 1px solid #8a6630; color: #e6d6b0; font: 600 12px var(--a-sans); }
+.sp-hint .brush { display: inline-flex; align-items: center; gap: 6px; color: #f3d99a; white-space: nowrap; }
+.sp-hint .brush input { width: 120px; accent-color: #e6c27a; }
+.mini { padding: 3px 9px; border-radius: 7px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .1); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
+.sp-tools .cnt { margin-left: 5px; padding: 0 6px; border-radius: 99px; background: #e0281e; color: #fff; font: 800 10.5px/16px var(--a-sans); font-style: normal; }
+.sp-pop.small { width: 290px; }
+.sp-pop.terrain { width: 360px; }
+.pal-sub { display: block; margin: 6px 0 3px; color: var(--a-gold); font-weight: 800; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
+.pal-sub span { color: var(--a-muted); font-weight: 600; text-transform: none; letter-spacing: 0; }
+.pal-item.plain { grid-template-columns: 1fr auto; padding: 7px 8px; }
+.rd { display: block; width: 24px; height: 6px; border-radius: 3px; background: #a3835a; box-shadow: 0 0 0 1.5px #6b5235; }
+.rd.trail { height: 2px; background: repeating-linear-gradient(90deg, #cdb17c 0 5px, transparent 5px 8px); box-shadow: none; }
+.rd.tract { height: 9px; background: linear-gradient(#977652 30%, #7b5d3c 30% 42%, #977652 42% 58%, #7b5d3c 58% 70%, #977652 70%); box-shadow: 0 0 0 1.5px #5e472c; }
+.rd.paved { height: 8px; background: repeating-linear-gradient(90deg, #9a958a 0 3px, #b6b1a5 3px 4px); box-shadow: 0 0 0 1.5px #4c4a45; }
+.rd.bridge { height: 8px; background: repeating-linear-gradient(90deg, #a77d4c 0 3px, #7a5a34 3px 4px); box-shadow: 0 0 0 2px #3b2a18; }
+.tr-row { display: grid; grid-template-columns: 1fr 120px 40px; align-items: center; gap: 6px; margin: 5px 0; color: #d9cdb0; font-weight: 600; }
+.tr-row:first-of-type { grid-template-columns: 50px 1fr auto; }
+.tr-row input[type=range] { accent-color: #e6c27a; }
+.tr-row input[type=number] { min-width: 0; padding: 4px 7px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); }
+.tr-row em { font-style: normal; color: var(--a-gold-2); text-align: right; font-weight: 800; }
+.day-row .primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
 .sp-pop { position: absolute; z-index: 6; top: 62px; left: 12px; width: 330px; max-height: calc(100% - 80px); overflow-y: auto; padding: 10px 12px; border-radius: 14px; background: rgba(20, 17, 12, .97); border: 1px solid #8a6630; box-shadow: 0 16px 40px rgba(0, 0, 0, .6); color: var(--a-text); font-size: 12.5px; }
 .sp-pop.day { width: 300px; }
 .pop-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -346,7 +474,7 @@ function setTab(id) {
   .sp-body { grid-template-columns: 1fr; height: auto; }
   .sp-map { height: 58vh; border-right: 0; border-bottom: 1px solid var(--a-line); }
   .sp-pop { width: calc(100% - 24px); top: 98px; max-height: calc(100% - 110px); }
-  .sp-hint { top: 98px; right: 12px; }
+  .sp-hint { top: 98px; max-width: calc(100% - 24px); }
   .sp-panel { overflow: visible; padding: 14px 12px 30px; }
   .sp-tabbar { top: 64px; margin: 14px -12px 12px; padding: 10px 12px 8px; }
   /* на телефоне панель и так во всю ширину */
