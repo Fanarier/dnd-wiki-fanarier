@@ -2,6 +2,8 @@
 // Общий для сервера и клиента. Числа подобраны так, что перенесённый Урюпинск даёт те же цифры,
 // что старая таблица (см. docs/urupinsk/README.md). Значки — public/settlement/*.png (game-icons.net, CC BY 3.0).
 
+import { makeTerrain, B as TB, WORLD, CENTER } from './terrainGen.js'
+
 /* ---------------- Ресурсы ---------------- */
 export const RESOURCES = [
   { key: 'water', label: 'Вода', group: 'Вода', color: '#5fa8e0' },
@@ -88,12 +90,23 @@ export const RESIDENT_CATS = {
 
 /* ---------------- Размеры построек ----------------
    side — сторона квадрата на мини-карте (в единицах карты), area — «площадь» для счёта занятой земли */
+// размеры в метрах: сторона квадрата по площади (сотка = 100 м²)
 export const SIZES = {
-  small: { label: 'Малый', side: 34, area: 1 },
-  medium: { label: 'Средний', side: 56, area: 2 },
-  large: { label: 'Большой', side: 82, area: 4 },
-  huge: { label: 'Огромный', side: 150, area: 8 },
-  settlement: { label: 'Поселение', side: 0, area: 0 } // на всё поселение (стена)
+  small: { label: 'Малый', side: 10, area: '1 сотка' },
+  medium: { label: 'Средний', side: Math.sqrt(1500), area: '15 соток' },
+  large: { label: 'Большой', side: Math.sqrt(3000), area: '30 соток' },
+  huge: { label: 'Огромный', side: 100, area: '1 га' },
+  settlement: { label: 'Поселение', side: 0, area: '' } // на всё поселение (стена)
+}
+
+/* ---------------- Дороги ---------------- */
+// w — ширина в метрах
+export const ROAD_TYPES = {
+  trail: { label: 'Тропа', w: 1.5 },
+  dirt: { label: 'Грунтовая дорога', w: 4 },
+  tract: { label: 'Тракт', w: 7 },
+  paved: { label: 'Мощёная дорога', w: 6 },
+  bridge: { label: 'Мост', w: 5 }
 }
 export const CATEGORIES = {
   structure: { label: 'Структура', color: '#b06cff' },
@@ -350,7 +363,7 @@ export function computeSettlement(s) {
   }
 }
 
-/* ---------------- Геометрия мини-карты ---------------- */
+/* ---------------- Геометрия мини-карты (метры) ---------------- */
 export function pointInPoly([x, y], pts) {
   let inside = false
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
@@ -370,7 +383,7 @@ export function footprint(b) {
   return { x: b.x - side / 2, y: b.y - side / 2, w: side, h: side, side }
 }
 // точки по контуру и внутри квадрата — для проверок «в воде», «на дороге», «в тумане»
-function samples(f, step = 8) {
+function samples(f, step = Math.max(3, f.side / 6)) {
   const out = []
   for (let x = f.x; x <= f.x + f.w + 0.01; x += Math.max(4, f.w / Math.ceil(f.w / step))) {
     for (let y = f.y; y <= f.y + f.h + 0.01; y += Math.max(4, f.h / Math.ceil(f.h / step))) out.push([x, y])
@@ -382,19 +395,55 @@ export function explored(s, p) {
 }
 // почему постройку нельзя поставить сюда (пустой список — можно)
 export function placementProblems(s, b, ignoreId = b.id) {
-  const t = s.terrain || {}
   const f = footprint(b)
-  if (!f.side) return []
-  const pts = samples(f)
+  if (!f.side || b.x == null || b.y == null) return []
   const out = []
-  if (pts.some(p => (t.water || []).some(w => pointInPoly(p, w.points)))) out.push('в воде')
-  if (pts.some(p => (t.roads || []).some(r => r.points.some((a, i) => i && segDist(p, r.points[i - 1], a) < (r.w || 20) / 2)))) out.push('на дороге')
-  if (t.plaza && pts.some(p => Math.hypot(p[0] - t.plaza.x, p[1] - t.plaza.y) < t.plaza.r)) out.push('на площади')
+  if (f.x < 0 || f.y < 0 || f.x + f.w > WORLD || f.y + f.h > WORLD) return ['за краем карты']
+  const pts = samples(f)
+  const gen = makeTerrain(s.terrain)
+  const o = {}
+  const codes = new Set(pts.map(p => gen.sample(p[0], p[1], o).code))
+  if (codes.has(TB.WATER)) out.push('в воде')
+  if (codes.has(TB.SWAMP)) out.push('в болоте')
+  if (codes.has(TB.RAVINE)) out.push('в овраге')
+  if (pts.some(p => (s.roads || []).some(r => r.points.some((a, i) => i && segDist(p, r.points[i - 1], a) < (ROAD_TYPES[r.type]?.w || 4) / 2 + 1)))) out.push('на дороге')
   if (pts.some(p => !explored(s, p))) out.push('за пределами разведанной земли')
-  for (const o of s.buildings || []) {
-    if (o.id === ignoreId) continue
-    const g = footprint(o)
-    if (g.side && f.x < g.x + g.w + 4 && g.x < f.x + f.w + 4 && f.y < g.y + g.h + 4 && g.y < f.y + f.h + 4) { out.push(`впритык к «${o.name || BUILDINGS[o.type]?.label}»`); break }
+  for (const q of s.buildings || []) {
+    if (q.id === ignoreId || q.x == null) continue
+    const g = footprint(q)
+    if (g.side && f.x < g.x + g.w + 2 && g.x < f.x + f.w + 2 && f.y < g.y + g.h + 2 && g.y < f.y + f.h + 2) { out.push(`впритык к «${q.name || BUILDINGS[q.type]?.label}»`); break }
   }
   return out
+}
+// постройка в лесу — под ней вырубка (круг чуть больше квадрата), иначе null
+export function clearingFor(s, b) {
+  const f = footprint(b)
+  if (!f.side || b.x == null) return null
+  const gen = makeTerrain(s.terrain)
+  const o = {}
+  const wooded = samples(f).some(p => [TB.FOREST, TB.CONIFER, TB.SHRUB].includes(gen.sample(p[0], p[1], o).code))
+  return wooded ? { x: Math.round(b.x), y: Math.round(b.y), r: Math.round(f.side * 0.75 + 4) } : null
+}
+
+/* ---------------- Перевод на большую карту (17×17 км) ---------------- */
+export const MAP_VERSION = 2
+// старое поселение (маленькая нарисованная карта) → большая карта из генератора:
+// постройки уходят в список «не расставлены» (продолжают считаться), аванпосты — далеко, туман заново
+export function upgradeSettlementMap(s, seed = 1917) {
+  if (s.terrain?.v === MAP_VERSION) return false
+  s.terrain = { v: MAP_VERSION, seed, params: {} }
+  const gen = makeTerrain(s.terrain)
+  for (const b of s.buildings || []) { b.x = null; b.y = null }
+  const want = { mine: [TB.ROCK], quarry: [TB.ROCK], logging: [TB.FOREST, TB.CONIFER] }
+  ;(s.outposts || []).forEach((o, i) => Object.assign(o, gen.findSpot(want[o.type] || [TB.MEADOW], 3500, 7500, i + 1)))
+  s.explored = [
+    { name: s.name || 'Поселение', x: CENTER, y: CENTER, r: 1300 },
+    ...(s.outposts || []).map(o => ({ name: OUTPOSTS[o.type]?.label || 'Аванпост', x: o.x, y: o.y, r: 350 }))
+  ]
+  s.roads = []
+  s.clearings = []
+  for (const o of s.orders || []) {
+    if (o.status === 'pending' && (o.build || o.explore)) Object.assign(o, { status: 'rejected', reply: 'Карта поселения переделана — отдай приказ заново', decidedAt: Date.now() })
+  }
+  return true
 }
