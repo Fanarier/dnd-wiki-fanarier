@@ -5,7 +5,7 @@ import { makeTerrain, WORLD, B, hash2 } from '../shared/terrainGen.js'
 export const TILE = 256
 export const MAX_Z = 8
 const N = 128 // сетка расчёта местности; на плитку растягивается вдвое с мягким сглаживанием
-const TREES_FROM = 1.6 // м на пиксель: мельче — рисуем отдельные деревья, крупнее — текстура крон
+export const TREES_FROM = 1.6 // м на пиксель: мельче — рисуем отдельные деревья, крупнее — текстура крон
 
 const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
 const clamp01 = v => (v < 0 ? 0 : v > 1 ? 1 : v)
@@ -19,8 +19,9 @@ const C = {
   lush: [112, 150, 78], dry: [158, 154, 96], shrub: [70, 104, 52], cut: [142, 150, 98], cutEarth: [128, 108, 76]
 }
 
-// clearings — вырубки, задевающие плитку; canvas — холст 256×256; makeCanvas(w, h) — как создать временный холст
-export function renderTile(terrain, z, tx, ty, clearings, canvas, makeCanvas) {
+// clearings — вырубки, задевающие плитку; canvas — холст 256×256; makeCanvas(w, h) — как создать временный холст;
+// near — что ещё стоит на плитке: roads [{ w, pts }] (кривые дорог) и boxes [{ x, y, w, h }] (постройки) — под ними деревьев нет
+export function renderTile(terrain, z, tx, ty, clearings, canvas, makeCanvas, near = {}) {
   const gen = makeTerrain(terrain)
   gen.setClearings(clearings)
   const T = WORLD / 2 ** z, x0 = tx * T, y0 = ty * T, mpp = T / TILE
@@ -118,20 +119,22 @@ export function renderTile(terrain, z, tx, ty, clearings, canvas, makeCanvas) {
   g.drawImage(base, 0, 0, TILE, TILE)
 
   /* ---------- проход 3: отдельные деревья, кусты, пни, камни, камыш, цветы ---------- */
-  if (trees) drawDetails(g, gen, x0, y0, T, mpp)
+  if (trees) drawDetails(g, gen, x0, y0, T, mpp, near)
   return canvas
 }
 
 const LEAF = [[60, 104, 50], [70, 116, 56], [52, 94, 46], [82, 128, 62], [64, 110, 46]]
 const rgb = (c, a = 1) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`
-function drawDetails(g, gen, x0, y0, T, mpp) {
+// мелкие предметы (деревья, кусты, камни…) в прямоугольнике: [y, вид, x, радиус, оттенок].
+// Детерминированно по зерну — на сервере, в фоне и на странице одно и то же. Вид: 1 лиственное, 2 хвойное, 3 куст,
+// 4 пень, 5 валун, 6 камыш, 7 сухое дерево
+export function detailItems(gen, x0, y0, x1, y1) {
   const s = gen.seed
   const cell = 7
-  const pad = 8
   const items = []
   const o = {}
-  const i0 = Math.floor((x0 - pad) / cell), i1 = Math.ceil((x0 + T + pad) / cell)
-  const j0 = Math.floor((y0 - pad) / cell), j1 = Math.ceil((y0 + T + pad) / cell)
+  const i0 = Math.floor(x0 / cell), i1 = Math.ceil(x1 / cell)
+  const j0 = Math.floor(y0 / cell), j1 = Math.ceil(y1 / cell)
   for (let j = j0; j <= j1; j++) {
     for (let i = i0; i <= i1; i++) {
       const h1 = hash2(i, j, s), h2 = hash2(i, j, s + 1), h3 = hash2(i, j, s + 2)
@@ -148,6 +151,40 @@ function drawDetails(g, gen, x0, y0, T, mpp) {
       else if (code === B.SWAMP && h3 < 0.38) items.push([wy, 7, wx, 1.6, h2])
       else if ((code === B.MEADOW || code === B.SHRUB) && h3 > 0.9985) items.push([wy, 5, wx, 0.5 + h1 * 1.2, h2]) // одинокий валун
     }
+  }
+  return items
+}
+// дерево (или куст) рядом с точкой — для инструмента «срубить дерево»
+export function treeAt(terrain, clearings, x, y, reach) {
+  const gen = makeTerrain(terrain)
+  gen.setClearings(clearings || [])
+  let best = null
+  for (const it of detailItems(gen, x - 12, y - 12, x + 12, y + 12)) {
+    if (it[1] > 3 || gen.inClearing(it[2], it[0]) || gen.inFelled(it[2], it[0])) continue
+    const d = Math.hypot(it[2] - x, it[0] - y)
+    if (d <= Math.max(it[3], reach) && (!best || d < best.d)) best = { x: it[2], y: it[0], r: it[3], kind: it[1], d }
+  }
+  return best
+}
+const segD = (px, py, ax, ay, bx, by) => {
+  const dx = bx - ax, dy = by - ay
+  const t = dx || dy ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy))) : 0
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy)
+}
+function drawDetails(g, gen, x0, y0, T, mpp, near) {
+  const s = gen.seed
+  const o = {}
+  const pad = 8
+  const roads = near.roads || [], boxes = near.boxes || []
+  // дороги и постройки выкорчёвывают то, что на них стоит; срубленное мастером дерево остаётся пнём
+  const blocked = (x, y, r) => roads.some(rd => rd.pts.some((p, i) => i && segD(x, y, rd.pts[i - 1][0], rd.pts[i - 1][1], p[0], p[1]) < rd.w / 2 + r * 0.75)) ||
+    boxes.some(b => x > b.x - r * 0.6 && x < b.x + b.w + r * 0.6 && y > b.y - r * 0.6 && y < b.y + b.h + r * 0.6)
+  const items = []
+  for (const it of detailItems(gen, x0 - pad, y0 - pad, x0 + T + pad, y0 + T + pad)) {
+    const [wy, kind, wx, r] = it
+    if (kind !== 6 && blocked(wx, wy, kind === 4 ? 0.5 : r)) continue
+    if (kind <= 3 && (gen.inClearing(wx, wy) || gen.inFelled(wx, wy))) { if (kind < 3) items.push([wy, 4, wx, 0.35 + r * 0.12, it[4]]); continue }
+    items.push(it)
   }
   items.sort((a, b) => a[0] - b[0])
   const X = x => (x - x0) / mpp, Y = y => (y - y0) / mpp

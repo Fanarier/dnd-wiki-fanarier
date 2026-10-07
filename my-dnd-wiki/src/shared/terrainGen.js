@@ -143,10 +143,11 @@ export function makeTerrain(terrain = {}) {
     return sd
   }
 
-  let clearings = []
-  // вырубки мастера: круги { x, y, r }; для плитки передаются только задевающие её
-  const setClearings = list => { clearings = list || [] }
+  let clearings = [], felled = []
+  // вырубки мастера: круги { x, y, r } (в лесу — вырубка); { …, tree: true } — одно срубленное дерево (остаётся пень, земля не меняется)
+  const setClearings = list => { clearings = (list || []).filter(c => !c.tree); felled = (list || []).filter(c => c.tree) }
   const inClearing = (x, y) => clearings.some(c => (x - c.x) ** 2 + (y - c.y) ** 2 < c.r * c.r)
+  const inFelled = (x, y) => felled.some(c => (x - c.x) ** 2 + (y - c.y) ** 2 < c.r * c.r)
 
   // всё о точке: код местности и подробности для раскраски
   function sample(x, y, o = {}) {
@@ -210,7 +211,7 @@ export function makeTerrain(terrain = {}) {
 
   // мелкий шум для текстур (рябь, кроны, мох)
   const nD = simplex(seed * 11 + 10)
-  const gen = { seed, P, lake, lakeR, ponds, sample, waterSD, setClearings, findSpot, noise: nD }
+  const gen = { seed, P, lake, lakeR, ponds, sample, waterSD, setClearings, inClearing, inFelled, findSpot, noise: nD }
   cache.set(key, gen)
   if (cache.size > 6) cache.delete(cache.keys().next().value)
   return gen

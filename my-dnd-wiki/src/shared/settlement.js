@@ -101,12 +101,67 @@ export const SIZES = {
 
 /* ---------------- Дороги ---------------- */
 // w — ширина в метрах
+// rank — кто кого перекрывает на перекрёстке (покрытие главной дороги ложится поверх второстепенной)
 export const ROAD_TYPES = {
-  trail: { label: 'Тропа', w: 1.5 },
-  dirt: { label: 'Грунтовая дорога', w: 4 },
-  tract: { label: 'Тракт', w: 7 },
-  paved: { label: 'Мощёная дорога', w: 6 },
-  bridge: { label: 'Мост', w: 5 }
+  trail: { label: 'Тропа', w: 1.5, rank: 1 },
+  dirt: { label: 'Грунтовая дорога', w: 4, rank: 2 },
+  tract: { label: 'Тракт', w: 7, rank: 3 },
+  paved: { label: 'Мощёная дорога', w: 6, rank: 4 },
+  bridge: { label: 'Мост', w: 5, rank: 5 }
+}
+const roadW = r => ROAD_TYPES[r.type]?.w || 4
+
+// дорога плавной кривой (Катмулл–Ром через её точки), разбитая на отрезки ~2 м; мост — прямыми
+const curveCache = new WeakMap()
+export function roadCurve(r) {
+  if (curveCache.has(r)) return curveCache.get(r)
+  const pts = r.points || []
+  let out = pts
+  if (pts.length > 2 && r.type !== 'bridge') {
+    out = [pts[0]]
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]
+      const n = Math.max(2, Math.min(60, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2)))
+      for (let k = 1; k <= n; k++) {
+        const u = k / n, u2 = u * u, u3 = u2 * u
+        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3)
+        out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])])
+      }
+    }
+  }
+  curveCache.set(r, out)
+  return out
+}
+// ближайшая к точке дорога: { road, x, y, dist, seg }
+export function nearestRoad(roads, x, y, skipId) {
+  let best = null
+  for (const r of roads || []) {
+    if (r.id === skipId) continue
+    const c = roadCurve(r)
+    for (let i = 1; i < c.length; i++) {
+      const [ax, ay] = c[i - 1], [bx, by] = c[i]
+      const dx = bx - ax, dy = by - ay
+      const t = dx || dy ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy))) : 0
+      const px = ax + t * dx, py = ay + t * dy, d = Math.hypot(x - px, y - py)
+      if (!best || d < best.dist) best = { road: r, x: px, y: py, dist: d, seg: i }
+    }
+  }
+  return best
+}
+// примыкания: конец дороги лежит на другой дороге — там нужен плавный «раструб».
+// { road, end: 0 | 1, x, y, into: дорога, в которую упирается }
+export function roadJunctions(roads) {
+  const out = []
+  for (const r of roads || []) {
+    const c = roadCurve(r)
+    if (c.length < 2) continue
+    for (const end of [0, 1]) {
+      const p = end ? c[c.length - 1] : c[0]
+      const q = nearestRoad(roads, p[0], p[1], r.id)
+      if (q && q.dist <= roadW(q.road) / 2 + 0.6) out.push({ road: r, end, x: p[0], y: p[1], into: q.road })
+    }
+  }
+  return out
 }
 export const CATEGORIES = {
   structure: { label: 'Структура', color: '#b06cff' },
@@ -406,7 +461,7 @@ export function placementProblems(s, b, ignoreId = b.id) {
   if (codes.has(TB.WATER)) out.push('в воде')
   if (codes.has(TB.SWAMP)) out.push('в болоте')
   if (codes.has(TB.RAVINE)) out.push('в овраге')
-  if (pts.some(p => (s.roads || []).some(r => r.points.some((a, i) => i && segDist(p, r.points[i - 1], a) < (ROAD_TYPES[r.type]?.w || 4) / 2 + 1)))) out.push('на дороге')
+  if (pts.some(p => (s.roads || []).some(r => { const c = roadCurve(r); return c.some((a, i) => i && segDist(p, c[i - 1], a) < roadW(r) / 2 + 1) }))) out.push('на дороге')
   if (pts.some(p => !explored(s, p))) out.push('за пределами разведанной земли')
   for (const q of s.buildings || []) {
     if (q.id === ignoreId || q.x == null) continue
