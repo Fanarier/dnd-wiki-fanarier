@@ -274,7 +274,8 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { store, heroCover, heroPortraitUrl, act } from '../map/store.js'
-import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, shortFor } from '../shared/settlement.js'
+import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, shortFor, explored as isExplored } from '../shared/settlement.js'
+import { WORLD } from '../shared/terrainGen.js'
 import { applyText } from '../shared/settlementEvents.js'
 import PriceChips from './PriceChips.vue'
 import SettlementHistory from './SettlementHistory.vue'
@@ -299,7 +300,7 @@ const overview = computed(() => {
     { label: 'Занятые поселенцы', value: x.busy, icon: 'person' },
     { label: 'Недоступные поселенцы', value: x.unavailable, icon: 'person-unavailable' },
     { label: 'Общий статус', value: s.value.status, icon: 'thumb-up', cls: 'ok' },
-    { label: 'Разведано земель', value: (s.value.explored || []).filter(e => !e.r).length, icon: 'annexation' },
+    { label: 'Разведано земли', value: exploredArea.value, icon: 'annexation', hint: 'Сколько округи открыто от тумана (вся округа ≈300 км²)' },
     { label: 'Аванпосты', value: `${s.value.outposts?.length || 0}/${st.outpostSlots || 0}`, icon: 'gold-mine' },
     { label: 'Жильё (дома)', value: `${x.houses.used}/${x.houses.cap}`, icon: 'house', cls: x.houses.used >= x.houses.cap ? 'warn' : '' },
     { label: 'Общее жильё', value: `${x.housing.used}/${x.housing.cap}`, icon: 'block-house' },
@@ -312,6 +313,14 @@ const overview = computed(() => {
     { label: 'Защита', value: x.defense.total, icon: 'palisade', hint: `Боевые жители: ${x.defense.races}, стража: ${x.defense.guards}, постройки: ${x.defense.buildings}, активы: ${x.defense.assets}` },
     { label: 'Угрозы', value: x.threat, icon: 'hazard-sign', cls: x.threat > 0 ? 'warn' : '' }
   ]
+})
+// площадь разведанного: считаем по сетке точек (круги разведки сильно перекрываются)
+const exploredArea = computed(() => {
+  const N = 140, cell = WORLD / N
+  let n = 0
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) if (isExplored(s.value, [(i + 0.5) * cell, (j + 0.5) * cell])) n++
+  const km2 = (n * cell * cell) / 1e6
+  return `${km2 < 10 ? km2.toFixed(1).replace('.', ',') : Math.round(km2)} км²`
 })
 const head = computed(() => store.data.heroes?.find(h => h.id === s.value.headHeroId) || null)
 const headCover = computed(() => { const g = heroCover(head.value); return g ? heroPortraitUrl(g.thumb || g.file) : '' })
