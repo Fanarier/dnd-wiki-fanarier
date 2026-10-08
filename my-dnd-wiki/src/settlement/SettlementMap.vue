@@ -48,9 +48,46 @@
           <path v-for="r in roadsDraw" :key="'h' + r.id" :d="r.d" class="sm-road-hit" :stroke-width="Math.max(ROAD_TYPES[r.type]?.w || 4, 14 * px)"
                 @pointerenter="hover = { kind: 'road', item: r }" @pointerleave="hover = null" @click.stop="pick('road', r)" />
         </g>
-        <!-- новая дорога, пока её рисуют; кольцо — куда прилипнет точка -->
-        <template v-if="tool?.road">
-          <path v-if="draft.length" :d="draftD" fill="none" class="sm-draft" :stroke-width="Math.max(ROAD_TYPES[tool.road]?.w || 4, 3 * px)" />
+        <!-- стены: построенное — частокол или камень, ещё не построенное — пунктиром; проёмы ворот и калиток вырезаны -->
+        <g class="sm-walls">
+          <template v-for="w in wallsDraw" :key="w.id">
+            <path v-if="isSel('wall', w.id)" :d="w.dAll" class="rd" stroke="rgba(255, 236, 170, .55)" :stroke-width="w.w + 8 * px" />
+            <path v-for="(d, i) in w.plan" :key="'p' + i" :d="d" class="rd sm-wall-plan" :stroke-width="w.w" :stroke-dasharray="`${3 * px} ${2.5 * px}`" />
+            <path v-for="(d, i) in w.done" :key="'e' + i" :d="d" class="rd" :stroke="w.st.edge" :stroke-width="w.w + w.st.edgeW" />
+            <path v-for="(d, i) in w.done" :key="'b' + i" :d="d" class="rd" :stroke="w.st.body" :stroke-width="w.w" />
+            <path v-for="(d, i) in w.done" :key="'t' + i" :d="d" class="rd" :stroke="w.st.top" :stroke-width="w.w * 0.55" :stroke-dasharray="w.st.dash" stroke-linecap="butt" />
+            <g v-for="f in w.feats" :key="f.id" class="sm-wfeat" :class="[f.kind, { plan: !f.built }]" :transform="`translate(${f.x} ${f.y}) rotate(${f.deg})`"
+               @pointerenter="hover = { kind: 'wallFeature', item: f, wall: w }" @pointerleave="hover = null" @click.stop="pick('wall', w)">
+              <template v-if="f.kind === 'tower'">
+                <rect :x="-f.side / 2" :y="-f.side / 2" :width="f.side" :height="f.side" :rx="f.side / 10" :fill="w.st.body" :stroke="w.st.edge" :stroke-width="Math.max(0.4, 1.5 * px)" />
+                <rect :x="-f.side / 4" :y="-f.side / 4" :width="f.side / 2" :height="f.side / 2" :fill="w.st.top" />
+              </template>
+              <template v-else>
+                <rect v-for="sx in [-1, 1]" :key="sx" :x="sx * f.len / 2 - f.post / 2" :y="-f.post / 2" :width="f.post" :height="f.post" :fill="w.st.edge" />
+                <line :x1="-f.len / 2 + f.post / 2" :x2="f.len / 2 - f.post / 2" y1="0" y2="0" class="sm-door" :stroke-width="Math.max(0.35, w.w * 0.45)" :stroke-dasharray="`${Math.max(0.2, px)} ${Math.max(0.08, px * 0.4)}`" />
+              </template>
+            </g>
+          </template>
+          <path v-for="w in wallsDraw" :key="'h' + w.id" :d="w.dAll" class="sm-road-hit" :stroke-width="Math.max(w.w, 14 * px)"
+                @pointerenter="hover = { kind: 'wall', item: w }" @pointerleave="hover = null" @click.stop="pick('wall', w)" />
+        </g>
+        <!-- дорога упирается в стену, а проёма нет — мастеру подсказка; щелчок ставит ворота -->
+        <g v-if="master && !lineTool">
+          <g v-for="(c, i) in needGates" :key="'ng' + i" class="sm-needgate" :transform="`translate(${c.x} ${c.y})`" @click.stop="emit('needGate', { wallId: c.wall.id, s: c.s })"
+             @pointerenter="hover = { kind: 'needGate' }" @pointerleave="hover = null">
+            <circle :r="9 * px" vector-effect="non-scaling-stroke" />
+            <text :y="4 * px" :style="{ fontSize: 12 * px + 'px' }">!</text>
+          </g>
+        </g>
+        <!-- куда встанут ворота, калитка или башня -->
+        <g v-if="featureAim" class="sm-wfeat aim" :transform="`translate(${featureAim.x} ${featureAim.y}) rotate(${featureAim.deg})`">
+          <rect v-if="tool.wallFeature === 'tower'" :x="-featureAim.side / 2" :y="-featureAim.side / 2" :width="featureAim.side" :height="featureAim.side" vector-effect="non-scaling-stroke" />
+          <line v-else :x1="-featureAim.len / 2" :x2="featureAim.len / 2" y1="0" y2="0" :stroke-width="Math.max(1, 6 * px)" />
+        </g>
+
+        <!-- новая дорога или стена, пока её рисуют; кольцо — куда прилипнет точка -->
+        <template v-if="lineTool">
+          <path v-if="draft.length" :d="draftD" fill="none" class="sm-draft" :class="{ wall: tool.wall }" :stroke-width="draftW" />
           <circle v-for="(p, i) in draft" :key="i" :cx="p[0]" :cy="p[1]" :r="4 * px" class="sm-draft-pt" vector-effect="non-scaling-stroke" />
           <circle v-if="snapHint" :cx="snapHint[0]" :cy="snapHint[1]" :r="8 * px" class="sm-snap" vector-effect="non-scaling-stroke" />
         </template>
@@ -94,7 +131,7 @@
         </g>
 
         <!-- курсор инструмента -->
-        <g v-if="cursor && toolActive && !tool?.road" :transform="`translate(${cursor.x} ${cursor.y})`" class="sm-cursor" :class="{ bad: cursorBad.length }">
+        <g v-if="cursor && toolActive && !lineTool && !tool?.wallFeature" :transform="`translate(${cursor.x} ${cursor.y})`" class="sm-cursor" :class="{ bad: cursorBad.length }">
           <template v-if="placeType">
             <rect :x="-placeShown / 2" :y="-placeShown / 2" :width="placeShown" :height="placeShown" :rx="placeShown / 8" class="sm-ghost-plate" vector-effect="non-scaling-stroke" />
             <image :href="iconUrl(BUILDINGS[placeType]?.icon)" :x="-placeShown * 0.39" :y="-placeShown * 0.39" :width="placeShown * 0.78" :height="placeShown * 0.78" opacity=".8" />
@@ -122,7 +159,11 @@
     </svg>
 
     <!-- подсказки -->
-    <div v-if="cursor && toolActive && cursorBad.length" class="sm-tip bad" :style="tipPos">Сюда нельзя: {{ cursorBad.join(', ') }}</div>
+    <div v-if="wallDraftInfo" class="sm-tip" :style="tipPos">
+      <b>{{ wallDraftInfo.title }}</b>
+      <span v-for="(l, i) in wallDraftInfo.lines" :key="i">{{ l }}</span>
+    </div>
+    <div v-else-if="cursor && toolActive && cursorBad.length" class="sm-tip bad" :style="tipPos">Сюда нельзя: {{ cursorBad.join(', ') }}</div>
     <div v-else-if="dragId && dragBad.length" class="sm-tip bad" :style="tipPos">Сюда нельзя: {{ dragBad.join(', ') }}</div>
     <div v-else-if="hover && tip && !toolActive" class="sm-tip" :style="tipPos">
       <b>{{ tip.title }}</b>
@@ -145,7 +186,8 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, placementProblems, footprint, roadCurve, nearestRoad, roadJunctions } from '../shared/settlement.js'
+import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, placementProblems, footprint, roadCurve, nearestRoad, roadJunctions, priceText } from '../shared/settlement.js'
+import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, wallWork, pointAt, slice, nearestWall, openings, roadCrossings, wallDefense } from '../shared/walls.js'
 import { WORLD, CENTER, makeTerrain, BIOME_LABEL } from '../shared/terrainGen.js'
 import { createTileStore } from './tiles.js'
 import { TILE, MAX_Z, treeAt } from './tileRender.js'
@@ -156,13 +198,14 @@ const props = defineProps({
   calc: { type: Object, required: true },
   selected: { type: Object, default: null }, // { kind: building | outpost | road, id }
   // инструмент: 'move' — двигать; { place: тип } — новая постройка; { placeExisting: id, type } — из списка «не расставлены»;
-  // { explore: true } — точка разведки; 'fog-add' / 'fog-erase' — туман; 'cut' / 'grow' — вырубить / вернуть лес; { road: тип } — дорога
+  // { explore: true } — точка разведки; 'fog-add' / 'fog-erase' — туман; 'cut' / 'grow' — вырубить / вернуть лес; { road: тип } — дорога;
+  // { wall: вид } — стена; { wallFeature: gate | wicket | tower } — фрагмент на стене
   tool: { type: [String, Object], default: null },
   ghosts: { type: Array, default: () => [] },
   brush: { type: Number, default: 60 }, // радиус кисти, м
   master: Boolean
 })
-const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'ready'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready'])
 
 const fogUrl = fogTexture()
 const iconUrl = name => `/settlement/${name || 'help'}.png`
@@ -290,10 +333,12 @@ watch(() => [view.x, view.y, view.k, size.w, size.h], scheduleDraw)
 const tileWorld = computed(() => ({
   terrain: props.settlement.terrain,
   clearings: props.settlement.clearings || [],
-  roads: (props.settlement.roads || []).map(r => {
-    const pts = roadCurve(r)
-    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1])
-    return { w: ROAD_TYPES[r.type]?.w || 4, pts, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }
+  roads: [
+    ...(props.settlement.roads || []).map(r => ({ w: ROAD_TYPES[r.type]?.w || 4, pts: roadCurve(r) })),
+    ...(props.settlement.walls || []).map(w => ({ w: (WALL_TYPES[w.type]?.w || 1.2) + 1, pts: w.points }))
+  ].map(r => {
+    const xs = r.pts.map(p => p[0]), ys = r.pts.map(p => p[1])
+    return { ...r, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] }
   }),
   boxes: placed.value.map(b => footprint(b))
 }))
@@ -301,8 +346,60 @@ watch(tileWorld, scheduleDraw)
 
 /* ---------- дороги ---------- */
 const pathOf = pts => (pts.length < 2 ? '' : 'M' + pts.map(p => `${Math.round(p[0] * 100) / 100} ${Math.round(p[1] * 100) / 100}`).join(' L'))
-const roadEdit = ref(null) // { id, points } — пока тянут ручку
-const roadsView = computed(() => (props.settlement.roads || []).map(r => (roadEdit.value?.id === r.id ? { ...r, points: roadEdit.value.points } : r)))
+const roadEdit = ref(null) // { kind: road | wall, id, points } — пока тянут ручку
+const roadsView = computed(() => (props.settlement.roads || []).map(r => (roadEdit.value?.kind === 'road' && roadEdit.value.id === r.id ? { ...r, points: roadEdit.value.points } : r)))
+const wallsView = computed(() => (props.settlement.walls || []).map(w => (roadEdit.value?.kind === 'wall' && roadEdit.value.id === w.id ? { ...w, points: roadEdit.value.points } : w)))
+
+/* ---------- стены ---------- */
+const WALL_STYLE = {
+  palisade: { edge: '#2c1f12', body: '#7a5530', top: '#b0844f', edgeW: 0.5, dash: '0.3 0.14' },
+  stone: { edge: '#34322e', body: '#8f8b82', top: '#c2bdb1', edgeW: 0.7, dash: '1.1 0.8' }
+}
+const wallsDraw = computed(() => wallsView.value.map(w => {
+  const t = WALL_TYPES[w.type] || WALL_TYPES.palisade
+  const len = wallLength(w.points), built = Math.min(len, w.built ?? len)
+  // режем стену проёмами, каждую часть — на построенное и нет
+  const pieces = []
+  let a = 0
+  for (const [g0, g1] of openings(w).sort((x, y) => x[0] - y[0])) { if (g0 > a) pieces.push([a, g0]); a = Math.max(a, g1) }
+  if (a < len) pieces.push([a, len])
+  const done = [], plan = []
+  for (const [p0, p1] of pieces) {
+    if (built > p0) done.push(pathOf(slice(w.points, p0, Math.min(p1, built))))
+    if (built < p1) plan.push(pathOf(slice(w.points, Math.max(p0, built), p1)))
+  }
+  const wpx = Math.max(t.w, 3 * px.value)
+  const feats = (w.features || []).map(f => {
+    const p = pointAt(w.points, f.s), d = WALL_FEATURES[f.kind]
+    const side = Math.max((d.side || 5) * (w.type === 'stone' ? 1.2 : 1), 10 * px.value)
+    return { ...f, x: p.x, y: p.y, deg: (p.angle * 180) / Math.PI, len: d.len, side, post: Math.max(wpx * 1.5, 0.6), built: (f.state || 'built') === 'built' && built >= f.s }
+  })
+  return { ...w, len, built, w: wpx, dAll: pathOf(w.points), done: done.filter(Boolean), plan: plan.filter(Boolean), feats, st: WALL_STYLE[w.type] || WALL_STYLE.palisade }
+}))
+// дорога пересекает стену без ворот
+const needGates = computed(() => roadCrossings(wallsView.value, roadsView.value, roadCurve).filter(c => !c.gate))
+// куда встанет фрагмент: ближайшая точка стены под курсором
+const featureAim = computed(() => {
+  const k = props.tool?.wallFeature
+  if (!k || !cursor.value) return null
+  const q = nearestWall(wallsView.value, cursor.value.x, cursor.value.y)
+  if (!q || q.dist > Math.max(14 * px.value, 6)) return null
+  const p = pointAt(q.wall.points, q.s), d = WALL_FEATURES[k]
+  return { wallId: q.wall.id, s: q.s, x: p.x, y: p.y, deg: (p.angle * 180) / Math.PI, len: d.len, side: Math.max(d.side || 5, 10 * px.value) }
+})
+// что будет стоить стена, которую рисуют
+const fmtPrice = pr => priceText(pr) || 'бесплатно'
+const wallDraftInfo = computed(() => {
+  const type = props.tool?.wall
+  if (!type || !draft.value.length || !cursor.value) return null
+  const pts = [...draft.value, snapHint.value || [cursor.value.x, cursor.value.y]]
+  const len = wallLength(pts)
+  const days = Math.ceil(wallWork(type, len) / 25)
+  return {
+    title: `${WALL_TYPES[type].label}: ${fmtLen(len)}`,
+    lines: [`Цена: ${fmtPrice(wallPrice(type, len))}`, `Стройка ≈ ${days} дн. (без слесарей)`, `Защита +${Math.round(len * WALL_TYPES[type].defense)}`]
+  }
+})
 // оформление вида дороги: ширины в метрах, но не тоньше нескольких пикселей издалека
 function roadStyle(type) {
   const w = ROAD_TYPES[type]?.w || 4, p = px.value
@@ -402,12 +499,27 @@ const roadLen = pts => pts.reduce((n, p, i) => (i ? n + Math.hypot(p[0] - pts[i 
 const fmtLen = m => (m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 0 : 1).replace('.', ',')} км` : `${Math.round(m)} м`)
 // рисование новой дороги: щелчки ставят точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена
 const draft = ref([])
-const draftD = computed(() => pathOf(roadCurve({ type: props.tool?.road, points: snapHint.value || cursor.value ? [...draft.value, snapHint.value || [cursor.value.x, cursor.value.y]] : draft.value })))
+const lineTool = computed(() => !!(props.tool?.road || props.tool?.wall))
+const draftPts = computed(() => (snapHint.value || cursor.value ? [...draft.value, snapHint.value || [cursor.value.x, cursor.value.y]] : draft.value))
+const draftD = computed(() => pathOf(props.tool?.wall ? draftPts.value : roadCurve({ type: props.tool?.road, points: draftPts.value })))
+const draftW = computed(() => Math.max(props.tool?.wall ? WALL_TYPES[props.tool.wall]?.w || 1.2 : ROAD_TYPES[props.tool?.road]?.w || 4, 3 * px.value))
 watch(() => props.tool, () => { draft.value = [] })
 // прилипание: к концам дорог (продолжить), иначе — к любой точке дороги (примыкание); null — не прилипло
 function snapTo(w) {
   const tol = 12 * px.value
   let best = null, bd = tol
+  // стену цепляем к концам и линиям других стен (продолжить, примкнуть, замкнуть кольцо)
+  if (props.tool?.wall) {
+    for (const x of wallsView.value) for (const p of [x.points[0], x.points[x.points.length - 1]]) {
+      const d = Math.hypot(p[0] - w.x, p[1] - w.y)
+      if (d < bd) { bd = d; best = [p[0], p[1]] }
+    }
+    // замкнуть свою же стену на первую точку
+    if (draft.value.length > 2) { const p = draft.value[0]; if (Math.hypot(p[0] - w.x, p[1] - w.y) < bd) best = [p[0], p[1]] }
+    if (best) return best
+    const q = nearestWall(wallsView.value, w.x, w.y)
+    return q && q.dist < tol ? [Math.round(q.x * 10) / 10, Math.round(q.y * 10) / 10] : null
+  }
   for (const r of roadsView.value) for (const p of [r.points[0], r.points[r.points.length - 1]]) {
     const d = Math.hypot(p[0] - w.x, p[1] - w.y)
     if (d < bd) { bd = d; best = [p[0], p[1]] }
@@ -418,18 +530,19 @@ function snapTo(w) {
   return null
 }
 const snap = w => snapTo(w) || [w.x, w.y]
-const snapHint = computed(() => (props.tool?.road && cursor.value ? snapTo(cursor.value) : null))
+const snapHint = computed(() => (lineTool.value && cursor.value ? snapTo(cursor.value) : null))
 // инструмент «срубить дерево»: ближайшее к курсору дерево или куст
 const fellTarget = computed(() => (props.tool === 'fell' && cursor.value ? treeAt(props.settlement.terrain, props.settlement.clearings, cursor.value.x, cursor.value.y, 6 * px.value) : null))
 function finishRoad() {
   const pts = draft.value.filter((p, i, a) => !i || Math.hypot(p[0] - a[i - 1][0], p[1] - a[i - 1][1]) > 2 * px.value)
-  if (pts.length >= 2) emit('road', { type: props.tool.road, points: pts })
+  if (pts.length >= 2) emit(props.tool.wall ? 'wall' : 'road', { type: props.tool.wall || props.tool.road, points: pts })
   draft.value = []
 }
 // правка выбранной дороги
 const editRoad = computed(() => {
-  if (!props.master || props.selected?.kind !== 'road' || toolActive.value) return null
-  return roadsView.value.find(r => r.id === props.selected.id) || null
+  const kind = props.selected?.kind
+  if (!props.master || (kind !== 'road' && kind !== 'wall') || toolActive.value) return null
+  return (kind === 'wall' ? wallsView.value : roadsView.value).find(r => r.id === props.selected.id) || null
 })
 const editMids = computed(() => (editRoad.value ? editRoad.value.points.slice(1).map((p, i) => [(p[0] + editRoad.value.points[i][0]) / 2, (p[1] + editRoad.value.points[i][1]) / 2]) : []))
 let handle = null
@@ -478,7 +591,7 @@ function onDown(e) {
   if (h && editRoad.value) {
     const pts = editRoad.value.points.map(p => [...p])
     if (h.dataset.m != null) { const i = +h.dataset.m + 1; pts.splice(i, 0, [...editMids.value[+h.dataset.m]]); handle = { i } } else handle = { i: +h.dataset.h }
-    roadEdit.value = { id: editRoad.value.id, points: pts }
+    roadEdit.value = { kind: props.selected.kind, id: editRoad.value.id, points: pts }
     pointers.get(e.pointerId).pan = false
     e.currentTarget.setPointerCapture?.(e.pointerId)
     return
@@ -544,7 +657,7 @@ function onMove(e) {
 function onUp(e) {
   const up = e.type === 'pointerup'
   if (handle && roadEdit.value) {
-    if (up && moved) emit('roadEdit', { id: roadEdit.value.id, points: roadEdit.value.points })
+    if (up && moved) emit('roadEdit', { kind: roadEdit.value.kind, id: roadEdit.value.id, points: roadEdit.value.points })
     handle = null
     roadEdit.value = null
     return release(e)
@@ -564,7 +677,8 @@ function onUp(e) {
   if (!moved && up && primary && toolActive.value && pointers.size === 1) {
     const w = toWorld(e.clientX, e.clientY)
     if (props.tool === 'fell') { const tr = treeAt(props.settlement.terrain, props.settlement.clearings, w.x, w.y, 6 * px.value); if (tr) emit('fell', tr) }
-    else if (props.tool.road) draft.value = [...draft.value, snap(w)]
+    else if (props.tool.road || props.tool.wall) draft.value = [...draft.value, snap(w)]
+    else if (props.tool.wallFeature) { if (featureAim.value) emit('wallFeature', { wallId: featureAim.value.wallId, s: featureAim.value.s, kind: props.tool.wallFeature }) }
     else if (placeType.value && !cursorBad.value.length) emit('placed', { type: placeType.value, id: props.tool.placeExisting, ...w })
     else if (props.tool.explore) emit('explore', w)
   }
@@ -579,16 +693,16 @@ function release(e) {
   setTimeout(() => { moved = false })
 }
 function onDbl(e) {
-  if (props.tool?.road) { finishRoad(); return }
+  if (lineTool.value) { finishRoad(); return }
   // двойной щелчок по точке выбранной дороги — убрать точку
   const h = e.target.closest?.('[data-h]')
   if (h && editRoad.value && editRoad.value.points.length > 2) {
-    emit('roadEdit', { id: editRoad.value.id, points: editRoad.value.points.filter((_, i) => i !== +h.dataset.h) })
+    emit('roadEdit', { kind: props.selected.kind, id: editRoad.value.id, points: editRoad.value.points.filter((_, i) => i !== +h.dataset.h) })
   }
 }
 function onLeave() { hover.value = null; cursor.value = null; place.value = '' }
 function onKey(e) {
-  if (!props.tool?.road || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return
+  if (!lineTool.value || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return
   if (e.key === 'Enter') finishRoad()
   else if (e.key === 'Backspace') { draft.value = draft.value.slice(0, -1); e.preventDefault() }
   else if (e.key === 'Escape') draft.value = []
@@ -606,6 +720,13 @@ const tip = computed(() => {
     return { title: `Аванпост «${OUTPOSTS[o.type]?.label}»`, lines: [`Рабочие: ${o.workers} из ${o.places}`, Object.entries(o.yields || {}).map(([k, v]) => `${RES[k]?.label} +${v}`).join(', '), `${fmtLen(Math.hypot(o.x - CENTER, o.y - CENTER))} от поселения`] }
   }
   if (h.kind === 'road') return { title: h.item.name || ROAD_TYPES[h.item.type]?.label, lines: [`Длина: ${fmtLen(roadLen(h.item.points))}`] }
+  if (h.kind === 'needGate') return { title: 'Дорога упирается в стену', lines: ['Щёлкни — поставить ворота'] }
+  if (h.kind === 'wall' || h.kind === 'wallFeature') {
+    const w = h.kind === 'wall' ? h.item : h.wall, t = WALL_TYPES[w.type] || WALL_TYPES.palisade
+    const lines = [`Длина: ${fmtLen(w.len)}`, w.built < w.len - 0.01 ? `Стройка: ${fmtLen(w.built)} из ${fmtLen(w.len)}` : 'Построена', `Защита +${wallDefense([{ ...w, id: '_' }])}`]
+    if (h.kind === 'wallFeature') return { title: WALL_FEATURES[h.item.kind].label + (h.item.built ? '' : ' (строится)'), lines: [`На стене: ${w.name || t.label.toLowerCase()}`] }
+    return { title: w.name || t.label, lines }
+  }
   const b = h.item, d = BUILDINGS[b.type]
   const lines = [`${CATEGORIES[d.cat]?.label} · ${SIZES[d.size]?.label}${SIZES[d.size]?.area ? ' (' + SIZES[d.size].area + ')' : ''}`]
   for (const [j, n] of Object.entries(d.jobs || {})) lines.push(`${JOBS[j].label}: ${n} мест`)
@@ -662,6 +783,19 @@ defineExpose({ fit, fitAll, finishRoad, draft })
 .sm-snap { fill: rgba(255, 243, 196, .2); stroke: #fff3c4; stroke-width: 2; pointer-events: none; }
 .sm-fell { fill: rgba(224, 180, 124, .18); stroke: #e0b47c; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
 .sm-draft { stroke: rgba(243, 217, 154, .75); stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
+.sm-draft.wall { stroke: rgba(176, 132, 79, .85); stroke-dasharray: none; stroke-linecap: butt; }
+.sm-walls .rd { stroke-linecap: butt; stroke-linejoin: miter; }
+.sm-wall-plan { stroke: rgba(243, 217, 154, .55); }
+.sm-wfeat { cursor: pointer; }
+.sm-wfeat.plan { opacity: .55; }
+.sm-door { stroke: #c49a5a; }
+.sm-wfeat.aim { pointer-events: none; }
+.sm-wfeat.aim rect { fill: rgba(155, 224, 122, .35); stroke: #9be07a; stroke-width: 2; }
+.sm-wfeat.aim line { stroke: rgba(155, 224, 122, .85); }
+.sm-needgate { cursor: pointer; }
+.sm-needgate circle { fill: rgba(224, 40, 30, .85); stroke: #fff; stroke-width: 2; animation: sm-ng 1.4s ease-in-out infinite; }
+.sm-needgate text { fill: #fff; font-weight: 900; text-anchor: middle; pointer-events: none; }
+@keyframes sm-ng { 50% { opacity: .55; } }
 .sm-draft-pt { fill: #f3d99a; stroke: #3a2a14; stroke-width: 1.5; }
 .sm-item { cursor: pointer; }
 .sm-plate { fill: #d6d2c8; stroke: var(--cat, #8a7a5a); stroke-width: 2.5; }

@@ -36,6 +36,26 @@
         <div><span>Точек</span><b>{{ item.points.length }}</b></div>
       </div>
     </template>
+    <template v-else-if="sel.kind === 'wall'">
+      <div class="bc-top">
+        <i class="wall-ico" :class="item.type" />
+        <div>
+          <b>{{ item.name || WALL_TYPES[item.type]?.label }}</b>
+          <small>{{ item.name ? WALL_TYPES[item.type]?.label + ' · ' : '' }}{{ fmtLen(wlen) }} · толщина {{ String(WALL_TYPES[item.type]?.w).replace('.', ',') }} м</small>
+        </div>
+      </div>
+      <div class="rows">
+        <div><span>Готовность</span><b :class="{ minus: wbuilt < wlen - 0.01 }">{{ wbuilt >= wlen - 0.01 ? 'построена' : `${fmtLen(wbuilt)} из ${fmtLen(wlen)}` }}</b></div>
+        <div><span>Защита</span><b>+{{ wdef }}</b></div>
+        <div class="price-row"><span>Цена всей стены</span><PriceChips :price="wallPrice(item.type, wlen)" /></div>
+        <div v-if="!item.features?.length" class="muted-row"><span>Ворота, калитки, башни</span><b>нет</b></div>
+        <div v-for="f in item.features || []" :key="f.id" class="feat-row">
+          <span>{{ WALL_FEATURES[f.kind]?.label }} <em>· {{ fmtLen(f.s) }} от начала</em></span>
+          <b>{{ f.state === 'construction' ? `строится ${Math.floor(f.progress || 0)}/${WALL_FEATURES[f.kind]?.work}` : 'готово' }}
+            <button v-if="master" class="mini" :title="`Убрать: ${WALL_FEATURES[f.kind]?.label.toLowerCase()}`" @click="removeFeature(f)">×</button></b>
+        </div>
+      </div>
+    </template>
     <template v-else>
       <div class="bc-top">
         <img :src="`/settlement/${OUTPOSTS[item.type]?.icon}.png`" alt="" class="op" />
@@ -67,6 +87,12 @@
         <label>Вид <select v-model="form.type"><option v-for="(r, k) in ROAD_TYPES" :key="k" :value="k">{{ r.label }}</option></select></label>
         <p class="tip">Тяни точки на карте; за середину отрезка — новая точка; двойной щелчок по точке — убрать.</p>
       </template>
+      <template v-else-if="sel.kind === 'wall'">
+        <label>Название <input v-model="form.name" placeholder="например, Северный частокол" /></label>
+        <label>Вид <select v-model="form.type"><option v-for="(t, k) in WALL_TYPES" :key="k" :value="k">{{ t.label }}</option></select></label>
+        <label>Построено <input v-model.number="form.built" type="number" min="0" :max="Math.ceil(wlen)" /> м из {{ Math.round(wlen) }}</label>
+        <p class="tip">Тяни точки на карте; за середину отрезка — новая точка; двойной щелчок по точке — убрать. Стройка идёт от первой точки.</p>
+      </template>
       <template v-else>
         <label>Тип <select v-model="form.type"><option v-for="(o, k) in OUTPOSTS" :key="k" :value="k">{{ o.label }}</option></select></label>
         <label>Рабочие <input v-model.number="form.workers" type="number" min="0" /> из <input v-model.number="form.places" type="number" min="0" /></label>
@@ -89,7 +115,7 @@
           <button v-else-if="def.size !== 'settlement'" title="Постройка останется в списке «не расставлены» и продолжит считаться" @click="$emit('remove', 'building', item.id, 'unplace')">Убрать с карты</button>
           <button class="danger" @click="$emit('remove', 'building', item.id)">Снести</button>
         </template>
-        <button v-else class="danger" @click="$emit('remove', sel.kind, item.id)">{{ sel.kind === 'road' ? 'Удалить' : 'Убрать' }}</button>
+        <button v-else class="danger" @click="$emit('remove', sel.kind, item.id)">{{ sel.kind === 'road' ? 'Удалить' : sel.kind === 'wall' ? 'Снести' : 'Убрать' }}</button>
       </div>
     </div>
   </section>
@@ -101,6 +127,7 @@ import { store } from '../map/store.js'
 import PriceChips from './PriceChips.vue'
 import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES, RESOURCES, ROAD_TYPES } from '../shared/settlement.js'
 import { CENTER } from '../shared/terrainGen.js'
+import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, wallDefense } from '../shared/walls.js'
 
 const props = defineProps({ settlement: Object, calc: Object, sel: Object, item: Object, master: Boolean })
 const emit = defineEmits(['close', 'save', 'remove', 'place'])
@@ -113,7 +140,7 @@ watch(() => props.item, it => {
 }, { immediate: true })
 function save() {
   const f = { ...form.value }
-  if (props.sel.kind === 'road') {
+  if (props.sel.kind === 'road' || props.sel.kind === 'wall') {
     if (!f.name) delete f.name
   } else if (props.sel.kind === 'building') {
     if (!f.name) delete f.name
@@ -126,6 +153,14 @@ const def = computed(() => BUILDINGS[props.item.type] || {})
 const fmtLen = m => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} км` : `${Math.round(m)} м`)
 const roadLength = computed(() => fmtLen((props.item.points || []).reduce((n, p, i, a) => (i ? n + Math.hypot(p[0] - a[i - 1][0], p[1] - a[i - 1][1]) : 0), 0)))
 const cat = computed(() => CATEGORIES[def.value.cat])
+// стена
+const wlen = computed(() => (props.sel.kind === 'wall' ? wallLength(props.item.points || []) : 0))
+const wbuilt = computed(() => Math.min(wlen.value, props.item.built ?? wlen.value))
+const wdef = computed(() => (props.sel.kind === 'wall' ? wallDefense([props.item]) : 0))
+function removeFeature(f) {
+  if (!confirm(`Убрать «${WALL_FEATURES[f.kind]?.label}» со стены? Потраченное не вернётся.`)) return
+  emit('save', 'wall', { ...props.item, features: props.item.features.filter(x => x.id !== f.id) })
+}
 const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.id === props.item.owner))
 </script>
 
@@ -156,6 +191,11 @@ const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.
 .btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .rows .unplaced b { color: #ffb36b; }
 .tip { margin: 0; color: var(--a-muted); font-size: 11.5px; }
+.wall-ico { width: 48px; height: 10px; flex: none; border-radius: 1px; background: repeating-linear-gradient(90deg, #b0844f 0 3px, #5a3c1e 3px 4px); box-shadow: 0 0 0 2px #2c1f12; }
+.wall-ico.stone { height: 14px; background: repeating-linear-gradient(90deg, #c2bdb1 0 7px, #8f8b82 7px 11px); box-shadow: 0 0 0 2px #34322e; }
+.rows .feat-row span em { font-style: normal; color: #7d6c4e; }
+.rows .feat-row b { display: flex; align-items: center; gap: 6px; }
+.rows .muted-row b { color: var(--a-muted); }
 .road-ico { width: 48px; height: 14px; border-radius: 4px; background: #a3835a; box-shadow: 0 0 0 2px #6b5235; flex: none; }
 .road-ico.trail { height: 3px; background: repeating-linear-gradient(90deg, #cdb17c 0 7px, transparent 7px 11px); box-shadow: none; }
 .road-ico.tract { height: 18px; background: linear-gradient(#977652 30%, #7b5d3c 30% 42%, #977652 42% 58%, #7b5d3c 58% 70%, #977652 70%); box-shadow: 0 0 0 2px #5e472c; }

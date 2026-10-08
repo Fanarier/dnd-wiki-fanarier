@@ -344,7 +344,7 @@ const overview = computed(() => {
     { label: 'Торговые места', value: `${x.trade.used}/${x.trade.cap}`, icon: 'cash' },
     { label: 'Военный потенциал', value: x.war.total, icon: 'target-arrows', hint: `Боевые жители: ${x.war.races}, активы: ${x.war.assets}` },
     { label: 'Досуг', value: x.leisure.total, icon: 'tavern-sign' },
-    { label: 'Защита', value: x.defense.total, icon: 'palisade', hint: `Боевые жители: ${x.defense.races}, стража: ${x.defense.guards}, постройки: ${x.defense.buildings}, активы: ${x.defense.assets}` },
+    { label: 'Защита', value: x.defense.total, icon: 'palisade', hint: `Боевые жители: ${x.defense.races}, стража: ${x.defense.guards}, постройки: ${x.defense.buildings}, стены: ${x.defense.walls || 0}, активы: ${x.defense.assets}` },
 
   ]
 })

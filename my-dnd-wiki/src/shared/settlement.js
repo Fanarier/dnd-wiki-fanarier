@@ -2,6 +2,7 @@
 // Общий для сервера и клиента. Числа подобраны так, что перенесённый Урюпинск даёт те же цифры,
 // что старая таблица (см. docs/urupinsk/README.md). Значки — public/settlement/*.png (game-icons.net, CC BY 3.0).
 
+import { wallDefense } from './walls.js'
 import { makeTerrain, B as TB, WORLD, CENTER } from './terrainGen.js'
 
 /* ---------------- Ресурсы ---------------- */
@@ -206,7 +207,6 @@ export const BUILDINGS = {
   garden: { label: 'Огород', cat: 'production', size: 'large', cost: 30, icon: 'greenhouse' },
   forge: { label: 'Кузница', cat: 'production', size: 'medium', cost: 275, icon: 'anvil-impact', jobs: { smith: 3 } },
   tower: { label: 'Башня', cat: 'military', size: 'small', cost: 100, icon: 'watchtower', defense: 0 },
-  wall: { label: 'Деревянная стена', cat: 'military', size: 'settlement', cost: 400, icon: 'palisade', defense: 100 },
   bath: { label: 'Баня', cat: 'health', size: 'medium', cost: 300, icon: 'shower' },
   healer: { label: 'Дом целителя', cat: 'health', size: 'medium', cost: 250, icon: 'health-normal', jobs: { healer: 2 }, use: { water: 10 } },
   boiler: { label: 'Бойлерная', cat: 'industry', size: 'medium', cost: 600, icon: 'water-mill', jobs: { mechanic: 2 }, use: { water: 40 } },
@@ -244,7 +244,6 @@ const PRICES = {
   garden: { wood: 15 },
   forge: { stone: 100, clay: 40, iron: 30, build: 30 },
   tower: { wood: 60, stone: 20 },
-  wall: { wood: 300, build: 60 },
   bath: { wood: 100, stone: 80, clay: 30, build: 30 },
   healer: { wood: 100, stone: 30, build: 30, herbs: 10 },
   boiler: { stone: 150, iron: 120, parts: 50, build: 80, clay: 40 }
@@ -399,6 +398,7 @@ export function computeSettlement(s) {
   const warRaces = races.reduce((n, r) => n + (r.combat || 0) * (RACES[r.race]?.war || 0), 0)
   const defRaces = races.reduce((n, r) => n + (r.combat || 0) * (RACES[r.race]?.def || 0), 0)
   const st = s.stats || {}
+  const defenseW = wallDefense(s.walls || [])
 
   return {
     population, adults, kids,
@@ -410,7 +410,7 @@ export function computeSettlement(s) {
     guests: { cap: guests, used: st.guestsUsed || 0 },
     trade: { cap: trade, used: st.tradeUsed || 0 },
     war: { total: warRaces + (passive.war || 0), races: warRaces, assets: passive.war || 0 },
-    defense: { total: defRaces + defenseJ + defenseB + (passive.defense || 0), races: defRaces, guards: defenseJ, buildings: defenseB, assets: passive.defense || 0 },
+    defense: { total: defRaces + defenseJ + defenseB + defenseW + (passive.defense || 0), races: defRaces, guards: defenseJ, buildings: defenseB, walls: defenseW, assets: passive.defense || 0 },
     leisure: { total: leisure + (passive.leisure || 0), jobs: leisure, assets: passive.leisure || 0 },
     jobMorale: morale,
     morale: st.morale ?? 0, stability: st.stability ?? 0, threat: st.threat ?? 0,

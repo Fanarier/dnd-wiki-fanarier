@@ -26,7 +26,7 @@
       <div class="sp-mapwrap">
         <SettlementMap ref="mapRef" class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts" :brush="brush" :master="master"
                        @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog"
-                       @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" />
+                       @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" @wall="onWall" @wall-feature="onWallFeature" @need-gate="onNeedGate" />
         <!-- инструменты: мастеру — правка карты, главе — приказы -->
         <div v-if="master || decider" class="sp-tools">
           <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="setTool(null)">👁 Смотреть</button>
@@ -34,6 +34,7 @@
             <button :class="{ on: tool === 'move' }" title="Перетаскивай постройки и аванпосты" @click="setTool('move')">✥ Двигать</button>
             <button :class="{ on: tool?.place || tool?.placeExisting }" @click="openPop('palette')">＋ Поставить<em v-if="unplaced.length" class="cnt">{{ unplaced.length }}</em></button>
             <button :class="{ on: tool?.road }" @click="openPop('roads')">🛣 Дорога</button>
+            <button :class="{ on: tool?.wall || tool?.wallFeature }" @click="openPop('walls')">🧱 Стены</button>
             <button :class="{ on: tool === 'cut' || tool === 'grow' }" @click="openPop('forest')">🪓 Лес</button>
             <button :class="{ on: tool === 'fog-add' || tool === 'fog-erase' }" @click="openPop('fog')">☀ Туман</button>
             <button :class="{ on: pop === 'terrain' }" title="Генератор местности" @click="openPop('terrain')">🗺 Местность</button>
@@ -47,7 +48,7 @@
         <div v-if="tool && hint" class="sp-hint">
           <span>{{ hint }}</span>
           <label v-if="brushTool" class="brush">кисть {{ brushLabel }}<input v-model.number="brush" type="range" :min="brushRange[0]" :max="brushRange[1]" :step="brushRange[2]" /></label>
-          <button v-if="tool?.road" class="mini" @click="mapRef?.finishRoad()">Готово</button>
+          <button v-if="tool?.road || tool?.wall" class="mini" @click="mapRef?.finishRoad()">Готово</button>
         </div>
         <!-- палитра построек: сначала «не расставлены» -->
         <div v-if="pop === 'palette'" class="sp-pop palette">
@@ -81,6 +82,23 @@
             <i class="rd" :class="k" /><span>{{ r.label }}</span><em>{{ String(r.w).replace('.', ',') }} м</em>
           </button>
           <p class="pal-note">Готовую дорогу можно выбрать на карте: тянуть точки, добавлять (за середину отрезка), убирать (двойной щелчок), сменить вид или удалить.</p>
+        </div>
+        <!-- стены: рисовать линией, на линию — ворота, калитка, башня -->
+        <div v-if="pop === 'walls'" class="sp-pop small walls">
+          <div class="pop-head"><b>Стены</b><button @click="pop = null">×</button></div>
+          <small class="pal-sub">Нарисовать стену <span>цена за 10 м</span></small>
+          <button v-for="(t, k) in WALL_TYPES" :key="k" class="pal-item" :class="{ on: tool?.wall === k }" @click="setTool({ wall: k })">
+            <i class="wl" :class="k" /><span>{{ t.label }}</span><em>защита +{{ fmtNum(t.defense * 10) }}</em>
+            <PriceChips class="pal-price" :price="wallPrice(k, 10)" :stock="s.stock || {}" short />
+          </button>
+          <small class="pal-sub">Поставить на стену <span>щелчком по линии стены</span></small>
+          <button v-for="(f, k) in WALL_FEATURES" :key="k" class="pal-item" :class="{ on: tool?.wallFeature === k }" @click="setTool({ wallFeature: k })">
+            <i class="wf" :class="k" /><span>{{ f.label }}</span><em>{{ f.len ? `проём ${fmtNum(f.len)} м` : 'на углы и стыки' }}{{ f.defense ? ` · защита +${f.defense}` : '' }}</em>
+            <PriceChips class="pal-price" :price="f.price" :stock="s.stock || {}" short />
+          </button>
+          <label class="chk"><input v-model="placeBuilt" type="checkbox" /> сразу построено (иначе — стройка)</label>
+          <label v-if="!placeBuilt" class="chk"><input v-model="payBuild" type="checkbox" /> оплатить со склада</label>
+          <p class="pal-note">Материалы считаются по длине: {{ wallRule }}. Стройка идёт от первой точки к последней, вместе с другими стройками. Замкнутое кольцо целиком готовых стен — защита +25%. Красный «!» на карте — дорога упирается в стену без ворот.</p>
         </div>
         <!-- лес -->
         <div v-if="pop === 'forest'" class="sp-pop small">
@@ -184,6 +202,7 @@ import SettlementEditor from './SettlementEditor.vue'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
 import { computeSettlement, shortFor, priceText, placementProblems, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
+import { WALL_TYPES, WALL_FEATURES, wallPrice, featurePrice } from '../shared/walls.js'
 import { TERRAIN_DEFAULTS, TERRAIN_PARAMS } from '../shared/terrainGen.js'
 
 const route = useRoute()
@@ -224,7 +243,7 @@ const editing = ref(null)
 /* ---------- инструменты карты ---------- */
 const mapRef = ref(null)
 const tool = ref(null)
-const pop = ref(null) // открытое окошко: palette | roads | forest | fog | terrain | day
+const pop = ref(null) // открытое окошко: palette | roads | walls | forest | fog | terrain | day
 const placeBuilt = ref(true)
 const payBuild = ref(true)
 const customDays = ref(3)
@@ -258,6 +277,8 @@ const hint = computed(() => {
   if (t?.place) return `Кликни по разведанной земле, куда поставить «${BUILDINGS[t.place]?.label}». Esc — отмена.`
   if (t?.explore) return 'Кликни, какой участок разведать — мастер получит приказ.'
   if (t?.road) return `${ROAD_TYPES[t.road].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Точка прилипает к другим дорогам (кольцо); начни с конца такой же дороги — продолжишь её.`
+  if (t?.wall) return `${WALL_TYPES[t.wall].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Начни с конца такой же стены — продолжишь её; последнюю точку поставь на первую — кольцо.`
+  if (t?.wallFeature) return `${WALL_FEATURES[t.wallFeature].label}: наведи на стену и щёлкни. Esc — отмена.`
   if (t === 'cut') return 'Води кистью по лесу — вырубка.'
   if (t === 'fell') return 'Наведи на дерево или куст и щёлкни — останется пень. Esc — отмена.'
   if (t === 'grow') return 'Води кистью по вырубке — лес вернётся.'
@@ -337,7 +358,28 @@ async function onRoad({ type, points }) {
   const r = await patch({ roads: m ? m.roads : [...(s.value.roads || []), { id, type, points }] }, m ? `${ROAD_TYPES[type].label} продолжена` : `${ROAD_TYPES[type].label} проложена`)
   if (r) sel.value = { kind: 'road', id }
 }
-const onRoadEdit = ({ id, points }) => patch({ roads: s.value.roads.map(r => (r.id === id ? { ...r, points } : r)) })
+const onRoadEdit = ({ kind, id, points }) => (kind === 'wall'
+  ? patch({ walls: s.value.walls.map(w => (w.id === id ? { ...w, points } : w)) })
+  : patch({ roads: s.value.roads.map(r => (r.id === id ? { ...r, points } : r)) }))
+
+/* ---------- стены ---------- */
+const fmtNum = v => String(Math.round(v * 10) / 10).replace('.', ',')
+const wallRule = computed(() => Object.values(WALL_TYPES).map(t => `${t.short} — ${Object.entries(t.perM).map(([k, v]) => `${RES[k]?.label.toLowerCase()} ${fmtNum(v)}`).join(', ')} на метр`).join('; '))
+const howText = () => (placeBuilt.value ? 'сразу готово' : payBuild.value ? 'стройка, оплата со склада' : 'стройка без оплаты')
+async function onWall({ type, points }) {
+  const w = await act('POST', `${base()}/walls`, { type, points, built: placeBuilt.value, pay: payBuild.value },
+    `${WALL_TYPES[type].label}: ${placeBuilt.value ? 'поставлена' : 'заложена'}`).catch(() => null)
+  if (w?.id) sel.value = { kind: 'wall', id: w.id }
+}
+function onWallFeature({ wallId, s: at, kind }) {
+  return act('POST', `${base()}/walls/${wallId}/features`, { kind, s: at, built: placeBuilt.value, pay: payBuild.value },
+    `${WALL_FEATURES[kind].label}: ${placeBuilt.value ? 'готово' : 'заложено'}`).catch(() => null)
+}
+function onNeedGate({ wallId, s: at }) {
+  const w = s.value.walls.find(x => x.id === wallId)
+  const price = placeBuilt.value || !payBuild.value ? '' : `\nЦена: ${priceText(featurePrice('gate', w?.type))}.`
+  if (confirm(`Поставить ворота там, где дорога упирается в стену? (${howText()})${price}`)) onWallFeature({ wallId, s: at, kind: 'gate' })
+}
 
 /* ---------- генератор местности ---------- */
 const gen = ref({ seed: 1917, params: { ...TERRAIN_DEFAULTS } })
@@ -361,6 +403,7 @@ async function advance(days) {
 function saveItem(kind, item) {
   if (kind === 'building') patch({ buildings: s.value.buildings.map(b => (b.id === item.id ? item : b)) }, 'Сохранено')
   else if (kind === 'road') patch({ roads: s.value.roads.map(r => (r.id === item.id ? item : r)) }, 'Сохранено')
+  else if (kind === 'wall') patch({ walls: s.value.walls.map(w => (w.id === item.id ? item : w)) }, 'Сохранено')
   else patch({ outposts: s.value.outposts.map(o => (o.id === item.id ? item : o)) }, 'Сохранено')
 }
 // убрать с карты: постройка уходит в «не расставлены»; снести — совсем
@@ -368,9 +411,10 @@ function removeItem(kind, id, how) {
   if (kind === 'building' && how === 'unplace') {
     patch({ buildings: s.value.buildings.map(b => (b.id === id ? { ...b, x: null, y: null } : b)) }, 'Убрано в «не расставлены»')
   } else {
-    if (!confirm(kind === 'road' ? 'Удалить дорогу?' : kind === 'building' ? 'Снести постройку совсем?' : 'Убрать аванпост?')) return
+    if (!confirm(kind === 'road' ? 'Удалить дорогу?' : kind === 'wall' ? 'Снести стену вместе с воротами и башнями? Потраченное не вернётся.' : kind === 'building' ? 'Снести постройку совсем?' : 'Убрать аванпост?')) return
     if (kind === 'building') patch({ buildings: s.value.buildings.filter(b => b.id !== id) }, 'Снесено')
     else if (kind === 'road') patch({ roads: s.value.roads.filter(r => r.id !== id) }, 'Дорога удалена')
+    else if (kind === 'wall') patch({ walls: s.value.walls.filter(w => w.id !== id) }, 'Стена снесена')
     else patch({ outposts: s.value.outposts.filter(o => o.id !== id) }, 'Убрано')
   }
   sel.value = null
@@ -380,7 +424,7 @@ function onKey() {
   const h = e => {
     if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) return
     // дорогу, которую рисуют, Esc сбрасывает сам; второй Esc — снять инструмент
-    if (tool.value?.road && mapRef.value?.draft?.length) return
+    if ((tool.value?.road || tool.value?.wall) && mapRef.value?.draft?.length) return
     tool.value = null
     pop.value = null
   }
@@ -391,7 +435,7 @@ function onKey() {
 const sel = ref(route.query.b ? { kind: 'building', id: String(route.query.b) } : null)
 const selItem = computed(() => {
   if (!sel.value || !s.value) return null
-  const list = sel.value.kind === 'outpost' ? s.value.outposts : sel.value.kind === 'road' ? s.value.roads : s.value.buildings
+  const list = { outpost: s.value.outposts, road: s.value.roads, wall: s.value.walls }[sel.value.kind] || s.value.buildings
   return list?.find(x => x.id === sel.value.id) || null
 })
 
@@ -439,6 +483,15 @@ function setTab(id) {
 .mini { padding: 3px 9px; border-radius: 7px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .1); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .sp-tools .cnt { margin-left: 5px; padding: 0 6px; border-radius: 99px; background: #e0281e; color: #fff; font: 800 10.5px/16px var(--a-sans); font-style: normal; }
 .sp-pop.small { width: 290px; }
+.sp-pop.walls { width: min(340px, calc(100% - 24px)); }
+.wl { width: 34px; height: 8px; flex: none; border-radius: 1px; }
+.wl.palisade { background: repeating-linear-gradient(90deg, #b0844f 0 3px, #5a3c1e 3px 4px); box-shadow: 0 0 0 1.5px #2c1f12; }
+.wl.stone { height: 10px; background: repeating-linear-gradient(90deg, #c2bdb1 0 6px, #8f8b82 6px 10px); box-shadow: 0 0 0 1.5px #34322e; }
+.wf { width: 34px; height: 12px; flex: none; position: relative; }
+.wf.gate, .wf.wicket { background: linear-gradient(90deg, #2c1f12 0 5px, transparent 5px calc(100% - 5px), #2c1f12 calc(100% - 5px)); }
+.wf.gate::after, .wf.wicket::after { content: ''; position: absolute; left: 6px; right: 6px; top: 4px; height: 4px; background: repeating-linear-gradient(90deg, #c49a5a 0 3px, #8a6236 3px 4px); }
+.wf.wicket { width: 22px; }
+.wf.tower { width: 14px; height: 14px; margin: 0 10px; background: #7a5530; box-shadow: 0 0 0 1.5px #2c1f12, inset 0 0 0 4px #7a5530, inset 0 0 0 7px #b0844f; }
 .sp-pop.terrain { width: 360px; }
 .pal-sub { display: block; margin: 6px 0 3px; color: var(--a-gold); font-weight: 800; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; }
 .pal-sub span { color: var(--a-muted); font-weight: 600; text-transform: none; letter-spacing: 0; }

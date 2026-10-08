@@ -14,6 +14,7 @@ import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
+import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, featurePrice } from '../src/shared/walls.js'
 import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
@@ -1168,7 +1169,7 @@ const SETTLE_KEYS = {
   name: 'string', kind: 'string', status: 'string', cityId: 'string', headHeroId: 'string', managers: 'array', managerSlots: 'number',
   deciders: 'array', stats: 'object', stock: 'object', races: 'array', buildings: 'array', jobs: 'object', assets: 'array',
   outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array', orders: 'array', day: 'number',
-  roads: 'array', clearings: 'array'
+  roads: 'array', clearings: 'array', walls: 'array'
 }
 // дороги, вырубки, круги разведки и настройки местности — проверяем форму, лишнее отбрасываем
 const coord = v => Math.round(T.num(-2000, SETTLE_WORLD + 2000)(v) * 10) / 10
@@ -1176,6 +1177,21 @@ const T_ROAD = r => {
   const pts = (Array.isArray(r?.points) ? r.points : []).slice(0, 600).map(p => [coord(p?.[0]), coord(p?.[1])])
   if (pts.length < 2) throw Object.assign(new Error('В дороге нужно хотя бы две точки'), { status: 400 })
   return { id: T.str(40)(r.id) || newId('r'), type: SETTLE_ROADS[r.type] ? r.type : 'dirt', points: pts, ...(r.name ? { name: T.str(80)(r.name) } : {}) }
+}
+// стена: ломаная, вид, сколько метров построено, фрагменты на ней
+const T_WALL = w => {
+  const pts = (Array.isArray(w?.points) ? w.points : []).slice(0, 400).map(p => [coord(p?.[0]), coord(p?.[1])])
+  if (pts.length < 2) throw Object.assign(new Error('В стене нужно хотя бы две точки'), { status: 400 })
+  const len = wallLength(pts)
+  return {
+    id: T.str(40)(w.id) || newId('w'), type: WALL_TYPES[w.type] ? w.type : 'palisade', points: pts,
+    built: Math.round(Math.min(len, T.num(0, 1e6)(w.built ?? len)) * 10) / 10,
+    ...(w.name ? { name: T.str(80)(w.name) } : {}),
+    features: (Array.isArray(w.features) ? w.features : []).filter(f => WALL_FEATURES[f?.kind]).slice(0, 200).map(f => ({
+      id: T.str(40)(f.id) || newId('f'), kind: f.kind, s: Math.round(Math.min(len, T.num(0, 1e6)(f.s)) * 10) / 10,
+      state: f.state === 'construction' ? 'construction' : 'built', ...(f.state === 'construction' ? { progress: T.num(0, 1e6)(f.progress || 0) } : {})
+    }))
+  }
 }
 const T_CIRCLE = c => ({ x: coord(c?.x), y: coord(c?.y), r: Math.round(T.num(1, 5000)(c?.r)), ...(c?.name ? { name: T.str(60)(c.name) } : {}), ...(c?.tree ? { tree: true } : {}) })
 const T_TERRAIN = v => ({
@@ -1216,14 +1232,7 @@ function snapshot(s, delta) {
   if (s.history.length > 400) s.history = s.history.slice(-400)
 }
 // списать цену постройки со склада; null — хватило, иначе текст, чего не хватает
-function payFor(s, type) {
-  const price = BUILDINGS[type]?.price || {}
-  const miss = shortFor(s.stock, price)
-  if (miss.length) return 'Не хватает: ' + miss.map(m => `${RES[m.res]?.label} ${m.have} из ${m.need}`).join(', ')
-  s.stock ||= {}
-  for (const [k, v] of Object.entries(price)) s.stock[k] = Math.round(((s.stock[k] || 0) - v) * 10) / 10
-  return null
-}
+const payFor = (s, type) => payPrice(s, BUILDINGS[type]?.price || {})
 const STAT_RANGE = { morale: [0, 100], stability: [0, 100], threat: [0, 999] }
 function applyEffects(s, apply) {
   s.stock ||= {}
@@ -1258,6 +1267,7 @@ app.patch('/api/settlements/:id', requireMaster, (req, res) => {
   }
   if (Array.isArray(body.deciders)) body.deciders = body.deciders.filter(id => typeof id === 'string').slice(0, 20)
   if (Array.isArray(body.roads)) body.roads = body.roads.slice(0, 500).map(T_ROAD)
+  if (Array.isArray(body.walls)) body.walls = body.walls.slice(0, 300).map(T_WALL)
   if (Array.isArray(body.clearings)) body.clearings = body.clearings.slice(0, 8000).map(T_CIRCLE)
   if (Array.isArray(body.explored)) body.explored = body.explored.slice(0, 4000).map(e => (e?.points ? e : T_CIRCLE(e)))
   if (body.terrain) body.terrain = T_TERRAIN(body.terrain)
@@ -1429,6 +1439,27 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
       addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `Мы закончили «${BUILDINGS[b.type].label}»!`, location: s.name })
     }
   }
+  // стены строятся от начала к концу, фрагменты — когда стена дошла до их места
+  for (const w of s.walls || []) {
+    const len = wallLength(w.points)
+    const t = WALL_TYPES[w.type] || WALL_TYPES.palisade
+    if ((w.built ?? len) < len) {
+      w.built = Math.round(Math.min(len, (w.built || 0) + pts / t.work) * 10) / 10
+      if (w.built >= len) {
+        done.push(t.label)
+        addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `${t.label}${w.name ? ' «' + w.name + '»' : ''} ${t.done} — ${Math.round(len)} м. Жителям спокойнее за стеной.`, location: s.name })
+      }
+    }
+    for (const f of w.features || []) {
+      if (f.state !== 'construction' || (w.built ?? len) < f.s) continue
+      f.progress = Math.round(((f.progress || 0) + pts) * 10) / 10
+      if (f.progress >= WALL_FEATURES[f.kind].work) {
+        f.state = 'built'
+        delete f.progress
+        done.push(WALL_FEATURES[f.kind].label)
+      }
+    }
+  }
   const open = new Set((s.events || []).filter(e => e.title === 'Нехватка ресурса' && !e.decision).map(e => e.effect))
   for (const k of short) {
     const effect = `Не хватает «${RES[k]?.label}»`
@@ -1497,6 +1528,75 @@ app.post('/api/settlements/:id/buildings', requireMaster, (req, res) => {
   saveDb()
   broadcast()
   res.json(nb)
+})
+
+/* стены: мастер рисует линией; новая стена, начатая с конца такой же, продолжает её */
+// списать цену со склада; null — хватило, иначе текст, чего не хватает
+function payPrice(s, price) {
+  const miss = shortFor(s.stock, price)
+  if (miss.length) return 'Не хватает: ' + miss.map(m => `${RES[m.res]?.label} ${m.have} из ${m.need}`).join(', ')
+  s.stock ||= {}
+  for (const [k, v] of Object.entries(price)) s.stock[k] = Math.round(((s.stock[k] || 0) - v) * 10) / 10
+  return null
+}
+app.post('/api/settlements/:id/walls', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const b = req.body || {}
+  let w
+  try { w = T_WALL({ type: b.type, points: b.points, built: b.built ? undefined : 0 }) } catch (e) { return res.status(e.status || 400).json({ error: e.message }) }
+  const len = wallLength(w.points)
+  if (len < 1) return res.status(400).json({ error: 'Стена слишком короткая' })
+  const t = WALL_TYPES[w.type]
+  const price = wallPrice(w.type, len)
+  if (!b.built && b.pay) {
+    const miss = payPrice(s, price)
+    if (miss) return res.status(400).json({ error: miss })
+  }
+  s.walls ||= []
+  // продолжение: новая стена начинается на конце такой же — дописываем к ней (стройка идёт от начала к концу)
+  const same = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]) < 1
+  const prev = s.walls.find(x => x.type === w.type && same(x.points[x.points.length - 1], w.points[0]))
+  if (prev) {
+    const prevLen = wallLength(prev.points)
+    const wasBuilt = (prev.built ?? prevLen) >= prevLen - 0.01
+    prev.points = [...prev.points, ...w.points.slice(1)]
+    // стройка продолжается: если старая часть готова, новая — с её конца; готовую сразу — целиком
+    prev.built = b.built && wasBuilt ? wallLength(prev.points) : Math.min(prev.built ?? prevLen, prevLen)
+    w = prev
+  } else s.walls.push(w)
+  logEntry(s, 'build', `Стена (${t.short}): ${b.built ? 'поставлена' : 'заложена'} — ${Math.round(len)} м${!b.built && b.pay ? ' — ' + priceText(price) : ''}`)
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(w)
+})
+app.post('/api/settlements/:id/walls/:wid/features', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const w = s?.walls?.find(x => x.id === req.params.wid)
+  if (!w) return res.status(404).json({ error: 'Стена не найдена' })
+  const b = req.body || {}
+  const def = WALL_FEATURES[b.kind]
+  if (!def) return res.status(400).json({ error: 'Нет такого фрагмента' })
+  const len = wallLength(w.points)
+  const at = Math.round(Math.max(def.len / 2, Math.min(len - def.len / 2, T.num(0, 1e6)(b.s))) * 10) / 10
+  if (len < def.len) return res.status(400).json({ error: 'Стена короче проёма' })
+  // проёмы и башни не наезжают друг на друга
+  const clash = (w.features || []).find(f => Math.abs(f.s - at) < (WALL_FEATURES[f.kind].len + def.len) / 2 + 1)
+  if (clash) return res.status(400).json({ error: `Слишком близко к «${WALL_FEATURES[clash.kind].label}»` })
+  const price = featurePrice(b.kind, w.type)
+  if (!b.built && b.pay) {
+    const miss = payPrice(s, price)
+    if (miss) return res.status(400).json({ error: miss })
+  }
+  const f = { id: newId('f'), kind: b.kind, s: at, state: b.built ? 'built' : 'construction', ...(b.built ? {} : { progress: 0 }) }
+  ;(w.features ||= []).push(f)
+  w.features.sort((x, y) => x.s - y.s)
+  logEntry(s, 'build', `На стене: ${def.label.toLowerCase()} — ${b.built ? 'готово' : 'заложено'}${!b.built && b.pay ? ' — ' + priceText(price) : ''}`)
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(f)
 })
 
 /* заготовки событий: сайт предлагает, мастер выпускает в журнал или отбрасывает */

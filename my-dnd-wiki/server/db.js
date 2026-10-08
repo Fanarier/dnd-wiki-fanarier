@@ -70,6 +70,16 @@ function migrate(d) {
     changed = true
   }
   // поселения на старой маленькой карте → большая карта из генератора (один раз)
+  // стена «на всё поселение» заменена стенами, которые рисуют на карте (частокол, камень, ворота, башни)
+  for (const s of d.settlements || []) {
+    if (s.wallsV) continue
+    const before = (s.buildings || []).length
+    s.buildings = (s.buildings || []).filter(b => b.type !== 'wall')
+    s.walls ||= []
+    s.wallsV = 1
+    if (s.buildings.length !== before) console.log(`[db] ${s.name}: условная стена убрана — рисуй стены на карте`)
+    changed = true
+  }
   for (const s of d.settlements || []) if (upgradeSettlementMap(s)) { console.log(`[db] ${s.name}: переведено на большую карту, постройки — в списке «не расставлены»`); changed = true }
   // один портрет → галерея артов (первый — обложка)
   for (const h of d.heroes || []) {
