@@ -28,6 +28,10 @@ const PORT = Number(process.env.PORT) || 3001
 // На сервере за туннелем ставим HOST=127.0.0.1, чтобы порт не был виден снаружи
 const HOST = process.env.HOST || undefined
 const DIST = path.resolve(import.meta.dirname, '..', 'dist')
+// номер текущей сборки сайта: браузер со старой вкладкой увидит, что вышла новая версия
+const BUILD_ID = (() => {
+  try { return JSON.parse(fs.readFileSync(path.join(DIST, 'build.json'), 'utf8')).build } catch { return null }
+})()
 
 loadDb()
 backupDb()
@@ -991,6 +995,21 @@ app.post('/api/heroes/:id/gallery/:gid/thumb', requireUser, express.raw({ type: 
   broadcast()
   res.json(g)
 })
+app.post('/api/heroes/:id/portrait', requireUser, express.raw({ type: () => true, limit: '12mb' }), (req, res) => {
+  const h = heroForArt(req, res)
+  if (!h) return
+  const thumb = req.query.part === 'thumb'
+  const file = saveHeroFile(h, req.body, thumb ? '-t' : '')
+  if (!file) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  if (thumb && h.gallery[0]) {
+    dropPortrait(h.gallery[0].thumb)
+    h.gallery[0].thumb = file
+  } else if (!thumb) h.gallery.unshift({ id: newId('g'), file, thumb: '', pos: { x: 50, y: 20, zoom: 1 } })
+  saveDb()
+  broadcast()
+  res.json(h)
+})
+
 app.delete('/api/heroes/:id/gallery/:gid', requireUser, (req, res) => {
   const h = heroForArt(req, res)
   if (!h) return
@@ -1568,7 +1587,10 @@ app.delete('/api/:col/:id', requireMaster, (req, res) => {
   res.json({ ok: true })
 })
 
-app.use('/api', (req, res) => res.status(404).json({ error: 'Нет такого метода' }))
+app.use('/api', (req, res) => {
+  console.warn('[404]', req.method, req.originalUrl)
+  res.status(404).json({ error: 'Нет такого метода' })
+})
 
 // eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
@@ -1601,7 +1623,7 @@ wss.on('connection', ws => {
   const client = { ws, role: 'guest', user: null, id, name: 'Гость', color: CURSOR_COLORS[id % CURSOR_COLORS.length], pings: [] }
   clients.add(client)
   send(client, viewFor(null))
-  ws.send(JSON.stringify({ type: 'hello', id, color: client.color }))
+  ws.send(JSON.stringify({ type: 'hello', id, color: client.color, build: BUILD_ID }))
   // новому клиенту — текущие курсоры и линейки мастеров
   for (const c of clients) {
     if (c === client || !c.user) continue
