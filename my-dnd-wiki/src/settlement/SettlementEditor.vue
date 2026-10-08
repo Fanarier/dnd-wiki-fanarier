@@ -127,6 +127,7 @@
               </div>
               <button class="mini" @click="a.role.effects.push({ text: '' })">+ эффект роли</button>
             </template>
+            <div class="row"><input v-model="a.busy" placeholder="Чем занят, кроме работы: «Охраняет ворота»" /></div>
             <div class="row note"><input :value="a.note?.text || ''" placeholder="Заметка: «Выпрашивает еду»" @input="a.note = $event.target.value ? { text: $event.target.value, color: a.note?.color || '#ff9b4a' } : undefined" />
               <input v-if="a.note" v-model="a.note.color" type="color" /></div>
           </div>

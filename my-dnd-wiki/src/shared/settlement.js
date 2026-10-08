@@ -363,7 +363,8 @@ export function computeSettlement(s) {
     jobs[key] = {
       places: places[key] || 0, workers, supply: st.supply ?? (def.per ? 100 : null), out,
       groups: def.group ? Math.floor(workers / def.group) : null,
-      specialists: Array.from({ length: def.spec || 0 }, (_, i) => specs[i] ? (assets[specs[i]] || { name: specs[i] }) : null),
+      // специалист — актив (по id) или просто имя; у имени может быть свой значок (specIcons)
+      specialists: Array.from({ length: def.spec || 0 }, (_, i) => specs[i] ? (assets[specs[i]] || { name: specs[i], icon: st.specIcons?.[i] || '' }) : null),
       effects: (def.effects || []).map(e => ({
         label: e.label,
         value: e.text ?? (e.group ? String(Math.floor(workers / def.group)) : e.pct ? `${Math.round((workers / (places[key] || 1)) * 100)}%`

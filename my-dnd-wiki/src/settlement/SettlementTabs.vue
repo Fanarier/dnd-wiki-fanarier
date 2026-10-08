@@ -10,7 +10,7 @@
       </div>
 
       <h3>Управление</h3>
-      <div class="gov">
+      <div id="sgov" class="gov" :class="{ flash: flash === 'gov' }">
         <div class="gov-col">
           <small>Глава поселения</small>
           <div class="person big">
@@ -88,7 +88,7 @@
       <div v-for="r in s.races" :key="r.race" class="race">
         <div class="race-top" @click="openRace = openRace === r.race ? null : r.race">
           <div class="race-name">{{ RACES[r.race]?.label }}<small>{{ (r.male || 0) + (r.female || 0) + (r.kids || 0) }}</small></div>
-          <div class="mfk"><span title="Мужчины">♂ {{ r.male }}</span><span title="Женщины">♀ {{ r.female }}</span><span title="Дети">◦ {{ r.kids }}</span></div>
+          <div class="mfk"><span class="m" title="Мужчины"><i>♂</i>{{ r.male || 0 }}</span><span class="f" title="Женщины"><i>♀</i>{{ r.female || 0 }}</span><span class="k" title="Дети"><i>дети</i>{{ r.kids || 0 }}</span></div>
         </div>
         <div class="cats">
           <span v-for="(c, k) in RESIDENT_CATS" :key="k" :style="{ color: c.color }">{{ c.label }}: <b>{{ r[k] || 0 }}</b></span>
@@ -110,7 +110,7 @@
     <template v-else-if="tab === 'jobs'">
       <h3>Рабочие места<button v-if="master" class="ed" @click="emit('edit', 'jobs')">✎ Править</button></h3>
       <div class="cards">
-      <div v-for="j in jobList" :key="j.key" class="job">
+      <div v-for="j in jobList" :id="'sjob-' + j.key" :key="j.key" class="job" :class="{ flash: flash === 'job:' + j.key }">
         <div class="job-top">
           <img :src="icon(JOBS[j.key].icon)" alt="" />
           <b>{{ JOBS[j.key].label }}</b>
@@ -124,10 +124,28 @@
         </div>
         <div v-if="j.specialists.length" class="specs">
           <small>Специалисты</small>
-          <div v-for="(sp, i) in j.specialists" :key="i" class="person sm" :class="{ empty: !sp }" :title="sp?.name || 'свободно'" :style="sp?.frame ? { '--fr': ASSET_FRAMES[sp.frame] } : null">
-            <img v-if="sp?.portrait" :src="sp.portrait" alt="" /><span v-else-if="sp">{{ initial(sp.name) }}</span>
+          <div class="spec-list">
+            <div v-for="(sp, i) in j.specialists" :key="i" class="spec">
+              <button type="button" class="person sm" :class="{ empty: !sp, glyph: isGlyph(sp?.icon), act: sp && (sp.id || master) }"
+                      :title="!sp ? 'свободно' : sp.id ? `${sp.name} — открыть в «Активах»` : master ? `${sp.name} — выбрать значок` : sp.name"
+                      :style="sp?.frame ? { '--fr': ASSET_FRAMES[sp.frame] } : null" @click="specClick(j.key, i, sp)">
+                <img v-if="specFace(sp)" :src="specFace(sp)" alt="" /><span v-else-if="sp">{{ initial(sp.name) }}</span>
+              </button>
+              <span class="spec-name" :class="{ none: !sp }">{{ sp?.name || 'свободно' }}</span>
+              <div v-if="picker && picker.job === j.key && picker.i === i" class="spec-pick" @click.stop>
+                <div class="spec-pick-h">Значок для «{{ sp.name }}»<button type="button" class="x" @click="picker = null">×</button></div>
+                <div class="spec-icons">
+                  <button v-for="ic in SPEC_ICONS" :key="ic" type="button" :class="{ on: sp.icon === `/settlement/${ic}.png` }" :title="ic" @click="setSpecIcon(j.key, i, `/settlement/${ic}.png`)">
+                    <img :src="`/settlement/${ic}.png`" alt="" />
+                  </button>
+                </div>
+                <div class="spec-acts">
+                  <label class="mini">{{ uploading ? 'Загружаю…' : 'Загрузить свою картинку' }}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="uploadSpecIcon(j.key, i, $event)" /></label>
+                  <button v-if="sp.icon" type="button" class="mini" @click="setSpecIcon(j.key, i, '')">Убрать значок</button>
+                </div>
+              </div>
+            </div>
           </div>
-          <span class="spec-names">{{ j.specialists.filter(Boolean).map(x => x.name).join(', ') }}</span>
         </div>
       </div>
       </div>
@@ -137,11 +155,18 @@
     <template v-else-if="tab === 'assets'">
       <h3>Активы в работе<button v-if="master" class="ed" @click="emit('edit', 'assets')">✎ Править</button></h3>
  <div class="cards">
-      <div v-for="a in s.assets" :key="a.id" class="asset" :style="{ '--fr': ASSET_FRAMES[a.frame] || '#8a6630' }">
+      <div v-for="a in s.assets" :id="'sasset-' + a.id" :key="a.id" class="asset" :class="{ flash: flash === 'asset:' + a.id }" :style="{ '--fr': ASSET_FRAMES[a.frame] || '#8a6630' }">
         <div class="person" :class="{ hex: a.companion }"><img v-if="face(a)" :src="face(a)" alt="" /><span v-else>{{ initial(a.name) }}</span></div>
         <div class="asset-body">
-          <b>{{ a.name }}<small v-if="roleOf(a)">{{ roleOf(a) }}</small>
+          <b>{{ a.name }}<small v-if="a.companion">компаньон</small>
             <router-link v-if="heroOf(a)" class="hero-link card" :to="{ path: '/wiki', query: { hero: a.heroId } }">карточка героя →</router-link></b>
+          <!-- чем занят: работа и аванпост — ссылкой туда, где он трудится -->
+          <div class="asset-busy">
+            <template v-for="o in occupation(a)" :key="o.text">
+              <button v-if="o.go" type="button" class="busy-link" @click="goTo(o.go)">⚙ {{ o.text }} <i>{{ o.go.map ? 'на карте →' : '→' }}</i></button>
+              <span v-else class="busy-txt" :class="{ idle: o.idle }">{{ o.idle ? '◌' : '⚙' }} {{ o.text }}</span>
+            </template>
+          </div>
           <div class="asset-cols">
             <div><small>Пассивно</small><span v-for="p in a.passive" :key="p.text">{{ p.text }}</span></div>
             <div v-if="a.role?.effects?.length"><small>{{ a.role.kind === 'manager' ? 'Управляющий' : 'Специалист' }}</small><span v-for="p in a.role.effects" :key="p.text">{{ p.text }}</span></div>
@@ -156,7 +181,7 @@
     <template v-else-if="tab === 'outposts'">
       <h3>Аванпосты <small>{{ s.outposts.length }} из {{ s.stats?.outpostSlots || s.outposts.length }}</small><button v-if="master" class="ed" @click="emit('edit', 'outposts')">✎ Править</button></h3>
       <div class="cards">
-      <div v-for="o in s.outposts" :key="o.id" class="outpost" :class="o.state" @click="emit('pick', { kind: 'outpost', id: o.id })">
+      <div v-for="o in s.outposts" :id="'sout-' + o.id" :key="o.id" class="outpost" :class="[o.state, { flash: flash === 'out:' + o.id }]" @click="emit('pick', { kind: 'outpost', id: o.id })">
         <img :src="icon(OUTPOSTS[o.type]?.icon)" alt="" />
         <div>
           <b>{{ OUTPOSTS[o.type]?.label }}<small v-if="o.state === 'depleting'" class="dep">вырабатывается</small></b>
@@ -284,8 +309,9 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
-import { store, heroCover, heroPortraitUrl, act } from '../map/store.js'
+import { computed, nextTick, ref } from 'vue'
+import { store, heroCover, heroPortraitUrl, act, toast, uploadSettlementPortrait } from '../map/store.js'
+import { SPEC_ICONS, isGlyph } from './specIcons.js'
 import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, shortFor, explored as isExplored } from '../shared/settlement.js'
 import { WORLD } from '../shared/terrainGen.js'
 import { applyText } from '../shared/settlementEvents.js'
@@ -293,7 +319,7 @@ import PriceChips from './PriceChips.vue'
 import SettlementHistory from './SettlementHistory.vue'
 
 const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean, wide: Boolean })
-const emit = defineEmits(['pick', 'edit'])
+const emit = defineEmits(['pick', 'edit', 'tab'])
 const base = () => `/api/settlements/${props.settlement.id}`
 const s = computed(() => props.settlement)
 const c = computed(() => props.calc)
@@ -367,7 +393,68 @@ function face(a) {
   const g = heroCover(heroOf(a))
   return g ? heroPortraitUrl(g.thumb || g.file) : ''
 }
-const roleOf = a => (s.value.managers?.includes(a.id) ? 'управляющий' : Object.entries(s.value.jobs || {}).find(([, j]) => j.specialists?.includes(a.id)) ? 'специалист: ' + JOBS[Object.entries(s.value.jobs).find(([, j]) => j.specialists?.includes(a.id))[0]].label.toLowerCase() : a.companion ? 'компаньон' : '')
+/* чем занят актив: управляющий, специалист на работе, аванпост или что вписал мастер */
+function occupation(a) {
+  const list = []
+  if (s.value.managers?.includes(a.id)) list.push({ text: 'Управляет поселением', go: { tab: 'overview', focus: 'gov', el: 'sgov' } })
+  for (const [k, j] of Object.entries(s.value.jobs || {})) {
+    if ((j.specialists || []).slice(0, JOBS[k]?.spec || 0).includes(a.id)) list.push({ text: `Специалист: ${JOBS[k].label.toLowerCase()}`, go: { tab: 'jobs', focus: 'job:' + k, el: 'sjob-' + k } })
+  }
+  for (const o of s.value.outposts || []) {
+    if (o.specialist && (o.specialist === a.id || o.specialist === a.name)) {
+      list.push({ text: `Аванпост «${OUTPOSTS[o.type]?.label || 'аванпост'}»`, go: { tab: 'outposts', focus: 'out:' + o.id, el: 'sout-' + o.id, map: o.x != null, pick: { kind: 'outpost', id: o.id } } })
+    }
+  }
+  if (a.busy) list.push({ text: a.busy })
+  if (!list.length) list.push({ text: a.companion ? 'Рядом с хозяином' : 'Свободен', idle: true })
+  return list
+}
+// перейти туда, где работает: вкладка + подсветка; аванпост — ещё и выбрать на карте
+const flash = ref(null)
+let flashTimer = null
+async function goTo(go) {
+  emit('tab', go.tab)
+  if (go.pick) emit('pick', go.pick)
+  flash.value = go.focus
+  await nextTick()
+  setTimeout(() => {
+    const el = document.getElementById(go.el)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    // плавная прокрутка иногда не доезжает (картинки ещё грузятся) — догоняем сразу
+    setTimeout(() => {
+      const r = el?.getBoundingClientRect()
+      if (r && (r.top < 0 || r.bottom > innerHeight)) el.scrollIntoView({ block: 'center' })
+    }, 800)
+  }, 60)
+  clearTimeout(flashTimer)
+  flashTimer = setTimeout(() => { flash.value = null }, 2600)
+}
+
+/* специалисты: актив ведёт в «Активы», мастер по имени выбирает значок */
+const picker = ref(null)
+const specFace = sp => (!sp ? '' : sp.icon || (sp.id ? face(sp) : ''))
+function specClick(job, i, sp) {
+  if (!sp) return
+  if (sp.id) return goTo({ tab: 'assets', focus: 'asset:' + sp.id, el: 'sasset-' + sp.id })
+  if (props.master) picker.value = picker.value?.job === job && picker.value.i === i ? null : { job, i }
+}
+function setSpecIcon(key, i, url) {
+  const job = s.value.jobs?.[key] || {}
+  const specIcons = [...(job.specIcons || [])]
+  for (let n = specIcons.length; n < i; n++) specIcons[n] = null
+  specIcons[i] = url || null
+  picker.value = null
+  act('PATCH', base(), { jobs: { ...s.value.jobs, [key]: { ...job, specIcons } } }, url ? 'Значок специалиста поставлен' : 'Значок убран').catch(() => null)
+}
+const uploading = ref(false)
+async function uploadSpecIcon(key, i, e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  uploading.value = true
+  try { setSpecIcon(key, i, (await uploadSettlementPortrait(s.value.id, file)).url) } catch (err) { toast(err.message, 'error') } finally { uploading.value = false }
+}
+
 
 /* журнал: новое событие, решения */
 const newEv = ref(null)
@@ -537,10 +624,14 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .pl span { color: #b9ab8a; }
 
 .race { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-line-2); background: rgba(255, 255, 255, .02); margin-bottom: 8px; }
-.race-top { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+.race-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; cursor: pointer; }
 .race-name { font: 700 19px var(--a-serif); color: var(--a-gold-2); }
 .race-name small { margin-left: 8px; font: 700 12px var(--a-sans); color: var(--a-muted); }
-.mfk { display: flex; gap: 10px; font-weight: 800; font-size: 13px; color: #d9cdb0; }
+.mfk { display: flex; gap: 12px; font-weight: 800; font-size: 16px; color: #d9cdb0; }
+.mfk span { display: inline-flex; align-items: baseline; gap: 3px; }
+.mfk i { font-style: normal; font-size: 17px; }
+.mfk .k i { font-size: 11px; font-weight: 700; letter-spacing: .03em; }
+.mfk .m i { color: #8fc7ff; } .mfk .f i { color: #ff9ec7; } .mfk .k i { color: #ffe08a; }
 .cats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 10px; margin-top: 6px; font-size: 12px; font-weight: 600; }
 .cats b { color: inherit; }
 .race-more { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--a-line); font-size: 12.5px; }
@@ -560,7 +651,35 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .job-eff { display: grid; gap: 1px; font-size: 12.5px; color: #d9cdb0; }
 .job-eff .warn { color: #ffb36b; }
 .job-eff .minus { color: #ff9b8f; }
-.specs { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+.specs { display: grid; gap: 4px; margin-top: 7px; }
+.spec-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.spec { position: relative; display: flex; align-items: center; gap: 7px; }
+.spec .person { padding: 0; cursor: default; }
+.spec .person.act { cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.spec .person.act:hover { transform: scale(1.1); box-shadow: 0 0 0 3px rgba(231, 197, 111, .35); }
+.spec .person.glyph { background: #d6d2c8; }
+.spec .person.glyph img { object-fit: contain; padding: 4px; }
+.spec-name { font-size: 12.5px; font-weight: 700; color: #d9cdb0; }
+.spec-name.none { color: var(--a-muted); font-weight: 600; font-style: italic; }
+.spec-pick { position: absolute; z-index: 20; top: calc(100% + 6px); left: 0; width: min(300px, 80vw); padding: 10px; border-radius: 12px; background: #17130e; border: 1px solid #8a6630; box-shadow: 0 16px 40px rgba(0, 0, 0, .6); }
+.spec-pick-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; font-size: 12px; font-weight: 800; color: var(--a-gold-2); }
+.spec-pick-h .x { border: 0; background: none; color: var(--a-muted); font-size: 20px; cursor: pointer; }
+.spec-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(34px, 1fr)); gap: 4px; max-height: 180px; overflow-y: auto; }
+.spec-icons button { aspect-ratio: 1; padding: 4px; border-radius: 7px; border: 2px solid transparent; background: #d6d2c8; cursor: pointer; }
+.spec-icons button:hover { border-color: #e6c27a; }
+.spec-icons button.on { border-color: #9be07a; }
+.spec-icons img { width: 100%; height: 100%; object-fit: contain; }
+.spec-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.spec-acts .mini { cursor: pointer; }
+.asset-busy { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 3px 0 2px; }
+.busy-link { padding: 2px 9px; border-radius: 99px; border: 1px solid rgba(231, 197, 111, .4); background: rgba(231, 197, 111, .1); color: #f3d99a; font: 700 12px var(--a-sans); cursor: pointer; }
+.busy-link:hover { background: rgba(231, 197, 111, .22); }
+.busy-link i { font-style: normal; color: #a8936c; }
+.busy-txt { font-size: 12px; font-weight: 700; color: #d9cdb0; }
+.busy-txt.idle { color: var(--a-muted); font-style: italic; }
+/* подсветка места, куда перешли из «Активов» */
+.flash { animation: s-flash 1.3s ease 2; }
+@keyframes s-flash { 50% { box-shadow: 0 0 0 2px #f3d99a, 0 0 24px rgba(243, 217, 154, .45); } }
 .specs small { color: var(--a-muted); font-weight: 700; font-size: 11px; }
 .spec-names { font-size: 12px; color: #b9ab8a; }
 

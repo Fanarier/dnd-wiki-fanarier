@@ -164,7 +164,7 @@
             {{ tb.label }}<i v-if="tb.dot" class="dot" />
           </button>
         </nav>
-        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" />
+        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" @tab="setTab" />
         <p class="sp-credit">Значки: game-icons.net (CC BY 3.0)</p>
       </aside>
     </div>
