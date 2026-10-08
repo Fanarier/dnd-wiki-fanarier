@@ -115,7 +115,7 @@
         <!-- «прошёл день» -->
         <div v-if="pop === 'day'" class="sp-pop day">
           <div class="pop-head"><b>Сколько прошло?</b><button @click="pop = null">×</button></div>
-          <p>Запасы изменятся на итог за эти дни, нехватки попадут в журнал, стройка продвинется, а сайт подкинет заготовки событий.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
+          <p>За каждый день на склад придёт прирост и уйдёт расход; чего не хватает — возьмём из запаса, кончится запас — нехватка в журнал. Стройка продвинется, а сайт подкинет заготовки событий.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
           <div class="day-row">
             <button @click="advance(1)">1 день</button><button @click="advance(7)">Неделя</button>
             <input v-model.number="customDays" type="number" min="1" max="60" /><button @click="advance(customDays)">дней</button>
