@@ -46,32 +46,38 @@
     <template v-else-if="tab === 'resources'">
       <h3>Ресурсы <small>в день · нажми на строку — откуда и куда</small><button v-if="master" class="ed" @click="emit('edit', 'resources')">✎ Править</button></h3>
       <p class="muted">За день на склад приходит прирост, со склада уходит расход. Если расход больше — разницу берём из запаса; кончился запас — в журнал придёт нехватка.<template v-if="s.day"> Прошло дней: {{ s.day }}.</template></p>
-      <table class="res">
-        <thead><tr><th>Вид</th><th class="g">Прирост</th><th class="u">Расход</th><th class="st">Запас</th></tr></thead>
-        <tbody>
-          <template v-for="r in resRows" :key="r.key">
-            <tr :class="{ deficit: r.bal < 0, empty: r.bal < 0 && r.stock < -r.bal, idle: !r.gain && !r.use && !r.stock, open: openRes === r.key }" @click="openRes = openRes === r.key ? null : r.key">
-              <td><i class="rdot" :style="{ background: r.color }" />{{ r.label }}
-                <small v-if="r.bal < 0" class="from">со склада {{ fmt(-r.bal) }}/день · {{ r.stock >= -r.bal ? `хватит на ${Math.floor(r.stock / -r.bal)} дн.` : 'не хватает' }}</small>
-              </td>
-              <td class="g">{{ r.gain ? '+' + fmt(r.gain) : '—' }}</td>
-              <td class="u">{{ r.use ? '−' + fmt(r.use) : '—' }}</td>
-              <td class="st">
+      <!-- прирост и расход «давят» друг на друга: доля полосы — сколько от общего оборота у каждой стороны -->
+      <div class="tug-list">
+        <template v-for="r in resRows" :key="r.key">
+          <div class="tug" :class="{ deficit: r.bal < 0, empty: r.bal < 0 && r.stock < -r.bal, idle: !r.gain && !r.use, open: openRes === r.key }"
+               @click="openRes = openRes === r.key ? null : r.key">
+            <div class="tug-head">
+              <span class="tug-name"><i class="rdot" :style="{ background: r.color }" />{{ r.label }}</span>
+              <small v-if="r.bal < 0" class="from">со склада {{ fmt(-r.bal) }}/день · {{ r.stock >= -r.bal ? `хватит на ${Math.floor(r.stock / -r.bal)} дн.` : 'не хватает!' }}</small>
+              <small v-else-if="r.bal > 0" class="to">на склад +{{ fmt(r.bal) }}/день</small>
+              <span class="tug-stock">запас
                 <input v-if="master" class="stock-in" type="number" min="0" :value="r.stock" :title="`Сколько «${r.label}» на складе`"
                        @click.stop @keydown.enter="$event.target.blur()" @change="setStock(r.key, $event.target.value)" />
                 <b v-else>{{ fmt(r.stock) }}</b>
-              </td>
-            </tr>
-            <tr v-if="openRes === r.key" class="parts">
-              <td colspan="4">
-                <div v-for="p in calc.gain[r.key]?.parts || []" :key="'g' + p.label" class="pl plus"><span>{{ p.label }}</span><b>+{{ fmt(p.value) }}</b></div>
-                <div v-for="p in calc.use[r.key]?.parts || []" :key="'u' + p.label" class="pl minus"><span>{{ p.label }}</span><b>−{{ fmt(p.value) }}</b></div>
-                <div v-if="!calc.gain[r.key] && !calc.use[r.key]" class="muted">Пока не добывается и не тратится</div>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+              </span>
+            </div>
+            <div v-if="r.gain || r.use" class="tug-bar" :title="`Прирост ${Math.round(r.share)}% · расход ${100 - Math.round(r.share)}%`">
+              <div class="tug-g" :style="{ width: r.share + '%' }"><b v-if="r.gain">+{{ fmt(r.gain) }}</b></div>
+              <div class="tug-u"><b v-if="r.use">−{{ fmt(r.use) }}</b></div>
+              <i class="tug-seam" :class="r.bal > 0 ? 'push-r' : r.bal < 0 ? 'push-l' : ''" :style="{ left: r.share + '%' }" />
+              <span class="tug-flag" :class="r.bal > 0 ? 'up' : r.bal < 0 ? 'down' : ''" :style="{ left: Math.min(92, Math.max(8, r.share)) + '%' }">
+                {{ r.bal > 0 ? '+' : r.bal < 0 ? '−' : '' }}{{ fmt(Math.abs(r.bal || 0)) }}/д
+              </span>
+            </div>
+            <div v-else class="tug-bar none">не добывается и не тратится</div>
+          </div>
+          <div v-if="openRes === r.key" class="tug-parts">
+            <div v-for="p in calc.gain[r.key]?.parts || []" :key="'g' + p.label" class="pl plus"><span>{{ p.label }}</span><b>+{{ fmt(p.value) }}</b></div>
+            <div v-for="p in calc.use[r.key]?.parts || []" :key="'u' + p.label" class="pl minus"><span>{{ p.label }}</span><b>−{{ fmt(p.value) }}</b></div>
+            <div v-if="!calc.gain[r.key] && !calc.use[r.key]" class="muted">Пока не добывается и не тратится</div>
+          </div>
+        </template>
+      </div>
       <p class="muted note">«Быт» — дрова, посуда, одежда и починка: каждый житель тратит его в день по норме своей расы (вкладка «Жители»), он берётся из Дерева. Строки «Поправка» и «Стройка (из старой таблицы)» — то, что старая таблица учитывала вручную; мастер может их менять или убрать. Новые стройки платят свою цену со склада один раз, когда их закладывают.</p>
     </template>
 
@@ -341,7 +347,11 @@ function pickFirst(type) {
 
 /* ресурсы */
 const openRes = ref(null)
-const resRows = computed(() => RESOURCES.map(r => ({ ...r, gain: c.value.gain[r.key]?.total || 0, use: c.value.use[r.key]?.total || 0, bal: c.value.balance[r.key], stock: s.value.stock?.[r.key] || 0 })))
+const resRows = computed(() => RESOURCES.map(r => {
+  const gain = c.value.gain[r.key]?.total || 0, use = c.value.use[r.key]?.total || 0
+  // доля прироста в общем обороте — граница, где прирост и расход «упираются» друг в друга
+  return { ...r, gain, use, bal: c.value.balance[r.key], stock: s.value.stock?.[r.key] || 0, share: gain + use ? (gain / (gain + use)) * 100 : 50 }
+}))
 // мастер ставит запас прямо в таблице
 function setStock(key, v) {
   const n = Math.max(0, Math.round((Number(v) || 0) * 10) / 10)
@@ -423,6 +433,36 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .muted { color: var(--a-muted); font-size: 12px; }
 .ed { float: right; margin-top: 4px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .ed:hover { background: rgba(231, 197, 111, .18); }
+.tug-list { display: grid; gap: 6px; }
+.tug { padding: 8px 10px 10px; border-radius: 12px; border: 1px solid var(--a-line-2); background: rgba(255, 255, 255, .02); cursor: pointer; transition: background .15s, border-color .15s; }
+.tug:hover, .tug.open { background: rgba(231, 197, 111, .05); border-color: rgba(231, 197, 111, .25); }
+.tug.idle { opacity: .6; }
+.tug.empty { border-color: rgba(255, 107, 91, .45); }
+.tug-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; font-size: 13px; }
+.tug-name { font-weight: 700; }
+.tug-head small { font-size: 11px; font-weight: 700; }
+.tug-head .from { color: #ffb36b; }
+.tug.empty .tug-head .from { color: #ff8a7a; }
+.tug-head .to { color: #9be07a; }
+.tug-stock { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--a-muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
+.tug-stock b { color: var(--a-gold-2); font-size: 14px; text-transform: none; letter-spacing: 0; }
+.tug-bar { position: relative; display: flex; height: 22px; border-radius: 7px; background: #c0293a; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35); }
+.tug-bar.none { display: block; height: auto; padding: 3px 10px; background: rgba(255, 255, 255, .04); color: var(--a-muted); font-size: 11.5px; font-style: italic; margin-top: -10px; }
+.tug-g { flex: none; height: 100%; border-radius: 7px 0 0 7px; background: linear-gradient(180deg, #7ee06a, #46b23a); transition: width .8s cubic-bezier(.3, 1.3, .5, 1); overflow: hidden; }
+.tug-u { flex: 1; min-width: 0; height: 100%; border-radius: 0 7px 7px 0; background: linear-gradient(180deg, #e0485a, #a81f30); overflow: hidden; text-align: right; }
+.tug-g b, .tug-u b { display: inline-block; padding: 0 8px; line-height: 22px; font-size: 12px; font-weight: 800; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .55); white-space: nowrap; }
+.tug-seam { position: absolute; top: -3px; bottom: -3px; width: 4px; margin-left: -2px; border-radius: 2px; background: #fff3d6; box-shadow: 0 0 10px #fff3d6, 0 0 2px #000; transition: left .8s cubic-bezier(.3, 1.3, .5, 1); }
+/* перевешивающая сторона «давит» на шов */
+.tug-seam.push-r { animation: push-r 1.6s ease-in-out infinite; }
+.tug-seam.push-l { animation: push-l 1.6s ease-in-out infinite; }
+.tug-flag { position: absolute; bottom: calc(100% + 5px); transform: translateX(-50%); padding: 1px 7px; border-radius: 6px; background: #4a5568; color: #fff; font-size: 11px; font-weight: 800; white-space: nowrap; transition: left .8s cubic-bezier(.3, 1.3, .5, 1); }
+.tug-flag::after { content: ''; position: absolute; left: 50%; top: 100%; margin-left: -5px; border: 5px solid transparent; border-top-color: inherit; border-top-color: #4a5568; }
+.tug-flag.up { background: #2f8a3e; } .tug-flag.up::after { border-top-color: #2f8a3e; }
+.tug-flag.down { background: #b3263a; } .tug-flag.down::after { border-top-color: #b3263a; }
+.tug-parts { margin: -2px 6px 4px; padding: 6px 10px; border-left: 2px solid rgba(231, 197, 111, .3); }
+@keyframes push-r { 50% { transform: translateX(3px); } }
+@keyframes push-l { 50% { transform: translateX(-3px); } }
+@media (prefers-reduced-motion: reduce) { .tug-seam { animation: none !important; } }
 .res td.st { color: var(--a-gold-2); font-weight: 700; }
 .res td small.from { display: block; margin: 1px 0 0 17px; color: #ffb36b; font-size: 10.5px; font-weight: 700; }
 .res tr.empty td small.from { color: #ff8a7a; }
