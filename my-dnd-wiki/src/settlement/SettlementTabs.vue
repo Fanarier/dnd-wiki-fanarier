@@ -45,19 +45,25 @@
     <!-- ================= РЕСУРСЫ ================= -->
     <template v-else-if="tab === 'resources'">
       <h3>Ресурсы <small>в день · нажми на строку — откуда и куда</small><button v-if="master" class="ed" @click="emit('edit', 'resources')">✎ Править</button></h3>
-      <p v-if="s.day" class="muted">Прошло дней: {{ s.day }}</p>
+      <p class="muted">За день на склад приходит прирост, со склада уходит расход. Если расход больше — разницу берём из запаса; кончился запас — в журнал придёт нехватка.<template v-if="s.day"> Прошло дней: {{ s.day }}.</template></p>
       <table class="res">
-        <thead><tr><th>Вид</th><th v-if="hasStock">Запас</th><th>Прирост</th><th>Расход</th><th>Итог</th></tr></thead>
+        <thead><tr><th>Вид</th><th class="g">Прирост</th><th class="u">Расход</th><th class="st">Запас</th></tr></thead>
         <tbody>
           <template v-for="r in resRows" :key="r.key">
-            <tr :class="{ bad: r.bal < 0, idle: !r.gain && !r.use, open: openRes === r.key }" @click="openRes = openRes === r.key ? null : r.key">
-              <td><i class="rdot" :style="{ background: r.color }" />{{ r.label }}</td>
-              <td v-if="hasStock" class="stock">{{ s.stock?.[r.key] != null ? fmt(s.stock[r.key]) : '—' }}<small v-if="r.bal < 0 && s.stock?.[r.key]">{{ Math.floor(s.stock[r.key] / -r.bal) }} дн.</small></td>
-              <td>{{ fmt(r.gain) }}</td><td>{{ fmt(r.use) }}</td>
-              <td class="bal">{{ r.bal > 0 ? '+' : '' }}{{ fmt(r.bal) }}</td>
+            <tr :class="{ deficit: r.bal < 0, empty: r.bal < 0 && r.stock < -r.bal, idle: !r.gain && !r.use && !r.stock, open: openRes === r.key }" @click="openRes = openRes === r.key ? null : r.key">
+              <td><i class="rdot" :style="{ background: r.color }" />{{ r.label }}
+                <small v-if="r.bal < 0" class="from">со склада {{ fmt(-r.bal) }}/день · {{ r.stock >= -r.bal ? `хватит на ${Math.floor(r.stock / -r.bal)} дн.` : 'не хватает' }}</small>
+              </td>
+              <td class="g">{{ r.gain ? '+' + fmt(r.gain) : '—' }}</td>
+              <td class="u">{{ r.use ? '−' + fmt(r.use) : '—' }}</td>
+              <td class="st">
+                <input v-if="master" class="stock-in" type="number" min="0" :value="r.stock" :title="`Сколько «${r.label}» на складе`"
+                       @click.stop @keydown.enter="$event.target.blur()" @change="setStock(r.key, $event.target.value)" />
+                <b v-else>{{ fmt(r.stock) }}</b>
+              </td>
             </tr>
             <tr v-if="openRes === r.key" class="parts">
-              <td :colspan="hasStock ? 5 : 4">
+              <td colspan="4">
                 <div v-for="p in calc.gain[r.key]?.parts || []" :key="'g' + p.label" class="pl plus"><span>{{ p.label }}</span><b>+{{ fmt(p.value) }}</b></div>
                 <div v-for="p in calc.use[r.key]?.parts || []" :key="'u' + p.label" class="pl minus"><span>{{ p.label }}</span><b>−{{ fmt(p.value) }}</b></div>
                 <div v-if="!calc.gain[r.key] && !calc.use[r.key]" class="muted">Пока не добывается и не тратится</div>
@@ -335,8 +341,12 @@ function pickFirst(type) {
 
 /* ресурсы */
 const openRes = ref(null)
-const hasStock = computed(() => Object.keys(s.value.stock || {}).length > 0)
-const resRows = computed(() => RESOURCES.map(r => ({ ...r, gain: c.value.gain[r.key]?.total || 0, use: c.value.use[r.key]?.total || 0, bal: c.value.balance[r.key] })))
+const resRows = computed(() => RESOURCES.map(r => ({ ...r, gain: c.value.gain[r.key]?.total || 0, use: c.value.use[r.key]?.total || 0, bal: c.value.balance[r.key], stock: s.value.stock?.[r.key] || 0 })))
+// мастер ставит запас прямо в таблице
+function setStock(key, v) {
+  const n = Math.max(0, Math.round((Number(v) || 0) * 10) / 10)
+  act('PATCH', base(), { stock: { ...(s.value.stock || {}), [key]: n } }, `Запас «${RES[key]?.label}»: ${fmt(n)}`).catch(() => null)
+}
 
 /* жители */
 const openRace = ref(null)
@@ -413,8 +423,14 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .muted { color: var(--a-muted); font-size: 12px; }
 .ed { float: right; margin-top: 4px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .ed:hover { background: rgba(231, 197, 111, .18); }
-.res td.stock { color: var(--a-gold-2); font-weight: 700; }
-.res td.stock small { display: block; color: #ff9b8f; font-size: 10.5px; }
+.res td.st { color: var(--a-gold-2); font-weight: 700; }
+.res td small.from { display: block; margin: 1px 0 0 17px; color: #ffb36b; font-size: 10.5px; font-weight: 700; }
+.res tr.empty td small.from { color: #ff8a7a; }
+.res td.g { color: #9be07a; font-weight: 700; }
+.res td.u { color: #ff9b8f; font-weight: 700; }
+.res th.g { color: #9be07a; } .res th.u { color: #ff9b8f; } .res th.st { color: var(--a-gold-2); }
+.stock-in { width: 68px; padding: 3px 6px; border-radius: 7px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-gold-2); font: 700 13px var(--a-sans); text-align: right; }
+.stock-in:focus { outline: none; border-color: var(--a-gold); }
 .evform { display: grid; gap: 6px; padding: 10px 12px; margin-bottom: 10px; border-radius: 12px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(231, 197, 111, .05); }
 .evform input, .evform select, .evform textarea, .ev-dec textarea, .ord input { min-width: 0; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 500 13px var(--a-sans); resize: vertical; }
 .evrow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -475,9 +491,9 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .res tbody tr:not(.parts) { cursor: pointer; }
 .res tbody tr:not(.parts):hover { background: rgba(231, 197, 111, .05); }
 .res tr.idle td { color: #6d675b; }
-.res tr.bad td { color: #ff8a7a; }
-.res td.bal { font-weight: 800; }
-.res tr:not(.bad):not(.idle) td.bal { color: #9be07a; }
+.res tr.deficit td:first-child { color: #ffcf9a; }
+.res tr.empty td:first-child { color: #ff8a7a; }
+.res tr.idle td, .res tr.idle td.g, .res tr.idle td.u { color: #6d675b; font-weight: 600; }
 .rdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
 .res tr.parts td { background: rgba(0, 0, 0, .2); padding: 6px 12px 8px 26px; }
 .pl { display: flex; justify-content: space-between; font-size: 12px; padding: 1px 0; }
