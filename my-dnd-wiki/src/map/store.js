@@ -57,6 +57,7 @@ export const store = reactive({
   lastMark: 'quest', // какой тип метки ставить следующим
   selectedStop: null, // выбранная остановка маршрута
   offline: false, // связи с сервером нет дольше нескольких секунд
+  newVersion: false, // на сервере уже другая сборка сайта — эта вкладка устарела
   reconnectTries: 0
 })
 
@@ -372,6 +373,7 @@ function onPresence(msg) {
   const P = store.presence
   switch (msg.type) {
     case 'hello':
+      if (msg.build && msg.build !== __BUILD__ && !import.meta.env.DEV) store.newVersion = true
       P.id = msg.id
       P.color = msg.color
       break
