@@ -130,7 +130,7 @@
             <img class="sp-crest" src="/settlement/medieval-village-01.png" alt="" />
             <div>
               <h1>{{ s.name }}</h1>
-              <div class="sp-sub">{{ s.kind }} · <span class="sp-status">{{ s.status }}</span>
+              <div class="sp-sub">{{ s.kind }}
                 <router-link v-if="city" class="sp-onmap" :to="{ path: '/', query: { focus: 'cities:' + city.id } }">на карте мира</router-link>
               </div>
             </div>
@@ -138,11 +138,21 @@
               {{ wide ? '🗺 Карта' : '⤢ Во весь экран' }}
             </button>
           </div>
-          <div class="sp-quick">
-            <div><b>{{ calc.population }}</b><small>жителей</small></div>
-            <div><b>{{ calc.morale }}</b><small>мораль</small></div>
-            <div><b>{{ calc.stability }}</b><small>стабильность</small></div>
-            <div :class="{ warn: calc.threat > 0 }"><b>{{ calc.threat }}</b><small>угрозы</small></div>
+          <div class="sp-state">
+            <!-- плашка: сколько жителей и общий статус -->
+            <div class="sp-plaque">
+              <i class="sp-rv a" /><i class="sp-rv b" /><i class="sp-rv c" /><i class="sp-rv d" />
+              <div class="sp-people"><b>{{ calc.population }}</b><small>жителей</small></div>
+              <div class="sp-mood"><small>общий статус</small><span>{{ s.status || '—' }}</span></div>
+            </div>
+            <!-- мораль, стабильность, угроза — полоски 0…100 -->
+            <div class="sp-meters">
+              <div v-for="m in meters" :key="m.key" class="sp-meter" :class="[m.key, { hot: m.hot }]" :title="`${m.label}: ${m.value} из 100`">
+                <span class="sp-ml">{{ m.label }}</span>
+                <div class="sp-trk"><i :style="{ width: Math.max(0, Math.min(100, m.value)) + '%' }" /></div>
+                <b>{{ m.value }}</b>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -183,6 +193,11 @@ const s = computed(() => {
   return list.find(x => x.id === route.params.id) || (!route.params.id ? list[0] : null)
 })
 const calc = computed(() => computeSettlement(s.value || {}))
+const meters = computed(() => [
+  { key: 'morale', label: 'Мораль', value: calc.value.morale },
+  { key: 'stability', label: 'Стабильность', value: calc.value.stability },
+  { key: 'threat', label: 'Угроза', value: calc.value.threat, hot: calc.value.threat >= 50 }
+])
 
 /* загрузочный экран: держим, пока не пришли данные и не нарисована местность;
    сам экран уходит в конце броска топора и не раньше, чем через два броска (2 секунды) */
@@ -463,13 +478,35 @@ function setTab(id) {
 .sp-crest { width: 52px; height: 52px; padding: 6px; border-radius: 14px; background: #d6d2c8; border: 2px solid #b06cff; }
 .sp-title h1 { margin: 0; font: 700 32px/1 var(--a-serif); color: var(--a-gold-2); }
 .sp-sub { margin-top: 4px; color: #b9ab8a; font-size: 13px; font-weight: 600; }
-.sp-status { color: #9be07a; }
 .sp-onmap { margin-left: 8px; color: var(--a-gold); font-size: 12px; }
-.sp-quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
-.sp-quick div { display: grid; justify-items: center; padding: 7px 4px; border-radius: 10px; background: rgba(0, 0, 0, .25); border: 1px solid rgba(201, 162, 79, .18); }
-.sp-quick b { font: 700 22px/1.1 var(--a-serif); color: #f3d99a; }
-.sp-quick small { font-size: 11px; color: #a8936c; font-weight: 700; }
-.sp-quick .warn b { color: #ffb36b; }
+.sp-state { display: grid; gap: 10px; margin-top: 12px; }
+.sp-plaque { position: relative; display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 12px; background: linear-gradient(180deg, #2c2217, #1a140e); border: 1px solid #8a6630; box-shadow: inset 0 1px 0 rgba(255, 230, 170, .12), 0 3px 10px rgba(0, 0, 0, .35); }
+.sp-rv { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe9b0, #8a6630 60%, #3b2a12); }
+.sp-rv.a { top: 5px; left: 5px; } .sp-rv.b { top: 5px; right: 5px; } .sp-rv.c { bottom: 5px; left: 5px; } .sp-rv.d { bottom: 5px; right: 5px; }
+.sp-people { display: grid; justify-items: center; padding-right: 14px; border-right: 1px dashed rgba(201, 162, 79, .35); }
+.sp-people b { font: 700 40px/1 var(--a-serif); color: #f3d99a; text-shadow: 0 2px 10px rgba(243, 217, 154, .25); }
+.sp-people small, .sp-mood small { font-size: 10.5px; color: #a8936c; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sp-mood { display: grid; gap: 2px; min-width: 0; }
+.sp-mood span { font: 700 clamp(16px, 5.6vw, 24px)/1.1 var(--a-serif); color: #9be07a; overflow-wrap: break-word; }
+@media (max-width: 380px) { .sp-people b { font-size: 34px; } .sp-meter { grid-template-columns: 84px 1fr 28px; gap: 8px; } }
+.sp-meters { display: grid; gap: 7px; }
+.sp-meter { display: grid; grid-template-columns: 96px 1fr 34px; align-items: center; gap: 10px; }
+.sp-ml { font-size: 12px; font-weight: 800; color: #c9b88f; }
+.sp-meter b { font: 700 17px/1 var(--a-serif); color: #f3d99a; text-align: right; }
+.sp-trk { position: relative; height: 12px; border-radius: 7px; overflow: hidden; background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px rgba(201, 162, 79, .2);
+  background-image: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), rgba(201, 162, 79, .22) calc(25% - 1px) 25%); }
+.sp-trk i { position: relative; display: block; height: 100%; border-radius: 7px; transform-origin: left; animation: sp-grow 1s cubic-bezier(.3, 1.2, .5, 1) both; transition: width .8s cubic-bezier(.3, 1.3, .5, 1); }
+/* бегущий блик по полоске */
+.sp-trk i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%); background-size: 200% 100%; animation: sp-shine 3.5s ease-in-out infinite; }
+.sp-meter.morale .sp-trk i { background: linear-gradient(90deg, #c99a48, #f2d58f); }
+.sp-meter.stability .sp-trk i { background: linear-gradient(90deg, #2f8f9e, #6fd6e8); }
+.sp-meter.threat .sp-trk i { background: linear-gradient(90deg, #a81f30, #ff6b5b); }
+.sp-meter.threat b { color: #ff9b8f; }
+.sp-meter.hot .sp-trk { animation: sp-alarm 1.6s ease-in-out infinite; }
+@keyframes sp-grow { from { transform: scaleX(0); } }
+@keyframes sp-shine { 0% { background-position: 150% 0; } 60%, 100% { background-position: -50% 0; } }
+@keyframes sp-alarm { 50% { box-shadow: inset 0 0 0 1px rgba(255, 107, 91, .7), 0 0 10px rgba(255, 107, 91, .45); } }
+@media (prefers-reduced-motion: reduce) { .sp-trk i, .sp-trk i::after, .sp-meter.hot .sp-trk { animation: none; } }
 
 .sp-tabbar { position: sticky; top: -18px; z-index: 5; display: flex; flex-wrap: wrap; gap: 4px; margin: 14px -18px 12px; padding: 10px 18px 8px; background: rgba(13, 16, 23, .94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--a-line); }
 .sp-tabbar button { position: relative; padding: 6px 11px; border-radius: 9px; border: 1px solid transparent; background: none; color: var(--a-muted); font: 700 13px var(--a-sans); cursor: pointer; }
@@ -487,7 +524,7 @@ function setTab(id) {
 .sp-body.wide .sp-panel > * { max-width: 1240px; margin-left: auto; margin-right: auto; }
 .sp-body.wide .sp-head { display: flex; align-items: center; gap: 24px; }
 .sp-body.wide .sp-title { flex: 1; }
-.sp-body.wide .sp-quick { margin-top: 0; flex: 0 1 520px; }
+.sp-body.wide .sp-state { margin-top: 0; flex: 0 1 640px; grid-template-columns: auto 1fr; align-items: center; gap: 18px; }
 .sp-body.wide .sp-tabbar { top: -22px; margin-top: 14px; margin-bottom: 14px; padding: 10px 0 8px; }
 .sp-body.wide .sp-tabbar button { padding: 7px 14px; font-size: 14px; }
 

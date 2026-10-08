@@ -306,12 +306,10 @@ const date = d => new Date(d).toLocaleDateString('ru-RU')
 const overview = computed(() => {
   const x = c.value, st = s.value.stats || {}
   return [
-    { label: 'Население', value: x.population, icon: 'person' },
     { label: 'Тип поселения', value: s.value.kind, icon: 'medieval-village-01' },
     { label: 'Свободные поселенцы', value: x.free, icon: 'person-free' },
     { label: 'Занятые поселенцы', value: x.busy, icon: 'person' },
     { label: 'Недоступные поселенцы', value: x.unavailable, icon: 'person-unavailable' },
-    { label: 'Общий статус', value: s.value.status, icon: 'thumb-up', cls: 'ok' },
     { label: 'Разведано земли', value: exploredArea.value, icon: 'annexation', hint: 'Сколько округи открыто от тумана (вся округа ≈300 км²)' },
     { label: 'Аванпосты', value: `${s.value.outposts?.length || 0}/${st.outpostSlots || 0}`, icon: 'gold-mine' },
     { label: 'Жильё (дома)', value: `${x.houses.used}/${x.houses.cap}`, icon: 'house', cls: x.houses.used >= x.houses.cap ? 'warn' : '' },
@@ -320,10 +318,8 @@ const overview = computed(() => {
     { label: 'Торговые места', value: `${x.trade.used}/${x.trade.cap}`, icon: 'cash' },
     { label: 'Военный потенциал', value: x.war.total, icon: 'target-arrows', hint: `Боевые жители: ${x.war.races}, активы: ${x.war.assets}` },
     { label: 'Досуг', value: x.leisure.total, icon: 'tavern-sign' },
-    { label: 'Стабильность', value: x.stability, icon: 'check-mark' },
-    { label: 'Мораль', value: x.morale, icon: 'thumb-up' },
     { label: 'Защита', value: x.defense.total, icon: 'palisade', hint: `Боевые жители: ${x.defense.races}, стража: ${x.defense.guards}, постройки: ${x.defense.buildings}, активы: ${x.defense.assets}` },
-    { label: 'Угрозы', value: x.threat, icon: 'hazard-sign', cls: x.threat > 0 ? 'warn' : '' }
+
   ]
 })
 // площадь разведанного: считаем по сетке точек (круги разведки сильно перекрываются)
