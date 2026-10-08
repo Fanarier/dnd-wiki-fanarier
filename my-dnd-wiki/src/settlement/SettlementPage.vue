@@ -175,7 +175,8 @@
         </section>
 
         <!-- выбранная на карте постройка или аванпост -->
-        <BuildingCard v-if="selItem" :settlement="s" :calc="calc" :sel="sel" :item="selItem" :master="master" @close="sel = null" @save="saveItem" @remove="removeItem" @place="startPlaceExisting" />
+        <BuildingCard v-if="selItem" :settlement="s" :calc="calc" :sel="sel" :item="selItem" :master="master" :decider="decider" @close="sel = null" @save="saveItem" @remove="removeItem" @place="startPlaceExisting"
+                      @repair="onRepair" @order-repair="onOrderRepair" />
 
         <nav class="sp-tabbar">
           <button v-for="tb in TABS" :key="tb.id" :class="{ on: tab === tb.id }" @click="setTab(tb.id)">
@@ -201,7 +202,7 @@ import BuildingCard from './BuildingCard.vue'
 import SettlementEditor from './SettlementEditor.vue'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
-import { computeSettlement, shortFor, priceText, placementProblems, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
+import { computeSettlement, shortFor, priceText, placementProblems, repairPrice, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
 import { WALL_TYPES, WALL_FEATURES, wallPrice, featurePrice } from '../shared/walls.js'
 import { TERRAIN_DEFAULTS, TERRAIN_PARAMS } from '../shared/terrainGen.js'
 
@@ -361,6 +362,16 @@ async function onRoad({ type, points }) {
 const onRoadEdit = ({ kind, id, points }) => (kind === 'wall'
   ? patch({ walls: s.value.walls.map(w => (w.id === id ? { ...w, points } : w)) })
   : patch({ roads: s.value.roads.map(r => (r.id === id ? { ...r, points } : r)) }))
+
+/* ---------- ремонт построек ---------- */
+const onRepair = (id, opt) => act('POST', `${base()}/buildings/${id}/repair`, opt, opt.instant ? 'Постройка снова целая' : 'Ремонт начат — пойдёт с «Прошёл день»').catch(() => null)
+async function onOrderRepair(b) {
+  const name = b.name || BUILDINGS[b.type]?.label
+  const price = priceText(repairPrice(b))
+  const text = prompt(`Приказ: ${b.damage === 'ruined' ? 'отстроить' : 'починить'} «${name}».${price ? `\nЦена: ${price}.` : ''}\nКомментарий для мастера (необязательно):`, '')
+  if (text === null) return
+  await act('POST', `${base()}/orders`, { kind: 'repair', building: b.id, text }, 'Приказ отправлен мастеру').catch(() => null)
+}
 
 /* ---------- стены ---------- */
 const fmtNum = v => String(Math.round(v * 10) / 10).replace('.', ',')

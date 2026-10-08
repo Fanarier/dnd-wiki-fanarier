@@ -249,6 +249,25 @@ const PRICES = {
   boiler: { stone: 150, iron: 120, parts: 50, build: 80, clay: 40 }
 }
 for (const [k, p] of Object.entries(PRICES)) BUILDINGS[k].price = p
+
+/* ---------------- Повреждения построек ----------------
+   work — на сколько постройка ещё работает (места, жильё, выработка, траты, защита);
+   repair — доля цены и сложности постройки, которую стоит ремонт (разрушенную — отстроить целиком) */
+export const DAMAGE = {
+  minor: { label: 'Малое повреждение', short: 'малое', color: '#e8c33a', work: 0.9, repair: 0.15, hint: 'трещины и сорванная кровля — почти всё работает' },
+  medium: { label: 'Среднее повреждение', short: 'среднее', color: '#ff9a3c', work: 0.6, repair: 0.35, hint: 'часть помещений не годится' },
+  major: { label: 'Обширное повреждение', short: 'обширное', color: '#e0503a', work: 0.3, repair: 0.65, hint: 'держится на честном слове' },
+  ruined: { label: 'Разрушено', short: 'разрушено', color: '#7a736b', work: 0, repair: 1, hint: 'одни руины — не работает совсем' }
+}
+export const DAMAGE_ORDER = ['minor', 'medium', 'major', 'ruined']
+export const worseDamage = (a, b) => (DAMAGE_ORDER.indexOf(b) > DAMAGE_ORDER.indexOf(a) ? b : a || b)
+export const damageEff = b => (b?.damage && DAMAGE[b.damage] ? DAMAGE[b.damage].work : 1)
+export function repairPrice(b) {
+  const d = DAMAGE[b?.damage]
+  if (!d) return {}
+  return Object.fromEntries(Object.entries(BUILDINGS[b.type]?.price || {}).map(([k, v]) => [k, Math.ceil(v * d.repair)]))
+}
+export const repairWork = b => Math.max(5, Math.round((BUILDINGS[b?.type]?.cost || 100) * (DAMAGE[b?.damage]?.repair || 0)))
 // чего не хватает на складе: [{ res, need, have }]
 export function shortFor(stock = {}, price = {}) {
   return Object.entries(price).filter(([k, v]) => (stock[k] || 0) < v).map(([k, v]) => ({ res: k, need: v, have: Math.floor(stock[k] || 0) }))
@@ -324,19 +343,24 @@ export function computeSettlement(s) {
   const built = (s.buildings || []).filter(b => (b.state || 'built') === 'built')
   const count = {}
   for (const b of built) count[b.type] = (count[b.type] || 0) + 1
-  let housing = 0, guests = 0, trade = 0, defenseB = 0
+  let housing = 0, guests = 0, trade = 0, defenseB = 0, houseCap = 0
   const places = {}
   const gain = {}, use = {}
+  // повреждённая постройка работает не в полную силу, разрушенная — никак
   for (const b of built) {
     const t = BUILDINGS[b.type]
     if (!t) continue
-    housing += t.housing || 0
-    guests += t.guests || 0
-    trade += t.trade || 0
-    defenseB += t.defense || 0
-    for (const [j, n] of Object.entries(t.jobs || {})) places[j] = (places[j] || 0) + n
-    for (const [k, v] of Object.entries(t.gain || {})) add(gain, k, v, t.label)
-    for (const [k, v] of Object.entries(t.use || {})) add(use, k, v, t.label)
+    const e = damageEff(b)
+    if (!e) continue
+    const tag = b.damage ? `${t.label} (${DAMAGE[b.damage].short})` : t.label
+    housing += Math.round((t.housing || 0) * e)
+    if (b.type === 'house') houseCap += Math.round((t.housing || 0) * e)
+    guests += Math.round((t.guests || 0) * e)
+    trade += Math.round((t.trade || 0) * e)
+    defenseB += Math.round((t.defense || 0) * e)
+    for (const [j, n] of Object.entries(t.jobs || {})) places[j] = (places[j] || 0) + Math.round(n * e)
+    for (const [k, v] of Object.entries(t.gain || {})) add(gain, k, v * e, tag)
+    for (const [k, v] of Object.entries(t.use || {})) add(use, k, v * e, tag)
   }
 
   // работы: выработка, траты, специалисты, эффекты
@@ -406,7 +430,8 @@ export function computeSettlement(s) {
     combat: sum('combat'), important: sum('important'), wounded: sum('wounded'),
     count, places, jobs,
     housing: { cap: housing, used: st.housingUsed ?? Math.min(population, housing) },
-    houses: { cap: (count.house || 0) * BUILDINGS.house.housing, used: st.housesUsed ?? (count.house || 0) * BUILDINGS.house.housing },
+    houses: { cap: houseCap, used: st.housesUsed ?? houseCap },
+    damaged: built.filter(b => b.damage && DAMAGE[b.damage]),
     guests: { cap: guests, used: st.guestsUsed || 0 },
     trade: { cap: trade, used: st.tradeUsed || 0 },
     war: { total: warRaces + (passive.war || 0), races: warRaces, assets: passive.war || 0 },

@@ -13,14 +13,33 @@
         <div v-if="item.x == null && def.size !== 'settlement'" class="unplaced"><span>На карте</span><b>не расставлена</b></div>
         <div v-if="owner"><span>Владелец</span><router-link class="hero" :to="{ path: '/wiki', query: { hero: owner.id } }" title="Карточка героя">{{ owner.name }}</router-link></div>
         <div v-if="item.state === 'construction'"><span>Стройка</span><b>{{ Math.floor(item.progress || 0) }} из {{ def.cost }}</b></div>
+        <!-- состояние: целое или повреждено; ремонт -->
+        <template v-else>
+          <div><span>Состояние</span><b v-if="!dmg" class="plus">целое</b><b v-else class="dmg-badge" :style="{ '--dc': dmg.color }">{{ dmg.label }}</b></div>
+          <div v-if="dmg" class="dmg-note">{{ dmg.hint }}{{ dmg.work ? ` · работает на ${Math.round(dmg.work * 100)}%: места, жильё, выработка, защита` : '' }}</div>
+          <div v-if="item.repair && dmg"><span>{{ ruined ? 'Отстраивают' : 'Ремонт' }}</span><b>{{ Math.floor(item.repair.progress || 0) }} из {{ repairWork(item) }} · ещё ≈ {{ repairDays(repairWork(item) - (item.repair.progress || 0)) }} дн.</b></div>
+          <template v-else-if="dmg">
+            <div class="price-row"><span>{{ ruined ? 'Отстроить' : 'Ремонт' }}</span><PriceChips :price="repairPrice(item)" :stock="settlement.stock || {}" /></div>
+            <div><span>Работы</span><b>{{ repairWork(item) }} очков стройки ≈ {{ repairDays(repairWork(item)) }} дн.</b></div>
+            <div v-if="master || decider" class="repair-btns">
+              <template v-if="master">
+                <label class="chk"><input v-model="repairPay" type="checkbox" /> со склада</label>
+                <button class="go" @click="$emit('repair', item.id, { pay: repairPay })">{{ ruined ? 'Отстроить' : 'Начать ремонт' }}</button>
+                <button @click="$emit('repair', item.id, { instant: true })">Починить сразу</button>
+              </template>
+              <span v-else-if="repairOrdered" class="muted">приказ на ремонт ждёт мастера</span>
+              <button v-else class="go" @click="$emit('order-repair', item)">Приказ: {{ ruined ? 'отстроить' : 'починить' }}</button>
+            </div>
+          </template>
+        </template>
         <div v-if="def.price && !def.personal" class="price-row"><span>Цена</span><PriceChips :price="def.price" /></div>
-        <div v-for="(n, j) in def.jobs || {}" :key="j"><span>{{ JOBS[j].label }}</span><b>{{ n }} мест · всего занято {{ calc.jobs[j]?.workers || 0 }} из {{ calc.jobs[j]?.places || 0 }}</b></div>
-        <div v-if="def.housing"><span>Жильё</span><b>{{ def.housing }} жильцов</b></div>
-        <div v-if="def.guests"><span>Гостевые места</span><b>{{ def.guests }}</b></div>
-        <div v-if="def.trade"><span>Торговые места</span><b>{{ def.trade }}</b></div>
-        <div v-if="def.defense"><span>Защита</span><b>+{{ def.defense }}</b></div>
-        <div v-for="(v, k) in def.gain || {}" :key="'g' + k"><span>Даёт</span><b class="plus">{{ RES[k]?.label }} +{{ v }}/день</b></div>
-        <div v-for="(v, k) in def.use || {}" :key="'u' + k"><span>Тратит</span><b class="minus">{{ RES[k]?.label }} −{{ v }}/день</b></div>
+        <div v-for="(n, j) in def.jobs || {}" :key="j"><span>{{ JOBS[j].label }}</span><b>{{ cut(n) }} мест · всего занято {{ calc.jobs[j]?.workers || 0 }} из {{ calc.jobs[j]?.places || 0 }}</b></div>
+        <div v-if="def.housing"><span>Жильё</span><b>{{ cut(def.housing) }} жильцов</b></div>
+        <div v-if="def.guests"><span>Гостевые места</span><b>{{ cut(def.guests) }}</b></div>
+        <div v-if="def.trade"><span>Торговые места</span><b>{{ cut(def.trade) }}</b></div>
+        <div v-if="def.defense"><span>Защита</span><b>+{{ cut(def.defense) }}</b></div>
+        <div v-for="(v, k) in def.gain || {}" :key="'g' + k"><span>Даёт</span><b class="plus">{{ RES[k]?.label }} +{{ cut(v, true) }}/день</b></div>
+        <div v-for="(v, k) in def.use || {}" :key="'u' + k"><span>Тратит</span><b class="minus">{{ RES[k]?.label }} −{{ cut(v, true) }}/день</b></div>
       </div>
     </template>
     <template v-else-if="sel.kind === 'road'">
@@ -80,6 +99,13 @@
         <label>Состояние
           <select v-model="form.state"><option value="built">построено</option><option value="construction">стройка</option></select>
         </label>
+        <div v-if="item.state !== 'construction'" class="dmg-pick">
+          <small>Повреждение — сразу, без «Сохранить»</small>
+          <div>
+            <button :class="{ on: !item.damage }" title="Целое" @click="setDamage(null)">целое</button>
+            <button v-for="(d, k) in DAMAGE" :key="k" :class="{ on: item.damage === k }" :style="{ '--dc': d.color }" :title="d.label + ' — ' + d.hint" @click="setDamage(k)">{{ d.short }}</button>
+          </div>
+        </div>
         <label v-if="form.state === 'construction'">Готовность <input v-model.number="form.progress" type="number" min="0" :max="def.cost" /> / {{ def.cost }}</label>
       </template>
       <template v-else-if="sel.kind === 'road'">
@@ -113,7 +139,7 @@
         <template v-if="sel.kind === 'building'">
           <button v-if="item.x == null && def.size !== 'settlement'" @click="$emit('place', item)">Поставить на карту</button>
           <button v-else-if="def.size !== 'settlement'" title="Постройка останется в списке «не расставлены» и продолжит считаться" @click="$emit('remove', 'building', item.id, 'unplace')">Убрать с карты</button>
-          <button class="danger" @click="$emit('remove', 'building', item.id)">Снести</button>
+          <button class="danger" @click="$emit('remove', 'building', item.id)">{{ ruined ? 'Расчистить руины' : 'Снести' }}</button>
         </template>
         <button v-else class="danger" @click="$emit('remove', sel.kind, item.id)">{{ sel.kind === 'road' ? 'Удалить' : sel.kind === 'wall' ? 'Снести' : 'Убрать' }}</button>
       </div>
@@ -125,12 +151,12 @@
 import { computed, ref, watch } from 'vue'
 import { store } from '../map/store.js'
 import PriceChips from './PriceChips.vue'
-import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES, RESOURCES, ROAD_TYPES } from '../shared/settlement.js'
+import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES, RESOURCES, ROAD_TYPES, DAMAGE, repairPrice, repairWork } from '../shared/settlement.js'
 import { CENTER } from '../shared/terrainGen.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, wallDefense } from '../shared/walls.js'
 
-const props = defineProps({ settlement: Object, calc: Object, sel: Object, item: Object, master: Boolean })
-const emit = defineEmits(['close', 'save', 'remove', 'place'])
+const props = defineProps({ settlement: Object, calc: Object, sel: Object, item: Object, master: Boolean, decider: Boolean })
+const emit = defineEmits(['close', 'save', 'remove', 'place', 'repair', 'order-repair'])
 const heroes = computed(() => store.data.heroes || [])
 const form = ref({})
 const yieldRows = ref([])
@@ -153,6 +179,25 @@ const def = computed(() => BUILDINGS[props.item.type] || {})
 const fmtLen = m => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} км` : `${Math.round(m)} м`)
 const roadLength = computed(() => fmtLen((props.item.points || []).reduce((n, p, i, a) => (i ? n + Math.hypot(p[0] - a[i - 1][0], p[1] - a[i - 1][1]) : 0), 0)))
 const cat = computed(() => CATEGORIES[def.value.cat])
+// повреждение и ремонт
+const dmg = computed(() => (props.sel.kind === 'building' && props.item.damage ? DAMAGE[props.item.damage] : null))
+const ruined = computed(() => props.item.damage === 'ruined')
+const repairPay = ref(true)
+// сколько даёт постройка сейчас: у повреждённой — меньше («6 из 10»)
+function cut(n, frac = false) {
+  const e = props.item.state === 'construction' ? 1 : dmg.value ? dmg.value.work : 1
+  const v = frac ? Math.round(n * e * 10) / 10 : Math.round(n * e)
+  return e < 1 ? `${String(v).replace('.', ',')} из ${n}` : n
+}
+// дней ремонта: 25 очков стройки в день, слесари ускоряют
+const repairDays = work => Math.max(1, Math.ceil(work / (25 * (1 + ((props.calc.jobs?.locksmith?.workers || 0) * 8.75) / 100))))
+const repairOrdered = computed(() => (props.settlement.orders || []).some(o => o.status === 'pending' && o.repair?.id === props.item.id))
+function setDamage(level) {
+  const b = { ...props.item }
+  if (level) b.damage = level
+  else delete b.damage
+  emit('save', 'building', b)
+}
 // стена
 const wlen = computed(() => (props.sel.kind === 'wall' ? wallLength(props.item.points || []) : 0))
 const wbuilt = computed(() => Math.min(wlen.value, props.item.built ?? wlen.value))
@@ -196,6 +241,18 @@ const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.
 .rows .feat-row span em { font-style: normal; color: #7d6c4e; }
 .rows .feat-row b { display: flex; align-items: center; gap: 6px; }
 .rows .muted-row b { color: var(--a-muted); }
+.dmg-badge { padding: 1px 8px; border-radius: 99px; background: color-mix(in srgb, var(--dc) 22%, transparent); border: 1px solid var(--dc); color: var(--dc) !important; }
+.rows .dmg-note { display: block; color: #b9ab8a; font-size: 11.5px; font-style: italic; }
+.repair-btns { display: flex !important; flex-wrap: wrap; align-items: center; justify-content: flex-end !important; gap: 6px !important; margin-top: 4px; }
+.repair-btns button { padding: 5px 11px; border-radius: 9px; border: 1px solid var(--a-line); background: rgba(255, 255, 255, .05); color: var(--a-text); font: 700 12px var(--a-sans); cursor: pointer; }
+.repair-btns .go { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
+.repair-btns .chk { display: flex; align-items: center; gap: 4px; color: var(--a-muted); font-weight: 700; font-size: 12px; }
+.repair-btns .muted { color: var(--a-muted); font-style: italic; }
+.dmg-pick { display: grid; gap: 4px; }
+.dmg-pick small { color: var(--a-muted); font-weight: 800; }
+.dmg-pick div { display: flex; flex-wrap: wrap; gap: 4px; }
+.dmg-pick button { padding: 3px 9px; border-radius: 99px; border: 1px solid var(--dc, #7ee06a); background: transparent; color: var(--dc, #9be07a); font: 700 11.5px var(--a-sans); cursor: pointer; }
+.dmg-pick button.on { background: var(--dc, #7ee06a); color: #1b140c; }
 .road-ico { width: 48px; height: 14px; border-radius: 4px; background: #a3835a; box-shadow: 0 0 0 2px #6b5235; flex: none; }
 .road-ico.trail { height: 3px; background: repeating-linear-gradient(90deg, #cdb17c 0 7px, transparent 7px 11px); box-shadow: none; }
 .road-ico.tract { height: 18px; background: linear-gradient(#977652 30%, #7b5d3c 30% 42%, #977652 42% 58%, #7b5d3c 58% 70%, #977652 70%); box-shadow: 0 0 0 2px #5e472c; }

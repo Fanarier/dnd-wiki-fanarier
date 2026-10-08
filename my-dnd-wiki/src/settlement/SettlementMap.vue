@@ -95,7 +95,7 @@
         <circle v-if="tool === 'fell' && fellTarget" :cx="fellTarget.x" :cy="fellTarget.y" :r="Math.max(fellTarget.r + 0.6, 6 * px)" class="sm-fell" vector-effect="non-scaling-stroke" />
 
         <!-- постройки в настоящем размере (издалека — не меньше значка) -->
-        <g v-for="b in placedView" :key="b.id" class="sm-item" :class="{ sel: isSel('building', b.id), dragging: b.id === dragId, bad: b.id === dragId && dragBad.length, building: b.state === 'construction' }"
+        <g v-for="b in placedView" :key="b.id" class="sm-item" :class="[{ sel: isSel('building', b.id), dragging: b.id === dragId, bad: b.id === dragId && dragBad.length, building: b.state === 'construction' }, b.damage ? 'dmg dmg-' + b.damage : '']"
            :transform="`translate(${b.x} ${b.y})`" :data-id="b.id" data-kind="building"
            @pointerenter="hover = { kind: 'building', item: b }" @pointerleave="hover = null" @click.stop="pick('building', b)">
           <template v-if="b.type === 'field'">
@@ -111,6 +111,19 @@
           <g v-if="b.state === 'construction'" :transform="`translate(0 ${shown(b) / 2 + 5 * px})`">
             <rect :x="-shown(b) / 2" :y="-2.5 * px" :width="shown(b)" :height="5 * px" :rx="2.5 * px" class="sm-prog-bg" />
             <rect :x="-shown(b) / 2" :y="-2.5 * px" :width="shown(b) * Math.min(1, (b.progress || 0) / (BUILDINGS[b.type]?.cost || 100))" :height="5 * px" :rx="2.5 * px" class="sm-prog" />
+          </g>
+          <!-- повреждение: трещины по плашке и значок степени в углу; руины — серые -->
+          <g v-if="b.damage && DAMAGE[b.damage]" class="sm-dmg" :style="{ '--dc': DAMAGE[b.damage].color }">
+            <path :d="crackPath(b)" class="sm-crack" vector-effect="non-scaling-stroke" />
+            <g :transform="`translate(${shown(b) / 2} ${-shown(b) / 2})`">
+              <circle :r="7.5 * px" class="sm-dmg-dot" vector-effect="non-scaling-stroke" />
+              <text :y="3.6 * px" :style="{ fontSize: (b.damage === 'major' ? 8 : 10) * px + 'px' }">{{ DAMAGE_MARK[b.damage] }}</text>
+            </g>
+          </g>
+          <!-- ремонт -->
+          <g v-if="b.repair && b.damage" :transform="`translate(0 ${shown(b) / 2 + 5 * px})`">
+            <rect :x="-shown(b) / 2" :y="-2.5 * px" :width="shown(b)" :height="5 * px" :rx="2.5 * px" class="sm-prog-bg" />
+            <rect :x="-shown(b) / 2" :y="-2.5 * px" :width="shown(b) * Math.min(1, (b.repair.progress || 0) / repairWork(b))" :height="5 * px" :rx="2.5 * px" class="sm-prog repair" />
           </g>
         </g>
 
@@ -186,7 +199,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, placementProblems, footprint, roadCurve, nearestRoad, roadJunctions, priceText } from '../shared/settlement.js'
+import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, DAMAGE, repairWork, placementProblems, footprint, roadCurve, nearestRoad, roadJunctions, priceText } from '../shared/settlement.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, wallWork, pointAt, slice, nearestWall, openings, roadCrossings, wallDefense } from '../shared/walls.js'
 import { WORLD, CENTER, makeTerrain, BIOME_LABEL } from '../shared/terrainGen.js'
 import { createTileStore } from './tiles.js'
@@ -214,6 +227,18 @@ const sideOf = type => SIZES[BUILDINGS[type]?.size]?.side || 0
 const shown = b => Math.max(sideOf(b.type), 14 * px.value)
 const icon = b => Math.min(shown(b) * 0.78, Math.max(shown(b) * 0.6, 34 * px.value))
 const ghostSide = g => Math.max(sideOf(g.type), 14 * px.value)
+// повреждения: значок степени и трещины (чем хуже, тем больше), в размер плашки
+const DAMAGE_MARK = { minor: '!', medium: '!!', major: '!!!', ruined: '✕' }
+const CRACKS = [
+  [[-0.5, -0.18], [-0.22, -0.05], [-0.3, 0.12], [-0.06, 0.3]],
+  [[0.5, 0.1], [0.24, 0.0], [0.3, -0.2], [0.08, -0.36], [0.14, -0.5]],
+  [[-0.1, 0.5], [0.02, 0.28], [-0.12, 0.14], [0.06, -0.02]]
+]
+function crackPath(b) {
+  const n = { minor: 1, medium: 2, major: 3, ruined: 3 }[b.damage] || 0
+  const h = shown(b)
+  return CRACKS.slice(0, n).map(c => 'M' + c.map(([x, y]) => `${(x * h).toFixed(2)} ${(y * h).toFixed(2)}`).join(' L')).join(' ')
+}
 const placed = computed(() => (props.settlement.buildings || []).filter(b => b.x != null && sideOf(b.type) > 0))
 const toolActive = computed(() => !!props.tool && props.tool !== 'move')
 const toolClass = computed(() => (props.tool === 'move' ? 'tool-move' : toolActive.value ? 'tool-paint' : ''))
@@ -731,6 +756,10 @@ const tip = computed(() => {
   const lines = [`${CATEGORIES[d.cat]?.label} · ${SIZES[d.size]?.label}${SIZES[d.size]?.area ? ' (' + SIZES[d.size].area + ')' : ''}`]
   for (const [j, n] of Object.entries(d.jobs || {})) lines.push(`${JOBS[j].label}: ${n} мест`)
   if (d.housing) lines.push(`Жильё: ${d.housing}`)
+  if (b.damage && DAMAGE[b.damage]) {
+    lines.push(`${DAMAGE[b.damage].label} — работает на ${Math.round(DAMAGE[b.damage].work * 100)}%`)
+    if (b.repair) lines.push(`Ремонт: ${Math.floor(b.repair.progress || 0)} из ${repairWork(b)}`)
+  }
   return { title: b.name || d.label, lines }
 })
 // строка состояния: местность под курсором и расстояние до поселения
@@ -825,6 +854,16 @@ defineExpose({ fit, fitAll, finishRoad, draft })
 .sm-item.building .sm-plate { stroke-dasharray: 6 4; fill: #c9c2b2; opacity: .88; }
 .sm-prog-bg { fill: rgba(20, 16, 10, .75); }
 .sm-prog { fill: #e6c27a; }
+.sm-prog.repair { fill: #6fd6e8; }
+.sm-dmg { pointer-events: none; }
+.sm-crack { fill: none; stroke: #2b2118; stroke-width: 2; stroke-linejoin: round; opacity: .85; }
+.sm-dmg-dot { fill: var(--dc); stroke: #1b140c; stroke-width: 1.5; }
+.sm-dmg text { fill: #1b140c; font-weight: 900; text-anchor: middle; font-family: 'Manrope', sans-serif; }
+.sm-item.dmg-ruined .sm-dmg text { fill: #fff; }
+.sm-item.dmg-medium image, .sm-item.dmg-major image { filter: saturate(.55) brightness(.9); }
+.sm-item.dmg-major .sm-plate { fill: #c4b9a6; }
+.sm-item.dmg-ruined .sm-plate { fill: #57504a; stroke: #2b2621; stroke-dasharray: 5 3; }
+.sm-item.dmg-ruined image { opacity: .35; filter: grayscale(1); }
 .sm-ghost { pointer-events: none; }
 .sm-ghost-plate { fill: rgba(243, 217, 154, .25); stroke: #f3d99a; stroke-width: 2; stroke-dasharray: 7 5; }
 .sm-ghost-explore { fill: rgba(243, 217, 154, .12); stroke: #f3d99a; stroke-width: 2; stroke-dasharray: 8 6; }

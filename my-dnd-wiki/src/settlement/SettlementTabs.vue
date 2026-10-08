@@ -268,7 +268,7 @@
     <template v-else-if="tab === 'orders'">
       <h3>Приказы главы</h3>
       <div v-if="decider" class="evform">
-        <p class="muted">Построить и разведать — кнопками на карте. Здесь — назначить рабочих или свободный приказ. Мастер одобрит или отклонит.</p>
+        <p class="muted">Построить и разведать — кнопками на карте, починить — в карточке повреждённой постройки. Здесь — назначить рабочих или свободный приказ. Мастер одобрит или отклонит.</p>
         <div class="evrow">
           <select v-model="ord.job"><option v-for="(j, k) in c.jobs" :key="k" :value="k">{{ JOBS[k].label }} ({{ j.workers }}/{{ j.places }})</option></select>
           <input v-model.number="ord.count" type="number" min="0" class="num" />
@@ -286,6 +286,10 @@
           <span class="ord-st">{{ { pending: 'ждёт мастера', approved: 'одобрен', rejected: 'отклонён' }[o.status] }}</span>
         </div>
         <span class="muted">{{ o.byName }} · {{ date(o.createdAt) }}</span>
+        <div v-if="o.kind === 'repair'" class="ord-price">
+          <small>{{ o.status === 'approved' ? (o.paid ? 'Оплачено' : 'Чинят бесплатно') : 'Цена ремонта' }}</small>
+          <PriceChips :price="o.status === 'approved' ? o.paid : repairPrice(orderBuilding(o) || o.repair)" :stock="o.status === 'pending' ? s.stock || {} : null" />
+        </div>
         <div v-if="o.kind === 'build'" class="ord-price">
           <small>{{ o.status === 'approved' ? (o.paid ? 'Оплачено' : 'Заложено бесплатно') : 'Цена' }}</small>
           <PriceChips :price="o.status === 'approved' ? o.paid : BUILDINGS[o.build.type]?.price" :stock="o.status === 'pending' ? s.stock || {} : null" />
@@ -295,7 +299,7 @@
         <input v-if="o.status === 'pending' && master" v-model="replies[o.id]" class="reply-in" placeholder="Ответ главе (необязательно)" />
         <div v-if="o.status === 'pending' && master" class="evrow end">
           <button class="btn primary" :disabled="!affordable(o)" :title="affordable(o) ? '' : 'На складе не хватает — можно заложить бесплатно'" @click="judge(o, 'approve')">Одобрить</button>
-          <button v-if="o.kind === 'build'" class="btn" @click="judge(o, 'approve', true)">Бесплатно</button>
+          <button v-if="o.kind === 'build' || o.kind === 'repair'" class="btn" @click="judge(o, 'approve', true)">Бесплатно</button>
           <button class="btn danger" @click="judge(o, 'reject')">Отклонить</button>
         </div>
         <button v-else-if="o.status === 'pending' && o.by === store.me?.id" class="ev-act" @click="cancelOrder(o)">отменить приказ</button>
@@ -312,7 +316,7 @@
 import { computed, nextTick, ref } from 'vue'
 import { store, heroCover, heroPortraitUrl, act, toast, uploadSettlementPortrait } from '../map/store.js'
 import { SPEC_ICONS, isGlyph } from './specIcons.js'
-import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, shortFor, explored as isExplored } from '../shared/settlement.js'
+import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, DAMAGE, shortFor, repairPrice, explored as isExplored } from '../shared/settlement.js'
 import { WORLD } from '../shared/terrainGen.js'
 import { applyText } from '../shared/settlementEvents.js'
 import PriceChips from './PriceChips.vue'
@@ -338,6 +342,8 @@ const overview = computed(() => {
     { label: 'Недоступные поселенцы', value: x.unavailable, icon: 'person-unavailable' },
     { label: 'Разведано земли', value: exploredArea.value, icon: 'annexation', hint: 'Сколько округи открыто от тумана (вся округа ≈300 км²)' },
     { label: 'Аванпосты', value: `${s.value.outposts?.length || 0}/${st.outpostSlots || 0}`, icon: 'gold-mine' },
+    { label: 'Повреждённые постройки', value: x.damaged.length, icon: 'hazard-sign', cls: x.damaged.length ? 'warn' : '',
+      hint: x.damaged.length ? x.damaged.map(b => `${b.name || BUILDINGS[b.type]?.label}: ${DAMAGE[b.damage].short}${b.repair ? ' (чинят)' : ''}`).join(', ') : 'Всё целое' },
     { label: 'Жильё (дома)', value: `${x.houses.used}/${x.houses.cap}`, icon: 'house', cls: x.houses.used >= x.houses.cap ? 'warn' : '' },
     { label: 'Общее жильё', value: `${x.housing.used}/${x.housing.cap}`, icon: 'block-house' },
     { label: 'Гостевые места', value: `${x.guests.used}/${x.guests.cap}`, icon: 'tavern-sign' },
@@ -482,6 +488,10 @@ function orderTitle(o) {
   if (o.kind === 'build') return `Построить «${BUILDINGS[o.build.type]?.label}»`
   if (o.kind === 'workers') return `${JOBS[o.workers.job]?.label}: назначить ${o.workers.count} рабочих`
   if (o.kind === 'explore') return 'Разведать участок'
+  if (o.kind === 'repair') {
+    const b = orderBuilding(o)
+    return `${o.repair.damage === 'ruined' ? 'Отстроить' : 'Починить'} «${b?.name || BUILDINGS[o.repair.type]?.label}» (${DAMAGE[o.repair.damage]?.short})`
+  }
   return 'Приказ'
 }
 async function sendOrder(kind) {
@@ -490,7 +500,9 @@ async function sendOrder(kind) {
   ord.value.text = ''
 }
 const judge = (o, action, free = false) => act('POST', `${base()}/orders/${o.id}/${action}`, { reply: replies.value[o.id] || '', free }, action === 'approve' ? 'Приказ одобрен' : 'Приказ отклонён').catch(() => null)
-const affordable = o => o.kind !== 'build' || !shortFor(s.value.stock, BUILDINGS[o.build.type]?.price).length
+const orderBuilding = o => (s.value.buildings || []).find(b => b.id === o.repair?.id)
+const affordable = o => (o.kind === 'repair' ? !shortFor(s.value.stock, repairPrice(orderBuilding(o) || o.repair)).length
+  : o.kind !== 'build' || !shortFor(s.value.stock, BUILDINGS[o.build.type]?.price).length)
 
 /* заготовки событий */
 const sgEdit = ref(null)

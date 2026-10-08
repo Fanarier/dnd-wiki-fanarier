@@ -1,12 +1,22 @@
 // Генератор событий поселения: сайт смотрит на положение дел и предлагает мастеру событие.
 // Мастер правит текст и выпускает его в журнал (последствия применяются, если он оставил галочку) или отбрасывает.
 // Общий для сервера и клиента.
-import { RES, RACES, OUTPOSTS, computeSettlement } from './settlement.js'
+import { RES, RACES, OUTPOSTS, BUILDINGS, DAMAGE, DAMAGE_ORDER, computeSettlement } from './settlement.js'
 
 const pick = (rnd, list) => list[Math.floor(rnd() * list.length)]
 const between = (rnd, a, b) => Math.round(a + rnd() * (b - a))
 const fmt = n => (n > 0 ? '+' : '−') + Math.abs(n)
 const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many)
+
+// случайная постройка, которой можно навредить (готовая, не личная, ещё не в руинах); prefer — сначала эти виды
+function victim(s, rnd, prefer = []) {
+  const ok = (s.buildings || []).filter(b => (b.state || 'built') === 'built' && b.damage !== 'ruined' && BUILDINGS[b.type] && !BUILDINGS[b.type].personal)
+  const best = ok.filter(b => prefer.includes(b.type))
+  return (best.length ? best : ok).length ? pick(rnd, best.length ? best : ok) : null
+}
+// повреждение на ступень хуже нынешнего, но не меньше level
+const hurt = (b, level) => DAMAGE_ORDER[Math.max(DAMAGE_ORDER.indexOf(level), Math.min(DAMAGE_ORDER.length - 1, DAMAGE_ORDER.indexOf(b.damage) + 1))]
+const bName = b => b.name || BUILDINGS[b.type].label
 
 // дней до нуля для ресурсов, которые уходят в минус
 function runningOut(s, c) {
@@ -17,7 +27,7 @@ function runningOut(s, c) {
 }
 
 /* Каждый шаблон: weight(s, c) — насколько уместен сейчас (0 — не подходит), make(...) — текст и последствия.
-   apply: { stock: { ресурс: ± }, stats: { morale|stability|threat: ± } } — что поменяется, если выпустить с последствиями. */
+   apply: { stock: { ресурс: ± }, stats: { morale|stability|threat: ± }, damage: [{ id, level }] } — что поменяется, если выпустить с последствиями. */
 export const EVENT_IDEAS = [
   {
     id: 'raid', label: 'Набег',
@@ -35,10 +45,15 @@ export const EVENT_IDEAS = [
       }
       const loss = Math.max(10, Math.round((power - def) / 2))
       const res = pick(rnd, beast ? ['meat', 'veg'] : ['veg', 'meat', 'wood', 'goods'])
+      // чем сильнее перевес набега, тем хуже досталось постройке
+      const gap = (power - def) / Math.max(1, power)
+      const b = victim(s, rnd, beast ? ['coop', 'ranch', 'barn', 'storehouse'] : ['storehouse', 'barn', 'market', 'tavern', 'house'])
+      const level = b ? hurt(b, gap > 0.6 ? 'major' : gap > 0.3 ? 'medium' : 'minor') : null
       return {
         title: `${foe} прорвались`, type: 'alarm', duration: ['decide'],
-        text: `${foe} прорвались за ограду и ${beast ? 'разорили кладовые' : 'растащили часть запасов'}, пока стража стягивалась. Сила набега ${power} против защиты ${def}. Как ответим?`,
-        effect: `${RES[res].label} −${loss}, мораль −5, стабильность −3`, apply: { stock: { [res]: -loss }, stats: { morale: -5, stability: -3 } }
+        text: `${foe} прорвались за ограду и ${beast ? 'разорили кладовые' : 'растащили часть запасов'}, пока стража стягивалась.${b ? ` Досталось и «${bName(b)}».` : ''} Сила набега ${power} против защиты ${def}. Как ответим?`,
+        effect: `${RES[res].label} −${loss}, мораль −5, стабильность −3${b ? `, «${bName(b)}»: ${DAMAGE[level].short} повреждение` : ''}`,
+        apply: { stock: { [res]: -loss }, stats: { morale: -5, stability: -3 }, ...(b ? { damage: [{ id: b.id, level, name: bName(b) }] } : {}) }
       }
     }
   },
@@ -114,9 +129,33 @@ export const EVENT_IDEAS = [
     weight: s => ((s.stock?.wood || 0) > 200 ? 0.6 : 0.15),
     make(s, c, rnd) {
       const n = Math.max(10, Math.round((s.stock?.wood || 0) * (0.08 + rnd() * 0.12)))
+      // иногда огонь перекидывается на ближнее строение
+      const b = rnd() < 0.4 ? victim(s, rnd, ['storehouse', 'barn', 'lumber', 'workshop', 'house']) : null
+      const level = b ? hurt(b, rnd() < 0.7 ? 'minor' : 'medium') : null
       return {
         title: 'Пожар на дровяном дворе', type: 'alarm', duration: ['quick'],
-        text: 'Ночью занялась поленница. Потушили всем миром, но часть дерева сгорела.', effect: `Дерево −${n}, стабильность −1`, apply: { stock: { wood: -n }, stats: { stability: -1 } }
+        text: `Ночью занялась поленница. Потушили всем миром, но часть дерева сгорела.${b ? ` Огонь успел лизнуть «${bName(b)}».` : ''}`,
+        effect: `Дерево −${n}, стабильность −1${b ? `, «${bName(b)}»: ${DAMAGE[level].short} повреждение` : ''}`,
+        apply: { stock: { wood: -n }, stats: { stability: -1 }, ...(b ? { damage: [{ id: b.id, level, name: bName(b) }] } : {}) }
+      }
+    }
+  },
+  {
+    id: 'storm', label: 'Буря',
+    weight: s => ((s.buildings || []).filter(b => (b.state || 'built') === 'built').length >= 5 ? 0.35 : 0),
+    make(s, c, rnd) {
+      const what = pick(rnd, ['Налетела буря с градом', 'Ночью ударил ураганный ветер', 'Гроза с ливнем бушевала до утра'])
+      const hit = []
+      for (let i = 0; i < (rnd() < 0.4 ? 2 : 1); i++) {
+        const b = victim({ buildings: (s.buildings || []).filter(x => !hit.some(h => h.id === x.id)) }, rnd)
+        if (b) hit.push({ id: b.id, level: hurt(b, 'minor'), name: bName(b) })
+      }
+      if (!hit.length) return null
+      return {
+        title: 'Буря', type: 'problem', duration: ['quick'],
+        text: `${what}. Сорвало крыши и повалило заборы: пострадали ${hit.map(h => `«${h.name}»`).join(' и ')}.`,
+        effect: hit.map(h => `«${h.name}»: ${DAMAGE[h.level].short} повреждение`).join(', ') + ', мораль −1',
+        apply: { stats: { morale: -1 }, damage: hit }
       }
     }
   },
@@ -228,6 +267,7 @@ export function suggestEvent(s, rnd = Math.random, exclude = []) {
   let r = rnd() * sum
   const hit = list.find(x => (r -= x.w) <= 0) || list[list.length - 1]
   const ev = hit.t.make(s, c, rnd)
+  if (!ev) return null
   return { idea: hit.t.id, ...ev, apply: ev.apply || null, applyOn: !!ev.apply && !ev.applyOff }
 }
 
@@ -236,6 +276,7 @@ const STAT_LABEL = { morale: 'мораль', stability: 'стабильност�
 export function applyText(apply) {
   if (!apply) return ''
   return [
+    ...(apply.damage || []).map(d => `«${d.name || 'постройка'}»: ${DAMAGE[d.level]?.short || ''} повреждение`),
     ...Object.entries(apply.stock || {}).map(([k, v]) => `${RES[k]?.label || k} ${fmt(v)}`),
     ...Object.entries(apply.stats || {}).map(([k, v]) => `${STAT_LABEL[k] || k} ${fmt(v)}`)
   ].join(' · ')

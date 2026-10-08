@@ -15,7 +15,7 @@ import {
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, featurePrice } from '../src/shared/walls.js'
-import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
+import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
@@ -1238,11 +1238,43 @@ function applyEffects(s, apply) {
   s.stock ||= {}
   s.stats ||= {}
   for (const [k, v] of Object.entries(apply?.stock || {})) if (RES[k]) s.stock[k] = Math.max(0, Math.round(((s.stock[k] || 0) + T.num(-1e6, 1e6)(v)) * 10) / 10)
+  for (const d of apply?.damage || []) {
+    const b = (s.buildings || []).find(x => x.id === d.id)
+    if (b && DAMAGE[d.level]) setDamage(s, b, worseDamage(b.damage, d.level), false)
+  }
   for (const [k, v] of Object.entries(apply?.stats || {})) {
     if (!STAT_RANGE[k]) continue
     const [lo, hi] = STAT_RANGE[k]
     s.stats[k] = Math.max(lo, Math.min(hi, Math.round((s.stats[k] || 0) + T.num(-1000, 1000)(v))))
   }
+}
+// повреждение постройки: ремонт, если шёл, начинается заново (работы стало больше); event — написать в журнал
+function setDamage(s, b, level, event = true) {
+  const name = b.name || BUILDINGS[b.type]?.label || 'Постройка'
+  const was = b.damage || null
+  if (level && DAMAGE[level]) b.damage = level
+  else delete b.damage
+  if (b.damage !== was) delete b.repair
+  if (b.damage && b.damage !== was) {
+    logEntry(s, 'damage', `«${name}»: ${DAMAGE[b.damage].label.toLowerCase()}`)
+    if (event && worseDamage(was, b.damage) === b.damage) {
+      addEvent(s, { title: b.damage === 'ruined' ? 'Постройка разрушена' : 'Постройка повреждена', type: b.damage === 'ruined' || b.damage === 'major' ? 'alarm' : 'problem', duration: ['decide'],
+        text: `«${name}»: ${DAMAGE[b.damage].label.toLowerCase()} — ${DAMAGE[b.damage].hint}. Чиним?`, effect: `«${name}» работает на ${Math.round(DAMAGE[b.damage].work * 100)}%`, location: s.name })
+    }
+  } else if (!b.damage && was) logEntry(s, 'damage', `«${name}» снова целая`)
+}
+// начать ремонт: цена — доля цены постройки по степени повреждения
+function startRepair(s, b, pay) {
+  if (!b.damage) return 'Постройка целая'
+  if (b.repair) return 'Ремонт уже идёт'
+  const price = repairPrice(b)
+  if (pay) {
+    const miss = payPrice(s, price)
+    if (miss) return miss
+  }
+  b.repair = { progress: 0, ...(pay ? { paid: price } : {}) }
+  logEntry(s, 'build', `${b.damage === 'ruined' ? 'Отстраивают' : 'Чинят'} «${b.name || BUILDINGS[b.type].label}»${pay ? ' — ' + priceText(price) : ''}`)
+  return null
 }
 const MAX_SUGGESTIONS = 8
 function addSuggestion(s) {
@@ -1268,6 +1300,15 @@ app.patch('/api/settlements/:id', requireMaster, (req, res) => {
   if (Array.isArray(body.deciders)) body.deciders = body.deciders.filter(id => typeof id === 'string').slice(0, 20)
   if (Array.isArray(body.roads)) body.roads = body.roads.slice(0, 500).map(T_ROAD)
   if (Array.isArray(body.walls)) body.walls = body.walls.slice(0, 300).map(T_WALL)
+  // повреждения: проверяем значение; стало хуже — событие в журнал главе
+  const hurt = []
+  if (Array.isArray(body.buildings)) {
+    for (const nb of body.buildings) {
+      if (nb.damage && !DAMAGE[nb.damage]) delete nb.damage
+      const old = (s.buildings || []).find(x => x.id === nb.id)
+      if ((old?.damage || null) !== (nb.damage || null)) { hurt.push({ nb, level: nb.damage || null, was: old?.damage }); if (old) nb.damage = old.damage; else delete nb.damage }
+    }
+  }
   if (Array.isArray(body.clearings)) body.clearings = body.clearings.slice(0, 8000).map(T_CIRCLE)
   if (Array.isArray(body.explored)) body.explored = body.explored.slice(0, 4000).map(e => (e?.points ? e : T_CIRCLE(e)))
   if (body.terrain) body.terrain = T_TERRAIN(body.terrain)
@@ -1275,6 +1316,7 @@ app.patch('/api/settlements/:id', requireMaster, (req, res) => {
   const known = new Set((s.events || []).map(e => e.id))
   if (Array.isArray(body.events)) body.events = body.events.map(T_EVENT)
   Object.assign(s, body, { updatedAt: Date.now() })
+  for (const h of hurt) setDamage(s, h.nb, h.level)
   for (const e of body.events || []) if (!known.has(e.id)) notifyDeciders(s, e.title)
   saveDb()
   broadcast()
@@ -1318,7 +1360,7 @@ app.post('/api/settlements/:id/portrait', requireMaster, express.raw({ type: () 
 })
 
 /* приказы главы: построить, назначить рабочих, разведать, свободный — мастер одобряет */
-const ORDER_KINDS = ['build', 'workers', 'explore', 'free']
+const ORDER_KINDS = ['build', 'workers', 'explore', 'repair', 'free']
 app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
@@ -1338,6 +1380,12 @@ app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
     o.workers = { job: b.job, count: Math.round(T.num(0, 999)(b.count)) }
   } else if (b.kind === 'explore') {
     o.explore = { x: Math.round(coord(b.x)), y: Math.round(coord(b.y)), r: 300 }
+  } else if (b.kind === 'repair') {
+    const bd = (s.buildings || []).find(x => x.id === b.building)
+    if (!bd?.damage) return res.status(400).json({ error: 'Эта постройка целая' })
+    if (bd.repair) return res.status(400).json({ error: 'Её уже чинят' })
+    if ((s.orders || []).some(x => x.status === 'pending' && x.repair?.id === bd.id)) return res.status(400).json({ error: 'Приказ на ремонт уже ждёт мастера' })
+    o.repair = { id: bd.id, type: bd.type, damage: bd.damage }
   } else if (!o.text) return res.status(400).json({ error: 'Напиши, что нужно сделать' })
   ;(s.orders ||= []).push(o)
   if (s.orders.length > 200) s.orders = s.orders.slice(-200)
@@ -1383,6 +1431,14 @@ app.post('/api/settlements/:id/orders/:oid/:action(approve|reject)', requireMast
       clearUnder(s, b)
       addEvent(s, { title: 'Стройка начата', type: 'done', duration: ['quick'], text: `По приказу главы заложили «${def.label}». Сложность ${def.cost}.${free ? '' : ` Со склада ушло: ${priceText(def.price)}.`}`, location: s.name }, false)
       logEntry(s, 'build', `Заложена «${def.label}» по приказу ${o.byName}${free ? ' (бесплатно)' : ` — ${priceText(def.price)}`}`)
+    } else if (o.kind === 'repair') {
+      const bd = (s.buildings || []).find(x => x.id === o.repair.id)
+      if (!bd) return res.status(400).json({ error: 'Постройки уже нет' })
+      const free = !!req.body?.free
+      const price = repairPrice(bd)
+      const err = startRepair(s, bd, !free)
+      if (err) return res.status(400).json({ error: err })
+      o.paid = free ? null : price
     } else if (o.kind === 'workers') {
       s.jobs ||= {}
       s.jobs[o.workers.job] = { ...(s.jobs[o.workers.job] || {}), workers: o.workers.count }
@@ -1437,6 +1493,18 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
       delete b.progress
       done.push(BUILDINGS[b.type].label)
       addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `Мы закончили «${BUILDINGS[b.type].label}»!`, location: s.name })
+    }
+  }
+  // ремонт: те же очки стройки; готово — постройка снова целая
+  for (const b of s.buildings || []) {
+    if (!b.repair || !b.damage) continue
+    b.repair.progress = Math.round(((b.repair.progress || 0) + pts) * 10) / 10
+    if (b.repair.progress >= repairWork(b)) {
+      const name = b.name || BUILDINGS[b.type].label
+      const ruined = b.damage === 'ruined'
+      setDamage(s, b, null)
+      done.push((ruined ? 'отстроена ' : 'починена ') + name)
+      addEvent(s, { title: ruined ? 'Постройка отстроена' : 'Ремонт закончен', type: 'done', duration: ['quick'], text: `«${name}» ${ruined ? 'отстроили заново' : 'починили'} — снова работает в полную силу.`, location: s.name }, false)
     }
   }
   // стены строятся от начала к концу, фрагменты — когда стена дошла до их места
@@ -1597,6 +1665,21 @@ app.post('/api/settlements/:id/walls/:wid/features', requireMaster, (req, res) =
   saveDb()
   broadcast()
   res.json(f)
+})
+
+app.post('/api/settlements/:id/buildings/:bid/repair', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const b = s?.buildings?.find(x => x.id === req.params.bid)
+  if (!b) return res.status(404).json({ error: 'Постройка не найдена' })
+  if (req.body?.instant) setDamage(s, b, null)
+  else {
+    const err = startRepair(s, b, !!req.body?.pay)
+    if (err) return res.status(400).json({ error: err })
+  }
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(b)
 })
 
 /* заготовки событий: сайт предлагает, мастер выпускает в журнал или отбрасывает */
