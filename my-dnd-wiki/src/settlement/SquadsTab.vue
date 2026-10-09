@@ -26,7 +26,7 @@
         <div v-if="!q.commander" class="alert">Без командира отряд не выйдет.</div>
 
         <div class="cmd">
-          <UnitSlot :unit="unit(q.commander)" :face="faceOf(s, q.commander)" :label="q.commander ? 'командир · ' + faceOf(s, q.commander)?.label : 'командир'" :clickable="master" @pick="edit(q, 'cmd')" />
+          <UnitSlot :unit="unit(q.commander)" :face="faceOf(s, q.commander)" :label="faceOf(s, q.commander)?.label" empty-text="назначить командира" :clickable="master" @pick="edit(q, 'cmd')" />
         </div>
         <div v-for="(def, l) in LINES" :key="l" class="line">
           <div class="lineh">{{ def.label }} <em>+{{ def.bonus }} {{ STATS[def.stat].toLowerCase() }}</em></div>
@@ -68,8 +68,8 @@
       </div>
     </div>
 
-    <SlotEditor v-if="editing" :settlement="s" :slot="editing.slot" :mode="editing.line === 'cmd' ? 'commander' : 'line'" :title="editing.title"
-                @close="editing = null" @save="saveSlot" @stats="editing = null; $emit('edit', 'army')" />
+    <SlotEditor v-if="editing" :settlement="s" :slot="editing.slot" :mode="editing.line === 'cmd' ? 'commander' : 'line'" :subtitle="editing.sub" :title="editing.title"
+                @close="editing = null" @save="saveSlot" />
   </div>
 </template>
 
@@ -113,13 +113,14 @@ const removeSquad = q => confirm(`Распустить «${q.name}»? Воины
 const editing = ref(null)
 function edit(q, line, i) {
   const slot = line === 'cmd' ? q.commander : q.lines?.[line]?.[i]
-  editing.value = { q: q.id, line, i, slot, title: `«${q.name}» · ${line === 'cmd' ? 'командир' : `${LINES[line].label.toLowerCase()}, место ${i + 1}`}` }
+  editing.value = { q: q.id, line, i, slot, sub: `Отряд «${q.name}»`, title: line === 'cmd' ? 'Командир' : `${LINES[line].label}, место ${i + 1}` }
 }
-function saveSlot({ slot, assetStats, takenPending }) {
+function saveSlot({ slot, assetStats, takenPending, raceStats }) {
   const e = editing.value
   const q = squads.value.find(x => x.id === e.q)
   const patch = e.line === 'cmd' ? { commander: slot } : { lines: { ...q.lines, [e.line]: Array.from({ length: LINE_SLOTS }, (_, n) => (n === e.i ? slot : q.lines?.[e.line]?.[n] || null)) } }
   const armyPatch = { squads: squads.value.map(x => (x.id === q.id ? { ...x, ...patch } : x)) }
+  if (raceStats) armyPatch.stats = { ...(s.value.army?.stats || {}), [raceStats.race]: raceStats.stats }
   if (takenPending) armyPatch.pendingTalents = { ...(s.value.army?.pendingTalents || {}), [takenPending]: [] }
   const extra = assetStats ? { assets: (s.value.assets || []).map(a => (a.id === assetStats.id ? { ...a, stats: assetStats.stats } : a)) } : {}
   saveArmy(armyPatch, 'Отряд обновлён', extra)
@@ -168,6 +169,7 @@ h3 small { font: 600 12px var(--a-sans); color: var(--a-muted); }
 .mini.danger { color: #ff9b8f; border-color: rgba(255, 107, 94, .4); }
 .alert { padding: 5px 10px; border-radius: 8px; background: rgba(255, 179, 107, .1); color: #ffcf9b; font-size: 12px; font-weight: 700; }
 .cmd { display: flex; justify-content: center; }
+.cmd > * { max-width: 300px; }
 .line { display: grid; gap: 4px; }
 .lineh { display: flex; justify-content: space-between; font: 800 10.5px var(--a-sans); color: var(--a-muted); text-transform: uppercase; letter-spacing: .05em; }
 .lineh em { font-style: normal; text-transform: none; letter-spacing: 0; color: #9be07a; }

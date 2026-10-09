@@ -9,12 +9,20 @@
       <span v-else>Это сделает мастер.</span>
     </div>
 
+    <!-- свободные боевые по расам: кого ещё можно поставить -->
+    <div v-if="freeList.length || master" class="free">
+      <span class="free-h">Свободно боевых:</span>
+      <span v-for="f in freeList" :key="f.race" class="fchip" :style="{ '--fc': RACE_COLORS[f.race] }"><i>{{ RACES[f.race]?.label[0] }}</i>{{ RACES[f.race]?.label }} <b>{{ f.free }}</b></span>
+      <span v-if="!freeList.length" class="muted">все стоят в гарнизоне и отрядах</span>
+      <button v-if="master && freeList.length" class="fill" title="Каждую расу — в её стек или в пустой открытый слот" @click="fillAll">Расставить всех</button>
+    </div>
+
     <div class="gar">
       <div v-for="g in SLOT_GROUPS" :key="g.from" class="col">
         <div class="colh">{{ g.label }} <b v-if="g.to <= open">открыты</b><b v-else class="no">{{ g.need === 'palisade' ? 'нужен частокол' : 'нужна каменная стена' }}</b></div>
         <template v-if="g.to <= open">
           <UnitSlot v-for="i in g.to - g.from" :key="i" :unit="units[g.from + i - 1]" :face="faceOf(s, garrison[g.from + i - 1])" :label="faceOf(s, garrison[g.from + i - 1])?.label"
-                    :clickable="master" @pick="editSlot(g.from + i - 1)" />
+                    :clickable="master" :empty-text="`слот ${g.from + i} — поставить воинов`" @pick="editSlot(g.from + i - 1)" />
         </template>
         <div v-else class="locktag">🔒<br />{{ g.lock }}</div>
       </div>
@@ -48,8 +56,8 @@
     </div>
     <p class="muted note">Воины берутся из «Боевых» своей расы. Вторые 5 слотов открывает кольцо частокола, последние 5 — кольцо каменной стены (вкладка карты «Стены»). ★ — талантливые: у каждого свой бонус.</p>
 
-    <SlotEditor v-if="editing != null" :settlement="s" :slot="garrison[editing]" mode="garrison" :title="`Гарнизон · слот ${editing + 1}`"
-                @close="editing = null" @save="saveSlot" @stats="editing = null; $emit('edit', 'army')" />
+    <SlotEditor v-if="editing != null" :settlement="s" :slot="garrison[editing]" mode="garrison" subtitle="Гарнизон" :title="`Слот ${editing + 1}`"
+                @close="editing = null" @save="saveSlot" />
   </div>
 </template>
 
@@ -57,8 +65,8 @@
 import { computed, ref } from 'vue'
 import { act } from '../map/store.js'
 import { RACES } from '../shared/settlement.js'
-import { STATS, GARRISON_SLOTS, SLOT_GROUPS, TRAIN_DAYS, openSlots, unitOf, power, missingRaceStats } from '../shared/army.js'
-import { faceOf } from './armyFaces.js'
+import { STATS, GARRISON_SLOTS, SLOT_GROUPS, TRAIN_DAYS, openSlots, unitOf, power, missingRaceStats, combatUse } from '../shared/army.js'
+import { faceOf, RACE_COLORS } from './armyFaces.js'
 import UnitSlot from './UnitSlot.vue'
 import SlotEditor from './SlotEditor.vue'
 
@@ -78,14 +86,29 @@ const saveArmy = (patch, ok, extra = {}) => act('PATCH', base(), { army: { ...(s
 
 const editing = ref(null)
 const editSlot = i => { editing.value = i }
-function saveSlot({ slot, assetStats, takenPending }) {
+function saveSlot({ slot, assetStats, takenPending, raceStats }) {
   const g = [...garrison.value]
   g[editing.value] = slot
   const patch = { garrison: g }
+  if (raceStats) patch.stats = { ...(s.value.army?.stats || {}), [raceStats.race]: raceStats.stats }
   if (takenPending) patch.pendingTalents = { ...(s.value.army?.pendingTalents || {}), [takenPending]: [] }
   const extra = assetStats ? { assets: (s.value.assets || []).map(a => (a.id === assetStats.id ? { ...a, stats: assetStats.stats } : a)) } : {}
   saveArmy(patch, slot ? 'Гарнизон обновлён' : 'Слот освобождён', extra)
   editing.value = null
+}
+
+// свободные боевые и «расставить всех»: раса — в свой стек, иначе в первый пустой открытый слот
+const freeList = computed(() => Object.entries(combatUse(s.value)).filter(([, u]) => u.free > 0).map(([race, u]) => ({ race, free: u.free })))
+function fillAll() {
+  const g = [...garrison.value]
+  const left = []
+  for (const f of freeList.value) {
+    const i = g.findIndex((x, n) => n < open.value && x?.race === f.race)
+    const e = i >= 0 ? i : g.findIndex((x, n) => n < open.value && !x)
+    if (e < 0) { left.push(RACES[f.race]?.label); continue }
+    g[e] = g[e] ? { ...g[e], count: (g[e].count || 0) + f.free } : { race: f.race, count: f.free, talents: [] }
+  }
+  saveArmy({ garrison: g }, left.length ? `Расставлено; не хватило слотов: ${left.join(', ')}` : 'Все свободные боевые в гарнизоне')
 }
 
 const tf = ref({ race: s.value.races?.[0]?.race || '', count: 1, talent: false, note: '', sex: 'male', atk: 1, def: 0, hp: 0, ini: 0 })
@@ -111,12 +134,18 @@ h3.sub { font-size: 18px; margin-top: 10px; }
 .ed { margin-left: auto; padding: 4px 10px; border-radius: 8px; border: 1px solid rgba(255, 107, 94, .45); background: rgba(255, 107, 94, .08); color: #ff9b8f; font: 700 12px var(--a-sans); cursor: pointer; }
 .alert { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(255, 179, 107, .5); background: rgba(255, 179, 107, .08); color: #ffcf9b; font-size: 12.5px; }
 .link { border: 0; background: none; color: var(--a-gold-2); font: 800 12.5px var(--a-sans); text-decoration: underline; cursor: pointer; }
-.gar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.gar { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+.free { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 12px; background: rgba(0, 0, 0, .2); }
+.free-h { font: 800 11px var(--a-sans); color: var(--a-muted); text-transform: uppercase; letter-spacing: .05em; }
+.fchip { --fc: #c9b88f; display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 3px; border-radius: 99px; background: rgba(255, 255, 255, .05); font-size: 12px; font-weight: 700; }
+.fchip i { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--fc); color: #1b140c; font: 700 11px var(--a-serif); font-style: normal; }
+.fchip b { color: var(--a-gold-2); }
+.fill { margin-left: auto; height: 28px; padding: 0 12px; border-radius: 8px; border: 0; background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; font: 800 12px var(--a-sans); cursor: pointer; }
 .col { display: grid; gap: 8px; align-content: start; }
 .colh { display: flex; justify-content: space-between; gap: 6px; font: 800 10.5px var(--a-sans); letter-spacing: .05em; text-transform: uppercase; color: var(--a-muted); }
 .colh b { color: #9be07a; text-transform: none; letter-spacing: 0; }
 .colh b.no { color: #ff9b8f; }
-.locktag { display: grid; place-items: center; min-height: 160px; padding: 12px; border: 2px dashed rgba(255, 255, 255, .14); border-radius: 12px; text-align: center; color: var(--a-muted); font-size: 12px; }
+.locktag { display: grid; place-items: center; min-height: 120px; padding: 12px; border: 2px dashed rgba(255, 255, 255, .14); border-radius: 12px; text-align: center; color: var(--a-muted); font-size: 12px; }
 .train { display: grid; grid-template-columns: minmax(110px, auto) 1fr auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px dashed var(--a-line); }
 .train b { font-size: 13px; }
 .star { display: block; color: #ffe08a; font-size: 11px; }
