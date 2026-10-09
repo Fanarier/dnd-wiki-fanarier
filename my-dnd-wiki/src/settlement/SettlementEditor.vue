@@ -305,7 +305,14 @@ input[type=color] { padding: 0; width: 34px; height: 30px; }
 .asset { border-width: 2px; }
 .asset small { color: var(--a-muted); font-weight: 800; font-size: 11px; }
 .asset-h { display: flex; gap: 6px; align-items: center; }
-.asset-h .name { flex: 1; font: 700 15px var(--a-serif); }
+.asset-h .name { flex: 1 1 140px; font: 700 15px var(--a-serif); }
+/* в узких колонках широкого режима поля сжимаются и переносятся, а не вылезают за карточку */
+.race, .job, .asset { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.asset-h { flex-wrap: wrap; }
+.asset-h > *, .asset .row > * { min-width: 0; }
+.asset-h select { flex: 1 1 90px; }
+.asset .row input[type=color] { flex: none; width: 36px; padding: 0 2px; }
+.asset .row input:not(.num):not([type=color]) { flex: 2 1 0; }
 .nm-dice { padding: 2px 7px; font-size: 15px; line-height: 1; }
 .ph { width: 44px; height: 44px; flex: none; border-radius: 50%; overflow: hidden; display: grid; place-items: center; border: 2px dashed var(--a-line); cursor: pointer; color: var(--a-gold); font-size: 20px; }
 .ph img { width: 100%; height: 100%; object-fit: cover; }

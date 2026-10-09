@@ -3,6 +3,18 @@
   <div ref="box" class="msp" aria-hidden="true" />
 </template>
 
+<script>
+// движок с плагинами настраиваем один раз на всю страницу: повторный loadSlim() после первого load() падает,
+// и при втором заходе на страницу магии искр не было до F5
+let engine = null
+function getEngine() {
+  engine ||= Promise.all([import('@tsparticles/engine'), import('@tsparticles/slim')])
+    .then(async ([{ tsParticles }, { loadSlim }]) => { await loadSlim(tsParticles); return tsParticles })
+    .catch(e => { engine = null; throw e })
+  return engine
+}
+</script>
+
 <script setup>
 // tsParticles (MIT) — грузится только здесь, отдельным куском, когда открыли страницу магии
 import { onBeforeUnmount, onMounted, ref } from 'vue'
@@ -12,8 +24,7 @@ let container = null, dead = false
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches
 
 onMounted(async () => {
-  const [{ tsParticles }, { loadSlim }] = await Promise.all([import('@tsparticles/engine'), import('@tsparticles/slim')])
-  await loadSlim(tsParticles)
+  const tsParticles = await getEngine()
   if (dead) return
   container = await tsParticles.load({
     element: box.value,

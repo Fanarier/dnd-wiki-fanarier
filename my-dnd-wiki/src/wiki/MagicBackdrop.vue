@@ -8,7 +8,7 @@
 
 <script setup>
 // Огонь и вода — свой WebGL-шейдер (идея — «Elements» из ThreeUI, MIT), всё остальное — canvas 2D:
-// иней и снег, гроза с молниями, растущие деревья. Не чаще 30 кадров/с, на скрытой вкладке — пауза,
+// ледяные кристаллы, гроза с молниями, растущие деревья. Не чаще 30 кадров/с, на скрытой вкладке — пауза,
 // «меньше анимаций» в системе — один неподвижный кадр.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
@@ -103,21 +103,22 @@ function edges() {
 }
 
 /* ---------- деревья: растут из нижних углов, качаются, на концах — светящиеся листья ---------- */
+// ветка начинает расти, только когда родитель дорос; качание передаётся по цепочке — стыки не рвутся
 let trees = []
 function buildTrees() {
   const rnd = seeded(7), e = edges()
-  const grow = (x, y, ang, len, depth, out, delay) => {
-    const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len
-    out.push({ x, y, x2, y2, w: Math.max(1, depth * 1.7) * K, depth, delay, leaf: depth <= 1 })
-    if (depth <= 0) return
-    const n = depth > 6 ? 2 : 2 + (rnd() < 0.3 ? 1 : 0)
-    for (let i = 0; i < n; i++) grow(x2, y2, ang + (rnd() - 0.5) * 1.1, len * (0.68 + rnd() * 0.12), depth - 1, out, delay + 0.18)
-  }
   const len = Math.min(H * 0.15, 150 * K) * (W / K > 700 ? 1 : 0.75)
-  trees = [[e.treeL, -Math.PI / 2 + 0.16], [e.treeR, -Math.PI / 2 - 0.16]].map(([x, a]) => {
+  trees = [[e.treeL, 0.16], [e.treeR, -0.16]].map(([x, lean]) => {
     const segs = []
-    grow(x, H + 4, a, len, 9, segs, 0)
-    return { x, segs }
+    const grow = (parent, ang, l, depth, start) => {
+      const dur = 0.22 + depth * 0.05
+      const i = segs.push({ parent, ang, len: l, depth, start, dur, w: Math.max(1, depth * 1.8) * K, phase: rnd() * 6 }) - 1
+      if (depth <= 0) return
+      const n = depth > 6 ? 2 : 2 + (rnd() < 0.3 ? 1 : 0)
+      for (let k = 0; k < n; k++) grow(i, (rnd() - 0.5) * 1.1, l * (0.68 + rnd() * 0.12), depth - 1, start + dur)
+    }
+    grow(-1, lean, len, 9, 0)
+    return { x, segs, ends: new Float32Array(segs.length * 3) } // для каждой ветки: конец x, y и итоговый угол
   })
 }
 function drawTrees(t) {
@@ -125,101 +126,128 @@ function drawTrees(t) {
   g.clearRect(0, 0, W, H)
   g.lineCap = 'round'
   for (const tr of trees) {
-    // мягкое свечение земли у корней
     const glow = g.createRadialGradient(tr.x, H, 0, tr.x, H, 140 * K)
     glow.addColorStop(0, 'rgba(120, 200, 90, .22)')
     glow.addColorStop(1, 'rgba(120, 200, 90, 0)')
     g.fillStyle = glow
     g.fillRect(tr.x - 140 * K, H - 140 * K, 280 * K, 140 * K)
-    for (const sg of tr.segs) {
-      const p = Math.max(0, Math.min(1, (t - sg.delay) / 0.45))
-      if (!p) continue
-      const sway = Math.sin(t * 0.9 + sg.x * 0.01) * (10 - sg.depth) * 0.6 * K
-      const x2 = sg.x + (sg.x2 - sg.x) * p + sway * p, y2 = sg.y + (sg.y2 - sg.y) * p
-      g.strokeStyle = sg.depth > 5 ? 'rgba(92, 66, 40, .9)' : 'rgba(120, 150, 80, .8)'
-      g.lineWidth = sg.w
-      g.beginPath(); g.moveTo(sg.x + sway * 0.3, sg.y); g.lineTo(x2, y2); g.stroke()
-      if (sg.leaf && p >= 1) {
-        const pulse = 0.55 + 0.45 * Math.sin(t * 2 + sg.x2 * 0.05)
-        g.fillStyle = `rgba(155, 224, 122, ${0.35 * pulse})`
-        g.beginPath(); g.arc(x2, y2, (5 + 3 * pulse) * K, 0, Math.PI * 2); g.fill()
-        g.fillStyle = `rgba(230, 255, 190, ${0.6 * pulse})`
+    const E = tr.ends
+    tr.segs.forEach((s, i) => {
+      const p = Math.max(0, Math.min(1, (t - s.start) / s.dur))
+      const px = s.parent < 0 ? tr.x : E[s.parent * 3], py = s.parent < 0 ? H + 4 : E[s.parent * 3 + 1]
+      const base = s.parent < 0 ? -Math.PI / 2 : E[s.parent * 3 + 2]
+      const ang = base + s.ang + Math.sin(t * 0.8 + s.phase) * 0.012 * (10 - s.depth)
+      const l = s.len * (1 - Math.pow(1 - p, 2)) // рост с замедлением к концу
+      const x2 = px + Math.cos(ang) * l, y2 = py + Math.sin(ang) * l
+      E[i * 3] = x2; E[i * 3 + 1] = y2; E[i * 3 + 2] = ang
+      if (!p) return
+      g.strokeStyle = s.depth > 5 ? 'rgba(96, 70, 44, .92)' : s.depth > 2 ? 'rgba(112, 120, 70, .85)' : 'rgba(130, 170, 90, .8)'
+      g.lineWidth = s.w
+      g.beginPath(); g.moveTo(px, py); g.lineTo(x2, y2); g.stroke()
+      if (s.depth <= 1 && p >= 1) { // лист распускается, потом мерцает
+        const open = Math.min(1, (t - s.start - s.dur) / 0.6)
+        const pulse = 0.55 + 0.45 * Math.sin(t * 2 + s.phase)
+        g.fillStyle = `rgba(155, 224, 122, ${0.35 * pulse * open})`
+        g.beginPath(); g.arc(x2, y2, (5 + 3 * pulse) * K * open, 0, Math.PI * 2); g.fill()
+        g.fillStyle = `rgba(230, 255, 190, ${0.6 * pulse * open})`
         g.beginPath(); g.arc(x2, y2, 1.6 * K, 0, Math.PI * 2); g.fill()
       }
-    }
+    })
   }
 }
 
-/* ---------- лёд: кристаллы инея ползут от краёв, сверху падает снег ---------- */
-let frost = [], frostLayer = null, frostDrawn = 0, tips = [], snow = []
-function buildFrost() {
+/* ---------- лёд: друзы ледяных кристаллов в нижних углах, края экрана подёрнуты инеем, ледяная пыль ---------- */
+let crystals = [], rime = null, dust = [], iceAnchors = []
+function buildIce() {
   const rnd = seeded(11), e = edges()
-  frost = []; tips = []
-  // ветка: ствол из коротких отрезков, от него под 60° боковые веточки — как морозный узор на стекле
-  const branch = (x, y, ang, len, depth, delay) => {
-    const steps = Math.max(3, Math.round(len / (9 * K)))
-    const seg = len / steps
-    for (let i = 0; i < steps; i++) {
-      const nx = x + Math.cos(ang) * seg, ny = y + Math.sin(ang) * seg
-      frost.push({ x, y, x2: nx, y2: ny, w: (0.5 + depth * 0.45) * K, at: delay + i * 0.05 })
-      if (depth > 0 && i % 2 === 1) {
-        const side = len * 0.42 * (1 - i / steps)
-        if (side > 6 * K) {
-          branch(nx, ny, ang - Math.PI / 3 + (rnd() - 0.5) * 0.15, side, depth - 1, delay + i * 0.05)
-          branch(nx, ny, ang + Math.PI / 3 + (rnd() - 0.5) * 0.15, side * (0.7 + rnd() * 0.3), depth - 1, delay + i * 0.05)
-        }
+  crystals = []
+  iceAnchors = [e.treeL, e.treeR]
+  const big = Math.min(H * 0.4, 330 * K) * (W / K > 700 ? 1 : 0.7)
+  for (const ax of [e.treeL, e.treeR]) {
+    // крупные кристаллы веером, у основания — мелкие осколки
+    for (const [n, scale, spread] of [[9, 1, 1.5], [8, 0.38, 2.2]]) {
+      for (let i = 0; i < n; i++) {
+        const s = (i / (n - 1) - 0.5) * spread + (rnd() - 0.5) * 0.18
+        const len = big * scale * (1 - Math.abs(s) * 0.4) * (0.6 + rnd() * 0.45)
+        crystals.push({
+          x: ax + s * 46 * K + (rnd() - 0.5) * 20 * K, ang: -Math.PI / 2 + s, len, w: len * (0.13 + rnd() * 0.06),
+          at: rnd() * 1.1 + Math.abs(s) * 0.5 + (scale < 1 ? 0.6 : 0), ph: rnd()
+        })
       }
-      x = nx; y = ny; ang += (rnd() - 0.5) * 0.12
     }
-    tips.push([x, y])
   }
-  const reach = Math.min(W * 0.16, 230 * K)
-  for (let i = 0; i < 7; i++) {
-    const y = H * (0.04 + i * 0.15 + rnd() * 0.06)
-    branch(e.frostL, y, (rnd() - 0.5) * 0.9, reach * (0.55 + rnd() * 0.5), 2, rnd() * 2.5)
-    branch(e.frostR, y + H * 0.07, Math.PI + (rnd() - 0.5) * 0.9, reach * (0.55 + rnd() * 0.5), 2, rnd() * 2.5)
+  crystals.sort((a, b) => b.len - a.len) // крупные позади
+  // иней по краям экрана: холодная дымка и мелкая «изморозь» — рисуем один раз
+  rime = document.createElement('canvas')
+  rime.width = W; rime.height = H
+  const rg = rime.getContext('2d')
+  for (const [x0, x1] of [[0, 150 * K], [W, W - 150 * K]]) {
+    const gr = rg.createLinearGradient(x0, 0, x1, 0)
+    gr.addColorStop(0, 'rgba(160, 210, 255, .13)')
+    gr.addColorStop(1, 'rgba(160, 210, 255, 0)')
+    rg.fillStyle = gr
+    rg.fillRect(Math.min(x0, x1), 0, 150 * K, H)
   }
-  frost.sort((a, b) => a.at - b.at)
-  frostLayer = document.createElement('canvas')
-  frostLayer.width = W; frostLayer.height = H
-  frostDrawn = 0
-  snow = Array.from({ length: Math.round((W / K) / 14) }, () => ({ x: rnd() * W, y: rnd() * H, r: (0.6 + rnd() * 1.8) * K, v: (12 + rnd() * 22) * K, s: rnd() * 6 }))
+  rg.lineCap = 'round'
+  for (let i = 0; i < 1400; i++) {
+    const side = rnd() < 0.5, d = Math.pow(rnd(), 2.2) * 170 * K
+    const x = side ? d : W - d, y = rnd() * H
+    const a = rnd() * Math.PI, l = (2 + rnd() * 7) * K * (1 - d / (190 * K))
+    rg.strokeStyle = `rgba(210, 236, 255, ${0.08 + 0.22 * (1 - d / (170 * K))})`
+    rg.lineWidth = 0.7 * K
+    rg.beginPath(); rg.moveTo(x - Math.cos(a) * l, y - Math.sin(a) * l); rg.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); rg.stroke()
+  }
+  dust = Array.from({ length: Math.round((W / K) / 22) }, () => ({ x: rnd() * W, y: rnd() * H, r: (0.4 + rnd() * 0.9) * K, v: (6 + rnd() * 10) * K, s: rnd() * 6 }))
 }
-function drawFrost(t, dt) {
-  // готовые отрезки инея рисуем один раз на отдельный слой — дальше только копируем его
-  const fl = frostLayer.getContext('2d')
-  fl.lineCap = 'round'
-  fl.shadowColor = 'rgba(140, 215, 255, .9)'
-  fl.shadowBlur = 6 * K
-  while (frostDrawn < frost.length && frost[frostDrawn].at <= t) {
-    const s = frost[frostDrawn++]
-    fl.strokeStyle = 'rgba(215, 240, 255, .8)'
-    fl.lineWidth = s.w
-    fl.beginPath(); fl.moveTo(s.x, s.y); fl.lineTo(s.x2, s.y2); fl.stroke()
+function drawCrystal(g, c, t) {
+  const p = Math.max(0, Math.min(1, (t - c.at) / 1.6))
+  if (!p) return
+  const L = c.len * (1 - Math.pow(1 - p, 3))
+  const dx = Math.cos(c.ang), dy = Math.sin(c.ang), nx = -dy, ny = dx
+  const hw = (c.w / 2) * Math.min(1, 0.4 + p), bx = c.x, by = H + 6
+  const sh = Math.max(L * 0.45, L - c.w * 0.9) // где грани сходятся к острию
+  const P = [[bx - nx * hw, by - ny * hw], [bx + dx * sh - nx * hw, by + dy * sh - ny * hw], [bx + dx * L, by + dy * L], [bx + dx * sh + nx * hw, by + dy * sh + ny * hw], [bx + nx * hw, by + ny * hw]]
+  const poly = pts => { g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath() }
+  const gr = g.createLinearGradient(bx, by, bx + dx * L, by + dy * L)
+  gr.addColorStop(0, 'rgba(50, 110, 200, .14)')
+  gr.addColorStop(0.65, 'rgba(140, 200, 255, .24)')
+  gr.addColorStop(1, 'rgba(225, 245, 255, .5)')
+  poly(P); g.fillStyle = gr; g.fill()
+  // теневая грань — объём призмы
+  poly([P[0], P[1], P[2], [bx, by]]); g.fillStyle = 'rgba(10, 40, 90, .22)'; g.fill()
+  poly(P); g.strokeStyle = 'rgba(190, 228, 255, .55)'; g.lineWidth = 1 * K; g.stroke()
+  g.strokeStyle = 'rgba(235, 250, 255, .35)'
+  g.beginPath(); g.moveTo(bx, by); g.lineTo(bx + dx * L, by + dy * L); g.stroke()
+  if (p >= 1) { // свет медленно бежит вверх по ребру
+    const u = (t * 0.12 + c.ph) % 1, gx = bx + dx * L * u, gy = by + dy * L * u
+    const gl = g.createRadialGradient(gx, gy, 0, gx, gy, 14 * K)
+    gl.addColorStop(0, `rgba(235, 248, 255, ${0.45 * Math.sin(u * Math.PI)})`)
+    gl.addColorStop(1, 'rgba(235, 248, 255, 0)')
+    g.fillStyle = gl
+    g.fillRect(gx - 14 * K, gy - 14 * K, 28 * K, 28 * K)
   }
+}
+function drawIce(t, dt) {
   const g = g2
   g.clearRect(0, 0, W, H)
-  g.globalAlpha = 0.85 + 0.15 * Math.sin(t * 0.8)
-  g.drawImage(frostLayer, 0, 0)
+  g.globalAlpha = Math.min(1, t / 2)
+  g.drawImage(rime, 0, 0)
   g.globalAlpha = 1
-  // искорки на кончиках кристаллов, до которых иней уже дорос
-  if (frostDrawn >= frost.length) {
-    for (let i = 0; i < tips.length; i++) {
-      const tw = Math.sin(t * 1.7 + i * 2.3)
-      if (tw < 0.85) continue
-      const [x, y] = tips[i], r = (tw - 0.85) * 40 * K
-      g.strokeStyle = `rgba(235, 250, 255, ${(tw - 0.85) * 5})`
-      g.lineWidth = 1 * K
-      g.beginPath(); g.moveTo(x - r, y); g.lineTo(x + r, y); g.moveTo(x, y - r); g.lineTo(x, y + r); g.stroke()
-    }
+  for (const ax of iceAnchors) {
+    const glow = g.createRadialGradient(ax, H, 0, ax, H, 180 * K)
+    glow.addColorStop(0, 'rgba(120, 190, 255, .2)')
+    glow.addColorStop(1, 'rgba(120, 190, 255, 0)')
+    g.fillStyle = glow
+    g.fillRect(ax - 180 * K, H - 180 * K, 360 * K, 180 * K)
   }
-  // снег
-  g.fillStyle = 'rgba(235, 245, 255, .75)'
+  g.lineJoin = 'round'
+  for (const c of crystals) drawCrystal(g, c, t)
+  g.fillStyle = 'rgba(225, 240, 255, .5)'
   g.beginPath()
-  for (const f of snow) {
+  for (const f of dust) {
     f.y += f.v * dt
     if (f.y > H + 4) { f.y = -4; f.x = Math.random() * W }
-    const x = f.x + Math.sin(t * 0.7 + f.s) * 10 * K
+    const x = f.x + Math.sin(t * 0.5 + f.s) * 14 * K
     g.moveTo(x + f.r, f.y); g.arc(x, f.y, f.r, 0, Math.PI * 2)
   }
   g.fill()
@@ -332,7 +360,7 @@ function size() {
     W = c2.value.width = Math.max(1, Math.round(el.clientWidth * K))
     H = c2.value.height = Math.max(1, Math.round(el.clientHeight * K))
     if (props.kind === 'earth') buildTrees()
-    if (props.kind === 'water') buildFrost()
+    if (props.kind === 'water') buildIce()
     if (props.kind === 'air') buildStorm()
   }
 }
@@ -346,7 +374,7 @@ function frame(now) {
   if (gl) drawGL(still ? 4 : t)
   if (!g2) return
   if (props.kind === 'earth') drawTrees(t)
-  else if (props.kind === 'water') drawFrost(t, still ? 0 : dt)
+  else if (props.kind === 'water') drawIce(t, still ? 0 : dt)
   else if (props.kind === 'air') drawStorm(t, still ? 0 : dt)
 }
 
