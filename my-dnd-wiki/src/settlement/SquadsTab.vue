@@ -49,16 +49,22 @@
         <div class="line">
           <div class="lineh">Обоз <em>переносимость {{ cargoTotal(q) }}</em></div>
           <div class="cargo">
-            <button v-for="(c, n) in cargoCells(q)" :key="n" type="button" class="cg" :class="{ full: c.item }" :disabled="!master" @click="openCargo(q, c)">
-              {{ c.kind === 'wagons' ? '🛒' : '🐴' }}<b>{{ c.item?.count || '—' }}</b>{{ c.item?.label || (c.kind === 'wagons' ? 'повозки' : 'вьючные') }}<small v-if="c.item">по {{ c.item.capacity || 0 }}</small>
+            <button v-for="(c, n) in cargoCells(q)" :key="n" type="button" class="cg" :class="{ full: c, on: cargo?.q === q.id && cargo.i === n }" :disabled="!master" @click="openCargo(q, n, c)">
+              <template v-if="c"><span class="cg-ico">{{ CARGO_KINDS[c.kind]?.icon || '📦' }}</span><b>×{{ c.count }}</b>{{ c.label }}<small>везёт по {{ c.capacity || 0 }}</small></template>
+              <template v-else><span class="cg-ico">＋</span>{{ master ? 'добавить' : 'пусто' }}</template>
             </button>
           </div>
+          <!-- что в ячейке: вид, название, сколько штук, сколько везёт одна -->
           <div v-if="cargo && cargo.q === q.id" class="cg-edit">
-            <input v-model="cargo.label" :placeholder="cargo.kind === 'wagons' ? 'Телега' : 'Мул'" />
-            <label>штук<input v-model.number="cargo.count" type="number" min="0" /></label>
+            <div class="cg-kinds">
+              <button v-for="(k, key) in CARGO_KINDS" :key="key" type="button" :class="{ on: cargo.kind === key }" @click="cargo.kind = key">{{ k.icon }} {{ k.label }}</button>
+            </div>
+            <input v-model="cargo.label" :placeholder="{ wagon: 'Телега', pack: 'Мул', other: 'Лодка' }[cargo.kind]" class="cg-name" />
+            <label>штук<input v-model.number="cargo.count" type="number" min="1" /></label>
             <label>везёт одна<input v-model.number="cargo.capacity" type="number" min="0" /></label>
-            <button class="mini" @click="saveCargo(q)">ОК</button>
-            <button class="mini" @click="saveCargo(q, true)">убрать</button>
+            <button class="mini go" @click="saveCargo(q)">Сохранить</button>
+            <button v-if="cargoCells(q)[cargo.i]" class="mini danger" @click="saveCargo(q, true)">Убрать</button>
+            <button class="mini" @click="cargo = null">×</button>
           </div>
         </div>
 
@@ -90,7 +96,7 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { store, act, fmtDateTime, fmtDuration } from '../map/store.js'
 import { journeyState } from '../shared/geo.js'
-import { STATS, LINES, LINE_SLOTS, CARGO_SLOTS, unitOf, squadUnits, power, cargoTotal, squadLimit } from '../shared/army.js'
+import { STATS, LINES, LINE_SLOTS, CARGO_SLOTS, CARGO_KINDS, cargoOf, unitOf, squadUnits, power, cargoTotal, squadLimit } from '../shared/army.js'
 import { faceOf } from './armyFaces.js'
 import UnitSlot from './UnitSlot.vue'
 import SlotEditor from './SlotEditor.vue'
@@ -132,7 +138,7 @@ const METERS = [
 const saveArmy = (patch, ok, extra = {}) => act('PATCH', base(), { army: { ...(s.value.army || {}), ...patch }, ...extra }, ok).catch(() => null)
 const save = (q, patch, ok) => saveArmy({ squads: squads.value.map(x => (x.id === q.id ? { ...x, ...patch } : x)) }, ok)
 function addSquad() {
-  const q = { id: 'q' + Date.now().toString(36), name: `Отряд ${squads.value.length + 1}`, commander: null, lines: { van: [null, null, null], mid: [null, null, null], rear: [null, null, null] }, wagons: [null, null, null], packs: [null, null, null], status: 'home', partyId: null, task: '', taskProgress: 0, ready: 100, fatigue: 0 }
+  const q = { id: 'q' + Date.now().toString(36), name: `Отряд ${squads.value.length + 1}`, commander: null, lines: { van: [null, null, null], mid: [null, null, null], rear: [null, null, null] }, cargo: [null, null, null], status: 'home', partyId: null, task: '', taskProgress: 0, ready: 100, fatigue: 0 }
   saveArmy({ squads: [...squads.value, q] }, 'Отряд создан — назначь командира')
 }
 async function removeSquad(q) {
@@ -159,15 +165,15 @@ function saveSlot({ slot, assetStats, takenPending, raceStats }) {
   editing.value = null
 }
 
-/* обоз: 3 ячейки повозок и 3 — вьючных животных; одинаковые — стопкой в одной ячейке */
-const cargoCells = q => ['wagons', 'packs'].flatMap(kind => Array.from({ length: CARGO_SLOTS }, (_, i) => ({ kind, i, item: q[kind]?.[i] || null })))
+/* обоз: 3 ячейки; в каждой — что это (повозка, вьючные, другое) и сколько, одинаковые стопкой */
+const cargoCells = q => Array.from({ length: CARGO_SLOTS }, (_, i) => cargoOf(q)[i] || null)
 const cargo = ref(null)
-const openCargo = (q, c) => { cargo.value = { q: q.id, kind: c.kind, i: c.i, label: c.item?.label || '', count: c.item?.count || 1, capacity: c.item?.capacity || 0 } }
+const openCargo = (q, i, c) => { cargo.value = { q: q.id, i, kind: c?.kind || 'wagon', label: c?.label || '', count: c?.count || 1, capacity: c?.capacity || 0 } }
 function saveCargo(q, clear = false) {
   const c = cargo.value
-  const list = Array.from({ length: CARGO_SLOTS }, (_, i) => q[c.kind]?.[i] || null)
-  list[c.i] = clear ? null : { label: c.label || (c.kind === 'wagons' ? 'Повозка' : 'Вьючное'), count: Math.max(0, c.count || 0), capacity: Math.max(0, c.capacity || 0) }
-  save(q, { [c.kind]: list }, 'Обоз обновлён')
+  const list = cargoCells(q)
+  list[c.i] = clear ? null : { kind: c.kind, label: c.label || CARGO_KINDS[c.kind].label, count: Math.max(1, c.count || 1), capacity: Math.max(0, c.capacity || 0) }
+  save(q, { cargo: list, wagons: undefined, packs: undefined }, 'Обоз обновлён')
   cargo.value = null
 }
 function order(q) {
@@ -215,12 +221,18 @@ h3 small { font: 600 12px var(--a-sans); color: var(--a-muted); }
 .lineh em { font-style: normal; text-transform: none; letter-spacing: 0; color: #9be07a; }
 .row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
 .cargo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
-.cg { display: grid; justify-items: center; padding: 5px; border-radius: 10px; border: 1px dashed rgba(201, 162, 79, .35); background: none; color: var(--a-muted); font: 600 11px var(--a-sans); cursor: pointer; }
+.cg { display: grid; justify-items: center; gap: 1px; min-height: 74px; align-content: center; padding: 6px 4px; border-radius: 10px; border: 1px dashed rgba(201, 162, 79, .35); background: none; color: var(--a-muted); font: 600 11px var(--a-sans); cursor: pointer; }
 .cg:disabled { cursor: default; }
 .cg b { font-size: 18px; color: var(--a-text); }
 .cg small { font-size: 10px; }
-.cg.full { border-style: solid; background: rgba(231, 197, 111, .06); }
-.cg-edit { display: flex; flex-wrap: wrap; gap: 5px; align-items: end; }
+.cg.full { border-style: solid; background: rgba(231, 197, 111, .06); color: #d9cdb0; }
+.cg.on { border-color: #e6c27a; }
+.cg-ico { font-size: 18px; }
+.cg-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: end; padding: 8px; border-radius: 10px; background: rgba(0, 0, 0, .25); }
+.cg-kinds { display: flex; gap: 4px; width: 100%; }
+.cg-kinds button { flex: 1; height: 28px; border-radius: 7px; border: 1px solid var(--a-line); background: none; color: var(--a-muted); font: 700 12px var(--a-sans); cursor: pointer; }
+.cg-kinds button.on { border-color: #e6c27a; background: rgba(231, 197, 111, .15); color: var(--a-gold-2); }
+.cg-name { flex: 1; min-width: 120px; }
 .cg-edit label { display: grid; font-size: 10px; color: var(--a-muted); }
 .cg-edit label input { width: 70px; }
 .meters { display: grid; gap: 5px; margin-top: 4px; }

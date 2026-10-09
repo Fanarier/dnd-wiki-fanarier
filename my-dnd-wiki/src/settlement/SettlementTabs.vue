@@ -87,6 +87,14 @@
       <div class="cards">
       <div v-for="r in s.races" :key="r.race" class="race">
         <div class="race-top" @click="openRace = openRace === r.race ? null : r.race">
+          <!-- общая иконка расы: ей рисуются воины в гарнизоне, отрядах и лечебнице -->
+          <span class="race-ico-w">
+            <button type="button" class="race-ico" :class="{ glyph: isGlyph(s.raceIcons?.[r.race]), set: master }" :style="{ '--fc': RACE_COLORS[r.race] }"
+                    :title="master ? 'Выбрать общую иконку расы' : RACES[r.race]?.label" @click.stop="master && (iconRace = iconRace === r.race ? null : r.race)">
+              <img v-if="s.raceIcons?.[r.race]" :src="s.raceIcons[r.race]" alt="" /><span v-else>{{ RACES[r.race]?.label[0] }}</span>
+            </button>
+            <IconPick v-if="iconRace === r.race" :settlement-id="s.id" :current="s.raceIcons?.[r.race] || ''" :title="`Иконка: ${RACES[r.race]?.label}`" @pick="setRaceIcon(r.race, $event)" @close="iconRace = null" />
+          </span>
           <div class="race-name">{{ RACES[r.race]?.label }}<small>{{ (r.male || 0) + (r.female || 0) + (r.kids || 0) }}</small></div>
           <div class="mfk"><span class="m" title="Мужчины"><i>♂</i>{{ r.male || 0 }}</span><span class="f" title="Женщины"><i>♀</i>{{ r.female || 0 }}</span><span class="k" title="Дети"><i>дети</i>{{ r.kids || 0 }}</span></div>
         </div>
@@ -327,6 +335,8 @@ import { applyText } from '../shared/settlementEvents.js'
 import PriceChips from './PriceChips.vue'
 import SettlementHistory from './SettlementHistory.vue'
 import GarrisonTab from './GarrisonTab.vue'
+import IconPick from './IconPick.vue'
+import { RACE_COLORS } from './armyFaces.js'
 import SquadsTab from './SquadsTab.vue'
 import HospitalTab from './HospitalTab.vue'
 
@@ -396,6 +406,14 @@ function setStock(key, v) {
 
 /* жители */
 const openRace = ref(null)
+const iconRace = ref(null)
+function setRaceIcon(race, url) {
+  const icons = { ...(s.value.raceIcons || {}) }
+  if (url) icons[race] = url
+  else delete icons[race]
+  iconRace.value = null
+  act('PATCH', base(), { raceIcons: icons }, url ? `Иконка расы «${RACES[race]?.label}» поставлена` : 'Иконка убрана').catch(() => null)
+}
 
 /* работы */
 const jobList = computed(() => Object.entries(c.value.jobs).map(([key, j]) => ({ key, ...j })))
@@ -645,8 +663,15 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .pl span { color: #b9ab8a; }
 
 .race { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--a-line-2); background: rgba(255, 255, 255, .02); margin-bottom: 8px; }
+.race-ico-w { position: relative; flex: none; }
+.race-ico { --fc: #c9b88f; width: 40px; height: 40px; padding: 0; border-radius: 50%; overflow: hidden; display: grid; place-items: center; border: 2px solid #fff3d6; background: var(--fc); color: #1b140c; font: 700 18px var(--a-serif); cursor: default; }
+.race-ico.set { cursor: pointer; }
+.race-ico.set:hover { box-shadow: 0 0 0 3px rgba(231, 197, 111, .45); }
+.race-ico img { width: 100%; height: 100%; object-fit: cover; }
+.race-ico.glyph { background: #d6d2c8; }
+.race-ico.glyph img { object-fit: contain; padding: 6px; box-sizing: border-box; }
 .race-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; cursor: pointer; }
-.race-name { font: 700 19px var(--a-serif); color: var(--a-gold-2); }
+.race-name { flex: 1; font: 700 19px var(--a-serif); color: var(--a-gold-2); }
 .race-name small { margin-left: 8px; font: 700 12px var(--a-sans); color: var(--a-muted); }
 .mfk { display: flex; gap: 12px; font-weight: 800; font-size: 16px; color: #d9cdb0; }
 .mfk span { display: inline-flex; align-items: baseline; gap: 3px; }
