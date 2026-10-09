@@ -19,6 +19,15 @@
       <label class="ui-check"><input v-model="plan.byRoad" type="checkbox" /> Прокладывать по дорогам</label>
       <div v-if="plan.byRoad && path && plan.waypoints.length && !path.byRoad" class="warn">Часть пути идёт напрямик — рядом с точкой нет дороги.</div>
 
+      <!-- точки интереса: у каждой можно подписать название, видно время прибытия -->
+      <ol v-if="plan.waypoints.length" class="pois">
+        <li v-for="(w, i) in plan.waypoints" :key="i">
+          <span class="n">{{ i + 1 }}</span>
+          <input v-model="names[i]" class="ui-input" :placeholder="i === plan.waypoints.length - 1 ? 'Цель' : 'Точка интереса'" maxlength="60" />
+          <small v-if="durationMs > 0 && path?.marks?.[i] != null">{{ etaText(i) }}</small>
+        </li>
+      </ol>
+
       <div class="stats">
         <div><span class="ui-kicker">Точек</span><b>{{ plan.waypoints.length }}</b></div>
         <div><span class="ui-kicker">Расстояние</span><b>{{ path ? fmtKm(path.length) : '—' }}</b></div>
@@ -117,6 +126,16 @@ const manual = reactive({ d: 0, h: 2, m: 0 })
 const delayed = ref(false)
 const startStr = ref('')
 const label = ref('')
+// названия точек (видны всем на карте) — параллельно точкам маршрута
+const names = ref([])
+watch(() => plan.value?.waypoints.length, n => { if (n != null) names.value = names.value.slice(0, n) })
+watch(() => plan.value?.names, v => { if (v) names.value = [...v] }, { immediate: true })
+watch(() => plan.value?.label, v => { if (v) label.value = v }, { immediate: true })
+const share = i => (path.value?.length ? Math.min(1, path.value.marks[i] / path.value.length) : 0)
+function etaText(i) {
+  const t = startAt.value + durationMs.value * share(i)
+  return `${fmtDateTime(t)} · через ${fmtDuration(t - store.now)}`
+}
 const gameDaysInput = ref(3)
 const sessionSec = ref(8)
 const arriveStr = ref('')
@@ -190,7 +209,8 @@ async function send() {
     path: path.value.points,
     startAt: Math.round(startAt.value),
     endAt: Math.round(startAt.value + durationMs.value),
-    label: label.value
+    label: label.value,
+    stops: plan.value.waypoints.map((w, i) => ({ x: w[0], y: w[1], name: names.value[i] || '', s: share(i) }))
   }
   try {
     await act('POST', `/api/parties/${party.value.id}/journey`, body, 'Отряд выступил!')
@@ -212,6 +232,10 @@ async function send() {
 .j-titles { flex: 1; min-width: 0; }
 .j-titles h2 { margin: 0; font-size: 22px; }
 .j-body { padding: 12px 16px; flex: 1; }
+.pois { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.pois li { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; align-items: center; }
+.pois .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--gold, #e7c56f); color: #1b1408; font-weight: 800; font-size: 12px; }
+.pois small { grid-column: 2; color: var(--muted, #9d978b); font-size: 11.5px; }
 .steps { margin: 0 0 12px; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; }
 .steps li.done { color: var(--muted); }
 .warn { font-size: 12px; color: #ffcf8a; margin: -4px 0 10px; }

@@ -196,7 +196,8 @@ const SCHEMAS = {
     required: ['name', 'x', 'y'],
     fields: {
       name: T.str(80), color: T.color(), icon: T.oneOf(PARTY_ICONS), x: COORD, y: COORD,
-      pace: T.numOrNull(1, 5000), members: T.ids(), description: TEXT, secret: TEXT, hidden: T.bool(), revealTo: T.ids()
+      pace: T.numOrNull(1, 5000), members: T.ids(), description: TEXT, secret: TEXT, hidden: T.bool(), revealTo: T.ids(),
+      squad: v => (v?.settlementId && v?.squadId ? { settlementId: T.str(40)(v.settlementId), squadId: T.str(40)(v.squadId) } : null)
     }
   },
   routes: {
@@ -430,7 +431,9 @@ function viewFor(user, now = Date.now()) {
     heroes: db.heroes.filter(h => !h.hidden || (uid && h.ownerId === uid)).map(h => ({ ...h, ...(h.hidden ? { onlyYou: true } : {}) })),
     arts: allArts(),
     // поселения видят все; решать могут только выбранные мастером игроки (deciders); заготовки событий — только мастеру
-    settlements: (db.settlements || []).map(({ suggestions, ...s }) => s),
+    settlements: (db.settlements || []).map(({ suggestions, ...s }) => (s.army?.squads
+      ? { ...s, army: { ...s.army, squads: s.army.squads.map(q => (q.taskSecret ? { ...q, task: '' } : q)) } }
+      : s)),
     hud: db.hud?.visible ? db.hud : null,
     roster: roster(),
     notes,
@@ -497,6 +500,7 @@ setInterval(() => {
       if (j.done && (p.journey.endAt - p.journey.startAt) > 60000) notify('masters', 'arrived', `Отряд «${p.name}» добрался до цели${p.journey.label ? ': ' + p.journey.label : ''}`, { partyId: p.id })
       p.journey = null
       changed = true
+      if (p.squad && squadCameHome(p)) db.parties = db.parties.filter(x => x !== p)
     }
   }
   if (changed) {
@@ -506,6 +510,20 @@ setInterval(() => {
   }
   if (guestViewString(now) !== lastGuestView) broadcast()
 }, 5000)
+
+// отряд поселения дошёл до своего города — снова «дома», с карты мира уходит
+function squadCameHome(p) {
+  const db = getDb()
+  const st = (db.settlements || []).find(x => x.id === p.squad.settlementId)
+  const q = st?.army?.squads?.find(x => x.id === p.squad.squadId)
+  const city = st && db.cities.find(c => c.id === st.cityId)
+  if (!q || !city || Math.hypot(p.x - city.x, p.y - city.y) > 3) return false
+  q.status = 'home'
+  q.partyId = null
+  notify('masters', 'arrived', `${st.name}: отряд «${q.name}» вернулся домой`, settleLink(st, 'squads'))
+  logEntry(st, 'army', `Отряд «${q.name}» вернулся домой`)
+  return true
+}
 
 setInterval(backupDb, 6 * 3600 * 1000)
 
@@ -759,7 +777,8 @@ app.post('/api/parties/:id/journey', requireMaster, (req, res) => {
   const cur = partyPosition(p, Date.now())
   p.x = cur.x
   p.y = cur.y
-  p.journey = { path: pathPts, startAt, endAt, label: T.str(120)(body.label), createdAt: Date.now() }
+  const stops = (Array.isArray(body.stops) ? body.stops : []).slice(0, 30).map(st => ({ x: COORD(st?.x), y: COORD(st?.y), name: T.str(60)(st?.name), s: T.num(0, 1)(st?.s) }))
+  p.journey = { path: pathPts, startAt, endAt, label: T.str(120)(body.label), stops, createdAt: Date.now() }
   saveDb()
   broadcast()
   res.json(p)
@@ -1730,6 +1749,32 @@ app.post('/api/settlements/:id/buildings/:bid/repair', requireMaster, (req, res)
   saveDb()
   broadcast()
   res.json(b)
+})
+
+app.post('/api/settlements/:id/squads/:qid/deploy', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const q = s?.army?.squads?.find(x => x.id === req.params.qid)
+  if (!q) return res.status(404).json({ error: 'Отряд не найден' })
+  if (!q.commander) return res.status(400).json({ error: 'Без командира отряд не выйдет' })
+  const db = getDb()
+  let p = q.partyId && db.parties.find(x => x.id === q.partyId)
+  if (!p) {
+    const city = db.cities.find(c => c.id === s.cityId)
+    if (!city) return res.status(400).json({ error: 'Поселение не привязано к городу на карте мира' })
+    const cargo = [...(q.wagons || []), ...(q.packs || [])].some(Boolean)
+    p = {
+      id: newId('p'), name: q.name || 'Отряд', color: q.color || '#e6c27a', icon: cargo ? 'horse' : 'flag', x: city.x, y: city.y,
+      pace: null, members: [], description: `Отряд поселения «${s.name}»`, secret: '', hidden: false, journey: null, route: null,
+      squad: { settlementId: s.id, squadId: q.id }, createdAt: Date.now()
+    }
+    db.parties.push(p)
+    q.partyId = p.id
+    logEntry(s, 'army', `Отряд «${q.name}» выходит из ${city.name}`)
+  }
+  q.status = 'out'
+  saveDb()
+  broadcast()
+  res.json(p)
 })
 
 // итог боя: потери снимаются со стеков, половина павших — раненые в лечебницу, остальные погибли

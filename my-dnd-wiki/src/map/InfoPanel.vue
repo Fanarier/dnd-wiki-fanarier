@@ -83,10 +83,29 @@
             <span v-if="!journey.waiting">ещё {{ fmtDuration(item.journey.endAt - store.now) }}</span>
           </div>
           <div v-if="item.journey.label" class="ui-muted">{{ item.journey.label }}</div>
+          <!-- точки интереса похода и когда отряд будет у каждой -->
+          <ol v-if="item.journey.stops?.length" class="pois">
+            <li v-for="(st, i) in item.journey.stops" :key="i" :class="{ passed: journey.progress >= st.s }">
+              <b>{{ st.name || (i === item.journey.stops.length - 1 ? 'Цель' : `Точка ${i + 1}`) }}</b>
+              <span>{{ journey.progress >= st.s ? 'пройдено' : fmtDateTime(item.journey.startAt + (item.journey.endAt - item.journey.startAt) * st.s) }}</span>
+            </li>
+          </ol>
           <button class="ui-btn small" @click="replay"><Icon name="play" :size="16" /> Показать маршрут</button>
         </template>
         <div v-else class="ui-muted">Отряд стоит на месте<template v-if="onRoute && curStop">: <b>{{ curStop.name }}</b></template>.</div>
         <div class="ui-muted small">Темп: {{ item.pace ? `${item.pace} км/день` : `по умолчанию (${store.data.settings.paceKmPerDay} км/день)` }}</div>
+      </div>
+
+      <!-- отряд поселения: кто идёт, что везёт (секретное задание игрокам не приходит) -->
+      <div v-if="type === 'parties' && squadInfo" class="squad-box">
+        <div class="sb-h"><b>Отряд поселения «{{ squadInfo.settlement.name }}»</b>
+          <router-link :to="{ path: `/settlement/${squadInfo.settlement.id}`, query: { tab: 'squads' } }">открыть →</router-link></div>
+        <div class="sb-row"><span>Командир</span><b>{{ squadInfo.commander || '—' }}</b></div>
+        <div class="sb-row"><span>Воинов</span><b>{{ squadInfo.total }} · сила {{ squadInfo.power }}</b></div>
+        <div class="sb-units"><span v-for="u in squadInfo.units" :key="u.key" class="ui-chip">{{ u.name }}{{ u.count > 1 ? ' ×' + u.count : '' }}</span></div>
+        <div v-if="squadInfo.cargo" class="sb-row"><span>Обоз</span><b>{{ squadInfo.cargo }}</b></div>
+        <div v-if="squadInfo.task" class="sb-row"><span>Задание</span><b>{{ squadInfo.task }}</b></div>
+        <div v-for="m in squadInfo.meters" :key="m.label" class="sb-meter"><span>{{ m.label }}</span><div class="ui-progress"><i :style="{ width: m.value + '%' }" /></div><b>{{ m.value }}%</b></div>
       </div>
 
       <div v-if="type === 'parties' && master && store.data.routes.length" class="route-box">
@@ -360,6 +379,7 @@ import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
 import { URGENCY, rewardText } from '../shared/quests.js'
 import { polyLength, journeyState, anomalyState } from '../shared/geo.js'
+import { squadUnits, power, cargoTotal } from '../shared/army.js'
 
 const master = isMaster
 const item = computed(() => findSelected())
@@ -415,6 +435,23 @@ const capital = computed(() => (type.value === 'states' ? store.data.cities.find
 const roadLen = computed(() => (type.value === 'roads' ? polyLength(item.value.points) : 0))
 const routeLen = computed(() => (type.value === 'routes' ? polyLength(item.value.points) : 0))
 const journey = computed(() => (type.value === 'parties' ? journeyState(item.value.journey, store.now) : null))
+// отряд на карте — это отряд поселения: показываем, кто в нём и что везёт
+const squadInfo = computed(() => {
+  const link = type.value === 'parties' && item.value?.squad
+  if (!link) return null
+  const st = (store.data.settlements || []).find(x => x.id === link.settlementId)
+  const q = st?.army?.squads?.find(x => x.id === link.squadId)
+  if (!q) return null
+  const units = squadUnits(st, q, store.data.heroes || [])
+  const cmd = units.find(u => u.line === 'cmd')
+  const cargo = [...(q.wagons || []), ...(q.packs || [])].filter(Boolean).map(c => `${c.label} ×${c.count}`).join(', ')
+  return {
+    settlement: st, commander: cmd?.name, total: units.reduce((n, u) => n + u.count, 0), power: units.reduce((n, u) => n + power(u), 0),
+    units: units.filter(u => u.line !== 'cmd').map((u, i) => ({ key: i, name: u.name, count: u.count })),
+    cargo: cargo ? `${cargo} · везёт ${cargoTotal(q)}` : '', task: q.task,
+    meters: [{ label: 'Задание', value: q.taskProgress ?? 0 }, { label: 'Готовность', value: q.ready ?? 100 }, { label: 'Усталость', value: q.fatigue ?? 0 }]
+  }
+})
 const anomaly = computed(() => (type.value === 'anomalies' ? anomalyState(item.value, store.now) : {}))
 const anomalyStatus = computed(() => (anomaly.value.upcoming ? 'Ещё не проявилась' : anomaly.value.expired ? 'Угасла' : 'Активна'))
 
@@ -612,6 +649,19 @@ function replay() {
 </script>
 
 <style scoped>
+.pois { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; }
+.pois li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px dashed rgba(255, 255, 255, .08); }
+.pois li.passed { opacity: .5; }
+.pois span { color: var(--muted, #9d978b); }
+.squad-box { display: grid; gap: 5px; margin-top: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(231, 197, 111, .06); font-size: 12.5px; }
+.sb-h { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.sb-h b { color: var(--gold-2, #f3dc9e); }
+.sb-h a { color: var(--gold-2, #f3dc9e); font-size: 12px; font-weight: 700; }
+.sb-row { display: flex; justify-content: space-between; gap: 10px; }
+.sb-row span, .sb-meter span { color: var(--muted, #9d978b); }
+.sb-units { display: flex; flex-wrap: wrap; gap: 4px; }
+.sb-meter { display: grid; grid-template-columns: 78px 1fr 38px; gap: 6px; align-items: center; }
+.sb-meter b { text-align: right; }
 .info { position: absolute; top: 76px; right: 16px; bottom: 16px; width: 360px; display: flex; flex-direction: column; overflow: hidden; z-index: 20; }
 .info-head { display: flex; align-items: center; gap: 12px; padding: 16px 14px 12px 16px; border-bottom: 1px solid var(--line-2); }
 .info-badge { width: 42px; height: 42px; flex: none; border-radius: 12px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.06); border: 1px solid currentColor; }

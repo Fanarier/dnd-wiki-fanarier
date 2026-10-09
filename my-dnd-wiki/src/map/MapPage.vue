@@ -166,7 +166,7 @@ onMounted(init)
 // ссылки из вики: ?focus=quests:ID — показать заказ, ?pick=quest:ID — выбрать место заказа
 const route = useRoute()
 const router = useRouter()
-watch(() => [route.query.focus, route.query.pick, store.ready], () => {
+watch(() => [route.query.focus, route.query.pick, route.query.plan, store.ready], () => {
   if (!store.ready) return
   const { focus, pick } = route.query
   if (focus) {
@@ -182,7 +182,16 @@ watch(() => [route.query.focus, route.query.pick, store.ready], () => {
     store.pick = { purpose: 'questLoc', id: String(pick).slice(6) }
     toast('Кликни на карте место заказа')
   }
-  if (focus || pick) router.replace({ query: {} })
+  const plan = route.query.plan
+  if (plan && store.data.parties.some(p => p.id === plan)) {
+    const p = store.data.parties.find(x => x.id === plan)
+    store.selection = { type: 'parties', id: plan }
+    const home = route.query.home && store.data.cities.find(c => c.id === route.query.home)
+    store.journeyPlan = { partyId: plan, waypoints: home ? [[home.x, home.y]] : [], byRoad: true, ...(home ? { names: [home.name] } : {}), ...(route.query.label ? { label: String(route.query.label) } : {}) }
+    setTimeout(() => canvas.value?.flyTo(p.x, p.y, 3), 300)
+    toast(home ? 'Путь домой проложен — выбери время и «Отправить»' : 'Щёлкай по карте точки интереса, последняя — цель')
+  }
+  if (focus || pick || plan) router.replace({ query: {} })
 }, { immediate: true })
 
 /* ---------- Часы ---------- */

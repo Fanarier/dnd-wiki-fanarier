@@ -12,14 +12,25 @@
         <div class="sqh">
           <input v-if="master" :value="q.name" class="name-in" @change="save(q, { name: $event.target.value })" />
           <b v-else>{{ q.name }}</b>
-          <span class="pill" :class="q.status === 'out' ? 'out' : 'home'">{{ q.status === 'out' ? 'в походе' : 'дома' }}</span>
+          <span class="pill" :class="party(q) ? 'out' : 'home'">{{ party(q) ? (trip(q) ? 'в походе' : 'на карте мира') : 'дома' }}</span>
           <router-link v-if="party(q)" class="maplink" :to="{ path: '/', query: { focus: 'parties:' + q.partyId } }">«{{ party(q).name }}» на карте →</router-link>
         </div>
+        <!-- поход по карте мира: отряд появляется в родном городе и идёт по точкам мастера -->
+        <div v-if="party(q)" class="trip">
+          <template v-if="trip(q)">
+            <div class="trip-h"><span>{{ trip(q).waiting ? 'Выступит' : 'В пути' }}{{ party(q).journey.label ? ' · ' + party(q).journey.label : '' }}</span><b>{{ Math.round(trip(q).progress * 100) }}%</b></div>
+            <div class="bar"><i :style="{ width: trip(q).progress * 100 + '%', background: 'linear-gradient(90deg, #2f8f9e, #6fd6e8)' }" /></div>
+            <div class="trip-n">прибудет {{ fmtDateTime(party(q).journey.endAt) }}{{ !trip(q).waiting ? ' · ещё ' + fmtDuration(party(q).journey.endAt - store.now) : '' }}</div>
+            <div v-if="nextStop(q)" class="trip-n">следующая точка: <b>{{ nextStop(q).name || 'без названия' }}</b> — {{ fmtDateTime(nextStop(q).at) }}</div>
+          </template>
+          <div v-else class="trip-n">стоит на карте мира — ждёт маршрута</div>
+        </div>
         <div v-if="master" class="sq-ctl">
-          <select :value="q.status || 'home'" @change="save(q, { status: $event.target.value })"><option value="home">дома</option><option value="out">в походе</option></select>
-          <select :value="q.partyId || ''" title="Отряд на большой карте мира" @change="save(q, { partyId: $event.target.value || null })">
-            <option value="">— не на карте мира —</option><option v-for="p in parties" :key="p.id" :value="p.id">{{ p.name }}</option>
-          </select>
+          <button v-if="!party(q)" class="mini go" :disabled="!q.commander" :title="q.commander ? 'Отряд появится в родном городе на карте мира, дальше — точки маршрута' : 'Сначала назначь командира'" @click="deploy(q)">🗺 Выйти в поход</button>
+          <template v-else>
+            <button class="mini go" @click="deploy(q)">🗺 Новый маршрут</button>
+            <button class="mini" title="Проложить путь обратно — дома отряд сам уйдёт с карты" @click="deploy(q, true)">⌂ Домой</button>
+          </template>
           <button class="mini" @click="$emit('battle', q.id)">⚔ Бой</button>
           <button class="mini danger" @click="removeSquad(q)">Распустить</button>
         </div>
@@ -54,7 +65,8 @@
         <div class="meters">
           <div class="task">
             <input v-if="master" :value="q.task || ''" placeholder="Задание: «Сопроводить караван в Ширатори»" @change="save(q, { task: $event.target.value })" />
-            <span v-else>{{ q.task || 'Задания нет' }}</span>
+            <span v-else>{{ q.task || 'Задание не сообщается' }}</span>
+            <label v-if="master" class="secret"><input type="checkbox" :checked="q.taskSecret" @change="save(q, { taskSecret: $event.target.checked })" /> 🔒 секретное — игроки не видят</label>
           </div>
           <div v-for="m in METERS" :key="m.key" class="meter">
             <span>{{ m.label }}</span>
@@ -75,7 +87,9 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { store, act } from '../map/store.js'
+import { useRouter } from 'vue-router'
+import { store, act, fmtDateTime, fmtDuration } from '../map/store.js'
+import { journeyState } from '../shared/geo.js'
 import { STATS, LINES, LINE_SLOTS, CARGO_SLOTS, unitOf, squadUnits, power, cargoTotal, squadLimit } from '../shared/army.js'
 import { faceOf } from './armyFaces.js'
 import UnitSlot from './UnitSlot.vue'
@@ -90,6 +104,20 @@ const parties = computed(() => store.data.parties || [])
 const squads = computed(() => s.value.army?.squads || [])
 const limit = computed(() => squadLimit(s.value))
 const party = q => q.partyId && parties.value.find(p => p.id === q.partyId)
+const trip = q => { const p = party(q); return p?.journey ? journeyState(p.journey, store.now) : null }
+// ближайшая непройденная точка интереса и когда отряд там будет
+function nextStop(q) {
+  const j = party(q)?.journey, t = trip(q)
+  const st = j?.stops?.find(x => x.s > t.progress)
+  return st ? { ...st, at: j.startAt + (j.endAt - j.startAt) * st.s } : null
+}
+const router = useRouter()
+// выйти в поход: отряд появляется в родном городе, на карте сразу открывается прокладка маршрута
+async function deploy(q, home = false) {
+  const p = await act('POST', `${base()}/squads/${q.id}/deploy`, {}).catch(() => null)
+  if (!p) return
+  router.push({ path: '/', query: { plan: p.id, ...(home ? { home: s.value.cityId, label: 'Домой' } : q.task && !q.taskSecret ? { label: q.task } : {}) } })
+}
 const unit = sl => unitOf(s.value, sl, s.value.assets, heroes.value)
 const lineUnit = (q, l, i) => {
   const u = unit(q.lines?.[l]?.[i])
@@ -107,7 +135,11 @@ function addSquad() {
   const q = { id: 'q' + Date.now().toString(36), name: `Отряд ${squads.value.length + 1}`, commander: null, lines: { van: [null, null, null], mid: [null, null, null], rear: [null, null, null] }, wagons: [null, null, null], packs: [null, null, null], status: 'home', partyId: null, task: '', taskProgress: 0, ready: 100, fatigue: 0 }
   saveArmy({ squads: [...squads.value, q] }, 'Отряд создан — назначь командира')
 }
-const removeSquad = q => confirm(`Распустить «${q.name}»? Воины вернутся в число свободных боевых.`) && saveArmy({ squads: squads.value.filter(x => x.id !== q.id) }, 'Отряд распущен')
+async function removeSquad(q) {
+  if (!confirm(`Распустить «${q.name}»? Воины вернутся в число свободных боевых${party(q) ? ', отряд уйдёт с карты мира' : ''}.`)) return
+  if (party(q)) await act('DELETE', `/api/parties/${q.partyId}`).catch(() => null)
+  saveArmy({ squads: squads.value.filter(x => x.id !== q.id) }, 'Отряд распущен')
+}
 
 /* слоты */
 const editing = ref(null)
@@ -167,6 +199,14 @@ h3 small { font: 600 12px var(--a-sans); color: var(--a-muted); }
 .sq-ctl select, .task input, .cg-edit input { min-height: 28px; padding: 2px 7px; border-radius: 7px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 600 12px var(--a-sans); }
 .mini { padding: 4px 9px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; justify-self: start; }
 .mini.danger { color: #ff9b8f; border-color: rgba(255, 107, 94, .4); }
+.mini.go { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
+.mini:disabled { opacity: .45; cursor: not-allowed; }
+.trip { display: grid; gap: 4px; padding: 8px 10px; border-radius: 10px; background: rgba(111, 214, 232, .07); border: 1px solid rgba(111, 214, 232, .25); }
+.trip-h { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; font-weight: 700; color: #bfe9f1; }
+.trip-h b { color: #6fd6e8; }
+.trip-n { font-size: 11.5px; color: var(--a-muted); }
+.trip-n b { color: #d9cdb0; }
+.secret { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 11.5px; font-weight: 700; color: var(--a-muted); }
 .alert { padding: 5px 10px; border-radius: 8px; background: rgba(255, 179, 107, .1); color: #ffcf9b; font-size: 12px; font-weight: 700; }
 .cmd { display: flex; justify-content: center; }
 .cmd > * { max-width: 300px; }

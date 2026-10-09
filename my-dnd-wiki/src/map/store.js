@@ -93,13 +93,16 @@ export const planPath = computed(() => {
   const start = partyPosition(party, store.now)
   const stops = [[start.x, start.y], ...plan.waypoints]
   const points = [stops[0]]
-  let allByRoad = plan.waypoints.length > 0
+  const marks = [] // длина пути до каждой точки
+  let allByRoad = plan.waypoints.length > 0, run = 0
   for (let i = 1; i < stops.length; i++) {
     const leg = plan.byRoad ? findRoute(roadGraph.value, stops[i - 1], stops[i]) : { points: [stops[i - 1], stops[i]], byRoad: false }
     if (!leg.byRoad) allByRoad = false
     points.push(...leg.points.slice(1))
+    run += polyLength(leg.points)
+    marks.push(run)
   }
-  return { points, length: polyLength(points), byRoad: allByRoad }
+  return { points, length: polyLength(points), byRoad: allByRoad, marks }
 })
 
 export function toast(text, kind = 'info') {
