@@ -196,7 +196,7 @@
               <g :transform="`translate(${p.dest[0]},${p.dest[1]}) scale(${1 / view.k})`">
                 <path :d="ICONS.flag" transform="translate(-3,-20) scale(0.8)" :fill="p.color" class="dest-flag" />
               </g>
-              <g v-for="(st, i) in p.stops" :key="'st' + i" :transform="`translate(${st.x},${st.y}) scale(${1 / view.k})`" class="poi" :class="{ passed: st.passed }">
+              <g v-for="(st, i) in p.stops" :key="'st' + i" :transform="`translate(${st.x},${st.y}) scale(${1 / view.k})`" class="jstop" :class="{ passed: st.passed }">
                 <circle r="5" :fill="p.color" />
                 <text v-if="st.name && (view.k > 1.2 || isSel('parties', p.id))" y="-9" class="lbl lbl-poi">{{ st.name }}</text>
               </g>
@@ -1027,8 +1027,8 @@ watch(() => store.tool, t => {
 .party-bg { fill: currentColor; stroke: #0b0f17; stroke-width: 2.5; }
 .party-glyph { fill: #0b0f17; }
 .party-pulse { fill: none; stroke: currentColor; stroke-width: 2; animation: pulse 1.8s ease-out infinite; }
-.poi circle { stroke: #0b0f17; stroke-width: 1.5; }
-.poi.passed { opacity: .45; }
+.jstop circle { stroke: #0b0f17; stroke-width: 1.5; }
+.jstop.passed { opacity: .45; }
 .lbl-poi { font-size: 11px; font-weight: 800; text-anchor: middle; fill: #fff6e0; paint-order: stroke; stroke: rgba(10, 12, 18, .85); stroke-width: 3px; }
 .journey-done { fill: none; stroke-width: 3; stroke-opacity: 0.45; stroke-linecap: round; stroke-linejoin: round; }
 .journey-todo { fill: none; stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; stroke-linejoin: round; animation: march 1s linear infinite; }
