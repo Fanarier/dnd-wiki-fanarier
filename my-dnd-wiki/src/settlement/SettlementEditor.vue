@@ -230,7 +230,8 @@ async function portrait(a, e) {
   e.target.value = ''
   if (!file) return
   try {
-    a.portrait = (await uploadSettlementPortrait(props.settlement.id, file)).url
+    const r = await uploadSettlementPortrait(props.settlement.id, file, 'Портрет: ' + (a.name || 'актив'))
+    if (r) a.portrait = r.url
   } catch (err) { toast(err.message, 'error') }
 }
 const newOutpost = ref('mine')

@@ -2,6 +2,7 @@
 import { reactive, computed, watch, ref } from 'vue'
 import { buildRoadGraph, findRoute, partyPosition, polyLength } from '../shared/geo.js'
 import { POINT_EFFECTS } from '../shared/catalog.js'
+import { cropImage } from '../components/cropState.js'
 
 const TOKEN_KEY = 'anacaria-token'
 const LAYERS_KEY = 'anacaria-layers'
@@ -555,9 +556,10 @@ async function postBlob(url, blob) {
   return json
 }
 
-// портрет актива поселения: квадратик до 512px
-export async function uploadSettlementPortrait(sid, file) {
-  const { blob } = await shrink(file, 512, 0.9)
+// значки и портреты поселения: сначала окно обрезки (квадрат 512px); null — если нажали «Отмена»
+export async function uploadSettlementPortrait(sid, file, title = 'Обрезка картинки') {
+  const blob = await cropImage(file, { title })
+  if (!blob) return null
   return postBlob(`/api/settlements/${sid}/portrait`, blob)
 }
 

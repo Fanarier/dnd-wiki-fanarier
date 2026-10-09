@@ -484,7 +484,7 @@ async function uploadSpecIcon(key, i, e) {
   e.target.value = ''
   if (!file) return
   uploading.value = true
-  try { setSpecIcon(key, i, (await uploadSettlementPortrait(s.value.id, file)).url) } catch (err) { toast(err.message, 'error') } finally { uploading.value = false }
+  try { const r = await uploadSettlementPortrait(s.value.id, file, 'Значок специалиста'); if (r) setSpecIcon(key, i, r.url) } catch (err) { toast(err.message, 'error') } finally { uploading.value = false }
 }
 
 

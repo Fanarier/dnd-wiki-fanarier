@@ -27,7 +27,7 @@ async function upload(e) {
   e.target.value = ''
   if (!file) return
   busy.value = true
-  try { emit('pick', (await uploadSettlementPortrait(props.settlementId, file)).url) } catch (err) { toast(err.message, 'error') } finally { busy.value = false }
+  try { const r = await uploadSettlementPortrait(props.settlementId, file, props.title); if (r) emit('pick', r.url) } catch (err) { toast(err.message, 'error') } finally { busy.value = false }
 }
 </script>
 

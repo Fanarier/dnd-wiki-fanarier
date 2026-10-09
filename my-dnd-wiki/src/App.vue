@@ -1,5 +1,7 @@
 <template>
   <router-view />
+  <!-- окно обрезки картинки перед загрузкой (иконки и портреты) -->
+  <ImageCropper />
   <!-- экран входа поверх всего: мастер / игрок / заявка / гость -->
   <GateScreen v-if="store.gate && !store.offline" :key="store.gate" />
   <!-- нет связи с сервером дольше 5 секунд -->
@@ -22,6 +24,7 @@ import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import GateScreen from './components/GateScreen.vue'
 import OfflineScreen from './components/OfflineScreen.vue'
+import ImageCropper from './components/ImageCropper.vue'
 import { store, init } from './map/store.js'
 
 const route = useRoute()
