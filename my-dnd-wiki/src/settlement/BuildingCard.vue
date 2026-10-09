@@ -64,7 +64,7 @@
         </div>
       </div>
       <div class="rows">
-        <div><span>Готовность</span><b :class="{ minus: wbuilt < wlen - 0.01 }">{{ wbuilt >= wlen - 0.01 ? 'построена' : `${fmtLen(wbuilt)} из ${fmtLen(wlen)}` }}</b></div>
+        <div><span>Готовность</span><b :class="{ minus: wbuilt < wlen - 0.1 }">{{ wbuilt >= wlen - 0.1 ? 'построена' : `${fmtLen(wbuilt)} из ${fmtLen(wlen)}` }}</b></div>
         <div><span>Защита</span><b>+{{ wdef }}</b></div>
         <div class="price-row"><span>Цена всей стены</span><PriceChips :price="wallPrice(item.type, wlen)" /></div>
         <div v-if="!item.features?.length" class="muted-row"><span>Ворота, калитки, башни</span><b>нет</b></div>

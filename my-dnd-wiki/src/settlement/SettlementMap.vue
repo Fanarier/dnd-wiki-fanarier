@@ -748,7 +748,7 @@ const tip = computed(() => {
   if (h.kind === 'needGate') return { title: 'Дорога упирается в стену', lines: ['Щёлкни — поставить ворота'] }
   if (h.kind === 'wall' || h.kind === 'wallFeature') {
     const w = h.kind === 'wall' ? h.item : h.wall, t = WALL_TYPES[w.type] || WALL_TYPES.palisade
-    const lines = [`Длина: ${fmtLen(w.len)}`, w.built < w.len - 0.01 ? `Стройка: ${fmtLen(w.built)} из ${fmtLen(w.len)}` : 'Построена', `Защита +${wallDefense([{ ...w, id: '_' }])}`]
+    const lines = [`Длина: ${fmtLen(w.len)}`, w.built < w.len - 0.1 ? `Стройка: ${fmtLen(w.built)} из ${fmtLen(w.len)}` : 'Построена', `Защита +${wallDefense([{ ...w, id: '_' }])}`]
     if (h.kind === 'wallFeature') return { title: WALL_FEATURES[h.item.kind].label + (h.item.built ? '' : ' (строится)'), lines: [`На стене: ${w.name || t.label.toLowerCase()}`] }
     return { title: w.name || t.label, lines }
   }

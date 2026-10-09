@@ -21,6 +21,9 @@ export const CLOSED_BONUS = 0.25
 
 export const featurePrice = (kind, wallType) => (kind === 'tower' && wallType === 'stone' ? WALL_FEATURES.tower.stonePrice : WALL_FEATURES[kind]?.price) || {}
 
+// стена достроена (построенное хранится с точностью 0,1 м)
+export const wallDone = w => (w.built ?? Infinity) >= wallLength(w.points) - 0.1
+
 export function wallLength(points = []) {
   let n = 0
   for (let i = 1; i < points.length; i++) n += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1])
@@ -116,7 +119,7 @@ export function wallDefense(walls) {
   const ring = closedWalls(walls)
   const ringReady = [...ring].every(id => {
     const w = walls.find(x => x.id === id)
-    return w && (w.built ?? Infinity) >= wallLength(w.points) - 0.01
+    return w && wallDone(w)
   })
   let total = 0
   for (const w of walls || []) {
