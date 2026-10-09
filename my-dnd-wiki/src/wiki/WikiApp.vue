@@ -31,6 +31,7 @@
       <main class="w-main" :class="{ 'theme-magic': isMagic }">
         <!-- живая стихия школы магии за текстом -->
         <MagicBackdrop v-if="isMagic && !magicLoading && element" :key="element" :kind="element" />
+        <MagicSparkles v-else-if="isMagic && !magicLoading" :key="currentCategory" />
         <div v-if="magicLoading" class="w-loader"><SteamLoader kind="magic" /></div>
         <transition v-else name="fade" mode="out-in">
           <div v-if="hasQuery" key="search-results">
@@ -46,7 +47,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
 import HeroesPage from './HeroesPage.vue'
@@ -55,6 +56,8 @@ import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
 import MagicBackdrop from './MagicBackdrop.vue'
+// искры на общих страницах магии — библиотека грузится только там
+const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 
 import Sidebar from '../components/Sidebar.vue'
 import SearchResults from '../components/SearchResults.vue'
