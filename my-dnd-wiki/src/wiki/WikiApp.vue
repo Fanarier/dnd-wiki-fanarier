@@ -29,6 +29,8 @@
       <div v-if="drawer" class="w-scrim" @click="drawer = false" />
 
       <main class="w-main" :class="{ 'theme-magic': isMagic }">
+        <!-- живая стихия школы магии за текстом -->
+        <MagicBackdrop v-if="isMagic && !magicLoading && element" :key="element" :kind="element" />
         <div v-if="magicLoading" class="w-loader"><SteamLoader kind="magic" /></div>
         <transition v-else name="fade" mode="out-in">
           <div v-if="hasQuery" key="search-results">
@@ -52,6 +54,7 @@ import SettlementsPage from './SettlementsPage.vue'
 import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
+import MagicBackdrop from './MagicBackdrop.vue'
 
 import Sidebar from '../components/Sidebar.vue'
 import SearchResults from '../components/SearchResults.vue'
@@ -157,6 +160,8 @@ watch(() => route.query.section, v => { if (v && categories.value.some(c => c.id
 const MAGIC = ['general', 'utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
 const isMagic = computed(() => MAGIC.includes(currentCategory.value) && !hasQuery.value)
 const magicLoading = ref(false)
+const ELEMENTS = { 'school-fire': 'fire', 'school-water': 'water', 'school-air': 'air', 'school-earth': 'earth' }
+const element = computed(() => ELEMENTS[currentCategory.value] || null)
 watch(currentCategory, (c, old) => {
   if (MAGIC.includes(c) && !MAGIC.includes(old)) {
     magicLoading.value = true
@@ -178,7 +183,7 @@ watch(currentCategory, (c, old) => {
 .w-clear { background: none; border: 0; color: var(--a-muted); font-size: 20px; cursor: pointer; }
 .w-loader { display: grid; place-items: center; min-height: 60vh; }
 /* магия: звёздное небо, светящиеся заголовки, мистические рамки */
-.theme-magic { position: relative; }
+.theme-magic { position: relative; isolation: isolate; } /* свой слой: фон и стихия за текстом, но над фоном приложения */
 .theme-magic::before { content: ''; position: fixed; inset: 64px 0 0; z-index: -1; pointer-events: none;
   background:
     radial-gradient(1px 1px at 12% 18%, #fff8, transparent), radial-gradient(1px 1px at 72% 12%, #fff7, transparent),
@@ -187,10 +192,11 @@ watch(currentCategory, (c, old) => {
     radial-gradient(900px 500px at 70% 10%, rgba(122, 92, 255, .16), transparent 70%),
     radial-gradient(700px 500px at 10% 90%, rgba(79, 216, 255, .08), transparent 70%);
   animation: twinkle 6s ease-in-out infinite alternate; }
-.theme-magic :deep(.v-card) { border-color: rgba(185, 166, 255, .35) !important; box-shadow: 0 0 0 1px rgba(122, 92, 255, .15), 0 0 40px rgba(122, 92, 255, .12), 0 18px 50px rgba(0, 0, 0, .35) !important; }
+.theme-magic :deep(.v-card) { background: rgba(16, 14, 30, .58) !important; backdrop-filter: blur(2px); border-color: rgba(185, 166, 255, .35) !important; box-shadow: 0 0 0 1px rgba(122, 92, 255, .15), 0 0 40px rgba(122, 92, 255, .12), 0 18px 50px rgba(0, 0, 0, .35) !important; }
 .theme-magic :deep(h2) { color: #d9ceff !important; text-shadow: 0 0 18px rgba(155, 125, 255, .55); }
 .theme-magic :deep(h3) { color: #b9a6ff !important; }
 .theme-magic :deep(strong) { color: #cfc2ff !important; }
+.theme-magic :deep(p.lead) { color: #cfc6e8 !important; }
 .theme-magic :deep(.magic-table caption.table-caption) { color: #d9ceff; background: rgba(122, 92, 255, .1); border-color: rgba(185, 166, 255, .3); }
 .theme-magic :deep(.magic-table tbody td:first-child) { color: #cfc2ff; }
 @keyframes twinkle { from { opacity: .7; } to { opacity: 1; } }
