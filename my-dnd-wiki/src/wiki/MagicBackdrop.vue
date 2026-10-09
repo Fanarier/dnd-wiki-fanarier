@@ -283,7 +283,7 @@ function jag(ax, ay, bx, by, d, out) {
   jag(mx, my, bx, by, d / 2, out)
 }
 function strike(x, y) {
-  const x0 = x + (Math.random() - 0.5) * W * 0.12, y0 = H * 0.06
+  const x0 = x + (Math.random() - 0.5) * W * 0.12, y0 = -12 * K // бьёт из-за верхнего края, из туч
   const main = [[x0, y0]]
   jag(x0, y0, x, y, Math.max(80 * K, (y - y0) * 0.35), main)
   const branches = []
