@@ -23,7 +23,7 @@
     </header>
 
     <div class="w-layout">
-      <aside class="w-side" :class="{ open: drawer }">
+      <aside class="w-side" :class="{ open: drawer, 'magic-side': isMagic }">
         <Sidebar :categories="categories" :initial-active="currentCategory" @select="onCategorySelect" />
       </aside>
       <div v-if="drawer" class="w-scrim" @click="drawer = false" />
@@ -220,6 +220,8 @@ watch(currentCategory, (c, old) => {
 
 .w-layout { display: flex; max-width: 1360px; margin: 0 auto; width: 100%; }
 .w-side { position: sticky; top: 64px; width: 280px; flex: none; height: calc(100vh - 64px); overflow-y: auto; padding: 22px 12px 22px 22px; }
+/* на страницах магии фон-стихия идёт на весь экран — меню разделов поверх него на полупрозрачной подложке */
+@media (min-width: 901px) { .w-side.magic-side { z-index: 2; background: rgba(13, 16, 23, .8); backdrop-filter: blur(6px); border-right: 1px solid rgba(185, 166, 255, .14); } }
 .w-main { flex: 1; min-width: 0; padding: 26px 26px 60px; }
 .w-h { font-family: var(--a-serif); font-size: 30px; color: var(--a-gold-2); margin-bottom: 14px; }
 .w-scrim { display: none; }

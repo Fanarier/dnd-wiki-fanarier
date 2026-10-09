@@ -8,23 +8,10 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 const box = ref(null)
-let container = null, ro = null, dead = false
+let container = null, dead = false
 const still = matchMedia('(prefers-reduced-motion: reduce)').matches
 
-// как у MagicBackdrop: слой закреплён на экране, но только над колонкой статьи
-function place() {
-  const el = box.value
-  if (!el?.parentElement) return
-  const r = el.parentElement.getBoundingClientRect()
-  el.style.left = r.left + 'px'
-  el.style.width = r.width + 'px'
-}
-
 onMounted(async () => {
-  place()
-  ro = new ResizeObserver(place)
-  ro.observe(box.value.parentElement)
-  window.addEventListener('resize', place)
   const [{ tsParticles }, { loadSlim }] = await Promise.all([import('@tsparticles/engine'), import('@tsparticles/slim')])
   await loadSlim(tsParticles)
   if (dead) return
@@ -58,14 +45,12 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   dead = true
-  ro?.disconnect()
-  window.removeEventListener('resize', place)
   container?.destroy()
 })
 </script>
 
 <style scoped>
-.msp { position: fixed; top: 64px; left: 0; width: 100%; height: calc(100% - 64px); z-index: -1; pointer-events: none; animation: msp-in 1.2s ease both; }
+.msp { position: fixed; top: 64px; left: 0; right: 0; bottom: 0; z-index: -1; pointer-events: none; animation: msp-in 1.2s ease both; }
 .msp :deep(canvas) { pointer-events: none !important; }
 @keyframes msp-in { from { opacity: 0; } }
 </style>
