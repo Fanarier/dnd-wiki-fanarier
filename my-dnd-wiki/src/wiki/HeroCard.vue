@@ -1,6 +1,6 @@
 <template>
   <div class="slot" :id="'hero-' + hero.id"
-       :class="[hero.kind, theme && 'themed th-' + theme, { flip, mine, shade: hero.hidden, pulse, live, unique: hero.kind === 'companion' && hero.rarity === 'unique' }]"
+       :class="[hero.kind, theme && 'themed th-' + theme, { flip, mine, shade: hero.hidden, pulse, live, holo, unique: hero.kind === 'companion' && hero.rarity === 'unique' }]"
        :style="[{ '--gc': gc, '--rc': rarity?.color, animationDelay: delay + 'ms' }, tvars, mouse]"
        @mousemove="tilt" @mouseenter="enter" @mouseleave="untilt" @touchstart.passive="tap">
     <div class="card" :style="tiltStyle">
@@ -93,6 +93,7 @@
         </div>
         <button v-if="hero.kind === 'character'" class="turn" @click.stop="turn">↻ Расходы и отношения</button>
         <HeroFx v-if="theme && fxOn && !flip" :theme="theme" layer="front" :out="!live" />
+        <i v-if="holo" class="hsheen" />
       </div>
 
       <!-- ===== оборот (только персонажи) ===== -->
@@ -154,6 +155,8 @@ const owner = computed(() => props.hero.ownerId && store.data.roster?.find(p => 
 const noGroup = computed(() => isNoGroup(props.hero.group))
 const gc = computed(() => groupColor(props.hero.group))
 const rarity = computed(() => RARITY[props.hero.rarity] || RARITY.common)
+// голо-блеск: у уникальных компаньонов всегда, остальным — если мастер включил
+const holo = computed(() => !!props.hero.holo || (props.hero.kind === 'companion' && props.hero.rarity === 'unique'))
 const initial = computed(() => (props.hero.name || '?').trim()[0]?.toUpperCase() || '?')
 const staminaPct = computed(() => (props.hero.staminaMax ? Math.max(0, Math.min(100, (props.hero.stamina / props.hero.staminaMax) * 100)) : 0))
 const keeper = computed(() => props.hero.masterId && store.data.heroes?.find(h => h.id === props.hero.masterId))
@@ -302,7 +305,10 @@ function turn() {
 function tilt(e) {
   if (flip.value || matchMedia('(hover: none)').matches) return
   const r = e.currentTarget.getBoundingClientRect()
-  if (theme.value === 'marksman') mouse.value = { '--mx': `${Math.round(e.clientX - r.left)}px`, '--my': `${Math.round(e.clientY - r.top)}px` }
+  const m = {}
+  if (theme.value === 'marksman') Object.assign(m, { '--mx': `${Math.round(e.clientX - r.left)}px`, '--my': `${Math.round(e.clientY - r.top)}px` })
+  if (holo.value) Object.assign(m, { '--hx': `${Math.round(((e.clientX - r.left) / r.width) * 100)}%`, '--hy': `${Math.round(((e.clientY - r.top) / r.height) * 100)}%` })
+  mouse.value = m
   ry.value = ((e.clientX - r.left) / r.width - 0.5) * 12
   rx.value = -((e.clientY - r.top) / r.height - 0.5) * 12
 }
@@ -323,6 +329,17 @@ function untilt() {
 /* блик при наведении */
 .front::before { content: ''; position: absolute; inset: 0; z-index: 5; pointer-events: none; background: linear-gradient(115deg, transparent 35%, rgba(255, 236, 190, .13) 48%, transparent 60%); transform: translateX(-120%); }
 .slot:hover .front::before { transform: translateX(120%); transition: transform 1s ease; }
+/* голо-блеск: радужные полосы сдвигаются за мышкой, у курсора — светлое пятно; на телефоне переливается сам */
+.hsheen { position: absolute; inset: 0; z-index: 6; pointer-events: none; border-radius: inherit; opacity: .1; mix-blend-mode: screen; transition: opacity .35s;
+  background: repeating-linear-gradient(115deg, #ff6b8b 0%, #ffcf6b 6%, #7dffa0 12%, #6bd8ff 18%, #b58cff 24%, #ff6b8b 30%);
+  background-size: 260% 260%; background-position: var(--hx, 50%) var(--hy, 50%); }
+.hsheen::after { content: ''; position: absolute; inset: 0; border-radius: inherit; mix-blend-mode: overlay; background: radial-gradient(circle at var(--hx, 50%) var(--hy, 30%), rgba(255, 255, 255, .55), transparent 45%); opacity: 0; transition: opacity .35s; }
+.slot.holo.live .hsheen { opacity: .26; }
+.slot.holo.live .hsheen::after { opacity: 1; }
+.slot.holo .face.front { box-shadow: 0 0 0 3px #241c13, 0 0 0 4px rgba(190, 160, 255, .45), 0 0 26px rgba(150, 200, 255, .18), 0 18px 40px rgba(0, 0, 0, .55); }
+@media (hover: none) { .hsheen { animation: holo-drift 7s ease-in-out infinite alternate; } }
+@keyframes holo-drift { from { background-position: 0% 20%; } to { background-position: 100% 80%; } }
+@media (prefers-reduced-motion: reduce) { .hsheen { animation: none; } }
 .rivet { position: absolute; z-index: 4; width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe9b0, #8a6630 60%, #3b2a12); }
 .rivet.a { top: 7px; left: 7px; } .rivet.b { top: 7px; right: 7px; } .rivet.c { bottom: 7px; left: 7px; } .rivet.d { bottom: 7px; right: 7px; }
 .stripe { position: absolute; top: 0; left: 20%; right: 20%; height: 3px; border-radius: 0 0 4px 4px; background: var(--gc); box-shadow: 0 0 12px var(--gc); }
@@ -436,7 +453,7 @@ function untilt() {
 .themed.mine { --ring: rgba(155, 224, 122, .6); }
 .themed .face { background: var(--tpat), linear-gradient(180deg, var(--tbg1), var(--tbg2)); border-color: var(--tf); box-shadow: 0 0 0 3px var(--tbg2), 0 0 0 4px var(--ring), 0 0 var(--glow-r, 18px) color-mix(in srgb, var(--ta) var(--glow-a, 12%), transparent), 0 18px 40px rgba(0, 0, 0, .55); transition: box-shadow .5s; }
 .themed.live .face { --glow-r: 38px; --glow-a: 36%; }
-.face > :not(.tdeco, .rivet, .stripe, .hfx, .port) { position: relative; z-index: 1; }
+.face > :not(.tdeco, .rivet, .stripe, .hfx, .port, .hsheen) { position: relative; z-index: 1; }
 .tdeco { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
 .mark { position: absolute; right: -28px; bottom: -30px; width: 170px; height: 170px; color: var(--ta); opacity: .07; transition: opacity .6s, filter .6s; }
 .themed.live .mark { opacity: .17; filter: drop-shadow(0 0 10px var(--ta)); }

@@ -111,6 +111,7 @@
           </div>
         </fieldset>
         <label v-if="master" class="chk"><input v-model="h.hidden" type="checkbox" /> ☾ В тени — игроки не видят карточку (владелец видит)</label>
+        <label v-if="master" class="chk"><input v-model="h.holo" type="checkbox" /> ✦ Голо-блеск — радужный отлив за мышкой{{ h.kind === 'companion' && h.rarity === 'unique' ? ' (у уникальных и так есть)' : '' }}</label>
       </div>
 
       <footer>
@@ -145,7 +146,7 @@ const emit = defineEmits(['close', 'save', 'delete'])
 const BLANK = {
   kind: 'character', name: '', level: 1, bm: '+5', staminaMax: 20, stamina: 20, location: '', housing: '', group: '',
   illness: 0, effectPlus: '', effectMinus: '', expenses: { life: 0, housing: 0, business: 0 }, expensesMax: 5, relations: [],
-  ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false
+  ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false, holo: false
 }
 const h = reactive({ ...JSON.parse(JSON.stringify(BLANK)), ...JSON.parse(JSON.stringify(props.hero)) })
 h.expenses = { ...BLANK.expenses, ...h.expenses }
@@ -212,7 +213,7 @@ function save() {
   for (const r of h.relations) carry(r)
   if (!h.ownerId) h.canEdit = false
   const { id, gallery, createdAt, onlyYou, order, ...body } = h
-  if (!props.master) for (const k of ['kind', 'ownerId', 'canEdit', 'hidden', 'masterId', 'rarity', 'status']) delete body[k]
+  if (!props.master) for (const k of ['kind', 'ownerId', 'canEdit', 'hidden', 'holo', 'masterId', 'rarity', 'status']) delete body[k]
   emit('save', { id, body, gallery: gal.value, removed })
 }
 </script>

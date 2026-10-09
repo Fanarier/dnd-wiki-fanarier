@@ -245,7 +245,7 @@ const SCHEMAS = {
       illness: int(0, ILLNESS_MAX), effectPlus: T.str(300), effectMinus: T.str(300),
       expenses: T.expenses(), expensesMax: int(1, 10), relations: T.relations(),
       ownerId: PLAYER_ID, canEdit: T.bool(), status: T.str(60), rarity: T.oneOf(Object.keys(RARITY)),
-      masterId: T.idOrNull(), hidden: T.bool(), order: T.num(-1e6, 1e6)
+      masterId: T.idOrNull(), hidden: T.bool(), holo: T.bool(), order: T.num(-1e6, 1e6)
     }
   },
   fog: {
@@ -891,7 +891,7 @@ app.use('/usericons', express.static(ICON_DIR, {
 
 /* ---------- Герои Анкарии: карточки персонажей, сайд-киков, компаньонов ---------- */
 // владелец с правом правки меняет всё, кроме служебного
-const HERO_OWNER_LOCKED = ['kind', 'ownerId', 'canEdit', 'hidden', 'order', 'masterId', 'rarity', 'status']
+const HERO_OWNER_LOCKED = ['kind', 'ownerId', 'canEdit', 'hidden', 'holo', 'order', 'masterId', 'rarity', 'status']
 const findHero = id => getDb().heroes.find(h => h.id === id)
 const canEditHero = (u, h) => u?.role === 'master' || (!!u && h.kind === 'character' && h.ownerId === u.id && h.canEdit)
 
