@@ -2,6 +2,7 @@
 // Мастер правит текст и выпускает его в журнал (последствия применяются, если он оставил галочку) или отбрасывает.
 // Общий для сервера и клиента.
 import { RES, RACES, OUTPOSTS, BUILDINGS, DAMAGE, DAMAGE_ORDER, computeSettlement } from './settlement.js'
+import { makeName } from './names.js'
 
 const pick = (rnd, list) => list[Math.floor(rnd() * list.length)]
 const between = (rnd, a, b) => Math.round(a + rnd() * (b - a))
@@ -168,7 +169,7 @@ export const EVENT_IDEAS = [
       const room = c.housing.cap - c.housing.used
       return {
         title: 'Беженцы просят приюта', type: 'important', duration: ['decide'],
-        text: `К воротам пришли ${n} ${plural(n, 'беженец', 'беженца', 'беженцев')} (${RACES[race].label}) — их деревню сожгли. Свободного жилья: ${room}. Примем?`,
+        text: `К воротам пришли ${n} ${plural(n, 'беженец', 'беженца', 'беженцев')} (${RACES[race].label}) — их деревню сожгли. Говорит за всех ${makeName(race, null, rnd)}. Свободного жилья: ${room}. Примем?`,
         effect: `Если принять: +${n} ${plural(n, 'житель', 'жителя', 'жителей')} (${RACES[race].label}), больше ртов`
       }
     }
@@ -251,9 +252,11 @@ export const EVENT_IDEAS = [
     id: 'wanderer', label: 'Путник',
     weight: (s, c) => (c.guests.cap > 0 ? 0.8 : 0.3),
     make(s, c, rnd) {
-      const who = pick(rnd, ['бродячий бард', 'усталый паломник', 'наёмник без нанимателя', 'гном-картограф', 'молчаливая эльфийка в капюшоне'])
+      // кто пришёл и как его зовут (имя — по расе)
+      const [kind, race, g] = pick(rnd, [['бродячий бард', 'human', 'm'], ['усталый паломник', 'human', 'm'], ['наёмник без нанимателя', 'fenris', 'm'], ['кентавр-картограф', 'centaur', 'm'], ['молчаливая эльфийка в капюшоне', 'highelf', 'f'], ['кицунэ-гадалка', 'kitsune', 'f']])
+      const who = `${kind} — ${makeName(race, g, rnd)},`
       const rumor = pick(rnd, ['в старой шахте на севере кто-то зажигает огни', 'на тракте видели королевских сборщиков податей', 'в горах проснулось что-то большое', 'соседняя деревня ищет союзников против разбойников'])
-      return { title: 'Путник в таверне', type: 'message', duration: ['quick'], text: `В таверне остановился ${who}. За кружкой рассказал, что ${rumor}.`, effect: '' }
+      return { title: 'Путник в таверне', type: 'message', duration: ['quick'], text: `В таверне ${g === 'f' ? 'остановилась' : 'остановился'} ${who} и за кружкой ${g === 'f' ? 'рассказала' : 'рассказал'}, что ${rumor}.`, effect: '' }
     }
   }
 ]

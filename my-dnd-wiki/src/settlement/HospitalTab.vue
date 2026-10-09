@@ -43,7 +43,7 @@
       </template>
       <select v-else-if="ad.kind === 'asset'" v-model="ad.asset"><option v-for="a in s.assets" :key="a.id" :value="a.id">{{ a.name }}</option></select>
       <select v-else-if="ad.kind === 'hero'" v-model="ad.hero"><option v-for="h in heroes" :key="h.id" :value="h.id">{{ h.name }}</option></select>
-      <input v-else v-model="ad.name" placeholder="Имя" />
+      <template v-else><input v-model="ad.name" placeholder="Имя" /><button type="button" class="nm-dice" title="Случайное имя — раса по жителям поселения" @click="ad.name = makeName(raceFromPeople(s.races))">🎲</button></template>
       <input v-model="ad.disease" placeholder="Болезнь или ранение" class="wide" />
       <button class="btn" @click="admit">Положить</button>
     </div>
@@ -56,6 +56,7 @@ import { store, act } from '../map/store.js'
 import { RACES } from '../shared/settlement.js'
 import { HEAL_STEP, BEDS_PER_HEALER, hospitalSplit } from '../shared/army.js'
 import { faceOf } from './armyFaces.js'
+import { makeName, raceFromPeople } from '../shared/names.js'
 
 const props = defineProps({ settlement: Object, calc: Object, master: Boolean, decider: Boolean })
 const s = computed(() => props.settlement)
@@ -119,4 +120,5 @@ h3 small { font: 600 12px var(--a-sans); color: var(--a-muted); margin-left: 6px
 .admit .wide { flex: 1; min-width: 160px; }
 .btn { height: 30px; padding: 0 12px; border-radius: 8px; border: 0; background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; font: 800 12px var(--a-sans); cursor: pointer; }
 @media (max-width: 640px) { .head { display: none; } .bed { grid-template-columns: 1fr; } .who { display: flex; align-items: center; gap: 8px; justify-items: start; text-align: left; } }
+.nm-dice { padding: 4px 8px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); font-size: 15px; line-height: 1; cursor: pointer; }
 </style>

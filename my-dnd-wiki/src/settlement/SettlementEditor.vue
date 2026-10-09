@@ -114,6 +114,7 @@
                 <input type="file" accept="image/*" hidden @change="portrait(a, $event)" />
               </label>
               <input v-model="a.name" class="name" placeholder="Имя" />
+              <button type="button" class="mini nm-dice" title="Случайное имя — раса по жителям поселения" @click="a.name = makeName(raceFromPeople(f.races))">🎲</button>
               <select v-model="a.frame"><option v-for="(c, k) in ASSET_FRAMES" :key="k" :value="k">{{ FRAME_LABELS[k] }}</option></select>
               <label class="chk"><input v-model="a.companion" type="checkbox" /> компаньон</label>
               <button class="mini" @click="f.assets.splice(i, 1)">×</button>
@@ -177,6 +178,7 @@ import { computed, ref } from 'vue'
 import { store, act, toast, uploadSettlementPortrait } from '../map/store.js'
 import { RESOURCES, RACES, RESIDENT_CATS, JOBS, OUTPOSTS, ASSET_FRAMES, computeSettlement } from '../shared/settlement.js'
 import { STATS as ARMY_STATS, DEFAULT_SQUAD_LIMITS, hasStats } from '../shared/army.js'
+import { makeName, raceFromPeople } from '../shared/names.js'
 
 const props = defineProps({ section: String, settlement: Object, wide: Boolean })
 const big = ref(props.wide)
@@ -304,6 +306,7 @@ input[type=color] { padding: 0; width: 34px; height: 30px; }
 .asset small { color: var(--a-muted); font-weight: 800; font-size: 11px; }
 .asset-h { display: flex; gap: 6px; align-items: center; }
 .asset-h .name { flex: 1; font: 700 15px var(--a-serif); }
+.nm-dice { padding: 2px 7px; font-size: 15px; line-height: 1; }
 .ph { width: 44px; height: 44px; flex: none; border-radius: 50%; overflow: hidden; display: grid; place-items: center; border: 2px dashed var(--a-line); cursor: pointer; color: var(--a-gold); font-size: 20px; }
 .ph img { width: 100%; height: 100%; object-fit: cover; }
 footer { display: flex; align-items: center; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--a-line); }
