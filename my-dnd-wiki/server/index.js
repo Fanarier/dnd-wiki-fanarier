@@ -14,8 +14,9 @@ import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
-import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, featurePrice } from '../src/shared/walls.js'
-import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
+import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePrice } from '../src/shared/walls.js'
+import { TRAIN_DAYS, LINES, splitFallen } from '../src/shared/army.js'
+import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
@@ -1169,7 +1170,7 @@ const SETTLE_KEYS = {
   name: 'string', kind: 'string', status: 'string', cityId: 'string', headHeroId: 'string', managers: 'array', managerSlots: 'number',
   deciders: 'array', stats: 'object', stock: 'object', races: 'array', buildings: 'array', jobs: 'object', assets: 'array',
   outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array', orders: 'array', day: 'number',
-  roads: 'array', clearings: 'array', walls: 'array'
+  roads: 'array', clearings: 'array', walls: 'array', army: 'object', hospital: 'array'
 }
 // дороги, вырубки, круги разведки и настройки местности — проверяем форму, лишнее отбрасываем
 const coord = v => Math.round(T.num(-2000, SETTLE_WORLD + 2000)(v) * 10) / 10
@@ -1276,6 +1277,39 @@ function startRepair(s, b, pay) {
   logEntry(s, 'build', `${b.damage === 'ruined' ? 'Отстраивают' : 'Чинят'} «${b.name || BUILDINGS[b.type].label}»${pay ? ' — ' + priceText(price) : ''}`)
   return null
 }
+/* ---------- войско: обучение, бой, лечебница ---------- */
+function startTraining(s, t) {
+  s.army ||= {}
+  ;(s.army.training ||= []).push({ id: newId('t'), race: t.race, count: t.count, days: TRAIN_DAYS, done: 0, ...(t.talent ? { talent: t.talent, sex: t.sex === 'female' ? 'female' : 'male' } : {}) })
+}
+const raceOf = (s, race) => (s.races || []).find(r => r.race === race)
+// житель стал воином: «Боевые» +N; талантливый ребёнок вырос — дети −1, взрослые +1 и бонус в стек гарнизона
+function finishTraining(s, t) {
+  const r = raceOf(s, t.race)
+  if (!r) return
+  if (t.talent) {
+    r.kids = Math.max(0, (r.kids || 0) - t.count)
+    r[t.sex || 'male'] = (r[t.sex || 'male'] || 0) + t.count
+  }
+  r.combat = (r.combat || 0) + t.count
+  const stack = (s.army?.garrison || []).find(sl => sl?.race === t.race)
+  if (stack) {
+    stack.count = (stack.count || 0) + t.count
+    if (t.talent) (stack.talents ||= []).push({ id: newId('tl'), ...t.talent })
+  } else if (t.talent) {
+    // стека нет — талант запомним за расой, мастер поставит воина в гарнизон
+    ;((s.army.pendingTalents ||= {})[t.race] ||= []).push({ id: newId('tl'), ...t.talent })
+  }
+}
+// погибшие жители: население −N (сначала мужчины, потом женщины)
+function bury(s, race, n) {
+  const r = raceOf(s, race)
+  if (!r) return
+  for (let i = 0; i < n; i++) {
+    const k = (r.male || 0) >= (r.female || 0) ? 'male' : 'female'
+    if ((r[k] || 0) > 0) r[k]--
+  }
+}
 const MAX_SUGGESTIONS = 8
 function addSuggestion(s) {
   s.suggestions ||= []
@@ -1360,7 +1394,7 @@ app.post('/api/settlements/:id/portrait', requireMaster, express.raw({ type: () 
 })
 
 /* приказы главы: построить, назначить рабочих, разведать, свободный — мастер одобряет */
-const ORDER_KINDS = ['build', 'workers', 'explore', 'repair', 'free']
+const ORDER_KINDS = ['build', 'workers', 'explore', 'repair', 'train', 'free']
 app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
@@ -1380,6 +1414,9 @@ app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
     o.workers = { job: b.job, count: Math.round(T.num(0, 999)(b.count)) }
   } else if (b.kind === 'explore') {
     o.explore = { x: Math.round(coord(b.x)), y: Math.round(coord(b.y)), r: 300 }
+  } else if (b.kind === 'train') {
+    if (!RACES[b.race] || !(s.races || []).some(r => r.race === b.race)) return res.status(400).json({ error: 'Такой расы в поселении нет' })
+    o.train = { race: b.race, count: Math.max(1, Math.round(T.num(1, 100)(b.count))) }
   } else if (b.kind === 'repair') {
     const bd = (s.buildings || []).find(x => x.id === b.building)
     if (!bd?.damage) return res.status(400).json({ error: 'Эта постройка целая' })
@@ -1431,6 +1468,9 @@ app.post('/api/settlements/:id/orders/:oid/:action(approve|reject)', requireMast
       clearUnder(s, b)
       addEvent(s, { title: 'Стройка начата', type: 'done', duration: ['quick'], text: `По приказу главы заложили «${def.label}». Сложность ${def.cost}.${free ? '' : ` Со склада ушло: ${priceText(def.price)}.`}`, location: s.name }, false)
       logEntry(s, 'build', `Заложена «${def.label}» по приказу ${o.byName}${free ? ' (бесплатно)' : ` — ${priceText(def.price)}`}`)
+    } else if (o.kind === 'train') {
+      startTraining(s, { race: o.train.race, count: o.train.count })
+      logEntry(s, 'army', `${RACES[o.train.race]?.label}: ${o.train.count} учатся воевать (приказ ${o.byName})`)
     } else if (o.kind === 'repair') {
       const bd = (s.buildings || []).find(x => x.id === o.repair.id)
       if (!bd) return res.status(400).json({ error: 'Постройки уже нет' })
@@ -1495,6 +1535,16 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
       addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `Мы закончили «${BUILDINGS[b.type].label}»!`, location: s.name })
     }
   }
+  // обучение воинов: сезон (120 дней)
+  for (const t of s.army?.training || []) {
+    t.done = Math.min(t.days, (t.done || 0) + days)
+    if (t.done >= t.days) {
+      finishTraining(s, t)
+      done.push(`воины: ${RACES[t.race]?.label} ×${t.count}`)
+      addEvent(s, { title: 'Новые воины', type: 'done', duration: ['quick'], text: `${RACES[t.race]?.label}: ${t.count} закончили обучение${t.talent ? ' — талант: ' + (t.talent.note || 'особый дар') : ''}.`, location: s.name }, false)
+    }
+  }
+  if (s.army?.training) s.army.training = s.army.training.filter(t => t.done < t.days)
   // ремонт: те же очки стройки; готово — постройка снова целая
   for (const b of s.buildings || []) {
     if (!b.repair || !b.damage) continue
@@ -1511,9 +1561,9 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
   for (const w of s.walls || []) {
     const len = wallLength(w.points)
     const t = WALL_TYPES[w.type] || WALL_TYPES.palisade
-    if ((w.built ?? len) < len) {
+    if (!wallDone(w)) {
       w.built = Math.round(Math.min(len, (w.built || 0) + pts / t.work) * 10) / 10
-      if (w.built >= len) {
+      if (wallDone(w)) {
         done.push(t.label)
         addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `${t.label}${w.name ? ' «' + w.name + '»' : ''} ${t.done} — ${Math.round(len)} м. Жителям спокойнее за стеной.`, location: s.name })
       }
@@ -1627,7 +1677,7 @@ app.post('/api/settlements/:id/walls', requireMaster, (req, res) => {
   const prev = s.walls.find(x => x.type === w.type && same(x.points[x.points.length - 1], w.points[0]))
   if (prev) {
     const prevLen = wallLength(prev.points)
-    const wasBuilt = (prev.built ?? prevLen) >= prevLen - 0.01
+    const wasBuilt = (prev.built ?? prevLen) >= prevLen - 0.1
     prev.points = [...prev.points, ...w.points.slice(1)]
     // стройка продолжается: если старая часть готова, новая — с её конца; готовую сразу — целиком
     prev.built = b.built && wasBuilt ? wallLength(prev.points) : Math.min(prev.built ?? prevLen, prevLen)
@@ -1680,6 +1730,105 @@ app.post('/api/settlements/:id/buildings/:bid/repair', requireMaster, (req, res)
   saveDb()
   broadcast()
   res.json(b)
+})
+
+// итог боя: потери снимаются со стеков, половина павших — раненые в лечебницу, остальные погибли
+app.post('/api/settlements/:id/battle', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const b = req.body || {}
+  const army = s.army ||= {}
+  const squad = b.side === 'garrison' ? null : (army.squads || []).find(q => q.id === b.side)
+  if (b.side !== 'garrison' && !squad) return res.status(404).json({ error: 'Отряд не найден' })
+  const foe = T.str(80)(b.foe) || 'враг'
+  const slotAt = ref => (squad ? (ref.line === 'cmd' ? squad.commander : squad.lines?.[ref.line]?.[ref.i]) : army.garrison?.[ref.i])
+  let dead = 0, wounded = 0
+  const lines = []
+  for (const u of Array.isArray(b.units) ? b.units.slice(0, 40) : []) {
+    const fallen = Math.round(T.num(0, 10000)(u.fallen))
+    const sl = slotAt(u.ref || {})
+    if (!fallen || !sl) continue
+    if (sl.race) {
+      const f = Math.min(fallen, sl.count || 0)
+      const sp = splitFallen({ kind: 'race', fallen: f })
+      sl.count -= f
+      if (sl.talents?.length > sl.count) sl.talents = sl.talents.slice(0, sl.count)
+      const r = raceOf(s, sl.race)
+      if (r) { r.combat = Math.max(0, (r.combat || 0) - f); r.wounded = (r.wounded || 0) + sp.wounded }
+      bury(s, sl.race, sp.dead)
+      if (sp.wounded) (s.hospital ||= []).push({ id: newId('p'), who: { race: sl.race }, count: sp.wounded, combat: true, disease: `Ранены в бою: ${foe}`, treatment: '', progress: 50, day: s.day || 0 })
+      dead += sp.dead; wounded += sp.wounded
+      lines.push(`${RACES[sl.race]?.label}: погибло ${sp.dead}, ранено ${sp.wounded}`)
+    } else {
+      const who = sl.asset ? { asset: sl.asset } : { hero: sl.hero }
+      const name = sl.asset ? s.assets?.find(a => a.id === sl.asset)?.name : store_heroName(sl.hero)
+      ;(s.hospital ||= []).push({ id: newId('p'), who, count: 1, disease: `Ранен в бою: ${foe}`, treatment: '', progress: 50, day: s.day || 0 })
+      wounded++
+      lines.push(`${name || 'Командир'}: ранен`)
+    }
+  }
+  if (squad) for (const l of Object.keys(LINES)) squad.lines[l] = (squad.lines[l] || []).map(sl => (sl?.race && !sl.count ? null : sl))
+  else army.garrison = (army.garrison || []).map(sl => (sl?.race && !sl.count ? null : sl))
+  const win = b.result === 'win'
+  addEvent(s, {
+    title: `${win ? 'Победа' : b.result === 'loss' ? 'Поражение' : 'Бой'}: ${foe}`, type: win ? 'done' : 'alarm', duration: ['quick'],
+    text: `${squad ? `Отряд «${squad.name || 'без имени'}»` : 'Гарнизон'} сражался с противником «${foe}»${b.rounds ? ` — ${b.rounds} раунд(ов)` : ''}. ${lines.join('; ') || 'Без потерь.'}`,
+    effect: `Погибло ${dead}, ранено ${wounded} — раненые в лечебнице`, location: s.name
+  })
+  logEntry(s, 'army', `Бой с «${foe}»: ${win ? 'победа' : b.result === 'loss' ? 'поражение' : 'ничья'}, погибло ${dead}, ранено ${wounded}`)
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json({ dead, wounded })
+})
+const store_heroName = id => getDb().heroes.find(h => h.id === id)?.name
+
+// лечебница: положить (мастер), выбрать лечение (глава или мастер), выписать или «не вылечили» (мастер)
+app.post('/api/settlements/:id/hospital', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const b = req.body || {}
+  const who = b.who?.race && RACES[b.who.race] ? { race: b.who.race } : b.who?.asset ? { asset: T.str(40)(b.who.asset) } : b.who?.hero ? { hero: T.str(40)(b.who.hero) } : { name: T.str(80)(b.who?.name) || 'Житель' }
+  const count = who.race ? Math.max(1, Math.round(T.num(1, 500)(b.count || 1))) : 1
+  const p = { id: newId('p'), who, count, disease: T.str(300)(b.disease), treatment: '', progress: 50, day: s.day || 0 }
+  ;(s.hospital ||= []).push(p)
+  if (who.race) { const r = raceOf(s, who.race); if (r) r.wounded = (r.wounded || 0) + count }
+  logEntry(s, 'heal', `В лечебницу: ${who.race ? RACES[who.race].label + ' ×' + count : who.name || 'пациент'} — ${p.disease || 'болезнь'}`)
+  saveDb()
+  broadcast()
+  res.json(p)
+})
+app.post('/api/settlements/:id/hospital/:pid/treatment', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const p = s?.hospital?.find(x => x.id === req.params.pid)
+  if (!p) return res.status(404).json({ error: 'Пациент не найден' })
+  if (!canDecide(req.user, s)) return res.status(403).json({ error: 'Лечение выбирает глава поселения' })
+  p.treatment = T.str(300)(req.body?.treatment).trim()
+  p.treatmentBy = req.user.name
+  if (req.user.role !== 'master') notify('masters', 'settlement', `${s.name}: ${req.user.name} выбрал лечение — ${p.treatment}`, settleLink(s, 'hospital'))
+  saveDb()
+  broadcast()
+  res.json(p)
+})
+app.post('/api/settlements/:id/hospital/:pid/:outcome(healed|dead)', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const p = s?.hospital?.find(x => x.id === req.params.pid)
+  if (!p) return res.status(404).json({ error: 'Пациент не найден' })
+  const healed = req.params.outcome === 'healed'
+  const r = p.who.race ? raceOf(s, p.who.race) : null
+  const name = p.who.race ? `${RACES[p.who.race]?.label} ×${p.count}` : p.who.asset ? s.assets?.find(a => a.id === p.who.asset)?.name : p.who.hero ? store_heroName(p.who.hero) : p.who.name
+  if (r) {
+    r.wounded = Math.max(0, (r.wounded || 0) - p.count)
+    if (healed && p.combat) r.combat = (r.combat || 0) + p.count // раненые воины возвращаются в «Боевые»
+    if (!healed) bury(s, p.who.race, p.count)
+  }
+  if (!healed && p.who.asset) { const a = s.assets?.find(x => x.id === p.who.asset); if (a) a.dead = true }
+  s.hospital = s.hospital.filter(x => x !== p)
+  addEvent(s, { title: healed ? 'Выздоровели' : 'Не спасли', type: healed ? 'done' : 'alarm', duration: ['quick'], text: healed ? `${name}: ${p.disease || 'болезнь'} позади — снова в строю.` : `${name}: ${p.disease || 'болезнь'}. Целители сделали всё, что могли…`, location: s.name }, false)
+  logEntry(s, 'heal', `${name}: ${healed ? 'выписан(ы) здоровыми' : 'умер(ли)'}`)
+  saveDb()
+  broadcast()
+  res.json({ ok: true })
 })
 
 /* заготовки событий: сайт предлагает, мастер выпускает в журнал или отбрасывает */

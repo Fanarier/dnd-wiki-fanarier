@@ -307,6 +307,11 @@
       </div>
     </template>
 
+    <!-- ================= ВОЙСКО И ЛЕЧЕНИЕ ================= -->
+    <GarrisonTab v-else-if="tab === 'garrison'" :settlement="s" :calc="c" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" />
+    <SquadsTab v-else-if="tab === 'squads'" :settlement="s" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" />
+    <HospitalTab v-else-if="tab === 'hospital'" :settlement="s" :calc="c" :master="master" :decider="decider" />
+
     <!-- ================= ИСТОРИЯ ================= -->
     <SettlementHistory v-else-if="tab === 'history'" :settlement="s" :wide="wide" />
   </div>
@@ -321,9 +326,12 @@ import { WORLD } from '../shared/terrainGen.js'
 import { applyText } from '../shared/settlementEvents.js'
 import PriceChips from './PriceChips.vue'
 import SettlementHistory from './SettlementHistory.vue'
+import GarrisonTab from './GarrisonTab.vue'
+import SquadsTab from './SquadsTab.vue'
+import HospitalTab from './HospitalTab.vue'
 
 const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean, wide: Boolean })
-const emit = defineEmits(['pick', 'edit', 'tab'])
+const emit = defineEmits(['pick', 'edit', 'tab', 'battle'])
 const base = () => `/api/settlements/${props.settlement.id}`
 const s = computed(() => props.settlement)
 const c = computed(() => props.calc)
@@ -488,6 +496,7 @@ function orderTitle(o) {
   if (o.kind === 'build') return `Построить «${BUILDINGS[o.build.type]?.label}»`
   if (o.kind === 'workers') return `${JOBS[o.workers.job]?.label}: назначить ${o.workers.count} рабочих`
   if (o.kind === 'explore') return 'Разведать участок'
+  if (o.kind === 'train') return `Обучить ${o.train.count} × ${RACES[o.train.race]?.label} (сезон, ${120} дн.)`
   if (o.kind === 'repair') {
     const b = orderBuilding(o)
     return `${o.repair.damage === 'ruined' ? 'Отстроить' : 'Починить'} «${b?.name || BUILDINGS[o.repair.type]?.label}» (${DAMAGE[o.repair.damage]?.short})`

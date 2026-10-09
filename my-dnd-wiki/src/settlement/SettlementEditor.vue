@@ -37,6 +37,23 @@
           </div>
         </template>
 
+        <!-- ===== ВОЙСКО: статы рас и лимиты отрядов ===== -->
+        <template v-else-if="section === 'army'">
+          <p class="muted">Статы одного воина каждой расы — по ним считает помощник боя. Заполни один раз, дальше меняй по желанию. Статы активов — у самих активов (вкладка «Активы» или при постановке в отряд).</p>
+          <div class="st-table">
+            <div class="st-h"><span>Раса</span><span v-for="(l, k) in ARMY_STATS" :key="k">{{ l }}</span></div>
+            <div v-for="r in f.races" :key="r.race" class="st-r" :class="{ miss: (r.combat || 0) > 0 && !hasStats(f.army.stats[r.race]) }">
+              <b>{{ RACES[r.race]?.label }}<small>боевых {{ r.combat || 0 }}</small></b>
+              <input v-for="(l, k) in ARMY_STATS" :key="k" v-model.number="f.army.stats[r.race][k]" type="number" min="0" :title="l" />
+            </div>
+          </div>
+          <h4>Сколько отрядов по типу поселения</h4>
+          <div class="grid3">
+            <label v-for="(n, kind) in f.army.squadLimits" :key="kind">{{ kind }}{{ kind === f.kind ? ' (сейчас)' : '' }}<input v-model.number="f.army.squadLimits[kind]" type="number" min="0" max="12" /></label>
+          </div>
+          <div class="row"><input v-model="newKind" placeholder="Ещё тип: Крепость" /><button class="mini" @click="newKind && (f.army.squadLimits[newKind] = 2); newKind = ''">+ тип</button></div>
+        </template>
+
         <!-- ===== РЕСУРСЫ ===== -->
         <template v-else-if="section === 'resources'">
           <h4>Запасы на складах</h4>
@@ -128,6 +145,7 @@
               <button class="mini" @click="a.role.effects.push({ text: '' })">+ эффект роли</button>
             </template>
             <div class="row"><input v-model="a.busy" placeholder="Чем занят, кроме работы: «Охраняет ворота»" /></div>
+            <div class="row stats4"><small>Стат-блок</small><label v-for="(l, k) in ARMY_STATS" :key="k">{{ l.slice(0, 3).toLowerCase() }}<input v-model.number="a.stats[k]" type="number" min="0" class="num" /></label></div>
             <div class="row note"><input :value="a.note?.text || ''" placeholder="Заметка: «Выпрашивает еду»" @input="a.note = $event.target.value ? { text: $event.target.value, color: a.note?.color || '#ff9b4a' } : undefined" />
               <input v-if="a.note" v-model="a.note.color" type="color" /></div>
           </div>
@@ -158,11 +176,12 @@
 import { computed, ref } from 'vue'
 import { store, act, toast, uploadSettlementPortrait } from '../map/store.js'
 import { RESOURCES, RACES, RESIDENT_CATS, JOBS, OUTPOSTS, ASSET_FRAMES, computeSettlement } from '../shared/settlement.js'
+import { STATS as ARMY_STATS, DEFAULT_SQUAD_LIMITS, hasStats } from '../shared/army.js'
 
 const props = defineProps({ section: String, settlement: Object, wide: Boolean })
 const big = ref(props.wide)
 const emit = defineEmits(['close'])
-const TITLES = { overview: 'Обзор и управление', resources: 'Запасы и поправки', residents: 'Жители', jobs: 'Работы', assets: 'Активы', outposts: 'Аванпосты' }
+const TITLES = { army: 'Войско: статы и лимиты', overview: 'Обзор и управление', resources: 'Запасы и поправки', residents: 'Жители', jobs: 'Работы', assets: 'Активы', outposts: 'Аванпосты' }
 const STATS = { morale: 'Мораль', stability: 'Стабильность', threat: 'Угрозы', freeSettlers: 'Свободные поселенцы', unavailable: 'Недоступные', housesUsed: 'Жильё (дома) занято', housingUsed: 'Общее жильё занято', guestsUsed: 'Гостей', tradeUsed: 'Торговых мест занято', outpostSlots: 'Слотов аванпостов' }
 const PASSIVE_STATS = { war: 'Военный потенциал', defense: 'Защита', leisure: 'Досуг', morale: 'Мораль', stability: 'Стабильность' }
 const FRAME_LABELS = { purple: 'фиолетовая', blue: 'синяя', green: 'зелёная', gold: 'золотая' }
@@ -172,6 +191,11 @@ const CATS = { free: RESIDENT_CATS.free, workers: RESIDENT_CATS.workers, ...Obje
 // правим копию, сохраняем разом
 const src = JSON.parse(JSON.stringify(props.settlement))
 const f = ref({ ...src, stats: src.stats || {}, stock: src.stock || {}, adjust: src.adjust || [], managers: src.managers || [], deciders: src.deciders || [], jobs: src.jobs || {}, assets: src.assets || [] })
+// войско: статы на каждую расу и таблица лимитов отрядов; у активов — стат-блок
+f.value.army = { ...(src.army || {}), stats: { ...(src.army?.stats || {}) }, squadLimits: { ...DEFAULT_SQUAD_LIMITS, ...(src.army?.squadLimits || {}) } }
+for (const r of f.value.races || []) f.value.army.stats[r.race] = { atk: 0, def: 0, hp: 0, ini: 0, ...(f.value.army.stats[r.race] || {}) }
+for (const a of f.value.assets) a.stats = { atk: 0, def: 0, hp: 0, ini: 0, ...(a.stats || {}) }
+const newKind = ref('')
 const start = JSON.stringify(f.value)
 const dirty = computed(() => JSON.stringify(f.value) !== start)
 const busy = ref(false)
@@ -197,7 +221,7 @@ function setRole(a, kind) {
   else a.role = { kind, effects: a.role?.effects || [] }
 }
 function addAsset() {
-  f.value.assets.push({ id: 'a' + Date.now().toString(36), name: 'Новый актив', frame: 'green', passive: [] })
+  f.value.assets.push({ id: 'a' + Date.now().toString(36), name: 'Новый актив', frame: 'green', passive: [], stats: { atk: 0, def: 0, hp: 0, ini: 0 } })
 }
 async function portrait(a, e) {
   const file = e.target.files?.[0]
@@ -216,7 +240,7 @@ function addOutpost() {
 // отправляем только разделы этой вкладки
 const KEYS = {
   overview: ['name', 'kind', 'status', 'cityId', 'stats', 'headHeroId', 'managerSlots', 'managers', 'deciders'],
-  resources: ['stock', 'adjust'], residents: ['races'], jobs: ['jobs'], assets: ['assets'], outposts: ['stats', 'outposts']
+  army: ['army'], resources: ['stock', 'adjust'], residents: ['races'], jobs: ['jobs'], assets: ['assets'], outposts: ['stats', 'outposts']
 }
 async function save() {
   busy.value = true
@@ -253,6 +277,16 @@ label { display: grid; gap: 3px; font-size: 11.5px; font-weight: 700; color: var
 input, select { min-width: 0; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 600 13px var(--a-sans); }
 input[type=color] { padding: 0; width: 34px; height: 30px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.st-table { display: grid; gap: 4px; }
+.st-h, .st-r { display: grid; grid-template-columns: 1.4fr repeat(4, 1fr); gap: 6px; align-items: center; }
+.st-h { font: 800 10.5px var(--a-sans); color: var(--a-muted); text-transform: uppercase; }
+.st-r b { font-size: 13px; }
+.st-r b small { display: block; color: var(--a-muted); font-weight: 600; font-size: 11px; }
+.st-r.miss b { color: #ffb36b; }
+.stats4 { flex-wrap: wrap; }
+.stats4 small { color: var(--a-muted); font-weight: 800; font-size: 11px; }
+.stats4 label { display: grid; font-size: 10px; color: var(--a-muted); }
+.stats4 .num { width: 56px; }
 .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 10px; }
 .row { display: flex; gap: 5px; align-items: center; margin: 2px 0; }
 .row input:not(.num), .row select { flex: 1; }

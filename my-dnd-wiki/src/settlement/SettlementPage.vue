@@ -183,11 +183,12 @@
             {{ tb.label }}<i v-if="tb.dot" class="dot" />
           </button>
         </nav>
-        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" @tab="setTab" />
+        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" @tab="setTab" @battle="battleSide = $event" />
         <p class="sp-credit">Значки: game-icons.net (CC BY 3.0)</p>
       </aside>
     </div>
     <SettlementEditor v-if="editing && s" :section="editing" :settlement="s" :wide="wide" @close="editing = null" />
+    <BattlePanel v-if="battleSide && s" :settlement="s" :side="battleSide" @close="battleSide = null" @stats="battleSide = null; editing = 'army'" />
   </div>
 </template>
 
@@ -200,6 +201,8 @@ import SettlementMap from './SettlementMap.vue'
 import SettlementTabs from './SettlementTabs.vue'
 import BuildingCard from './BuildingCard.vue'
 import SettlementEditor from './SettlementEditor.vue'
+import BattlePanel from './BattlePanel.vue'
+import { missingRaceStats } from '../shared/army.js'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
 import { computeSettlement, shortFor, priceText, placementProblems, repairPrice, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
@@ -240,6 +243,7 @@ function toggleWide() {
 // решать могут выбранные мастером игроки
 const decider = computed(() => !!store.me && store.me.role === 'player' && !!s.value?.deciders?.includes(store.me.id))
 const editing = ref(null)
+const battleSide = ref(null) // 'garrison' или id отряда — открыт помощник боя
 
 /* ---------- инструменты карты ---------- */
 const mapRef = ref(null)
@@ -458,6 +462,9 @@ const TABS = computed(() => [
   { id: 'jobs', label: 'Работы' },
   { id: 'assets', label: 'Активы' },
   { id: 'outposts', label: 'Аванпосты' },
+  { id: 'garrison', label: 'Гарнизон', dot: master.value && !!s.value && missingRaceStats(s.value).length > 0 },
+  { id: 'squads', label: 'Отряды' },
+  { id: 'hospital', label: 'Лечение', dot: (master.value || decider.value) && (s.value?.hospital || []).some(p => !p.treatment) },
   { id: 'orders', label: 'Приказы', dot: master.value && (s.value?.orders || []).some(o => o.status === 'pending') },
   { id: 'journal', label: 'Журнал', dot: (s.value?.events || []).some(e => e.duration?.includes('decide') && !e.decision) || (master.value && !!s.value?.suggestions?.length) },
   { id: 'history', label: 'История' }
