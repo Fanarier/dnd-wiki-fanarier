@@ -5,7 +5,7 @@
 //   stats: { [раса]: { atk, def, hp, ini } } — статы одного воина расы (мастер заполняет один раз)
 //   garrison: [слот × 15] — слот: { race, count, talents: [{ id, note, atk, def, hp, ini }] } или null
 //   squads: [{ id, name, commander: слот, lines: { van: [3], mid: [3], rear: [3] }, wagons: [3], packs: [3],
-//              partyId, status: home | out, task, taskProgress, ready, fatigue }]
+//              cargo: [3 × { kind: wagon | pack | other, label, count, capacity }], partyId, status, task, taskSecret, taskProgress, ready, fatigue }]
 //     слот отряда: { race, count } | { asset: id } (актив — один и со своим стат-блоком) | { hero: id, stats } (только командир)
 //     обоз: { label, count, capacity } — повозки и вьючные животные стопками, переносимость одной вписывает мастер
 //   squadLimits: { [тип поселения]: число } — сколько отрядов можно; training: [{ id, race, count, days, done, talent?, sex? }]
@@ -29,6 +29,10 @@ export const LINES = {
 }
 export const LINE_SLOTS = 3
 export const CARGO_SLOTS = 3
+// что может быть в ячейке обоза
+export const CARGO_KINDS = { wagon: { label: 'Повозка', icon: '🛒' }, pack: { label: 'Вьючные', icon: '🐴' }, other: { label: 'Другое', icon: '📦' } }
+// обоз отряда: 3 ячейки { kind, label, count, capacity } (старые отряды хранили повозки и вьючных отдельно)
+export const cargoOf = q => (q.cargo || [...(q.wagons || []).filter(Boolean).map(c => ({ kind: 'wagon', ...c })), ...(q.packs || []).filter(Boolean).map(c => ({ kind: 'pack', ...c }))].slice(0, CARGO_SLOTS))
 export const TRAIN_DAYS = 120 // сезон
 export const DEFAULT_SQUAD_LIMITS = { 'Лагерь': 1, 'Деревня': 2, 'Посёлок': 3, 'Город': 4 }
 export const HEAL_STEP = 10 // полоска выздоровления — 10 сегментов
@@ -100,7 +104,7 @@ export function squadUnits(s, q, heroes = []) {
   }
   return out
 }
-export const cargoTotal = q => [...(q.wagons || []), ...(q.packs || [])].reduce((n, c) => n + NUM(c?.count) * NUM(c?.capacity), 0)
+export const cargoTotal = q => cargoOf(q).reduce((n, c) => n + NUM(c?.count) * NUM(c?.capacity), 0)
 export const squadLimit = s => {
   const t = { ...DEFAULT_SQUAD_LIMITS, ...(s.army?.squadLimits || {}) }
   return t[s.kind] ?? 2

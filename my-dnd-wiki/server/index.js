@@ -15,7 +15,7 @@ import {
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
 } from './accounts.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePrice } from '../src/shared/walls.js'
-import { TRAIN_DAYS, LINES, splitFallen } from '../src/shared/army.js'
+import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
 import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
@@ -1189,7 +1189,7 @@ const SETTLE_KEYS = {
   name: 'string', kind: 'string', status: 'string', cityId: 'string', headHeroId: 'string', managers: 'array', managerSlots: 'number',
   deciders: 'array', stats: 'object', stock: 'object', races: 'array', buildings: 'array', jobs: 'object', assets: 'array',
   outposts: 'array', adjust: 'array', events: 'array', terrain: 'object', explored: 'array', orders: 'array', day: 'number',
-  roads: 'array', clearings: 'array', walls: 'array', army: 'object', hospital: 'array'
+  roads: 'array', clearings: 'array', walls: 'array', army: 'object', hospital: 'array', raceIcons: 'object'
 }
 // дороги, вырубки, круги разведки и настройки местности — проверяем форму, лишнее отбрасываем
 const coord = v => Math.round(T.num(-2000, SETTLE_WORLD + 2000)(v) * 10) / 10
@@ -1761,7 +1761,7 @@ app.post('/api/settlements/:id/squads/:qid/deploy', requireMaster, (req, res) =>
   if (!p) {
     const city = db.cities.find(c => c.id === s.cityId)
     if (!city) return res.status(400).json({ error: 'Поселение не привязано к городу на карте мира' })
-    const cargo = [...(q.wagons || []), ...(q.packs || [])].some(Boolean)
+    const cargo = cargoOf(q).some(c => c && c.kind !== 'other')
     p = {
       id: newId('p'), name: q.name || 'Отряд', color: q.color || '#e6c27a', icon: cargo ? 'horse' : 'flag', x: city.x, y: city.y,
       pace: null, members: [], description: `Отряд поселения «${s.name}»`, secret: '', hidden: false, journey: null, route: null,

@@ -379,7 +379,7 @@ import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
 import { URGENCY, rewardText } from '../shared/quests.js'
 import { polyLength, journeyState, anomalyState } from '../shared/geo.js'
-import { squadUnits, power, cargoTotal } from '../shared/army.js'
+import { squadUnits, power, cargoTotal, cargoOf } from '../shared/army.js'
 
 const master = isMaster
 const item = computed(() => findSelected())
@@ -444,7 +444,7 @@ const squadInfo = computed(() => {
   if (!q) return null
   const units = squadUnits(st, q, store.data.heroes || [])
   const cmd = units.find(u => u.line === 'cmd')
-  const cargo = [...(q.wagons || []), ...(q.packs || [])].filter(Boolean).map(c => `${c.label} ×${c.count}`).join(', ')
+  const cargo = cargoOf(q).filter(Boolean).map(c => `${c.label} ×${c.count}`).join(', ')
   return {
     settlement: st, commander: cmd?.name, total: units.reduce((n, u) => n + u.count, 0), power: units.reduce((n, u) => n + power(u), 0),
     units: units.filter(u => u.line !== 'cmd').map((u, i) => ({ key: i, name: u.name, count: u.count })),
