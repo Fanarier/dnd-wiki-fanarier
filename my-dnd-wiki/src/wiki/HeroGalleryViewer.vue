@@ -13,8 +13,8 @@
           <div :key="cur.id" class="gv-slide" @click.self="$emit('close')">
             <!-- пока большой файл грузится, показываем лёгкую копию с карточки -->
             <img v-if="!loaded[cur.id]" :src="heroPortraitUrl(cur.thumb || cur.file)" class="gv-ph" alt="" />
-            <img :src="failed[cur.id] ? heroPortraitUrl(cur.thumb) : heroPortraitUrl(cur.file)" class="gv-img" :class="{ ready: loaded[cur.id] }" alt=""
-                 @load="loaded[cur.id] = true" @error="onFail(cur)" @click.stop="step(1)" />
+            <img :data-aid="cur.id" :src="failed[cur.id] ? heroPortraitUrl(cur.thumb) : heroPortraitUrl(cur.file)" class="gv-img" :class="{ ready: loaded[cur.id], zoomed }" alt=""
+                 @load="loaded[cur.id] = true" @error="onFail(cur)" @click.stop="imgClick" @dblclick.stop="toggleZoom" />
             <div v-if="!loaded[cur.id]" class="gv-spin" />
           </div>
         </transition>
@@ -24,6 +24,12 @@
         <span class="gv-name">{{ name }}</span>
         <span v-if="arts.length > 1" class="gv-count">{{ i + 1 }} / {{ arts.length }}</span>
         <span class="grow" />
+        <!-- зум: колесо, два пальца, двойной щелчок; приближенный арт таскается -->
+        <span class="gv-zoom" @click.stop>
+          <button type="button" title="Отдалить" @click="pz?.zoomOut()">−</button>
+          <button type="button" class="lvl" title="Сбросить масштаб" @click="pz?.reset()">{{ zoomed ? Math.round(scale * 100) + '%' : '1:1' }}</button>
+          <button type="button" title="Приблизить" @click="pz?.zoomIn()">＋</button>
+        </span>
         <a :href="heroPortraitUrl(cur.file)" :download="`${name || 'art'}-${i + 1}${cur.file.slice(cur.file.lastIndexOf('.'))}`" class="gv-dl" @click.stop>Скачать</a>
         <button class="gv-x" aria-label="Закрыть" @click="$emit('close')">×</button>
       </div>
@@ -44,6 +50,7 @@
 <script setup>
 // Арты карточки на весь экран: листание стрелками, клавишами, свайпом и по ленте миниатюр
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import Panzoom from '@panzoom/panzoom'
 import { heroPortraitUrl } from '../map/store.js'
 import HeroFx from './HeroFx.vue'
 import { themeVars } from './heroThemes.js'
@@ -93,10 +100,37 @@ function onKey(e) {
   else if (e.key === 'ArrowRight') step(1)
   else if (e.key === 'ArrowLeft') step(-1)
 }
+// зум артов (@panzoom/panzoom): на каждом новом арте — свой, с масштаба 1
+let pz = null, moved = false, panStart = null
+const zoomed = ref(false), scale = ref(1)
+function onWheel(e) { if (pz) { e.preventDefault(); pz.zoomWithWheel(e) } }
+function setImg(el) {
+  if (pz && pz.el === el) return
+  pz?.wheelHost?.removeEventListener('wheel', onWheel)
+  pz?.destroy()
+  pz = null
+  zoomed.value = false
+  scale.value = 1
+  if (!el) return
+  pz = Panzoom(el, { maxScale: 6, minScale: 1, step: 0.35, panOnlyWhenZoomed: true, cursor: '' })
+  pz.el = el
+  pz.wheelHost = el.parentElement
+  pz.wheelHost.addEventListener('wheel', onWheel, { passive: false })
+  el.addEventListener('panzoomchange', e => { scale.value = e.detail.scale; zoomed.value = e.detail.scale > 1.02; if (!zoomed.value && e.detail.scale !== 1) pz.reset({ animate: false }) })
+  el.addEventListener('panzoomstart', e => { panStart = { x: e.detail.x, y: e.detail.y }; moved = false })
+  el.addEventListener('panzoompan', e => { if (panStart && Math.hypot(e.detail.x - panStart.x, e.detail.y - panStart.y) > 4) moved = true })
+}
+// щелчок по арту листает дальше, только если он не приближен и его не тащили
+function imgClick() { if (!zoomed.value && !moved) step(1); moved = false }
+function toggleZoom(e) { if (!pz) return; if (zoomed.value) pz.reset(); else pz.zoomToPoint(2.5, e) }
+// при смене арта старая и новая картинки какое-то время живут вместе (анимация) — зум вешаем на новую по её id
+watch(() => cur.value?.id, id => nextTick(() => setImg(document.querySelector(`.gv-img[data-aid="${id}"]`))), { immediate: true })
+onBeforeUnmount(() => setImg(null))
+
 let tx = null
-const tStart = e => { tx = e.touches[0].clientX }
+const tStart = e => { tx = e.touches.length === 1 && !zoomed.value ? e.touches[0].clientX : null }
 function tEnd(e) {
-  if (tx === null) return
+  if (tx === null || zoomed.value) return
   const dx = e.changedTouches[0].clientX - tx
   tx = null
   if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1)
@@ -126,6 +160,12 @@ onBeforeUnmount(() => {
 .gv-img, .gv-ph { position: absolute; inset: 0; margin: auto; max-width: 100%; max-height: 100%; }
 .gv-img { border-radius: 8px; box-shadow: 0 0 0 1px var(--gv-line), 0 30px 80px rgba(0, 0, 0, .8); cursor: pointer; opacity: 0; transition: opacity .35s; }
 .gv-img.ready { opacity: 1; }
+.gv-img.zoomed { cursor: grab; box-shadow: none; border-radius: 0; }
+.gv-img.zoomed:active { cursor: grabbing; }
+.gv-zoom { display: flex; align-items: center; gap: 2px; margin-right: 10px; padding: 2px; border-radius: 99px; background: rgba(0, 0, 0, .45); border: 1px solid var(--gv-line); }
+.gv-zoom button { min-width: 30px; height: 28px; padding: 0 8px; border: 0; border-radius: 99px; background: none; color: var(--gv-txt); font: 800 14px 'Manrope', sans-serif; cursor: pointer; }
+.gv-zoom button:hover { background: rgba(255, 255, 255, .08); }
+.gv-zoom .lvl { font-size: 11.5px; min-width: 46px; }
 .gv-ph { width: 100%; height: 100%; object-fit: contain; filter: blur(6px); opacity: .85; pointer-events: none; }
 .gv-spin { position: absolute; left: 50%; top: 50%; width: 42px; height: 42px; margin: -21px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .15); border-top-color: var(--gv-acc); animation: gv-spin .9s linear infinite; pointer-events: none; }
 @keyframes gv-spin { to { transform: rotate(360deg); } }
