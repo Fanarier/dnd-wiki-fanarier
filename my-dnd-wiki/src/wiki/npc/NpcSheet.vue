@@ -4,7 +4,7 @@
     <header class="ns-head">
       <div class="ns-art">
         <button v-if="cur" type="button" class="ns-cover" title="Смотреть арт целиком" @click="viewer = true">
-          <img :src="heroPortraitUrl(cur.thumb || cur.file)" :style="focus(cur)" alt="" />
+          <Transition name="ns-art"><img :key="cur.id" :src="heroPortraitUrl(cur.thumb || cur.file)" :style="focus(cur)" alt="" /></Transition>
         </button>
         <div v-else class="ns-cover ph">{{ (npc.name || '?')[0] }}</div>
         <!-- формы и наряды: группы артов, внутри — миниатюры -->
@@ -32,8 +32,8 @@
           <router-link v-if="hero" class="ns-hero" :to="{ path: '/wiki', query: { hero: hero.id } }">⚑ Карточка «{{ hero.name }}»</router-link>
         </div>
         <dl class="ns-info">
-          <template v-for="r in npc.info" :key="r.k">
-            <dt>{{ r.k }}</dt><dd :class="{ unk: unknown(r.v) }">{{ r.v || '—' }}</dd>
+          <template v-for="(r, ri) in npc.info" :key="r.k">
+            <dt :style="{ '--i': ri }">{{ r.k }}</dt><dd :class="{ unk: unknown(r.v) }" :style="{ '--i': ri }">{{ r.v || '—' }}</dd>
           </template>
         </dl>
         <div v-if="master" class="ns-acts">
@@ -48,14 +48,15 @@
       </button>
     </nav>
 
+    <Transition name="ns-tab" mode="out-in">
     <!-- ===== Обзор ===== -->
-    <section v-if="tab === 'overview'" class="ns-body">
+    <section v-if="tab === 'overview'" key="overview" class="ns-body">
       <div v-if="npc.specs.length || npc.weak.length || hasSpecs(npc.group)" class="ns-two">
         <div class="ns-box">
           <h4>Специализации</h4>
           <div v-for="s in npc.specs" :key="s.name" class="ns-lv">
             <span :class="{ unk: unknown(s.name) }">{{ s.name }}</span>
-            <em :style="{ '--lc': levelColor(SPEC_LEVELS, s.level) }">{{ s.level || '—' }}</em>
+            <em :class="{ leg: s.level === 'Легенда' }" :style="{ '--lc': levelColor(SPEC_LEVELS, s.level) }">{{ s.level || '—' }}</em>
           </div>
           <p v-if="!npc.specs.length" class="ns-empty">нет</p>
         </div>
@@ -86,10 +87,10 @@
     </section>
 
     <!-- ===== Навыки ===== -->
-    <section v-else-if="tab === 'skills'" class="ns-body">
+    <section v-else-if="tab === 'skills'" key="skills" class="ns-body">
       <h4 class="ns-h">Пассивные навыки <small>{{ npc.passives.length }}</small></h4>
       <div class="ns-skills">
-        <div v-for="(p, i) in npc.passives" :key="'p' + i" class="ns-sk" :class="{ unk: unknown(p.name) }">
+        <div v-for="(p, i) in npc.passives" :key="'p' + i" class="ns-sk" :class="{ unk: unknown(p.name) }" :style="{ '--i': Math.min(i, 16) }">
           <div class="ns-sk-h">
             <b>{{ p.name }}</b><span v-if="p.type" class="ns-type">{{ p.type }}</span>
             <button v-if="master && !unknown(p.name)" type="button" class="ns-ed" title="Описание навыка (общее для всех, у кого он есть)" @click="$emit('skill', 'passive', p)">✎</button>
@@ -102,7 +103,7 @@
 
       <h4 class="ns-h">Активные навыки <small>{{ npc.actives.length }}</small></h4>
       <div class="ns-skills act">
-        <div v-for="(a, i) in npc.actives" :key="'a' + i" class="ns-sk" :class="{ unk: unknown(a.name) }">
+        <div v-for="(a, i) in npc.actives" :key="'a' + i" class="ns-sk" :class="{ unk: unknown(a.name) }" :style="{ '--i': Math.min(i + 3, 16) }">
           <div class="ns-sk-h">
             <b>{{ a.name }}</b><span v-if="a.type" class="ns-type">{{ a.type }}</span>
             <button v-if="master && !unknown(a.name)" type="button" class="ns-ed" title="Описание навыка" @click="$emit('skill', 'active', a)">✎</button>
@@ -119,15 +120,15 @@
     </section>
 
     <!-- ===== Бой ===== -->
-    <section v-else class="ns-body">
+    <section v-else key="combat" class="ns-body">
       <div class="ns-combat">
-        <div v-for="c in COMBAT" :key="c.k" class="ns-tile" :class="{ unk: unknown(npc.combat[c.k]) }">
-          <i>{{ c.icon }}</i><b>{{ npc.combat[c.k] || '—' }}</b><small>{{ c.k }}</small>
+        <div v-for="(c, ci) in COMBAT" :key="c.k" class="ns-tile" :class="{ unk: unknown(npc.combat[c.k]) }" :style="{ '--i': ci }">
+          <i>{{ c.icon }}</i><b><CountUp :value="npc.combat[c.k]" /></b><small>{{ c.k }}</small>
         </div>
       </div>
       <div class="ns-stats">
-        <div v-for="s in STATS" :key="s" class="ns-stat" :class="{ unk: unknown(npc.stats[s]) }">
-          <small>{{ s }}</small><b>{{ npc.stats[s] || '—' }}</b><em v-if="mod(npc.stats[s]) != null">{{ signed(mod(npc.stats[s])) }}</em>
+        <div v-for="(s, si) in STATS" :key="s" class="ns-stat" :class="{ unk: unknown(npc.stats[s]) }" :style="{ '--i': si + 6 }">
+          <small>{{ s }}</small><b><CountUp :value="npc.stats[s]" /></b><em v-if="mod(npc.stats[s]) != null">{{ signed(mod(npc.stats[s])) }}</em>
         </div>
       </div>
       <div class="ns-two">
@@ -164,13 +165,14 @@
         <p v-if="!npc.spells.length && !npc.spellSlots" class="ns-empty">нет</p>
       </div>
     </section>
+    </Transition>
 
     <HeroGalleryViewer v-if="viewer && shown.length" :arts="shown" :start="Math.max(0, shown.findIndex(a => a.id === cur?.id))" :name="npc.name" @close="viewer = false" @index="i => (artId = shown[i]?.id)" />
   </article>
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FxText from './FxText.vue'
 import HeroGalleryViewer from '../HeroGalleryViewer.vue'
 import { store, heroPortraitUrl } from '../../map/store.js'
@@ -183,6 +185,28 @@ const props = defineProps({
   master: Boolean
 })
 defineEmits(['edit', 'skill'])
+
+// число «набегает» от нуля при открытии вкладки «Бой»; не число (??? или текст) — как есть
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+const CountUp = defineComponent({
+  props: { value: { type: [String, Number], default: '' } },
+  setup(p) {
+    const shown = ref('')
+    let raf = 0
+    const run = () => {
+      const v = String(p.value ?? '').trim(), n = Number(v)
+      cancelAnimationFrame(raf)
+      if (!v || Number.isNaN(n) || still) { shown.value = v || '—'; return }
+      const t0 = performance.now(), dur = 650 + Math.min(500, Math.log10(Math.abs(n) + 1) * 200)
+      const step = t => { const k = Math.min(1, (t - t0) / dur); shown.value = String(Math.round(n * (1 - Math.pow(1 - k, 3)))); if (k < 1) raf = requestAnimationFrame(step) }
+      raf = requestAnimationFrame(step)
+    }
+    onMounted(run)
+    watch(() => p.value, run)
+    onBeforeUnmount(() => cancelAnimationFrame(raf))
+    return () => h('span', shown.value)
+  }
+})
 
 // вкладку помним между НПС — листаешь персонажей и смотришь сразу их бой
 const tab = ref(sessionStorageGet('npc-tab') || 'overview')
@@ -218,7 +242,11 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-head { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); gap: 22px; align-items: start; }
 .ns-art { display: grid; gap: 8px; min-width: 0; }
 .ns-cover { display: block; width: 100%; aspect-ratio: 3 / 4; padding: 0; border-radius: 16px; overflow: hidden; border: 1px solid #6b5127; background: radial-gradient(circle at 50% 35%, #2a2015, #120e09 75%); box-shadow: 0 0 0 3px #241c13, 0 0 0 4px rgba(201, 162, 79, .35), 0 18px 40px rgba(0, 0, 0, .5); cursor: zoom-in; }
-.ns-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ns-cover { position: relative; animation: ns-reveal .9s cubic-bezier(.2, .8, .2, 1) both; }
+.ns-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; animation: ns-breathe 14s ease-in-out 1s infinite alternate; }
+.ns-art-enter-active, .ns-art-leave-active { transition: opacity .45s ease, transform .6s cubic-bezier(.2, .8, .2, 1); }
+.ns-art-enter-from { opacity: 0; transform: scale(1.06); }
+.ns-art-leave-to { opacity: 0; }
 .ns-cover.ph { display: grid; place-items: center; font: 700 64px 'Cormorant Garamond', serif; color: #8a6630; cursor: default; }
 .ns-forms { display: flex; flex-wrap: wrap; gap: 4px; }
 .ns-forms button, .ns-tabs button { border: 1px solid rgba(231, 197, 111, .3); background: rgba(231, 197, 111, .06); color: #cdbf9f; border-radius: 99px; padding: 4px 11px; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
@@ -233,15 +261,17 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-kicker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .ns-group { color: #c9a24f; font: 800 11.5px 'Manrope', sans-serif; text-transform: uppercase; letter-spacing: .08em; }
 .ns-hidden { color: #b9a6ff; font-size: 12px; font-weight: 700; }
-.ns-name { margin: 4px 0 10px; font: 700 34px/1.1 'Cormorant Garamond', serif; color: #f3dc9e; }
+.ns-name { margin: 4px 0 10px; font: 700 34px/1.1 'Cormorant Garamond', serif; color: #f3dc9e;
+  background: linear-gradient(100deg, #f3dc9e 42%, #fff8e4 50%, #f3dc9e 58%) 120% 0 / 260% 100% no-repeat; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: ns-shine 1.8s ease .35s both; }
 .ns-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
 .ns-lvl { padding: 3px 10px; border-radius: 99px; background: linear-gradient(180deg, #f0cf83, #c99a45); color: #1b140c; font-weight: 800; font-size: 12.5px; }
-.ns-status { padding: 3px 10px; border-radius: 99px; border: 1px solid var(--sc); background: color-mix(in srgb, var(--sc) 14%, transparent); color: var(--sc); font-weight: 800; font-size: 12.5px; }
+.ns-status { animation: ns-glow 2.8s ease-in-out infinite; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--sc); background: color-mix(in srgb, var(--sc) 14%, transparent); color: var(--sc); font-weight: 800; font-size: 12.5px; }
 .ns-home { color: #cdbf9f; font-size: 13px; font-weight: 600; }
 .ns-hero { padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(201, 162, 79, .45); color: #f3d99a; font-weight: 700; font-size: 12px; text-decoration: none; }
 .ns-hero:hover { background: rgba(201, 162, 79, .18); }
 .ns-info { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; padding: 14px 16px; border-radius: 14px; background: rgba(255, 255, 255, .025); border: 1px solid rgba(231, 197, 111, .14); }
 .ns-info dt { color: #a8936c; font-size: 12.5px; font-weight: 700; }
+.ns-info dt, .ns-info dd { animation: ns-rise .45s ease backwards; animation-delay: calc(.15s + var(--i, 0) * 35ms); }
 .ns-info dd { margin: 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
 .ns-acts { margin-top: 12px; display: flex; gap: 8px; }
 .ns-btn { border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: #ece6da; border-radius: 10px; padding: 8px 14px; font: 700 13px 'Manrope', sans-serif; cursor: pointer; }
@@ -251,6 +281,13 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-tabs button { padding: 7px 16px; font-size: 13.5px; }
 .ns-tabs button.on { background: rgba(231, 197, 111, .22); color: #f3dc9e; border-color: #e7c56f; }
 .ns-tabs small { margin-left: 6px; color: #a8936c; font-weight: 800; }
+.ns-tab-enter-active { transition: opacity .25s ease, transform .3s cubic-bezier(.2, .8, .2, 1); }
+.ns-tab-leave-active { transition: opacity .12s ease; }
+.ns-tab-enter-from { opacity: 0; transform: translateY(10px); }
+.ns-tab-leave-to { opacity: 0; }
+.ns-body > .ns-box, .ns-body > .ns-two, .ns-body > .ns-lists { animation: ns-rise .45s ease backwards; }
+.ns-body > :nth-child(2) { animation-delay: .06s; } .ns-body > :nth-child(3) { animation-delay: .12s; } .ns-body > :nth-child(4) { animation-delay: .18s; } .ns-body > :nth-child(5) { animation-delay: .24s; }
+.ns-sk, .ns-tile, .ns-stat { animation: ns-pop .45s cubic-bezier(.2, .9, .3, 1.2) backwards; animation-delay: calc(var(--i, 0) * 40ms); }
 .ns-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .ns-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 14px; }
 .ns-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
@@ -262,6 +299,7 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-lv:first-of-type { border-top: 0; }
 .ns-lv em { flex: none; font-style: normal; font-weight: 800; font-size: 12px; color: var(--lc); padding: 1px 9px; border-radius: 99px; background: color-mix(in srgb, var(--lc) 13%, transparent); }
 .ns-prof { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px; }
+.ns-lv em.leg { background: linear-gradient(100deg, #ffd166 30%, #fff3c4 50%, #ffd166 70%) 0 0 / 220% 100%; color: #2a1c06; animation: ns-legend 2.6s linear infinite; box-shadow: 0 0 10px rgba(255, 209, 102, .45); }
 .ns-pf { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; border-radius: 10px; background: rgba(255, 255, 255, .035); border: 1px solid rgba(255, 255, 255, .07); font-size: 13px; }
 .ns-pf b { font-weight: 700; overflow-wrap: anywhere; }
 .ns-pf span { color: #a8d8ff; font-weight: 700; font-size: 12px; white-space: nowrap; }
@@ -271,7 +309,8 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 
 .ns-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 10px; }
 .ns-skills.act { grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); }
-.ns-sk { min-width: 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(231, 197, 111, .14); }
+.ns-sk { transition: transform .2s, border-color .2s, box-shadow .2s; min-width: 0; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .03); border: 1px solid rgba(231, 197, 111, .14); }
+.ns-sk:hover { transform: translateY(-2px); border-color: rgba(231, 197, 111, .4); box-shadow: 0 10px 24px rgba(0, 0, 0, .35); }
 .ns-sk-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ns-sk-h b { font-size: 14px; color: #f3dc9e; }
 .ns-type { padding: 1px 8px; border-radius: 99px; background: rgba(143, 199, 255, .12); color: #8fc7ff; font-size: 11px; font-weight: 800; }
@@ -300,6 +339,17 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-tr .dmg { color: #ff9b8f; font-weight: 800; }
 .ns-tr .note { color: #a8936c; }
 
+@keyframes ns-reveal { from { clip-path: inset(100% 0 0 0 round 16px); transform: translateY(14px); } to { clip-path: inset(0 0 0 0 round 16px); transform: none; } }
+@keyframes ns-breathe { from { transform: scale(1); } to { transform: scale(1.05); } }
+@keyframes ns-shine { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+@keyframes ns-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes ns-pop { from { opacity: 0; transform: translateY(12px) scale(.96); } }
+@keyframes ns-glow { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 14px color-mix(in srgb, var(--sc) 45%, transparent); } }
+@keyframes ns-legend { to { background-position: -220% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .ns-cover, .ns-cover img, .ns-name, .ns-status, .ns-info dt, .ns-info dd, .ns-body > *, .ns-sk, .ns-tile, .ns-stat, .ns-lv em.leg { animation: none !important; }
+  .ns-name { -webkit-text-fill-color: #f3dc9e; }
+}
 @media (max-width: 760px) {
   .ns-head { grid-template-columns: minmax(0, 1fr); }
   .ns-art { max-width: 320px; width: 100%; justify-self: center; }

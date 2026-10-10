@@ -12,7 +12,10 @@
         <button type="button" class="np-step" :disabled="!prev" :title="prev ? `← ${prev.name}` : ''" @click="go(prev)">‹ <span>{{ prev?.name || '' }}</span></button>
         <button type="button" class="np-step" :disabled="!next" :title="next ? `${next.name} →` : ''" @click="go(next)"><span>{{ next?.name || '' }}</span> ›</button>
       </nav>
-      <NpcSheet :npc="open" :skills="skillMap" :effects="npcState.effects" :master="master" @edit="editing = open" @skill="(kind, s) => (skillEdit = { kind, entry: s })" />
+      <!-- переход между листами: ← → уезжает в свою сторону, открытие из списка — всплывает -->
+      <Transition :name="sheetAnim" mode="out-in">
+        <NpcSheet :key="open.id" :npc="open" :skills="skillMap" :effects="npcState.effects" :master="master" @edit="editing = open" @skill="(kind, s) => (skillEdit = { kind, entry: s })" />
+      </Transition>
     </template>
 
     <!-- ===== все НПС ===== -->
@@ -52,8 +55,9 @@
         <button v-if="status.length" type="button" class="clear" @click="status = []">сбросить</button>
       </div>
 
-      <div class="np-grid">
-        <button v-for="n in list" :key="n.id" type="button" class="np-card" :class="{ shade: n.hidden }" @click="go(n)">
+      <!-- карточки «раздаются» при открытии и смене фильтров; при наведении наклоняются за мышью -->
+      <TransitionGroup :key="dealKey" name="np-deal" tag="div" class="np-grid" appear>
+        <button v-for="(n, idx) in list" :key="n.id" type="button" class="np-card" :class="{ shade: n.hidden }" :style="{ '--d': Math.min(idx, 24) }" @click="go(n)" @mousemove="tilt" @mouseleave="untilt">
           <div class="np-pic">
             <img v-if="n.arts?.[0]" :src="heroPortraitUrl(n.arts[0].thumb || n.arts[0].file)" :style="{ objectPosition: `${n.arts[0].pos?.x ?? 50}% ${n.arts[0].pos?.y ?? 20}%` }" alt="" loading="lazy" />
             <span v-else class="np-ph">{{ (n.name || '?')[0] }}</span>
@@ -68,7 +72,7 @@
             <span v-if="n.home" class="np-home">📍 {{ n.home }}</span>
           </div>
         </button>
-      </div>
+      </TransitionGroup>
       <p v-if="!list.length" class="np-empty">{{ visible.length ? 'Никто не подходит под фильтры.' : 'НПС пока нет.' }}</p>
     </template>
 
@@ -131,11 +135,28 @@ const pos = computed(() => (open.value ? list.value.findIndex(n => n.id === open
 const nav = computed(() => (pos.value >= 0 ? list.value : [open.value].filter(Boolean)))
 const prev = computed(() => (pos.value > 0 ? nav.value[pos.value - 1] : null))
 const next = computed(() => (pos.value >= 0 && pos.value < nav.value.length - 1 ? nav.value[pos.value + 1] : null))
+// куда уехать листу: вперёд по списку — влево, назад — вправо, из списка — всплыть
+const sheetAnim = ref('np-open')
+const dealKey = computed(() => [group.value, sort.value, home.value, status.value.join()].join('|'))
 function go(n) {
   if (!n) return
+  const from = list.value.findIndex(x => x.id === open.value?.id), to = list.value.findIndex(x => x.id === n.id)
+  sheetAnim.value = from < 0 || to < 0 ? 'np-open' : to > from ? 'np-next' : 'np-prev'
   router.push({ query: { ...route.query, npc: n.id } })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
+// наклон карточки за мышью (CSS-переменные), без мыши — на место
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+function tilt(e) {
+  if (still) return
+  const el = e.currentTarget, r = el.getBoundingClientRect()
+  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height
+  el.style.setProperty('--rx', ((0.5 - y) * 10).toFixed(2) + 'deg')
+  el.style.setProperty('--ry', ((x - 0.5) * 12).toFixed(2) + 'deg')
+  el.style.setProperty('--mx', (x * 100).toFixed(1) + '%')
+  el.style.setProperty('--my', (y * 100).toFixed(1) + '%')
+}
+function untilt(e) { for (const k of ['--rx', '--ry']) e.currentTarget.style.setProperty(k, '0deg') }
 const close = () => router.push({ query: { ...route.query, npc: undefined } })
 // стрелки ← → листают НПС, Esc — к списку (если не печатаешь и не открыт редактор)
 function onKey(e) {
@@ -184,11 +205,40 @@ async function create() {
 .np-status .clear { --sc: #a8936c; border-style: dashed; }
 
 .np-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr)); gap: 12px; }
-.np-card { display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; border: 1px solid rgba(231, 197, 111, .2); background: linear-gradient(180deg, #221b13, #15110c); color: inherit; text-align: left; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
-.np-card:hover { transform: translateY(-3px); border-color: rgba(231, 197, 111, .55); box-shadow: 0 12px 28px rgba(0, 0, 0, .45); }
+/* наклон за мышью (--rx/--ry из скрипта) + блик там, где курсор */
+.np-card { --rx: 0deg; --ry: 0deg; --lift: 0px; position: relative; display: flex; flex-direction: column; padding: 0; overflow: hidden; border-radius: 14px; border: 1px solid rgba(231, 197, 111, .2); background: linear-gradient(180deg, #221b13, #15110c); color: inherit; text-align: left; cursor: pointer;
+  transform: perspective(900px) rotateX(var(--rx)) rotateY(var(--ry)) translateY(var(--lift)); transition: transform .25s ease-out, border-color .2s, box-shadow .25s; will-change: transform; }
+.np-card:hover { --lift: -5px; border-color: rgba(231, 197, 111, .6); box-shadow: 0 18px 36px rgba(0, 0, 0, .5), 0 0 24px rgba(231, 197, 111, .12); }
+.np-card::after { content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none; border-radius: inherit; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 30%), rgba(255, 236, 190, .22), transparent 45%), linear-gradient(115deg, transparent 40%, rgba(255, 236, 190, .1) 50%, transparent 60%); }
+.np-card:hover::after { opacity: 1; }
+.np-card:hover .np-lvl { box-shadow: 0 0 14px rgba(240, 207, 131, .7); }
 .np-card.shade { opacity: .6; border-style: dashed; }
 .np-pic { position: relative; aspect-ratio: 4 / 3; background: radial-gradient(circle at 50% 35%, #2a2015, #120e09 75%); }
-.np-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.np-pic { overflow: hidden; }
+.np-pic img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .6s cubic-bezier(.2, .8, .2, 1), filter .4s; }
+.np-card:hover .np-pic img { transform: scale(1.07); filter: saturate(1.12) brightness(1.05); }
+
+/* раздача карточек: прилетают снизу с поворотом, по очереди */
+.np-deal-enter-active { transition: opacity .45s ease, transform .6s cubic-bezier(.2, .9, .3, 1.15); transition-delay: calc(var(--d, 0) * 35ms); }
+.np-deal-enter-from { opacity: 0; transform: translateY(28px) rotate(-4deg) scale(.92); }
+.np-deal-leave-active { display: none; }
+.np-deal-move { transition: transform .35s ease; }
+
+/* листы: открытие всплывает, соседние уезжают в свою сторону */
+.np-open-enter-active { transition: opacity .35s, transform .45s cubic-bezier(.2, .8, .2, 1); }
+.np-open-enter-from { opacity: 0; transform: translateY(20px) scale(.985); }
+.np-open-leave-active, .np-next-leave-active, .np-prev-leave-active { transition: opacity .16s, transform .2s ease-in; }
+.np-open-leave-to { opacity: 0; }
+.np-next-enter-active, .np-prev-enter-active { transition: opacity .3s, transform .4s cubic-bezier(.2, .8, .2, 1); }
+.np-next-enter-from { opacity: 0; transform: translateX(48px); }
+.np-next-leave-to { opacity: 0; transform: translateX(-48px); }
+.np-prev-enter-from { opacity: 0; transform: translateX(-48px); }
+.np-prev-leave-to { opacity: 0; transform: translateX(48px); }
+@media (prefers-reduced-motion: reduce) {
+  .np-card, .np-pic img, .np-deal-enter-active, .np-open-enter-active, .np-next-enter-active, .np-prev-enter-active { transition: none !important; }
+  .np-card:hover { transform: none; }
+}
 .np-ph { position: absolute; inset: 0; display: grid; place-items: center; font: 700 48px 'Cormorant Garamond', serif; color: #8a6630; }
 .np-lvl { position: absolute; left: 8px; bottom: 8px; min-width: 26px; padding: 2px 7px; border-radius: 99px; background: linear-gradient(180deg, #f0cf83, #c99a45); color: #1b140c; font: 800 12px 'Manrope', sans-serif; text-align: center; box-shadow: 0 2px 8px rgba(0, 0, 0, .5); }
 .np-hid { position: absolute; right: 8px; top: 8px; padding: 1px 7px; border-radius: 99px; background: rgba(20, 16, 30, .8); color: #b9a6ff; font-size: 13px; }

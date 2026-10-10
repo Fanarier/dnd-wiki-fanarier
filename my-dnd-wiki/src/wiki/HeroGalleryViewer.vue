@@ -60,10 +60,15 @@ const i = ref(Math.min(props.start, props.arts.length - 1))
 const dir = ref(1)
 const cur = computed(() => props.arts[i.value] || props.arts[0])
 const strip = ref(null)
+// миниатюру центрируем прокруткой самой полоски: scrollIntoView двигал ещё и весь просмотр — он уезжал влево
+function centerThumb(smooth) {
+  const s = strip.value, el = s?.children[i.value]
+  if (el) s.scrollTo({ left: el.offsetLeft - (s.clientWidth - el.offsetWidth) / 2, behavior: smooth ? 'smooth' : 'auto' })
+}
 async function show(n) {
   i.value = (n + props.arts.length) % props.arts.length
   await nextTick()
-  strip.value?.children[i.value]?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  centerThumb(true)
 }
 // большой файл не открылся — показываем лёгкую копию, лишь бы не пустой экран
 const loaded = reactive({})
@@ -99,7 +104,7 @@ function tEnd(e) {
 onMounted(() => {
   window.addEventListener('keydown', onKey)
   document.documentElement.style.overflow = document.body.style.overflow = 'hidden'
-  nextTick(() => strip.value?.children[i.value]?.scrollIntoView({ inline: 'center', block: 'nearest' }))
+  nextTick(() => centerThumb(false))
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
@@ -108,7 +113,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.gv { --gv-acc: #e6c27a; --gv-txt: #f3d99a; --gv-line: rgba(201, 162, 79, .4); position: fixed; inset: 0; z-index: 210; overflow: hidden; background: #070504; animation: gv-in .25s; font-family: 'Manrope', sans-serif; }
+.gv { --gv-acc: #e6c27a; --gv-txt: #f3d99a; --gv-line: rgba(201, 162, 79, .4); position: fixed; inset: 0; z-index: 210; overflow: hidden; overflow: clip; background: #070504; animation: gv-in .25s; font-family: 'Manrope', sans-serif; }
 .gv.themed { --gv-acc: var(--ta); --gv-txt: var(--tl); --gv-line: color-mix(in srgb, var(--ta) 45%, transparent); background: var(--tbg2); }
 .gv.themed .gv-bg { filter: blur(40px) brightness(.3) saturate(1.2); }
 .gv.themed::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 40%, color-mix(in srgb, var(--ta) 14%, transparent) 100%); }
