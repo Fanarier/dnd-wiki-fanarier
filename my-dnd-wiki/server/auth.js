@@ -106,6 +106,29 @@ export function changeMasterPassword(login, oldPassword, newPassword) {
   return true
 }
 
+// Владелец сайта (технический мастер) — он заводит и убирает других мастеров прямо на сайте.
+// По умолчанию Fanarier; можно переназначить полем owner в config.json.
+export function isOwner(login) {
+  const cfg = readConfig()
+  return !!cfg && login === (cfg.owner || 'Fanarier') && Object.hasOwn(cfg.users, login)
+}
+export function listMasters() {
+  return Object.keys(readConfig()?.users || {})
+}
+// новый мастер или новый пароль старому; смена пароля выкидывает его со всех устройств
+export function setMasterPassword(login, password) {
+  const cfg = readConfig()
+  cfg.users[login] = { hash: hashPassword(password), v: (cfg.users[login]?.v || 0) + 1 }
+  writeConfig(cfg)
+}
+export function removeMaster(login) {
+  const cfg = readConfig()
+  if (!Object.hasOwn(cfg.users, login)) return false
+  delete cfg.users[login]
+  writeConfig(cfg)
+  return true
+}
+
 export function isMasterLogin(login) {
   const cfg = readConfig()
   return !!cfg && Object.hasOwn(cfg.users, login)

@@ -9,10 +9,11 @@ import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
-import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword } from './auth.js'
+import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword, isOwner, listMasters, setMasterPassword, removeMaster, isMasterLogin } from './auth.js'
 import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
-  masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter
+  masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter,
+  findByLogin, LOGIN_RE
 } from './accounts.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePrice } from '../src/shared/walls.js'
 import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
@@ -385,7 +386,7 @@ function viewFor(user, now = Date.now()) {
     role, id: uid, login: user.login, name: user.name, avatar: user.avatar, color: user.color, rank: user.rank,
     // мастер с персонажем может переключаться «мастер ⇄ персонаж»
     canPlay: !!(user.playerId || user.asMaster), asMaster: !!user.asMaster, character: user.character || null,
-    notifyArts: user.notifyArts !== false
+    notifyArts: user.notifyArts !== false, owner: role === 'master' && isOwner(user.login)
   } : null
   // заметки: свои + общие для отряда, в котором состоит игрок
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
@@ -605,7 +606,7 @@ app.post('/api/me/character', requireMaster, (req, res) => {
 app.get('/api/state', (req, res) => res.json(viewFor(userOf(req))))
 app.get('/api/me', requireUser, (req, res) => {
   const u = req.user
-  if (u.role === 'master') return res.json({ role: 'master', login: u.login, ...masterProfile(u.login) })
+  if (u.role === 'master') return res.json({ role: 'master', login: u.login, owner: isOwner(u.login), ...masterProfile(u.login) })
   const p = getPlayer(u.id)
   res.json({ role: 'player', login: p.login, ...publicPlayer(p) })
 })
@@ -651,6 +652,38 @@ app.patch('/api/me', requireUser, (req, res) => {
     const token = u.role === 'master' ? issueToken(u.login) : signToken({ sub: u.id, role: 'player', v: getPlayer(u.id).v })
     return res.json({ ok: true, token })
   }
+  res.json({ ok: true })
+})
+
+/* ---------- Мастера (заводит и убирает только владелец сайта) ---------- */
+function requireOwner(req, res, next) {
+  if (req.user?.role !== 'master' || !isOwner(req.user.login)) return res.status(403).json({ error: 'Мастерами управляет только владелец сайта' })
+  next()
+}
+app.get('/api/masters', requireMaster, requireOwner, (req, res) => {
+  res.json(listMasters().map(login => ({ login, owner: isOwner(login), name: masterProfile(login).displayName, avatar: masterProfile(login).avatar })))
+})
+app.post('/api/masters', requireMaster, requireOwner, (req, res) => {
+  const login = String(req.body?.login || '').trim(), password = String(req.body?.password || '')
+  if (!LOGIN_RE.test(login)) return res.status(400).json({ error: 'Логин: 3–32 символа — буквы, цифры, _ . -' })
+  if (password.length < 6) return res.status(400).json({ error: 'Пароль — минимум 6 символов' })
+  if (isMasterLogin(login)) return res.status(409).json({ error: 'Такой мастер уже есть — смени ему пароль' })
+  if (findByLogin(login)) return res.status(409).json({ error: 'Этот логин уже занят игроком' })
+  setMasterPassword(login, password)
+  res.json({ ok: true })
+})
+app.post('/api/masters/:login/password', requireMaster, requireOwner, (req, res) => {
+  const login = req.params.login, password = String(req.body?.password || '')
+  if (!isMasterLogin(login)) return res.status(404).json({ error: 'Мастер не найден' })
+  if (login === req.user.login) return res.status(400).json({ error: 'Свой пароль меняй в «Пароль и настройки»' })
+  if (password.length < 6) return res.status(400).json({ error: 'Пароль — минимум 6 символов' })
+  setMasterPassword(login, password)
+  res.json({ ok: true })
+})
+app.delete('/api/masters/:login', requireMaster, requireOwner, (req, res) => {
+  const login = req.params.login
+  if (login === req.user.login || isOwner(login)) return res.status(400).json({ error: 'Себя удалить нельзя' })
+  if (!removeMaster(login)) return res.status(404).json({ error: 'Мастер не найден' })
   res.json({ ok: true })
 })
 

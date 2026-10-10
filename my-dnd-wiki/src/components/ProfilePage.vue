@@ -91,6 +91,33 @@
         </div>
       </section>
 
+      <!-- мастера: заводит и убирает только владелец сайта -->
+      <section v-if="isMaster && store.me.owner" class="p-card">
+        <h3>Мастера <small>{{ masters.length }} · входят тем же окном, что и игроки</small></h3>
+        <div v-for="m in masters" :key="m.login" class="pl">
+          <img v-if="m.avatar" :src="avatarUrl(m.avatar)" alt="" class="pl-av" />
+          <span v-else class="pl-av ini" style="background: #e7c56f">{{ (m.name || m.login)[0] }}</span>
+          <div class="pl-main">
+            <b>{{ m.name }}</b>
+            <div class="muted small">логин {{ m.login }}{{ m.owner ? ' · владелец сайта' : '' }}</div>
+          </div>
+          <template v-if="!m.owner">
+            <button class="mini" title="Выдать новый пароль — старые входы этого мастера сбросятся" @click="resetMaster(m)">Новый пароль</button>
+            <button class="mini no" title="Убрать мастера" @click="dropMaster(m)">✕</button>
+          </template>
+        </div>
+        <form class="pw ms-add" @submit.prevent="addMaster">
+          <label>Логин нового мастера<input v-model.trim="nm.login" autocomplete="off" maxlength="32" placeholder="например, Fedya" /></label>
+          <label>Пароль<span class="ms-pass"><input v-model="nm.password" type="text" autocomplete="new-password" minlength="6" /><button type="button" class="mini" title="Придумать пароль" @click="nm.password = genPass()">🎲</button></span></label>
+          <button class="brass small" :disabled="nm.login.length < 3 || nm.password.length < 6">Добавить мастера</button>
+        </form>
+        <div v-if="issued" class="ms-issued">
+          Передай мастеру — логин <b>{{ issued.login }}</b>, пароль <b>{{ issued.password }}</b>
+          <button class="mini" @click="copyIssued">Копировать</button>
+          <button class="mini" title="Скрыть" @click="issued = null">✕</button>
+        </div>
+      </section>
+
       <!-- заметки -->
       <section class="p-card">
         <h3>Мои заметки на карте <small>{{ myNotes.length }}</small></h3>
@@ -128,7 +155,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UserMenu from './UserMenu.vue'
 import SteamLoader from './SteamLoader.vue'
-import { store, init, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound, heroPortraitUrl, heroCover } from '../map/store.js'
+import { store, init, api, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound, heroPortraitUrl, heroCover } from '../map/store.js'
 import { RANKS } from '../shared/catalog.js'
 
 const router = useRouter()
@@ -210,6 +237,49 @@ async function setNotifyArts(on) {
 }
 const myNotes = computed(() => (store.data.notes || []).filter(n => n.ownerId === store.me?.id))
 
+// мастера (только у владельца сайта): список, новый мастер, новый пароль, убрать
+const masters = ref([])
+async function loadMasters() {
+  if (!store.me?.owner) return
+  try { masters.value = await api('GET', '/api/masters') } catch (e) { toast(e.message, 'error') }
+}
+watch(() => store.me?.owner, loadMasters, { immediate: true })
+const nm = reactive({ login: '', password: '' })
+const issued = ref(null) // логин и пароль, которые надо передать мастеру
+function genPass() {
+  const abc = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  return [...crypto.getRandomValues(new Uint32Array(12))].map(x => abc[x % abc.length]).join('')
+}
+async function addMaster() {
+  try {
+    await act('POST', '/api/masters', { login: nm.login, password: nm.password }, `Мастер «${nm.login}» добавлен`)
+    issued.value = { login: nm.login, password: nm.password }
+    Object.assign(nm, { login: '', password: '' })
+    loadMasters()
+  } catch { /* тост */ }
+}
+async function resetMaster(m) {
+  if (!confirm(`Выдать мастеру «${m.login}» новый пароль? Старый перестанет работать, его выкинет со всех устройств.`)) return
+  const password = genPass()
+  try {
+    await act('POST', `/api/masters/${encodeURIComponent(m.login)}/password`, { password }, 'Пароль сменён')
+    issued.value = { login: m.login, password }
+  } catch { /* тост */ }
+}
+async function dropMaster(m) {
+  if (!confirm(`Убрать мастера «${m.login}»? Он сразу потеряет доступ.`)) return
+  try {
+    await act('DELETE', `/api/masters/${encodeURIComponent(m.login)}`, undefined, 'Мастер убран')
+    loadMasters()
+  } catch { /* тост */ }
+}
+async function copyIssued() {
+  try {
+    await navigator.clipboard.writeText(`Анкария — вход мастера\nЛогин: ${issued.value.login}\nПароль: ${issued.value.password}`)
+    toast('Скопировано')
+  } catch { toast('Не получилось скопировать — перепиши вручную', 'error') }
+}
+
 const call = (url, method, text, body) => act(method, url, method === 'DELETE' ? undefined : (body || {}), text).catch(() => {})
 function removePlayer(p) {
   if (confirm(`Удалить аккаунт «${p.character}» (${p.login})? Это нельзя отменить.`)) call(`/api/players/${p.id}`, 'DELETE', 'Аккаунт удалён')
@@ -272,9 +342,13 @@ input[type='color'] { width: 60px; padding: 3px; cursor: pointer; }
 .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .char-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
 .pw { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
+.pw.ms-add { grid-template-columns: 1fr 1fr auto; margin-top: 12px; }
+.ms-pass { display: flex; gap: 6px; }
+.ms-pass input { flex: 1; min-width: 0; }
+.ms-issued { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(155, 224, 122, .08); border: 1px solid rgba(155, 224, 122, .35); color: #cfe9bf; font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .love { text-align: center; margin-top: 18px; font: italic 600 18px/1.5 'Cormorant Garamond', Georgia, serif; color: #a8936c; }
 @media (max-width: 640px) {
   .hero { flex-direction: column; align-items: center; }
-  .pw, .char-row { grid-template-columns: 1fr; }
+  .pw, .pw.ms-add, .char-row { grid-template-columns: 1fr; }
 }
 </style>
