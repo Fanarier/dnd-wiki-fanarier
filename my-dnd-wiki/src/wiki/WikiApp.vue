@@ -16,7 +16,7 @@
       </nav>
       <label class="w-search">
         <v-icon size="18">mdi-magnify</v-icon>
-        <input v-model="search" placeholder="Поиск по статьям…" aria-label="Поиск по вики" />
+        <input v-model="search" placeholder="Поиск: НПС, навыки, города, заказы…" aria-label="Поиск по всему сайту" />
         <button v-if="search" class="w-clear" aria-label="Очистить" @click="search = ''">×</button>
       </label>
       <UserMenu />
@@ -36,7 +36,7 @@
         <transition v-else name="fade" mode="out-in">
           <div v-if="hasQuery" key="search-results">
             <h2 class="w-h">Результаты поиска: «{{ search }}»</h2>
-            <SearchResults :results="searchResults" :query="search" @open="openArticle" />
+            <WikiSearch :query="search" @article="openArticle" @done="searchDone" />
           </div>
           <component v-else :is="currentPage" :content="currentContent" :key="currentCategory" />
         </transition>
@@ -61,7 +61,7 @@ import MagicBackdrop from './MagicBackdrop.vue'
 const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 
 import Sidebar from '../components/Sidebar.vue'
-import SearchResults from '../components/SearchResults.vue'
+import WikiSearch from './WikiSearch.vue'
 import WikiGeneral from '../pages/WikiGeneral.vue'
 import UtilityMagic from '../pages/UtilityMagic.vue'
 import SchoolFire from '../pages/SchoolFire.vue'
@@ -69,7 +69,7 @@ import SchoolWater from '../pages/SchoolWater.vue'
 import SchoolAir from '../pages/SchoolAir.vue'
 import SchoolEarth from '../pages/SchoolEarth.vue'
 
-import articles from '../data/articles.js' // единый источник текстов для поиска
+// тексты статей для поиска берёт WikiSearch.vue (src/data/articles.js)
 
 /*
   Категории: id должен соответствовать id статьи в src/data/articles.js
@@ -103,45 +103,12 @@ function onCategorySelect(id) {
 const search = ref('')
 const hasQuery = computed(() => (search.value || '').toString().trim().length > 0)
 
-const normalize = (s = '') => (s || '').toString().toLowerCase()
-
-function makeSnippet(text = '', q = '', margin = 80) {
-  const idx = text.toLowerCase().indexOf(q)
-  if (idx === -1) return ''
-  const start = Math.max(0, idx - margin)
-  const end = Math.min(text.length, idx + q.length + margin)
-  let snippet = text.substring(start, end).trim()
-  if (start > 0) snippet = '…' + snippet
-  if (end < text.length) snippet = snippet + '…'
-  // подсветка: безопасно — данные исходно из src/data/articles.js
-  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig')
-  snippet = snippet.replace(re, m => `<mark>${m}</mark>`)
-  return `<div class="muted" style="line-height:1.35">${snippet}</div>`
+// выбрали результат поиска: закрываем поиск и, если нужно, переходим
+function searchDone(to) {
+  search.value = ''
+  drawer.value = false
+  if (to) router.push(to)
 }
-
-const searchResults = computed(() => {
-  const q = (search.value || '').toString().trim().toLowerCase()
-  if (!q) return []
-  const results = []
-  for (const a of articles) {
-    const inTitle = normalize(a.title).includes(q)
-    const inDesc = normalize(a.description).includes(q)
-    const inContent = normalize(a.content).includes(q)
-    if (inTitle || inDesc || inContent) {
-      results.push({
-        id: a.id,
-        title: a.title,
-        description: a.description,
-        category: a.category || '—',
-        snippet: inContent ? makeSnippet(a.content, q) : inDesc ? makeSnippet(a.description, q) : ''
-      })
-    }
-  }
-  // заголовки > описание > содержание
-  const score = r => (normalize(r.title).includes(q) ? 100 : 0) + (normalize(r.description).includes(q) ? 10 : 0) + (r.snippet ? 1 : 0)
-  return results.sort((A, B) => score(B) - score(A))
-})
-
 function openArticle(id) {
   const cat = categories.value.find(c => c.id === id)
   if (cat) {
