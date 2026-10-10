@@ -27,6 +27,7 @@
         </div>
         <div class="np-tools">
           <button type="button" class="np-btn" @click="glossary = true">📖 Справочник</button>
+          <button v-if="master && group !== 'all'" type="button" class="np-btn" :class="{ on: arranging }" :title="arranging ? 'Закончить' : 'Перетаскивай карточки, чтобы задать порядок в группе'" @click="toggleArrange">⇅ {{ arranging ? 'Готово' : 'Расставить' }}</button>
           <button v-if="master" type="button" class="np-btn primary" @click="create">+ НПС</button>
         </div>
       </header>
@@ -55,8 +56,22 @@
         <button v-if="status.length" type="button" class="clear" @click="status = []">сбросить</button>
       </div>
 
+      <!-- мастер расставляет порядок в группе: перетаскивание, сохраняется сразу -->
+      <template v-if="arranging">
+        <p class="np-hint">Перетаскивай карточки — порядок «{{ groupOf(group).label }}» сохраняется сразу. Фильтры на это время не действуют.</p>
+        <VueDraggable v-model="arrangeList" :animation="220" ghost-class="np-ghost" class="np-grid arr" @end="saveOrder">
+          <div v-for="(n, idx) in arrangeList" :key="n.id" class="np-card arr">
+            <div class="np-pic">
+              <img v-if="n.arts?.[0]" :src="heroPortraitUrl(n.arts[0].thumb || n.arts[0].file)" :style="{ objectPosition: `${n.arts[0].pos?.x ?? 50}% ${n.arts[0].pos?.y ?? 20}%` }" alt="" draggable="false" />
+              <span v-else class="np-ph">{{ (n.name || '?')[0] }}</span>
+              <span class="np-lvl">{{ idx + 1 }}</span>
+            </div>
+            <div class="np-txt"><b>{{ n.name }}</b></div>
+          </div>
+        </VueDraggable>
+      </template>
       <!-- карточки «раздаются» при открытии и смене фильтров; при наведении наклоняются за мышью -->
-      <TransitionGroup :key="dealKey" name="np-deal" tag="div" class="np-grid" appear>
+      <TransitionGroup v-else :key="dealKey" name="np-deal" tag="div" class="np-grid" appear>
         <button v-for="(n, idx) in list" :key="n.id" type="button" class="np-card" :class="{ shade: n.hidden }" :style="{ '--d': Math.min(idx, 24) }" @click="go(n)" @mousemove="tilt" @mouseleave="untilt">
           <div class="np-pic">
             <img v-if="n.arts?.[0]" :src="heroPortraitUrl(n.arts[0].thumb || n.arts[0].file)" :style="{ objectPosition: `${n.arts[0].pos?.x ?? 50}% ${n.arts[0].pos?.y ?? 20}%` }" alt="" loading="lazy" />
@@ -74,7 +89,7 @@
           </div>
         </button>
       </TransitionGroup>
-      <p v-if="!list.length" class="np-empty">{{ visible.length ? 'Никто не подходит под фильтры.' : 'НПС пока нет.' }}</p>
+      <p v-if="!list.length && !arranging" class="np-empty">{{ visible.length ? 'Никто не подходит под фильтры.' : 'НПС пока нет.' }}</p>
     </template>
 
     <NpcEditor v-if="editing" :npc="editing" @close="editing = null" />
@@ -87,11 +102,12 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SteamLoader from '../../components/SteamLoader.vue'
+import { VueDraggable } from 'vue-draggable-plus'
 import NpcSheet from './NpcSheet.vue'
 import NpcEditor from './NpcEditor.vue'
 import NpcSkillDialog from './NpcSkillDialog.vue'
 import NpcGlossary from './NpcGlossary.vue'
-import { store, npcState, loadNpcs, heroPortraitUrl, act } from '../../map/store.js'
+import { store, npcState, loadNpcs, heroPortraitUrl, act, api, toast } from '../../map/store.js'
 import { NPC_GROUPS, groupOf, npcSubtitle, npcLevel, infoOf, skillIndex, findPlace, placeLink } from '../../shared/npc.js'
 
 const route = useRoute(), router = useRouter()
@@ -160,6 +176,17 @@ function tilt(e) {
   el.style.setProperty('--my', (y * 100).toFixed(1) + '%')
 }
 function untilt(e) { for (const k of ['--rx', '--ry']) e.currentTarget.style.setProperty(k, '0deg') }
+// режим «Расставить»: своя копия группы по текущему порядку, после броска — на сервер
+const arranging = ref(false)
+const arrangeList = ref([])
+function toggleArrange() {
+  arranging.value = !arranging.value
+  if (arranging.value) arrangeList.value = npcState.npcs.filter(n => n.group === group.value).sort((a, b) => (a.order || 0) - (b.order || 0))
+}
+watch(group, () => { arranging.value = false })
+async function saveOrder() {
+  try { await api('POST', '/api/npcs-order', { ids: arrangeList.value.map(n => n.id) }) } catch (e) { toast(e.message, 'error') }
+}
 const close = () => router.push({ query: { ...route.query, npc: undefined } })
 // стрелки ← → листают НПС, Esc — к списку (если не печатаешь и не открыт редактор)
 function onKey(e) {
@@ -191,7 +218,13 @@ async function create() {
 .np-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 14px; }
 .np-head h2 { margin: 0; font: 700 30px 'Cormorant Garamond', serif; color: #f3dc9e; }
 .np-head p { margin: 4px 0 0; color: #a8936c; font-size: 13.5px; }
-.np-tools { display: flex; gap: 8px; }
+.np-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.np-btn.on { background: rgba(231, 197, 111, .2); border-color: #e7c56f; color: #f3dc9e; }
+.np-hint { margin: 0 0 10px; color: #a8936c; font-size: 13px; }
+.np-card.arr { cursor: grab; transform: none; }
+.np-card.arr:active { cursor: grabbing; }
+.np-card.arr .np-txt { padding: 8px 10px; }
+.np-ghost { opacity: .35; outline: 2px dashed #e7c56f; outline-offset: 2px; }
 .np-btn { border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: #ece6da; border-radius: 10px; padding: 8px 14px; font: 700 13px 'Manrope', sans-serif; cursor: pointer; }
 .np-btn.primary { background: linear-gradient(180deg, #f0cf83, #c99a45); color: #1b140c; border-color: #e6c27a; }
 .np-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 12px; border-bottom: 1px solid rgba(231, 197, 111, .2); }

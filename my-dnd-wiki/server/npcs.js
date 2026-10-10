@@ -90,6 +90,13 @@ export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, 
     changed()
     res.json(n)
   })
+  // порядок НПС в группе (мастер перетаскивает карточки): ids по порядку → order 1, 2, 3…
+  app.post('/api/npcs-order', requireMaster, (req, res) => {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : []
+    ids.forEach((id, i) => { const n = find(id); if (n) n.order = i + 1 })
+    changed()
+    res.json({ ok: true })
+  })
   app.patch('/api/npcs/:id', requireMaster, (req, res) => {
     const old = find(req.params.id)
     if (!old) return res.status(404).json({ error: 'НПС не найден' })

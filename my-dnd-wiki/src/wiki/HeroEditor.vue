@@ -21,9 +21,12 @@
               <input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickArts" />
             </label>
             <div v-if="gal.length" class="gstrip">
+              <!-- арты перетаскиваются; первый — обложка -->
+              <VueDraggable v-model="gal" :animation="200" ghost-class="he-ghost" class="gstrip-in" @start="dragSel = selItem" @end="sel = Math.max(0, gal.indexOf(dragSel))">
               <button v-for="(g, n) in gal" :key="g.id || g.tmp" type="button" class="gth" :class="{ on: n === sel }" :title="n === 0 ? 'Обложка' : `Арт ${n + 1}`" @click="sel = n">
                 <img :src="srcOf(g)" alt="" /><i v-if="n === 0">★</i>
               </button>
+              </VueDraggable>
               <label class="gadd" title="Добавить арты">＋<input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickArts" /></label>
             </div>
             <div v-if="selItem" class="pbtns">
@@ -133,6 +136,7 @@
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import HexPips from './HexPips.vue'
 import PortraitFocus from './PortraitFocus.vue'
+import { VueDraggable } from 'vue-draggable-plus'
 import { store, heroPortraitUrl } from '../map/store.js'
 import { HERO_KINDS, RARITY, MAX_SIDEKICKS, ILLNESS_MAX, REL_LEVELS, REL_CELL, EXPENSES } from '../shared/catalog.js'
 
@@ -181,6 +185,7 @@ const gal = ref((props.hero.gallery || []).map(g => ({ ...g, pos: { ...DEFPOS, .
 const removed = []
 const sel = ref(0)
 const selItem = computed(() => gal.value[sel.value] || null)
+const dragSel = ref(null) // какой арт был выбран, когда начали тащить — после броска выбор остаётся на нём
 const srcOf = g => g.url || heroPortraitUrl(g.thumb || g.file)
 function pickArts(e) {
   const files = [...e.target.files].filter(f => f.type.startsWith('image/') && !f.type.includes('svg'))
@@ -287,4 +292,7 @@ footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding:
   .wide { grid-column: auto; }
   .rel select, .rel > input { width: 100%; }
 }
+.gstrip-in { display: contents; }
+.gth { cursor: grab; }
+.he-ghost { opacity: .35; outline: 2px dashed #e7c56f; }
 </style>

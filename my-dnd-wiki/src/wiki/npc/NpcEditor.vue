@@ -32,11 +32,13 @@
             <button v-for="p in STATUS_PRESETS" :key="p[0]" type="button" :style="{ '--sc': p[1] }" @click="Object.assign(f.status, { text: p[0], color: p[1] })">{{ p[0] }}</button>
           </div>
           <div class="ne-sub">Основная информация <button v-if="missingInfo.length" type="button" class="ne-mini" @click="addMissingInfo">+ поля группы ({{ missingInfo.length }})</button></div>
+          <VueDraggable v-model="f.info" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.info" :key="i" class="ne-row">
             <input v-model.trim="r.k" class="k" list="ne-info-keys" placeholder="Поле" />
             <input v-model="r.v" placeholder="Значение (??? — пока неизвестно)" />
             <RowBtns :list="f.info" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.info.push({ k: '', v: '' })">+ поле</button>
           <datalist id="ne-info-keys"><option v-for="k in allInfoKeys" :key="k" :value="k" /></datalist>
         </template>
@@ -44,28 +46,34 @@
         <!-- ===== Специализации и слабости ===== -->
         <template v-else-if="sec === 'levels'">
           <div class="ne-sub">Специализации <small>Новичок → Легенда</small></div>
+          <VueDraggable v-model="f.specs" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.specs" :key="'s' + i" class="ne-row">
             <input v-model.trim="r.name" placeholder="Охота" />
             <select v-model="r.level" class="lv"><option value="">—</option><option v-for="l in SPEC_LEVELS" :key="l.name" :value="l.name">{{ l.name }}</option></select>
             <RowBtns :list="f.specs" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.specs.push({ name: '', level: 'Новичок' })">+ специализация</button>
           <div class="ne-sub">Слабости <small>Плохо → Ужасно</small></div>
+          <VueDraggable v-model="f.weak" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.weak" :key="'w' + i" class="ne-row">
             <input v-model.trim="r.name" placeholder="Тактика" />
             <select v-model="r.level" class="lv"><option value="">—</option><option v-for="l in WEAK_LEVELS" :key="l.name" :value="l.name">{{ l.name }}</option></select>
             <RowBtns :list="f.weak" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.weak.push({ name: '', level: 'Плохо' })">+ слабость</button>
         </template>
 
         <!-- ===== Владения ===== -->
         <template v-else-if="sec === 'prof'">
+          <VueDraggable v-model="f.prof" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.prof" :key="i" class="ne-row">
             <input v-model.trim="r.name" placeholder="Секиры, Общий язык…" />
             <input v-model.trim="r.level" class="lv" list="ne-prof-levels" placeholder="Эксперт" />
             <RowBtns :list="f.prof" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.prof.push({ name: '', level: '' })">+ владение</button>
           <datalist id="ne-prof-levels"><option v-for="l in PROF_LEVELS" :key="l" :value="l" /></datalist>
           <label class="ne-num">Свободных слотов владения<input v-model.number="f.profSlots" type="number" min="0" max="30" /></label>
@@ -75,15 +83,18 @@
         <template v-else-if="sec === 'skills'">
           <p class="ne-hint">Название подсказывается из справочника. Описание навыка общее — его правит ✎ (меняется у всех, у кого этот навык).</p>
           <div class="ne-sub">Пассивные навыки</div>
+          <VueDraggable v-model="f.passives" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.passives" :key="'p' + i" class="ne-row four">
             <input v-model.trim="r.name" list="ne-pass" placeholder="Название" @change="fillPassive(r)" />
             <input v-model.trim="r.type" class="lv" list="ne-types" placeholder="Расовый" />
             <button type="button" class="ne-mini" :class="{ warn: !libDesc('passive', r.name) }" :title="libDesc('passive', r.name) ? 'Общее описание' : 'Описания нет — добавить'" :disabled="!r.name" @click="skill = { kind: 'passive', entry: r }">✎</button>
             <RowBtns :list="f.passives" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.passives.push({ name: '', type: '' })">+ пассивный навык</button>
 
           <div class="ne-sub">Активные навыки</div>
+          <VueDraggable v-model="f.actives" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.actives" :key="'a' + i" class="ne-act">
             <div class="ne-row four">
               <input v-model.trim="r.name" list="ne-act" placeholder="Название" @change="fillActive(r)" />
@@ -99,6 +110,7 @@
             <textarea v-if="r.desc !== undefined" v-model="r.desc" rows="3" placeholder="Описание для этого НПС" />
             <p v-else-if="libDesc('active', r.name)" class="ne-lib">{{ libDesc('active', r.name) }}</p>
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.actives.push({ name: '', type: '', cooldown: '', cost: '' })">+ активный навык</button>
           <datalist id="ne-pass"><option v-for="s in libOf('passive')" :key="s.id" :value="s.name" /></datalist>
           <datalist id="ne-act"><option v-for="s in libOf('active')" :key="s.id" :value="s.name" /></datalist>
@@ -114,22 +126,27 @@
             <label v-for="s in STATS" :key="s">{{ s }} <small v-if="mod(f.stats[s]) != null">{{ signed(mod(f.stats[s])) }}</small><input v-model.trim="f.stats[s]" /></label>
           </div>
           <div class="ne-sub">Спасброски</div>
+          <VueDraggable v-model="f.saves" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.saves" :key="'v' + i" class="ne-row">
             <input v-model.trim="r.stat" list="ne-stats" placeholder="Сила" />
             <input v-model.trim="r.value" class="lv" placeholder="10" />
             <RowBtns :list="f.saves" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.saves.push({ stat: '', value: '' })">+ спасбросок</button>
           <datalist id="ne-stats"><option v-for="s in STATS" :key="s" :value="s" /></datalist>
           <div class="ne-sub">Сопротивления и уязвимости</div>
+          <VueDraggable v-model="f.resist" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.resist" :key="'r' + i" class="ne-row">
             <input v-model.trim="r.kind" placeholder="Огонь" />
             <input v-model.trim="r.value" class="lv" list="ne-res" placeholder="Сопротивление 35%" />
             <RowBtns :list="f.resist" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.resist.push({ kind: '', value: '' })">+ строка</button>
           <datalist id="ne-res"><option value="Сопротивление 35%" /><option value="Уязвимость" /><option value="Иммунитет" /></datalist>
           <div class="ne-sub">Атаки</div>
+          <VueDraggable v-model="f.attacks" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.attacks" :key="'t' + i" class="ne-row atk">
             <input v-model.trim="r.name" placeholder="Секира" />
             <input v-model.trim="r.dtype" placeholder="Физический" />
@@ -138,13 +155,16 @@
             <input v-model.trim="r.note" placeholder="Заметка" />
             <RowBtns :list="f.attacks" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.attacks.push({ name: '', dtype: '', kind: '', dmg: '', note: '' })">+ атака</button>
           <div class="ne-sub">Заклинания, техники, дрессировки</div>
           <label class="ne-num">Заголовок блока<input v-model.trim="f.spellsTitle" :placeholder="SPELLS_TITLE[f.group] || 'Заклинания и Техники'" /></label>
+          <VueDraggable v-model="f.spells" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(r, i) in f.spells" :key="'z' + i" class="ne-row one">
             <input v-model="f.spells[i]" placeholder="Название" />
             <RowBtns :list="f.spells" :i="i" />
           </div>
+          </VueDraggable>
           <button type="button" class="ne-add" @click="f.spells.push('')">+ строка</button>
           <label class="ne-num">Свободных слотов<input v-model.number="f.spellSlots" type="number" min="0" max="30" /></label>
         </template>
@@ -152,10 +172,12 @@
         <!-- ===== Списки ===== -->
         <template v-else-if="sec === 'lists'">
           <p class="ne-hint">Занятия и хобби, снаряжение, инвентарь, любимые вещи, профессии, квесты — по строке на пункт.</p>
+          <VueDraggable v-model="f.lists" handle=".ne-grip" :animation="180" ghost-class="ne-ghost" class="ne-dlist">
           <div v-for="(l, i) in f.lists" :key="i" class="ne-list">
             <div class="ne-row one"><input v-model.trim="l.title" placeholder="Заголовок" /><RowBtns :list="f.lists" :i="i" /></div>
             <textarea :value="l.items.join('\n')" rows="4" placeholder="Каждый пункт с новой строки" @input="l.items = $event.target.value.split('\n')" />
           </div>
+          </VueDraggable>
           <div class="ne-presets">
             <button v-for="t in missingLists" :key="t" type="button" @click="f.lists.push({ title: t, items: [] })">+ {{ t }}</button>
             <button type="button" @click="f.lists.push({ title: '', items: [] })">+ свой список</button>
@@ -177,18 +199,19 @@
             </div>
           </div>
           <div class="ne-sub">Арты</div>
-          <p class="ne-hint">Первый арт — обложка. «Форма» объединяет арты в переключатели (у Луны — две формы и наряды). Изменения здесь сохраняются сразу.</p>
+          <p class="ne-hint">Перетаскивай арты мышью или пальцем — первый становится обложкой. «Форма» объединяет арты в переключатели (у Луны — две формы и наряды). Изменения здесь сохраняются сразу.</p>
           <div class="ne-arts">
-            <div v-for="(a, i) in arts" :key="a.id" class="ne-art">
+            <VueDraggable v-model="artsList" :animation="200" ghost-class="ne-ghost" filter="input,button" :prevent-on-filter="false" class="ne-arts-in" @end="saveArtOrder">
+            <div v-for="a in artsList" :key="a.id" class="ne-art" title="Перетащи, чтобы поменять порядок; первый — обложка">
               <img :src="heroPortraitUrl(a.thumb || a.file)" alt="" />
               <input :value="a.label" placeholder="Подпись" maxlength="60" @change="patchArt(a, { label: $event.target.value })" />
               <input :value="a.group" placeholder="Форма / наряд" list="ne-forms" maxlength="40" @change="patchArt(a, { group: $event.target.value })" />
               <div class="ne-art-btns">
-                <button type="button" :disabled="i === 0" title="Левее" @click="moveArt(i, -1)">◀</button>
-                <button type="button" :disabled="i === arts.length - 1" title="Правее" @click="moveArt(i, 1)">▶</button>
+                <span class="ne-art-hint">⠿ тяни</span>
                 <button type="button" class="no" title="Удалить арт" @click="dropArt(a)">✕</button>
               </div>
             </div>
+            </VueDraggable>
             <label class="ne-art add">{{ uploading ? 'Загружаю…' : '＋ арты' }}<input type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="upload" /></label>
           </div>
           <datalist id="ne-forms"><option v-for="g in formsUsed" :key="g" :value="g" /></datalist>
@@ -208,8 +231,9 @@
 </template>
 
 <script setup>
-import { computed, defineComponent, h, reactive, ref } from 'vue'
+import { computed, defineComponent, h, reactive, ref, watch } from 'vue'
 import NpcSkillDialog from './NpcSkillDialog.vue'
+import { VueDraggable } from 'vue-draggable-plus'
 import { store, npcState, loadNpcs, act, api, toast, heroPortraitUrl, uploadNpcArt, uploadNpcAvatar } from '../../map/store.js'
 import { cropImage } from '../../components/cropState.js'
 import { NPC_GROUPS, groupOf, SPEC_LEVELS, WEAK_LEVELS, STATS, COMBAT, mod, signed, INFO_KEYS, LIST_TITLES, SPELLS_TITLE, skillKey, findPlace } from '../../shared/npc.js'
@@ -217,12 +241,11 @@ import { NPC_GROUPS, groupOf, SPEC_LEVELS, WEAK_LEVELS, STATS, COMBAT, mod, sign
 const props = defineProps({ npc: { type: Object, required: true } })
 const emit = defineEmits(['close'])
 
-// кнопки строки: выше, ниже, удалить
+// кнопки строки: ручка для перетаскивания и «удалить»
 const RowBtns = defineComponent({
   props: { list: Array, i: Number },
   setup: p => () => h('span', { class: 'ne-rb' }, [
-    h('button', { type: 'button', title: 'Выше', disabled: p.i === 0, onClick: () => p.list.splice(p.i - 1, 0, p.list.splice(p.i, 1)[0]) }, '↑'),
-    h('button', { type: 'button', title: 'Ниже', disabled: p.i === p.list.length - 1, onClick: () => p.list.splice(p.i + 1, 0, p.list.splice(p.i, 1)[0]) }, '↓'),
+    h('span', { class: 'ne-grip', title: 'Потяни, чтобы переставить' }, '⠿'),
     h('button', { type: 'button', title: 'Удалить строку', class: 'no', onClick: () => p.list.splice(p.i, 1) }, '✕')
   ])
 })
@@ -325,9 +348,12 @@ async function upload(e) {
 async function patchArt(a, patch) {
   try { await api('PATCH', `/api/npcs/${props.npc.id}/arts/${a.id}`, patch); await loadNpcs(true) } catch (e) { toast(e.message, 'error') }
 }
-async function moveArt(i, d) {
-  const ids = arts.value.map(a => a.id)
-  ids.splice(i + d, 0, ids.splice(i, 1)[0])
+// порядок артов: локальная копия для перетаскивания, после броска — на сервер
+const artsList = ref([])
+watch(arts, v => { artsList.value = [...v] }, { immediate: true })
+async function saveArtOrder() {
+  const ids = artsList.value.map(a => a.id)
+  if (ids.join() === arts.value.map(a => a.id).join()) return
   try { await api('POST', `/api/npcs/${props.npc.id}/arts-order`, { ids }); await loadNpcs(true) } catch (e) { toast(e.message, 'error') }
 }
 async function dropArt(a) {
@@ -398,6 +424,13 @@ async function resetAvatar() {
 .ne-lib { margin: 0; padding: 6px 9px; border-radius: 8px; background: rgba(255, 255, 255, .03); color: #a8936c; font-size: 12.5px; line-height: 1.5; white-space: pre-line; }
 .ne-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .ne-rb { display: flex; gap: 3px; }
+.ne-dlist { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.ne-rb :deep(.ne-grip) { display: grid; place-items: center; width: 26px; color: #a8936c; font-size: 16px; cursor: grab; user-select: none; touch-action: none; }
+.ne-rb :deep(.ne-grip:hover) { color: #f3d99a; }
+.ne-ghost { opacity: .35; outline: 2px dashed #e7c56f; outline-offset: 2px; }
+.ne-arts-in { display: contents; }
+.ne-art { cursor: grab; }
+.ne-art-hint { flex: 1; align-self: center; color: #a8936c; font-size: 11.5px; font-weight: 700; text-align: center; }
 .ne-rb :deep(button), .ne-mini { padding: 5px 8px; border-radius: 7px; border: 1px solid rgba(231, 197, 111, .3); background: rgba(231, 197, 111, .06); color: #f3d99a; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .ne-rb :deep(button:disabled), .ne-mini:disabled { opacity: .35; cursor: default; }
 .ne-rb :deep(button.no) { color: #ff9b8f; border-color: rgba(255, 107, 91, .35); }
