@@ -19,6 +19,9 @@
       </div>
       <p class="muted">Изменение — за всё время, с дня {{ snaps[0].day }}.</p>
 
+      <!-- Chart.js: настроение по дням и прирост ресурсов за день -->
+      <SettlementCharts :snaps="snaps" />
+
       <!-- запасы -->
       <div class="h-head">
         <b>Запасы на складе</b>
@@ -84,6 +87,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch, nextTick } from 'vue'
 import { RES, RESOURCES } from '../shared/settlement.js'
+import SettlementCharts from './SettlementCharts.vue'
 
 const props = defineProps({ settlement: Object, wide: Boolean })
 const s = computed(() => props.settlement)
