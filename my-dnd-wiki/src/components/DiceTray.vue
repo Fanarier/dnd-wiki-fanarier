@@ -12,7 +12,7 @@
           <span v-else class="dt-av ini">{{ (p.name || '?')[0] }}</span>
           <div class="dt-who">
             <b>{{ p.mine ? 'Твой бросок' : p.name }}<em v-if="p.secret"> · 🔒 тайно</em></b>
-            <small>{{ p.label ? p.label + ' · ' : '' }}{{ p.notation }}<em v-if="p.adv" class="dt-advtag" :class="p.adv">{{ ADV_SIGN[p.adv] }} {{ ADV_LABEL[p.adv] }}</em><template v-if="p.groups?.length"> · <span v-for="(x, i) in detailParts(p)" :key="i" :class="{ 'dt-drop': x.drop }">{{ x.t }}</span></template></small>
+            <small>{{ p.label ? p.label + ' · ' : '' }}{{ p.notation }}<em v-if="p.adv" class="dt-modetag" :class="MODE_CLS[p.adv]">{{ ADV_SIGN[p.adv] }} {{ ADV_LABEL[p.adv] }}</em><template v-if="p.groups?.length"> · <span v-for="(x, i) in detailParts(p)" :key="i" :class="{ 'dt-drop': x.drop }">{{ x.t }}</span></template></small>
           </div>
           <div class="dt-total"><span class="dt-num">{{ p.total }}</span><i v-if="isCrit(p)">КРИТ!</i><i v-else-if="isFail(p)">провал</i></div>
         </div>
@@ -29,8 +29,8 @@
         </button>
       </div>
       <!-- преимущество / помеха: d20 бросается дважды, засчитывается больший / меньший -->
-      <div class="dt-adv" role="group" aria-label="Преимущество или помеха">
-        <button v-for="m in ADV_BTNS" :key="m.v" type="button" :class="[m.v || 'plain', { on: mode === m.v }]" :title="m.hint" @click="setMode(m.v)">{{ m.t }}</button>
+      <div class="dt-mode" role="group" aria-label="Преимущество или помеха">
+        <button v-for="m in ADV_BTNS" :key="m.v" type="button" :class="[MODE_CLS[m.v], { on: mode === m.v }]" :title="m.hint" @click="setMode(m.v)">{{ m.t }}</button>
       </div>
       <!-- формула: пишется сама от кнопок, а можно набрать руками — кнопки подстроятся -->
       <label class="dt-formula">Формула
@@ -88,6 +88,8 @@ const rolling3d = ref(false)
 // преимущество / помеха: держится, пока не сбросят; работает, когда в формуле один d20
 const mode = ref('')
 const ADV_SIGN = { adv: '▲', dis: '▼' }
+// классы без «adv»: блокировщики рекламы прячут всё с классом .adv
+const MODE_CLS = { '': 'm-plain', adv: 'm-hi', dis: 'm-lo' }
 const ADV_BTNS = [
   { v: '', t: 'Обычный', hint: 'Обычный бросок' },
   { v: 'adv', t: '▲ Преимущество', hint: 'd20 бросается дважды, засчитывается больший' },
@@ -260,15 +262,15 @@ async function roll() {
 .dt-dice button.on { background: rgba(231, 197, 111, .22); border-color: #e7c56f; }
 .dt-die { font: 800 12px 'Manrope', sans-serif; }
 .dt-dice em { position: absolute; right: -4px; top: -6px; padding: 0 5px; border-radius: 99px; background: #e7c56f; color: #1b140c; font: 800 10.5px 'Manrope', sans-serif; font-style: normal; }
-.dt-adv { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 4px; padding: 3px; border-radius: 10px; background: #0f0c08; border: 1px solid rgba(231, 197, 111, .2); }
-.dt-adv button { padding: 5px 3px; border-radius: 7px; border: 0; background: none; color: #a8936c; font: 700 11.5px 'Manrope', sans-serif; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s; }
-.dt-adv button:hover { color: #f3d99a; }
-.dt-adv button.on { background: rgba(231, 197, 111, .18); color: #f3d99a; }
-.dt-adv button.adv.on { background: rgba(120, 200, 120, .2); color: #a8e6a1; }
-.dt-adv button.dis.on { background: rgba(255, 122, 107, .18); color: #ff9b8f; }
-.dt-advtag { margin-left: 5px; font-style: normal; font-weight: 800; }
-.dt-advtag.adv { color: #a8e6a1; }
-.dt-advtag.dis { color: #ff9b8f; }
+.dt-mode { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 4px; padding: 3px; border-radius: 10px; background: #0f0c08; border: 1px solid rgba(231, 197, 111, .2); }
+.dt-mode button { padding: 5px 3px; border-radius: 7px; border: 0; background: none; color: #a8936c; font: 700 11.5px 'Manrope', sans-serif; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s; }
+.dt-mode button:hover { color: #f3d99a; }
+.dt-mode button.on { background: rgba(231, 197, 111, .18); color: #f3d99a; }
+.dt-mode button.m-hi.on { background: rgba(120, 200, 120, .2); color: #a8e6a1; }
+.dt-mode button.m-lo.on { background: rgba(255, 122, 107, .18); color: #ff9b8f; }
+.dt-modetag { margin-left: 5px; font-style: normal; font-weight: 800; }
+.dt-modetag.m-hi { color: #a8e6a1; }
+.dt-modetag.m-lo { color: #ff9b8f; }
 .dt-drop { text-decoration: line-through; opacity: .55; }
 .dt-formula { display: grid; gap: 4px; }
 .dt-frow { display: flex; gap: 6px; }
