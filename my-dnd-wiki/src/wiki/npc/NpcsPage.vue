@@ -69,7 +69,8 @@
             <b>{{ n.name }}</b>
             <span class="np-sub">{{ npcSubtitle(n) || '—' }}</span>
             <span v-if="n.status?.text" class="np-st" :style="{ '--sc': n.status.color }">{{ n.status.text }}</span>
-            <span v-if="n.home" class="np-home">📍 {{ n.home }}</span>
+            <span v-if="n.home && placeOf(n)" class="np-home link" role="link" :title="placeOf(n).kind === 'settlement' ? 'Открыть поселение' : 'Показать на карте мира'" @click.stop="router.push(placeLink(placeOf(n)))">📍 {{ n.home }}</span>
+            <span v-else-if="n.home" class="np-home">📍 {{ n.home }}</span>
           </div>
         </button>
       </TransitionGroup>
@@ -91,7 +92,7 @@ import NpcEditor from './NpcEditor.vue'
 import NpcSkillDialog from './NpcSkillDialog.vue'
 import NpcGlossary from './NpcGlossary.vue'
 import { store, npcState, loadNpcs, heroPortraitUrl, act } from '../../map/store.js'
-import { NPC_GROUPS, groupOf, npcSubtitle, npcLevel, infoOf, skillIndex } from '../../shared/npc.js'
+import { NPC_GROUPS, groupOf, npcSubtitle, npcLevel, infoOf, skillIndex, findPlace, placeLink } from '../../shared/npc.js'
 
 const route = useRoute(), router = useRouter()
 const master = computed(() => store.role === 'master')
@@ -99,6 +100,8 @@ const master = computed(() => store.role === 'master')
 // подгружаем при открытии и каждый раз, когда на сервере поменялись НПС (npcsRev) или роль
 onMounted(() => loadNpcs())
 watch(() => [store.data.npcsRev, store.role], () => loadNpcs())
+// место жительства → город на карте или поселение (если совпало по названию)
+const placeOf = n => findPlace(n.home, store.data.cities, store.data.settlements)
 const skillMap = computed(() => skillIndex(npcState.skills))
 
 // фильтры живут в адресе — «назад» в браузере и ссылки работают как ожидаешь
@@ -214,7 +217,7 @@ async function create() {
 .np-card:hover::after { opacity: 1; }
 .np-card:hover .np-lvl { box-shadow: 0 0 14px rgba(240, 207, 131, .7); }
 .np-card.shade { opacity: .6; border-style: dashed; }
-.np-pic { position: relative; aspect-ratio: 4 / 3; background: radial-gradient(circle at 50% 35%, #2a2015, #120e09 75%); }
+.np-pic { position: relative; aspect-ratio: 3 / 4; background: radial-gradient(circle at 50% 35%, #2a2015, #120e09 75%); }
 .np-pic { overflow: hidden; }
 .np-pic img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .6s cubic-bezier(.2, .8, .2, 1), filter .4s; }
 .np-card:hover .np-pic img { transform: scale(1.07); filter: saturate(1.12) brightness(1.05); }
@@ -248,6 +251,8 @@ async function create() {
 .np-sub { color: #cdbf9f; font-size: 12.5px; font-weight: 600; }
 .np-st { justify-self: start; margin-top: 2px; padding: 1px 9px; border-radius: 99px; border: 1px solid var(--sc); color: var(--sc); background: color-mix(in srgb, var(--sc) 12%, transparent); font-size: 11.5px; font-weight: 800; }
 .np-home { color: #a8936c; font-size: 12px; }
+.np-home.link { justify-self: start; color: #e6c27a; text-decoration: underline dotted rgba(230, 194, 122, .5); text-underline-offset: 3px; cursor: pointer; }
+.np-home.link:hover { color: #fff3d6; }
 .np-empty { color: #a8936c; font-style: italic; }
 
 .np-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 16px; }

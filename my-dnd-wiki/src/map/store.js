@@ -20,7 +20,7 @@ function lsSet(key, val) {
 
 const DEFAULT_LAYERS = {
   states: true, borders: true, rivers: true, labels: true, relief: false, biomes: false, heights: false,
-  roads: true, routes: true, quests: true, notes: true, cities: true, towns: true, anomalies: true, parties: true, fog: true, grid: false, cursors: true
+  roads: true, routes: true, quests: true, notes: true, cities: true, towns: true, anomalies: true, parties: true, npcs: true, fog: true, grid: false, cursors: true
 }
 
 let savedLayers = {}
@@ -588,6 +588,8 @@ export async function loadNpcs(force = false) {
     npcState.loading = false
   }
 }
+// миниатюра НПС для карты (уже обрезанный квадрат из окна обрезки)
+export const uploadNpcAvatar = (npcId, blob) => postBlob(`/api/npcs/${npcId}/avatar`, blob)
 // арт НПС: целиком до 2400px + лёгкий 720px для карточки
 export async function uploadNpcArt(npcId, file) {
   const big = file.size < 4e6 && /png|jpeg|webp/.test(file.type) ? { blob: file } : await shrink(file, 2400, 0.92)

@@ -164,6 +164,19 @@
 
         <!-- ===== Арты (сохраняются сразу) ===== -->
         <template v-else-if="sec === 'arts'">
+          <div class="ne-sub">Миниатюра на карте <small>кружок над городом, где живёт НПС</small></div>
+          <div class="ne-avrow">
+            <span class="ne-av"><img v-if="avatarSrc" :src="avatarSrc" :style="avatarStyle" alt="" /></span>
+            <div class="ne-avside">
+              <div class="ne-presets">
+                <button type="button" :disabled="!arts.length || avBusy" @click="cropFromArt">✂ Вырезать из первого арта</button>
+                <label class="ne-filebtn">{{ avBusy ? 'Загружаю…' : 'Своя картинка' }}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="ownAvatar" /></label>
+                <button v-if="live?.avatar" type="button" @click="resetAvatar">Сбросить</button>
+              </div>
+              <p class="ne-hint">{{ live?.avatar ? 'Своя миниатюра.' : 'Сейчас берётся из первого арта.' }} {{ placeHint }}</p>
+            </div>
+          </div>
+          <div class="ne-sub">Арты</div>
           <p class="ne-hint">Первый арт — обложка. «Форма» объединяет арты в переключатели (у Луны — две формы и наряды). Изменения здесь сохраняются сразу.</p>
           <div class="ne-arts">
             <div v-for="(a, i) in arts" :key="a.id" class="ne-art">
@@ -197,8 +210,9 @@
 <script setup>
 import { computed, defineComponent, h, reactive, ref } from 'vue'
 import NpcSkillDialog from './NpcSkillDialog.vue'
-import { store, npcState, loadNpcs, act, api, toast, heroPortraitUrl, uploadNpcArt } from '../../map/store.js'
-import { NPC_GROUPS, groupOf, SPEC_LEVELS, WEAK_LEVELS, STATS, COMBAT, mod, signed, INFO_KEYS, LIST_TITLES, SPELLS_TITLE, skillKey } from '../../shared/npc.js'
+import { store, npcState, loadNpcs, act, api, toast, heroPortraitUrl, uploadNpcArt, uploadNpcAvatar } from '../../map/store.js'
+import { cropImage } from '../../components/cropState.js'
+import { NPC_GROUPS, groupOf, SPEC_LEVELS, WEAK_LEVELS, STATS, COMBAT, mod, signed, INFO_KEYS, LIST_TITLES, SPELLS_TITLE, skillKey, findPlace } from '../../shared/npc.js'
 
 const props = defineProps({ npc: { type: Object, required: true } })
 const emit = defineEmits(['close'])
@@ -321,6 +335,37 @@ async function dropArt(a) {
   try { await api('DELETE', `/api/npcs/${props.npc.id}/arts/${a.id}`); await loadNpcs(true) } catch (e) { toast(e.message, 'error') }
 }
 const skill = ref(null)
+
+// миниатюра на карту: своя (квадрат) или — по умолчанию — первый арт
+const live = computed(() => npcState.npcs.find(n => n.id === props.npc.id))
+const avatarSrc = computed(() => heroPortraitUrl(live.value?.avatar || arts.value[0]?.thumb || arts.value[0]?.file || ''))
+const avatarStyle = computed(() => (live.value?.avatar ? null : { objectPosition: `${arts.value[0]?.pos?.x ?? 50}% ${arts.value[0]?.pos?.y ?? 20}%` }))
+const placeHint = computed(() => {
+  const p = findPlace(f.home, store.data.cities, store.data.settlements)
+  return p?.city ? `Видна на карте над «${p.city.name}».` : f.home ? 'Место жительства не совпало ни с одним городом на карте — на карте её не будет.' : 'Впиши, где живёт НПС, — тогда она появится над этим городом.'
+})
+const avBusy = ref(false)
+async function setAvatar(file) {
+  const blob = await cropImage(file, { title: `Миниатюра: ${f.name}`, size: 256 })
+  if (!blob) return
+  avBusy.value = true
+  try { await uploadNpcAvatar(props.npc.id, blob); toast('Миниатюра обновлена'); await loadNpcs(true) } catch (e) { toast(e.message, 'error') } finally { avBusy.value = false }
+}
+async function cropFromArt() {
+  try {
+    const a = arts.value[0]
+    const blob = await (await fetch(heroPortraitUrl(a.file))).blob()
+    await setAvatar(new File([blob], 'art', { type: blob.type || 'image/webp' }))
+  } catch (e) { toast(e.message, 'error') }
+}
+async function ownAvatar(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (file) try { await setAvatar(file) } catch (err) { toast(err.message, 'error') }
+}
+async function resetAvatar() {
+  try { await api('DELETE', `/api/npcs/${props.npc.id}/avatar`); toast('Миниатюра снова из первого арта'); await loadNpcs(true) } catch (e) { toast(e.message, 'error') }
+}
 </script>
 
 <style scoped>
@@ -368,6 +413,11 @@ const skill = ref(null)
 .ne-pill { padding: 3px 10px; border-radius: 99px; border: 1px solid var(--sc); color: var(--sc); background: color-mix(in srgb, var(--sc) 14%, transparent); font-weight: 800; font-size: 12px; white-space: nowrap; }
 .ne-presets { display: flex; flex-wrap: wrap; gap: 5px; }
 .ne-presets button { --sc: #e6c27a; padding: 3px 10px; border-radius: 99px; border: 1px solid color-mix(in srgb, var(--sc) 55%, transparent); background: none; color: var(--sc); font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
+.ne-avrow { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.ne-av { flex: none; width: 72px; height: 72px; border-radius: 50%; overflow: hidden; border: 2px solid #e7c56f; background: #120e09; box-shadow: 0 0 0 3px #241c13, 0 6px 16px rgba(0, 0, 0, .5); }
+.ne-av img { width: 100%; height: 100%; object-fit: cover; }
+.ne-avside { flex: 1 1 220px; min-width: 0; display: grid; gap: 6px; }
+.ne-filebtn { display: inline-block !important; padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(230, 194, 122, .55); color: #e6c27a !important; font: 700 12px 'Manrope', sans-serif !important; cursor: pointer; }
 .ne-arts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
 .ne-art { display: grid; gap: 5px; align-content: start; padding: 6px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .2); background: rgba(255, 255, 255, .02); }
 .ne-art img { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 7px; }

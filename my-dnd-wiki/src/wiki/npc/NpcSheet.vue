@@ -28,7 +28,8 @@
         <div class="ns-badges">
           <span v-if="level" class="ns-lvl">ур. {{ level }}</span>
           <span v-if="npc.status?.text" class="ns-status" :style="{ '--sc': npc.status.color }">{{ npc.status.text }}</span>
-          <span v-if="npc.home" class="ns-home">📍 {{ npc.home }}</span>
+          <router-link v-if="npc.home && place" class="ns-home link" :to="placeLink(place)" :title="place.kind === 'settlement' ? 'Открыть поселение' : 'Показать на карте мира'">📍 {{ npc.home }}</router-link>
+          <span v-else-if="npc.home" class="ns-home">📍 {{ npc.home }}</span>
           <router-link v-if="hero" class="ns-hero" :to="{ path: '/wiki', query: { hero: hero.id } }">⚑ Карточка «{{ hero.name }}»</router-link>
         </div>
         <dl class="ns-info">
@@ -176,7 +177,7 @@ import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref, watch } 
 import FxText from './FxText.vue'
 import HeroGalleryViewer from '../HeroGalleryViewer.vue'
 import { store, heroPortraitUrl } from '../../map/store.js'
-import { groupOf, SPEC_LEVELS, WEAK_LEVELS, levelColor, STATS, COMBAT, mod, signed, hasSpecs, unknown, npcLevel, skillKey } from '../../shared/npc.js'
+import { groupOf, SPEC_LEVELS, WEAK_LEVELS, levelColor, STATS, COMBAT, mod, signed, hasSpecs, unknown, npcLevel, skillKey, findPlace, placeLink } from '../../shared/npc.js'
 
 const props = defineProps({
   npc: { type: Object, required: true },
@@ -219,6 +220,7 @@ const TABS = computed(() => [
 ])
 
 const level = computed(() => npcLevel(props.npc))
+const place = computed(() => findPlace(props.npc.home, store.data.cities, store.data.settlements))
 const hero = computed(() => props.npc.heroId && store.data.heroes?.find(h => h.id === props.npc.heroId))
 const lib = (kind, name) => props.skills.get(skillKey(kind, name))
 const desc = a => a.desc || lib('active', a.name)?.desc || ''
@@ -262,11 +264,13 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-group { color: #c9a24f; font: 800 11.5px 'Manrope', sans-serif; text-transform: uppercase; letter-spacing: .08em; }
 .ns-hidden { color: #b9a6ff; font-size: 12px; font-weight: 700; }
 .ns-name { margin: 4px 0 10px; font: 700 34px/1.1 'Cormorant Garamond', serif; color: #f3dc9e;
-  background: linear-gradient(100deg, #f3dc9e 42%, #fff8e4 50%, #f3dc9e 58%) 120% 0 / 260% 100% no-repeat; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: ns-shine 1.8s ease .35s both; }
+  background: linear-gradient(100deg, #f3dc9e 0 42%, #fff8e4 50%, #f3dc9e 58% 100%) 120% 0 / 260% 100% repeat-x; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: ns-shine 1.8s ease .35s both; }
 .ns-badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 14px; }
 .ns-lvl { padding: 3px 10px; border-radius: 99px; background: linear-gradient(180deg, #f0cf83, #c99a45); color: #1b140c; font-weight: 800; font-size: 12.5px; }
 .ns-status { animation: ns-glow 2.8s ease-in-out infinite; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--sc); background: color-mix(in srgb, var(--sc) 14%, transparent); color: var(--sc); font-weight: 800; font-size: 12.5px; }
 .ns-home { color: #cdbf9f; font-size: 13px; font-weight: 600; }
+.ns-home.link { color: #e6c27a; text-decoration: underline dotted rgba(230, 194, 122, .5); text-underline-offset: 3px; }
+.ns-home.link:hover { color: #fff3d6; }
 .ns-hero { padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(201, 162, 79, .45); color: #f3d99a; font-weight: 700; font-size: 12px; text-decoration: none; }
 .ns-hero:hover { background: rgba(201, 162, 79, .18); }
 .ns-info { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; padding: 14px 16px; border-radius: 14px; background: rgba(255, 255, 255, .025); border: 1px solid rgba(231, 197, 111, .14); }

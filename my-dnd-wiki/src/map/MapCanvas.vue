@@ -50,6 +50,8 @@
         <pattern v-if="gridOn && grid.type === 'hex'" id="grid-pat" patternUnits="userSpaceOnUse" :width="hex.w" :height="hex.h">
           <path :d="hex.d" fill="none" class="grid-line" :stroke-width="1.2 / view.k" />
         </pattern>
+        <!-- круглая рамка для миниатюр НПС над городами -->
+        <clipPath id="npc-clip"><circle r="12" /></clipPath>
       </defs>
 
       <g :transform="`translate(${view.x},${view.y}) scale(${view.k})`">
@@ -143,6 +145,21 @@
             <circle v-else r="3.6" class="city-dot" />
             <circle v-if="isSel('cities', c.id)" r="14" class="sel-ring" />
             <text v-if="c.showLabel" :y="c.type === 'capital' ? -14 : -9" :class="['lbl', 'lbl-' + c.type]">{{ c.name }}</text>
+          </g>
+        </g>
+
+        <!-- НПС: кружки-миниатюры над городами, где они живут; щелчок — их лист в вики -->
+        <g v-if="L.npcs && view.k > 0.6" class="npc-pins">
+          <g v-for="g in npcGroups" :key="g.city.id" :transform="`translate(${g.city.x},${g.city.y}) scale(${iconScale / view.k})`">
+            <g v-for="(p, j) in g.shown" :key="p.id" :transform="`translate(${(j - (g.count - 1) / 2) * 27},-40)`" class="npc-pin" :data-obj="'npc:' + p.id">
+              <title>{{ p.name }}</title>
+              <circle r="13" class="npc-ring" />
+              <image :href="'/portraits/' + p.img" x="-12" y="-12" width="24" height="24" clip-path="url(#npc-clip)" :preserveAspectRatio="p.fit" />
+            </g>
+            <g v-if="g.more" :transform="`translate(${(g.count - 1) / 2 * 27},-40)`" class="npc-more" :data-obj="'npccity:' + g.city.id">
+              <title>{{ g.rest }}</title>
+              <circle r="13" /><text y="4">+{{ g.more }}</text>
+            </g>
           </g>
         </g>
 
@@ -335,6 +352,21 @@ const roads = computed(() => store.data.roads.map(r => ({ ...r, d: toPath(r.poin
 // На общем плане — только столицы и города, мелочь появляется при приближении
 const MAJOR = ['capital', 'city', 'fort']
 const iconScale = computed(() => Math.max(0.55, Math.min(1, view.k / 1.1)))
+// НПС по городам: до четырёх кружков, остальные — «+N»; картинка без своей миниатюры кадрируется по фокусу арта
+const npcGroups = computed(() => {
+  const by = new Map()
+  for (const p of store.data.npcPins || []) {
+    const city = store.data.cities.find(c => c.id === p.cityId)
+    if (!city || !p.img) continue
+    if (!by.has(city.id)) by.set(city.id, { city, list: [] })
+    by.get(city.id).list.push({ ...p, fit: p.square ? 'xMidYMid slice' : p.y < 35 ? 'xMidYMin slice' : p.y > 65 ? 'xMidYMax slice' : 'xMidYMid slice' })
+  }
+  return [...by.values()].map(({ city, list }) => {
+    const shown = list.length > 5 ? list.slice(0, 4) : list
+    const more = list.length - shown.length
+    return { city, shown, more, count: shown.length + (more ? 1 : 0), rest: list.slice(shown.length).map(p => p.name).join(', ') }
+  })
+})
 const visibleCities = computed(() => {
   const k = view.k
   return store.data.cities
@@ -886,6 +918,9 @@ async function onClick(w, hit) {
         return
     }
   }
+  // миниатюра НПС — его лист; «+N» над городом — все НПС этого города
+  if (hit.type === 'npc') return void router.push({ path: '/wiki', query: { npc: hit.id } })
+  if (hit.type === 'npccity') return void router.push({ path: '/wiki', query: { section: 'npcs' } })
   store.selectedStop = null
   if (hit.type === 'statelabel') store.selection = { type: 'states', id: hit.id }
   else if (hit.type === 'routestop') {
@@ -1009,6 +1044,12 @@ watch(() => store.tool, t => {
 .city-glyph { fill: #e7c56f; }
 .city-ruins { fill: #6b5a48; stroke: #f6ecd6; stroke-width: 1.2; paint-order: stroke; }
 .city-dot { fill: #2a1d12; stroke: #f6ecd6; stroke-width: 1.4; }
+.npc-pin { cursor: pointer; }
+.npc-ring { fill: #120e09; stroke: #e7c56f; stroke-width: 1.6; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7)); }
+.npc-pin:hover .npc-ring { stroke: #fff3d6; stroke-width: 2.2; }
+.npc-more circle { fill: #241c13; stroke: #e7c56f; stroke-width: 1.4; }
+.npc-more { cursor: pointer; }
+.npc-more text { fill: #f3d99a; font: 800 11px Manrope, sans-serif; text-anchor: middle; }
 .sel-ring { fill: none; stroke: #ffe08a; stroke-width: 2; stroke-dasharray: 4 3; animation: spin 8s linear infinite; }
 
 .lbl { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; text-anchor: middle; fill: #23180e; stroke: #f8f0de; stroke-width: 3.5px; paint-order: stroke; stroke-linejoin: round; pointer-events: none; }

@@ -4,6 +4,7 @@
 // Данные отдаются отдельным запросом: в общем состоянии только npcsRev — клиент перезапрашивает, когда он меняется.
 import fs from 'node:fs'
 import path from 'node:path'
+import { findPlace } from '../src/shared/npc.js'
 
 export const NPC_GROUPS = ['sidekick', 'personal', 'companion', 'important', 'aspect']
 const S = (v, n) => String(v ?? '').slice(0, n).trim()
@@ -101,6 +102,7 @@ export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, 
     const n = find(req.params.id)
     if (!n) return res.status(404).json({ error: 'НПС не найден' })
     for (const a of n.arts || []) { dropFile(a.file); dropFile(a.thumb) }
+    dropFile(n.avatar)
     db().npcs = db().npcs.filter(x => x !== n)
     changed()
     res.json({ ok: true })
@@ -146,6 +148,25 @@ export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, 
     if (b.pos) a.pos = { x: Math.max(0, Math.min(100, +b.pos.x || 0)), y: Math.max(0, Math.min(100, +b.pos.y || 0)), zoom: Math.max(1, Math.min(4, +b.pos.zoom || 1)) }
     changed()
     res.json(a)
+  })
+  // миниатюра для карты: квадрат, вырезанный из арта (или своя картинка); без неё берётся первый арт
+  app.post('/api/npcs/:id/avatar', requireMaster, express.raw({ type: () => true, limit: '3mb' }), (req, res) => {
+    const n = find(req.params.id)
+    if (!n) return res.status(404).json({ error: 'НПС не найден' })
+    const file = saveFile(n, req.body, '-av')
+    if (!file) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+    dropFile(n.avatar)
+    n.avatar = file
+    changed()
+    res.json({ avatar: file })
+  })
+  app.delete('/api/npcs/:id/avatar', requireMaster, (req, res) => {
+    const n = find(req.params.id)
+    if (!n) return res.status(404).json({ error: 'НПС не найден' })
+    dropFile(n.avatar)
+    n.avatar = ''
+    changed()
+    res.json({ ok: true })
   })
   app.post('/api/npcs/:id/arts-order', requireMaster, (req, res) => {
     const n = find(req.params.id)
@@ -199,3 +220,17 @@ export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, 
 
 // ссылки «карточка героя → лист НПС» для состояния (скрытые НПС — только мастеру)
 export const npcLinks = (db, master) => Object.fromEntries((db.npcs || []).filter(n => n.heroId && (master || !n.hidden)).map(n => [n.heroId, n.id]))
+
+// миниатюры НПС над городами на карте мира: город — по месту жительства (или город поселения).
+// Скрытые НПС — только мастеру; скрытый город игрок и так не получает, значит и миниатюры у него не будет
+export function npcPins(db, master) {
+  const out = []
+  for (const n of db.npcs || []) {
+    if (n.hidden && !master) continue
+    const cityId = findPlace(n.home, db.cities, db.settlements)?.city?.id
+    if (!cityId) continue
+    const a = n.arts?.[0]
+    out.push({ id: n.id, name: n.name, cityId, img: n.avatar || a?.thumb || a?.file || '', square: !!n.avatar, y: a?.pos?.y ?? 20 })
+  }
+  return out
+}

@@ -77,3 +77,25 @@ export function splitFx(text, effects) {
   if (last < String(text || '').length) out.push({ s: text.slice(last) })
   return out
 }
+
+// «Город Белшой», «Поселение Урюпинск» → город на карте мира или поселение (у него свой город на карте — cityId)
+const PLACE_WORDS = /^(город|деревня|поселение|село|посёлок|поселок|столица|крепость|форт|порт|замок|остров)\s+/i
+const norm = s => String(s || '').trim().toLowerCase().replace(/ё/g, 'е').replace(/[«»"]/g, '')
+export function findPlace(home, cities = [], settlements = []) {
+  const raw = norm(home)
+  if (!raw || raw === '???') return null
+  const name = raw.replace(PLACE_WORDS, '')
+  const s = settlements.find(x => [raw, name].includes(norm(x.name)))
+  if (s) return { kind: 'settlement', settlement: s, city: cities.find(c => c.id === s.cityId) || null }
+  let city = cities.find(c => [raw, name].includes(norm(c.name)))
+  // запасной вариант: в листах и на карте одно название пишут чуть по-разному (Ширатори/Сиратори, Белшой/Бельшой)
+  const loose = w => w.replace(/ш/g, 'с').replace(/ь/g, '')
+  if (!city) city = cities.find(c => loose(norm(c.name)) === loose(name))
+  return city ? { kind: 'city', city } : null
+}
+// куда вести ссылку «где живёт»: поселение — на его страницу, город — на карту с фокусом
+export function placeLink(place) {
+  if (!place) return null
+  if (place.kind === 'settlement') return { path: '/settlement/' + place.settlement.id }
+  return { path: '/', query: { focus: 'cities:' + place.city.id } }
+}

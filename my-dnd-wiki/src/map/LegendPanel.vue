@@ -147,7 +147,8 @@ const OBJ = [
   { key: 'routes', label: 'Маршруты', icon: 'ship' },
   { key: 'quests', label: 'Заказы гильдий', icon: 'note' },
   { key: 'anomalies', label: 'Аномалии', icon: 'anomaly' },
-  { key: 'parties', label: 'Отряды', icon: 'party' }
+  { key: 'parties', label: 'Отряды', icon: 'party' },
+  { key: 'npcs', label: 'НПС в городах', icon: 'npc' }
 ]
 
 const travelling = computed(() => store.data.parties

@@ -8,7 +8,7 @@ import express from 'express'
 import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
-import { registerNpcRoutes, npcLinks } from './npcs.js'
+import { registerNpcRoutes, npcLinks, npcPins } from './npcs.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
 import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword, isOwner, listMasters, setMasterPassword, removeMaster, isMasterLogin } from './auth.js'
 import {
@@ -395,7 +395,7 @@ function viewFor(user, now = Date.now()) {
   if (role === 'master') {
     const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, npcs: _np, npcSkills: _ns, npcEffects: _ne, ...rest } = db
     return {
-      ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(), npcLinks: npcLinks(db, true),
+      ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true),
       notifications: notificationsFor(user),
       players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked }))
     }
@@ -437,7 +437,7 @@ function viewFor(user, now = Date.now()) {
       ? { ...s, army: { ...s.army, squads: s.army.squads.map(q => (q.taskSecret ? { ...q, task: '' } : q)) } }
       : s)),
     hud: db.hud?.visible ? db.hud : null,
-    npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false),
+    npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false),
     roster: roster(),
     notes,
     notifications: user ? notificationsFor(user) : [],
