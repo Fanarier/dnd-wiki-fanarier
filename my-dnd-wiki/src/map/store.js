@@ -575,17 +575,26 @@ export const heroCover = h => h?.gallery?.[0] || null
 
 /* ---------- НПС: листы и справочники приходят отдельным запросом, перезапрашиваем, когда меняется npcsRev ---------- */
 export const npcState = reactive({ rev: -1, role: '', npcs: [], skills: [], effects: [], loading: false, loaded: false })
+// пока идёт запрос, новые не теряем: запоминаем и повторяем сразу после него
+// (арт грузится в два шага — файл и превью, — и второе «НПС изменились» приходит посреди первого запроса)
+let npcsAgain = false
 export async function loadNpcs(force = false) {
+  if (npcState.loading) { npcsAgain = true; return }
   const want = store.data.npcsRev ?? 0
-  if (npcState.loading || (!force && npcState.loaded && npcState.rev === want && npcState.role === store.role)) return
+  if (!force && npcState.loaded && npcState.rev === want && npcState.role === store.role) return
   npcState.loading = true
+  let ok = false
   try {
     const j = await api('GET', '/api/npcs')
     Object.assign(npcState, { rev: j.rev, role: store.role, npcs: j.npcs, skills: j.skills, effects: j.effects, loaded: true })
+    ok = true
   } catch (e) {
     toast(e.message, 'error')
   } finally {
     npcState.loading = false
+    // пока ждали ответ, на сервере могли ещё что-то поменять
+    if (ok && (npcsAgain || (store.data.npcsRev ?? 0) > npcState.rev)) { npcsAgain = false; loadNpcs(true) }
+    npcsAgain = false
   }
 }
 // миниатюра НПС для карты (уже обрезанный квадрат из окна обрезки)
