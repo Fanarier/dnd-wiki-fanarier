@@ -283,8 +283,8 @@ function jag(ax, ay, bx, by, d, out) {
   jag(ax, ay, mx, my, d / 2, out)
   jag(mx, my, bx, by, d / 2, out)
 }
-function strike(x, y) {
-  thunder(0.7 + Math.random() * 0.5)
+function strike(x, y, near = false) {
+  thunder(0.7 + Math.random() * 0.5, near)
   const x0 = x + (Math.random() - 0.5) * W * 0.12, y0 = -12 * K // бьёт из-за верхнего края, из туч
   const main = [[x0, y0]]
   jag(x0, y0, x, y, Math.max(80 * K, (y - y0) * 0.35), main)
@@ -385,7 +385,7 @@ function onClick(e) {
   if (props.kind !== 'air' || !box.value || still) return
   const r = box.value.getBoundingClientRect(), m = box.value.parentElement.getBoundingClientRect()
   if (e.clientY < r.top || e.clientX < m.left) return
-  strike((e.clientX - r.left) * K, (e.clientY - r.top) * K)
+  strike((e.clientX - r.left) * K, (e.clientY - r.top) * K, true)
 }
 const onVis = () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0 } else if (!raf && !still) { last = 0; raf = requestAnimationFrame(frame) } }
 

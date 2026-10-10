@@ -12,7 +12,7 @@
           <span v-else class="dt-av ini">{{ (p.name || '?')[0] }}</span>
           <div class="dt-who">
             <b>{{ p.mine ? 'Твой бросок' : p.name }}<em v-if="p.secret"> · 🔒 тайно</em></b>
-            <small>{{ p.label ? p.label + ' · ' : '' }}{{ p.notation }}<template v-if="detail(p)"> · {{ detail(p) }}</template></small>
+            <small>{{ p.label ? p.label + ' · ' : '' }}{{ p.notation }}<em v-if="p.adv" class="dt-advtag" :class="p.adv">{{ ADV_SIGN[p.adv] }} {{ ADV_LABEL[p.adv] }}</em><template v-if="p.groups?.length"> · <span v-for="(x, i) in detailParts(p)" :key="i" :class="{ 'dt-drop': x.drop }">{{ x.t }}</span></template></small>
           </div>
           <div class="dt-total"><span class="dt-num">{{ p.total }}</span><i v-if="isCrit(p)">КРИТ!</i><i v-else-if="isFail(p)">провал</i></div>
         </div>
@@ -28,13 +28,17 @@
           <span class="dt-die">d{{ d }}</span><em v-if="pick[d]">×{{ pick[d] }}</em>
         </button>
       </div>
+      <!-- преимущество / помеха: d20 бросается дважды, засчитывается больший / меньший -->
+      <div class="dt-adv" role="group" aria-label="Преимущество или помеха">
+        <button v-for="m in ADV_BTNS" :key="m.v" type="button" :class="[m.v || 'plain', { on: mode === m.v }]" :title="m.hint" @click="setMode(m.v)">{{ m.t }}</button>
+      </div>
       <!-- формула: пишется сама от кнопок, а можно набрать руками — кнопки подстроятся -->
       <label class="dt-formula">Формула
         <span class="dt-frow">
           <input v-model="text" :class="{ bad: textError }" placeholder="2d6 + 1d20 + 3" spellcheck="false" autocomplete="off" @input="fromText" />
           <button type="button" class="dt-star" title="Запомнить формулу (с подписью «Что бросаем»)" :disabled="!formula" @click="saveFav">☆</button>
         </span>
-        <small v-if="textError" class="dt-err">{{ textError }}</small>
+        <small v-if="textError || advError" class="dt-err">{{ textError || advError }}</small>
       </label>
       <div v-if="favs.length" class="dt-favs">
         <button v-for="(fv, i) in favs" :key="i" type="button" :title="`${fv.formula} — щелчок: подставить, правый щелчок: забыть`" @click="useFav(fv)" @contextmenu.prevent="dropFav(i)">★ {{ fv.label || fv.formula }}</button>
@@ -50,13 +54,13 @@
         <button type="button" class="dt-btn" @click="quick(20)">d20</button>
         <button type="button" class="dt-btn" @click="quick(100)">d100</button>
         <span class="grow" />
-        <button type="button" class="dt-btn" :disabled="!formula" @click="clearPick">Сброс</button>
-        <button type="button" class="dt-btn primary" :disabled="!formula || busy || !!textError" @click="roll">{{ busy ? 'Катятся…' : 'Бросить' }}</button>
+        <button type="button" class="dt-btn" :disabled="!formula" @click="clearPick(); mode = ''">Сброс</button>
+        <button type="button" class="dt-btn primary" :disabled="!formula || busy || !!textError || !!advError" @click="roll">{{ busy ? 'Катятся…' : 'Бросить' }}</button>
       </div>
       <div v-if="dice.rolls.length" class="dt-log">
         <div v-for="(r, i) in dice.rolls.slice(0, 12)" :key="i" class="dt-line" :style="{ '--pc': r.color || '#e6c27a' }">
           <i class="dot" /><b>{{ r.mine ? 'Ты' : r.name }}</b>
-          <span>{{ r.label ? r.label + ' · ' : '' }}{{ r.notation }}{{ r.secret ? ' 🔒' : '' }}</span>
+          <span>{{ r.label ? r.label + ' · ' : '' }}{{ r.notation }}{{ r.adv ? ' ' + ADV_SIGN[r.adv] : '' }}{{ r.secret ? ' 🔒' : '' }}</span>
           <strong :class="{ crit: isCrit(r), fail: isFail(r) }">{{ r.total }}</strong>
         </div>
       </div>
@@ -65,11 +69,11 @@
 </template>
 
 <script setup>
-import { computed, nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { watch } from 'vue'
 import { store, dice, sendRoll, avatarUrl, toast } from '../map/store.js'
 import { sfx } from '../sound/sound.js'
+import { ADV_LABEL, keptIndex, natural } from '../shared/dice.js'
 
 const route = useRoute() // в поселении внизу слева шкала масштаба — кнопку поднимаем
 
@@ -81,11 +85,25 @@ const label = ref('')
 const secret = ref(false)
 const busy = ref(false)
 const rolling3d = ref(false)
+// преимущество / помеха: держится, пока не сбросят; работает, когда в формуле один d20
+const mode = ref('')
+const ADV_SIGN = { adv: '▲', dis: '▼' }
+const ADV_BTNS = [
+  { v: '', t: 'Обычный', hint: 'Обычный бросок' },
+  { v: 'adv', t: '▲ Преимущество', hint: 'd20 бросается дважды, засчитывается больший' },
+  { v: 'dis', t: '▼ Помеха', hint: 'd20 бросается дважды, засчитывается меньший' }
+]
+function setMode(v) {
+  mode.value = v
+  if (v && !pick[20]) pick[20] = 1 // нечего было усиливать — добавляем d20
+}
+const advOn = computed(() => (mode.value && pick[20] ? mode.value : ''))
+const advError = computed(() => (advOn.value && pick[20] > 1 ? 'Преимущество и помеха — только для одного d20' : ''))
 const formula = computed(() => {
   const parts = SIDES.filter(d => pick[d]).map(d => `${pick[d]}d${d}`)
   if (!parts.length) return ''
   const m = Number(mod.value) || 0
-  return parts.join(' + ') + (m ? (m > 0 ? ` + ${m}` : ` − ${-m}`) : '')
+  return parts.join(' + ') + (m ? (m > 0 ? ` + ${m}` : ` − ${-m}`) : '') + (advOn.value ? ` ${ADV_LABEL[advOn.value]}` : '')
 })
 const clearPick = () => { for (const d of SIDES) pick[d] = 0; mod.value = 0 }
 
@@ -95,8 +113,13 @@ const textError = ref('')
 let typing = false
 watch(formula, v => { if (!typing) { text.value = v.replace(/−/g, '-'); textError.value = '' } })
 function parseFormula(raw) {
-  const src = String(raw || '').toLowerCase().replace(/[кд]/g, 'd').replace(/[−–—]/g, '-').replace(/\s+/g, '')
-  if (!src) return { counts: {}, mod: 0 }
+  // слова «преимущество» / «помеха» (или adv / dis) — где угодно в строке
+  let adv = ''
+  const src = String(raw || '').toLowerCase()
+    .replace(/\(?\s*(преим[а-яё]*|adv[a-z]*)\s*\)?/g, () => { adv = 'adv'; return ' ' })
+    .replace(/\(?\s*(помех[а-яё]*|dis[a-z]*)\s*\)?/g, () => { adv = 'dis'; return ' ' })
+    .replace(/[кд]/g, 'd').replace(/[−–—]/g, '-').replace(/\s+/g, '')
+  if (!src) return { counts: {}, mod: 0, adv }
   const counts = {}
   let m = 0, pos = 0
   const re = /([+-]?)(\d*)d(\d+)|([+-]?)(\d+)/y
@@ -114,7 +137,8 @@ function parseFormula(raw) {
     pos = re.lastIndex
   }
   if (Math.abs(m) > 99) return { error: 'Модификатор — от −99 до 99' }
-  return { counts, mod: m }
+  if (adv && counts[20] !== 1) return { error: 'Преимущество и помеха — только для одного d20' }
+  return { counts, mod: m, adv }
 }
 function applyText(v) {
   const p = parseFormula(v)
@@ -123,6 +147,7 @@ function applyText(v) {
   typing = true
   for (const d of SIDES) pick[d] = p.counts[d] || 0
   mod.value = p.mod
+  mode.value = p.adv
   nextTick(() => { typing = false })
   return true
 }
@@ -142,10 +167,9 @@ function useFav(fv) { text.value = fv.formula; label.value = fv.label || ''; app
 function dropFav(i) { favs.value.splice(i, 1); keepFavs() }
 function quick(d) { clearPick(); pick[d] = 1; roll() }
 
-// натуральная 20 / 1 — только если бросали ровно один d20
-const lone20 = r => r.groups?.length === 1 && r.groups[0].sides === 20 && r.groups[0].values.length === 1
-const isCrit = r => lone20(r) && r.groups[0].values[0] === 20
-const isFail = r => lone20(r) && r.groups[0].values[0] === 1
+// натуральная 20 / 1 — только если бросали один d20 (с преимуществом — по засчитанному)
+const isCrit = r => natural(r) === 20
+const isFail = r => natural(r) === 1
 // звук на каждую новую карточку: свой бросок — крит/провал, чужой — «плюк»
 watch(() => dice.pops.length, (n, o) => {
   if (n <= o) return
@@ -154,7 +178,11 @@ watch(() => dice.pops.length, (n, o) => {
   else if (isFail(p)) sfx('fail')
   else if (!p.mine) sfx('roll', 0.4)
 })
-const detail = r => (r.groups || []).map(g => g.values.join(', ')).join(' | ')
+// значения по видам кубиков; при преимуществе/помехе незасчитанный d20 — зачёркнут
+const detailParts = r => (r.groups || []).flatMap((g, gi) => {
+  const k = keptIndex(g, r.adv)
+  return [...(gi ? [{ t: ' | ' }] : []), ...g.values.flatMap((v, i) => [...(i ? [{ t: ', ' }] : []), { t: String(v), drop: k !== -1 && i !== k }])]
+})
 
 // 3D: библиотека тяжёлая — грузим при первом броске, дальше переиспользуем
 let box = null, boxReady = null, clearTimer = 0
@@ -169,15 +197,17 @@ function getBox() {
   return boxReady
 }
 // без 3D (старый браузер, «меньше анимаций») — честный случайный бросок
-const randomRoll = () => SIDES.filter(d => pick[d]).map(d => ({ sides: d, values: Array.from({ length: pick[d] }, () => 1 + Math.floor(Math.random() * d)) }))
+// сколько кубиков катить: при преимуществе/помехе d20 — два
+const howMany = d => (d === 20 && advOn.value ? 2 : pick[d])
+const randomRoll = () => SIDES.filter(d => pick[d]).map(d => ({ sides: d, values: Array.from({ length: howMany(d) }, () => 1 + Math.floor(Math.random() * d)) }))
 
 async function roll() {
-  if (textError.value || !formula.value || busy.value) return
+  if (textError.value || advError.value || !formula.value || busy.value) return
   busy.value = true
   sfx('diceShake')
   const m = Number(mod.value) || 0
-  const meta = { mod: m, label: label.value, secret: secret.value && store.role === 'master' }
-  const notation = SIDES.filter(d => pick[d]).map(d => `${pick[d]}d${d}`)
+  const meta = { mod: m, adv: advOn.value, label: label.value, secret: secret.value && store.role === 'master' }
+  const notation = SIDES.filter(d => pick[d]).map(d => `${howMany(d)}d${d}`)
   try {
     let groups
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) groups = randomRoll()
@@ -221,7 +251,7 @@ async function roll() {
 .raised .dt-fab { bottom: 44px; }
 .raised .dt-panel { bottom: 102px; }
 
-.dt-panel { position: fixed; left: 14px; bottom: 72px; z-index: 260; width: min(360px, calc(100vw - 28px)); max-height: calc(100vh - 100px); overflow-y: auto; display: grid; gap: 10px; padding: 12px; border-radius: 16px; background: #17130e; border: 1px solid #8a6630; box-shadow: 0 20px 50px rgba(0, 0, 0, .6); color: #efe3c8; font: 13px 'Manrope', sans-serif; animation: dt-in .2s ease; }
+.dt-panel { position: fixed; left: 14px; bottom: 72px; z-index: 260; width: min(360px, calc(100vw - 28px)); max-height: calc(100vh - 100px); overflow-y: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px; border-radius: 16px; background: #17130e; border: 1px solid #8a6630; box-shadow: 0 20px 50px rgba(0, 0, 0, .6); color: #efe3c8; font: 13px 'Manrope', sans-serif; animation: dt-in .2s ease; }
 .dt-panel header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .dt-panel header b { font: 700 19px 'Cormorant Garamond', serif; color: #f3d99a; }
 .dt-panel header small { color: #a8936c; font-weight: 700; }
@@ -230,6 +260,16 @@ async function roll() {
 .dt-dice button.on { background: rgba(231, 197, 111, .22); border-color: #e7c56f; }
 .dt-die { font: 800 12px 'Manrope', sans-serif; }
 .dt-dice em { position: absolute; right: -4px; top: -6px; padding: 0 5px; border-radius: 99px; background: #e7c56f; color: #1b140c; font: 800 10.5px 'Manrope', sans-serif; font-style: normal; }
+.dt-adv { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 4px; padding: 3px; border-radius: 10px; background: #0f0c08; border: 1px solid rgba(231, 197, 111, .2); }
+.dt-adv button { padding: 5px 3px; border-radius: 7px; border: 0; background: none; color: #a8936c; font: 700 11.5px 'Manrope', sans-serif; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s; }
+.dt-adv button:hover { color: #f3d99a; }
+.dt-adv button.on { background: rgba(231, 197, 111, .18); color: #f3d99a; }
+.dt-adv button.adv.on { background: rgba(120, 200, 120, .2); color: #a8e6a1; }
+.dt-adv button.dis.on { background: rgba(255, 122, 107, .18); color: #ff9b8f; }
+.dt-advtag { margin-left: 5px; font-style: normal; font-weight: 800; }
+.dt-advtag.adv { color: #a8e6a1; }
+.dt-advtag.dis { color: #ff9b8f; }
+.dt-drop { text-decoration: line-through; opacity: .55; }
 .dt-formula { display: grid; gap: 4px; }
 .dt-frow { display: flex; gap: 6px; }
 .dt-frow input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .35); background: #0f0c08; color: #f3dc9e; font: 800 15px 'Manrope', sans-serif; letter-spacing: .02em; }
@@ -247,7 +287,7 @@ async function roll() {
 .dt-mod input { width: 52px; text-align: center; }
 .dt-mod button { width: 26px; border-radius: 7px; border: 1px solid rgba(231, 197, 111, .3); background: none; color: #f3d99a; font-weight: 800; cursor: pointer; }
 .dt-chk { display: flex !important; align-items: center; gap: 6px; color: #b9a6ff !important; }
-.dt-acts { display: flex; gap: 6px; align-items: center; }
+.dt-acts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .dt-acts .grow { flex: 1; }
 .dt-btn { padding: 7px 12px; border-radius: 9px; border: 1px solid rgba(201, 162, 79, .45); background: rgba(231, 197, 111, .08); color: #f3d99a; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
 .dt-btn.primary { background: linear-gradient(180deg, #f0cf83, #c99a45); color: #1b140c; border-color: #e6c27a; }

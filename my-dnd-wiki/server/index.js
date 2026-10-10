@@ -23,6 +23,7 @@ import { computeSettlement, placementProblems, clearingFor, shortFor, priceText,
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
+import { DIE_SIDES, ADV_MODES, keptIndex, rollSummary } from '../src/shared/dice.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
 import {
   CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, HUD_LEVELS, GUILDS, RANKS, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP,
@@ -2035,7 +2036,6 @@ const num = v => (Number.isFinite(Number(v)) ? Math.round(Number(v) * 10) / 10 :
 
 // Броски кубиков: кубики катаются у бросающего (3D), остальным приходит результат.
 // Сервер проверяет кубики и значения и сам пересчитывает сумму; тайные броски мастера видят только мастера.
-const DIE_SIDES = [4, 6, 8, 10, 12, 20, 100]
 const recentRolls = []
 function cleanRoll(m) {
   const groups = (Array.isArray(m?.groups) ? m.groups : []).slice(0, 10).map(g => {
@@ -2046,9 +2046,11 @@ function cleanRoll(m) {
   })
   if (!groups.length || groups.some(g => !g)) return null
   const mod = Math.max(-99, Math.min(99, Math.round(Number(m.mod) || 0)))
-  const total = groups.reduce((s, g) => s + g.values.reduce((a, b) => a + b, 0), 0) + mod
-  const notation = groups.map(g => `${g.values.length}d${g.sides}`).join('+') + (mod ? (mod > 0 ? `+${mod}` : `${mod}`) : '')
-  return { groups, mod, total, notation, label: String(m.label || '').slice(0, 60).trim() }
+  // преимущество / помеха — только когда d20 один вид и брошен ровно дважды
+  const adv = ADV_MODES.includes(m.adv) ? m.adv : ''
+  if (adv && groups.filter(g => keptIndex(g, adv) !== -1).length !== 1) return null
+  const { total, notation } = rollSummary({ groups, mod, adv })
+  return { groups, mod, adv, total, notation, label: String(m.label || '').slice(0, 60).trim() }
 }
 const rollsFor = role => recentRolls.filter(r => !r.secret || role === 'master')
 

@@ -8,7 +8,7 @@ const FILES = {
   notify: 'bong_001', roll: 'pluck_001', crit: 'confirmation_002', fail: 'error_004'
 }
 const cache = {}
-const howl = (src, opts = {}) => (cache[src] ||= new Howl({ src: [src], volume: 0.55, preload: true, ...opts }))
+const howl = (src, opts = {}) => { const key = [].concat(src).join('|'); return (cache[key] ||= new Howl({ src: [].concat(src), volume: 0.55, preload: true, ...opts })) }
 const pickOne = f => (Array.isArray(f) ? f[Math.floor(Math.random() * f.length)] : f)
 
 // короткий звук; из списка — случайный вариант
@@ -24,12 +24,13 @@ export function sfx(key, volume) {
 }
 
 /* ---------- фон стихий: записи по кругу; гром — отдельные записи на каждую молнию ----------
-   Файлы лежат в public/sounds/amb. Чтобы добавить или заменить звук — положить файл и вписать имя сюда.
-   Пока у стихии нет файла, кнопка звука на её странице не показывается. */
-const AMB_FILES = {
-  // fire: 'fire.mp3', water: 'water.mp3', air: 'wind.mp3', earth: 'forest.mp3'
-}
-const THUNDER_FILES = [] // например: ['thunder-1.mp3', 'thunder-2.mp3']
+   Файлы лежат в public/sounds/amb, каждый в двух видах: .ogg (бесшовная петля) и .mp3 (для Safari).
+   Петли нарезаны так, что конец плавно перетекает в начало. Пока у стихии нет файла, кнопки звука на её странице нет.
+   Для воздуха есть и просто ветер без дождя — 'wind'. */
+const AMB_FILES = { fire: 'fire', water: 'water', air: 'wind-rain', earth: 'forest' }
+const THUNDER_FAR = ['thunder-1', 'thunder-2'] // молнии сами по себе — гром вдалеке, с задержкой
+const THUNDER_NEAR = ['thunder-near'] // молния по щелчку — близкий резкий удар
+const srcs = name => [`/sounds/amb/${name}.ogg`, `/sounds/amb/${name}.mp3`]
 export const hasAmbience = kind => !!AMB_FILES[kind]
 
 const VOL_KEY = 'anacaria-amb-vol'
@@ -52,7 +53,7 @@ export function startAmbience(kind) {
   stopAmbience()
   if (!store.sound || !AMB_FILES[kind]) return
   try {
-    const h = howl(`/sounds/amb/${AMB_FILES[kind]}`, { loop: true, volume: 0 })
+    const h = howl(srcs(AMB_FILES[kind]), { loop: true, volume: 0 })
     const id = h.play()
     h.fade(0, ambVolume, 1500, id) // плавно входим
     amb = { kind, h, id }
@@ -67,14 +68,27 @@ export function stopAmbience() {
     setTimeout(() => h.stop(id), 750)
   } catch { /* уже остановлен */ }
 }
-// раскат грома к молнии — пока на странице Школы Воздуха играет фон
-export function thunder(power = 1) {
-  if (!amb || amb.kind !== 'air' || !THUNDER_FILES.length) return
-  try {
-    const h = howl(`/sounds/amb/${pickOne(THUNDER_FILES)}`)
-    const id = h.play()
-    h.volume(Math.min(1, ambVolume * (0.7 + 0.5 * power)), id)
-  } catch { /* нет звука */ }
+// раскат грома к молнии — пока на странице Школы Воздуха играет фон.
+// near — молния по щелчку: сразу и громче; иначе далёкая: звук догоняет вспышку, тише.
+// Далёких раскатов одновременно не больше двух — иначе каша; счётчик сбрасывается по таймеру,
+// чтобы гром не «застрял», если браузер какой-то звук не сыграл.
+let rolling = 0
+export function thunder(power = 1, near = false) {
+  if (!amb || amb.kind !== 'air') return
+  if (!near) {
+    if (rolling >= 2) return
+    rolling++
+    setTimeout(() => { rolling-- }, 7000)
+  }
+  const play = () => {
+    try {
+      const h = howl(srcs(pickOne(near ? THUNDER_NEAR : THUNDER_FAR)))
+      const id = h.play()
+      h.volume(Math.min(1, ambVolume * (near ? 1.3 : 0.55 + 0.35 * power)), id)
+    } catch { /* нет звука */ }
+  }
+  if (near) play()
+  else setTimeout(play, 300 + Math.random() * 1200)
 }
 export const ambienceKind = () => amb?.kind || null
 

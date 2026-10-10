@@ -3,6 +3,7 @@ import { reactive, computed, watch, ref } from 'vue'
 import { buildRoadGraph, findRoute, partyPosition, polyLength } from '../shared/geo.js'
 import { POINT_EFFECTS } from '../shared/catalog.js'
 import { cropImage } from '../components/cropState.js'
+import { rollSummary } from '../shared/dice.js'
 
 const TOKEN_KEY = 'anacaria-token'
 const LAYERS_KEY = 'anacaria-layers'
@@ -428,9 +429,7 @@ export function addRoll(r, pop) {
 // свой бросок: на сервер (он разошлёт остальным) и себе в ленту
 export function sendRoll(roll) {
   wsSend({ type: 'roll', ...roll })
-  const mod = roll.mod || 0
-  const total = roll.groups.reduce((s, g) => s + g.values.reduce((a, b) => a + b, 0), 0) + mod
-  const notation = roll.groups.map(g => `${g.values.length}d${g.sides}`).join('+') + (mod ? (mod > 0 ? `+${mod}` : `${mod}`) : '')
+  const { total, notation } = rollSummary(roll)
   addRoll({ ...roll, total, notation, id: store.presence.id, name: store.me?.name || 'Я', color: store.me?.color || '#e6c27a', avatar: store.me?.avatar || '', at: Date.now(), mine: true }, true)
 }
 
