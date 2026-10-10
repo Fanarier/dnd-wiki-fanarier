@@ -48,10 +48,11 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, defineAsyncComponent } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
 import HeroesPage from './HeroesPage.vue'
 import SettlementsPage from './SettlementsPage.vue'
+import NpcsPage from './npc/NpcsPage.vue'
 import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
@@ -77,6 +78,7 @@ import articles from '../data/articles.js' // единый источник те
 const categories = ref([
   { id: 'quests', title: 'Заказы гильдий', description: 'Доска объявлений, хроника, репутация', component: QuestBoard },
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
+  { id: 'npcs', title: 'НПС', description: 'Полные листы: сайд-кики, компаньоны, важные НПС', component: NpcsPage },
   { id: 'settlements', title: 'Поселения', description: 'Урюпинск: карта, жители, стройка, журнал', component: SettlementsPage },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
@@ -91,6 +93,8 @@ const currentCategory = ref('quests')
 const currentPage = computed(() => categories.value.find(x => x.id === currentCategory.value)?.component ?? QuestBoard)
 const currentContent = computed(() => categories.value.find(x => x.id === currentCategory.value) ?? {})
 function onCategorySelect(id) {
+  // уходя из «НПС», убираем из адреса открытый лист и вкладку группы
+  if (id !== 'npcs' && (route.query.npc || route.query.g)) router.replace({ query: { ...route.query, npc: undefined, g: undefined } })
   currentCategory.value = id
   drawer.value = false
 }
@@ -151,12 +155,14 @@ watch(currentCategory, () => { search.value = '' })
 
 /* -------------------- Общий вход и ссылки с карты -------------------- */
 const route = useRoute()
+const router = useRouter()
 onMounted(init)
 // ссылка с карты на заказ открывает доску заказов
 watch(() => route.query.quest, q => { if (q) currentCategory.value = 'quests' }, { immediate: true })
 // ссылки на карточку героя и на новые арты (из колокольчика, профиля)
 watch(() => [route.query.hero, route.query.heroes], ([h, t]) => { if (h || t) currentCategory.value = 'heroes' }, { immediate: true })
 // /wiki?section=settlements — открыть раздел сразу
+watch(() => route.query.npc, v => { if (v) currentCategory.value = 'npcs' }, { immediate: true })
 watch(() => route.query.section, v => { if (v && categories.value.some(c => c.id === v)) currentCategory.value = String(v) }, { immediate: true })
 
 /* -------------------- Магические страницы: свой стиль и загрузка -------------------- */

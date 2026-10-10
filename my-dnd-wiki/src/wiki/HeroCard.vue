@@ -59,6 +59,7 @@
               <svg viewBox="0 0 24 24"><path :d="PAW" fill="currentColor" /></svg> хозяин:
               <a href="#" @click.prevent.stop="$emit('focus', keeper.id)">{{ keeper.name }}</a>
             </span>
+            <router-link v-if="npcId" class="npc-link" :to="{ path: '/wiki', query: { npc: npcId } }" title="Полный лист: навыки, бой, арты" @click.stop>📜 лист НПС</router-link>
           </div>
           <button v-if="canEdit" class="edit" title="Изменить карточку" @click.stop="$emit('edit', hero)">✎</button>
         </div>
@@ -159,6 +160,7 @@ const rarity = computed(() => RARITY[props.hero.rarity] || RARITY.common)
 const holo = computed(() => !!props.hero.holo || (props.hero.kind === 'companion' && props.hero.rarity === 'unique'))
 const initial = computed(() => (props.hero.name || '?').trim()[0]?.toUpperCase() || '?')
 const staminaPct = computed(() => (props.hero.staminaMax ? Math.max(0, Math.min(100, (props.hero.stamina / props.hero.staminaMax) * 100)) : 0))
+const npcId = computed(() => store.data.npcLinks?.[props.hero.id] || null) // связанный лист в разделе «НПС»
 const keeper = computed(() => props.hero.masterId && store.data.heroes?.find(h => h.id === props.hero.masterId))
 // локация совпала с городом на карте — становится ссылкой
 const city = computed(() => {
@@ -411,6 +413,8 @@ function untilt() {
 .rows .k { width: 52px; }
 .settle { flex: none; margin-left: auto; padding: 0 7px; border-radius: 99px; border: 1px solid rgba(201, 162, 79, .45); color: #f3d99a; font: 700 10.5px/17px 'Manrope', sans-serif; text-decoration: none; white-space: nowrap; }
 .settle:hover { background: rgba(201, 162, 79, .18); }
+.npc-link { display: inline-block; margin-top: 3px; padding: 0 8px; border-radius: 99px; border: 1px solid rgba(201, 162, 79, .45); color: #f3d99a; font: 700 10.5px/17px 'Manrope', sans-serif; text-decoration: none; white-space: nowrap; }
+.npc-link:hover { background: rgba(201, 162, 79, .18); }
 .v { font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .v.link { color: #f3d99a; text-decoration: underline dotted; text-underline-offset: 3px; }
 .grp { color: var(--gc); }

@@ -8,6 +8,7 @@ import express from 'express'
 import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
+import { registerNpcRoutes, npcLinks } from './npcs.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
 import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword, isOwner, listMasters, setMasterPassword, removeMaster, isMasterLogin } from './auth.js'
 import {
@@ -392,9 +393,9 @@ function viewFor(user, now = Date.now()) {
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
   const notes = (db.notes || []).filter(n => n.ownerId === uid || (n.share === 'group' && mates.has(n.ownerId)))
   if (role === 'master') {
-    const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, ...rest } = db
+    const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, npcs: _np, npcSkills: _ns, npcEffects: _ne, ...rest } = db
     return {
-      ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(),
+      ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(), npcLinks: npcLinks(db, true),
       notifications: notificationsFor(user),
       players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked }))
     }
@@ -436,6 +437,7 @@ function viewFor(user, now = Date.now()) {
       ? { ...s, army: { ...s.army, squads: s.army.squads.map(q => (q.taskSecret ? { ...q, task: '' } : q)) } }
       : s)),
     hud: db.hud?.visible ? db.hud : null,
+    npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false),
     roster: roster(),
     notes,
     notifications: user ? notificationsFor(user) : [],
@@ -1078,6 +1080,7 @@ app.delete('/api/heroes/:id/gallery/:gid', requireUser, (req, res) => {
 
 const STATIC_IMG = { maxAge: '30d', immutable: true, index: false, setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff') }
 app.use('/portraits', express.static(PORTRAIT_DIR, STATIC_IMG))
+registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
 
 /* ---------- Новые арты: не часть мира, мастер выкладывает и чистит ---------- */
 app.post('/api/arts', requireMaster, express.raw({ type: () => true, limit: '40mb' }), (req, res) => {

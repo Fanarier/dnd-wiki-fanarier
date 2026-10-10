@@ -573,6 +573,29 @@ export async function uploadHeroArt(heroId, file) {
 // обложка карточки — первый арт
 export const heroCover = h => h?.gallery?.[0] || null
 
+/* ---------- НПС: листы и справочники приходят отдельным запросом, перезапрашиваем, когда меняется npcsRev ---------- */
+export const npcState = reactive({ rev: -1, role: '', npcs: [], skills: [], effects: [], loading: false, loaded: false })
+export async function loadNpcs(force = false) {
+  const want = store.data.npcsRev ?? 0
+  if (npcState.loading || (!force && npcState.loaded && npcState.rev === want && npcState.role === store.role)) return
+  npcState.loading = true
+  try {
+    const j = await api('GET', '/api/npcs')
+    Object.assign(npcState, { rev: j.rev, role: store.role, npcs: j.npcs, skills: j.skills, effects: j.effects, loaded: true })
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    npcState.loading = false
+  }
+}
+// арт НПС: целиком до 2400px + лёгкий 720px для карточки
+export async function uploadNpcArt(npcId, file) {
+  const big = file.size < 4e6 && /png|jpeg|webp/.test(file.type) ? { blob: file } : await shrink(file, 2400, 0.92)
+  const a = await postBlob(`/api/npcs/${npcId}/arts`, big.blob)
+  const { blob } = await shrink(file, 720, 0.88)
+  try { return await postBlob(`/api/npcs/${npcId}/arts/${a.id}/thumb`, blob) } catch { return a }
+}
+
 // арт: оригинал как есть (до 40 МБ) + лёгкое превью для стены
 export async function uploadArt(file) {
   if (file.size > 40 * 1024 * 1024) throw new Error(`«${file.name}» больше 40 МБ`)

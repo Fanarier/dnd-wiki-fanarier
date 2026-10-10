@@ -90,6 +90,8 @@ function migrate(d) {
     delete h.portraitPos
     changed = true
   }
+  // НПС и их общие справочники навыков и эффектов (данные — отдельным запросом /api/npcs, в состоянии только номер версии)
+  if (!d.npcs) { d.npcs = []; d.npcSkills = []; d.npcEffects = []; d.npcsRev = 1; changed = true }
   if (changed) console.log('[db] мир дополнен новыми полями из seed')
   return changed
 }
