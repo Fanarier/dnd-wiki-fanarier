@@ -19,7 +19,7 @@
       </TransitionGroup>
     </div>
 
-    <button type="button" class="dt-fab" :class="{ open }" :title="open ? 'Закрыть' : 'Бросить кубики'" @click="open = !open">🎲</button>
+    <button type="button" class="dt-fab" :class="{ open }" :title="open ? 'Закрыть' : 'Бросить кубики'" @click="open = !open; sfx(open ? 'open' : 'close', 0.35)">🎲</button>
 
     <section v-if="open" class="dt-panel" @keydown.enter.prevent="roll">
       <header><b>Кубики</b><small>{{ formula || 'выбери кубики' }}</small></header>
@@ -56,7 +56,9 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { watch } from 'vue'
 import { store, dice, sendRoll, avatarUrl, toast } from '../map/store.js'
+import { sfx } from '../sound/sound.js'
 
 const route = useRoute() // в поселении внизу слева шкала масштаба — кнопку поднимаем
 
@@ -81,6 +83,14 @@ function quick(d) { clearPick(); pick[d] = 1; roll() }
 const lone20 = r => r.groups?.length === 1 && r.groups[0].sides === 20 && r.groups[0].values.length === 1
 const isCrit = r => lone20(r) && r.groups[0].values[0] === 20
 const isFail = r => lone20(r) && r.groups[0].values[0] === 1
+// звук на каждую новую карточку: свой бросок — крит/провал, чужой — «плюк»
+watch(() => dice.pops.length, (n, o) => {
+  if (n <= o) return
+  const p = dice.pops[n - 1]
+  if (isCrit(p)) sfx('crit')
+  else if (isFail(p)) sfx('fail')
+  else if (!p.mine) sfx('roll', 0.4)
+})
 const detail = r => (r.groups || []).map(g => g.values.join(', ')).join(' | ')
 
 // 3D: библиотека тяжёлая — грузим при первом броске, дальше переиспользуем
@@ -101,6 +111,7 @@ const randomRoll = () => SIDES.filter(d => pick[d]).map(d => ({ sides: d, values
 async function roll() {
   if (!formula.value || busy.value) return
   busy.value = true
+  sfx('diceShake')
   const m = Number(mod.value) || 0
   const meta = { mod: m, label: label.value, secret: secret.value && store.role === 'master' }
   const notation = SIDES.filter(d => pick[d]).map(d => `${pick[d]}d${d}`)
@@ -112,6 +123,7 @@ async function roll() {
       clearTimeout(clearTimer)
       rolling3d.value = true
       b.clear()
+      setTimeout(() => sfx('diceThrow'), 350)
       const res = await b.roll(notation)
       // roll() отдаёт плоский список кубиков { sides, value } — собираем по видам; «0» у d10/d100 — это 10/100
       const by = new Map()

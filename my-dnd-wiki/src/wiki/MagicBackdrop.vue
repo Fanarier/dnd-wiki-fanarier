@@ -11,6 +11,7 @@
 // ледяные кристаллы, гроза с молниями, растущие деревья. Не чаще 30 кадров/с, на скрытой вкладке — пауза,
 // «меньше анимаций» в системе — один неподвижный кадр.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { thunder } from '../sound/sound.js'
 
 const props = defineProps({ kind: { type: String, required: true } }) // fire | water | air | earth
 const box = ref(null), glc = ref(null), c2 = ref(null)
@@ -283,6 +284,7 @@ function jag(ax, ay, bx, by, d, out) {
   jag(mx, my, bx, by, d / 2, out)
 }
 function strike(x, y) {
+  thunder(0.7 + Math.random() * 0.5)
   const x0 = x + (Math.random() - 0.5) * W * 0.12, y0 = -12 * K // бьёт из-за верхнего края, из туч
   const main = [[x0, y0]]
   jag(x0, y0, x, y, Math.max(80 * K, (y - y0) * 0.35), main)

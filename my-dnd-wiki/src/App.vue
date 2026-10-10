@@ -28,11 +28,16 @@ import GateScreen from './components/GateScreen.vue'
 import OfflineScreen from './components/OfflineScreen.vue'
 import ImageCropper from './components/ImageCropper.vue'
 import DiceTray from './components/DiceTray.vue'
-import { store, init } from './map/store.js'
+import { watch } from 'vue'
+import { store, init, unread } from './map/store.js'
+import { sfx } from './sound/sound.js'
 
 const route = useRoute()
 const reload = () => location.reload()
 onMounted(init)
+// колокольчик: пришло новое уведомление — короткий звук (первая загрузка не считается)
+let bellReady = false
+watch(unread, (n, o) => { if (bellReady && n > o) sfx('notify'); bellReady = store.ready })
 </script>
 
 <style>

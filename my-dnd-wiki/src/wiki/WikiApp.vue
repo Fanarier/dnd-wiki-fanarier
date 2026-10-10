@@ -31,6 +31,8 @@
       <main class="w-main" :class="{ 'theme-magic': isMagic }">
         <!-- живая стихия школы магии за текстом -->
         <MagicBackdrop v-if="isMagic && !magicLoading && element" :key="element" :kind="element" />
+        <!-- звук стихии: по умолчанию выключен, включается кнопкой (браузеры не дают играть звук без нажатия) -->
+        <button v-if="isMagic && element && store.sound" type="button" class="w-amb" :class="{ on: ambOn }" :title="ambOn ? 'Выключить звук стихии' : 'Включить звук стихии'" @click="ambOn = !ambOn">{{ ambOn ? '🔊' : '🔈' }} {{ AMB_LABEL[element] }}</button>
         <MagicSparkles v-else-if="isMagic && !magicLoading" :key="currentCategory" />
         <div v-if="magicLoading" class="w-loader"><SteamLoader kind="magic" /></div>
         <transition v-else name="fade" mode="out-in">
@@ -47,7 +49,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, defineAsyncComponent } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
 import HeroesPage from './HeroesPage.vue'
@@ -57,6 +59,7 @@ import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
 import MagicBackdrop from './MagicBackdrop.vue'
+import { startAmbience, stopAmbience } from '../sound/sound.js'
 // искры на общих страницах магии — библиотека грузится только там
 const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 
@@ -138,6 +141,15 @@ const isMagic = computed(() => MAGIC.includes(currentCategory.value) && !hasQuer
 const magicLoading = ref(false)
 const ELEMENTS = { 'school-fire': 'fire', 'school-water': 'water', 'school-air': 'air', 'school-earth': 'earth' }
 const element = computed(() => ELEMENTS[currentCategory.value] || null)
+// фон стихии: включается кнопкой, выбор помним; уходим со страницы школы — стихает
+const AMB_LABEL = { fire: 'треск огня', water: 'журчание воды', air: 'дождь и гром', earth: 'ветер в листве' }
+const ambOn = ref((() => { try { return localStorage.getItem('anacaria-ambience') === 'on' } catch { return false } })())
+watch([ambOn, element, () => store.sound], ([on, el, snd]) => {
+  try { localStorage.setItem('anacaria-ambience', on ? 'on' : 'off') } catch { /* приватный режим */ }
+  if (on && el && snd) startAmbience(el)
+  else stopAmbience()
+}, { immediate: true })
+onBeforeUnmount(stopAmbience)
 watch(currentCategory, (c, old) => {
   if (MAGIC.includes(c) && !MAGIC.includes(old)) {
     magicLoading.value = true
@@ -158,6 +170,9 @@ watch(currentCategory, (c, old) => {
 .w-search input { flex: 1; min-width: 0; background: none; border: 0; outline: none; color: var(--a-text); font: 500 14px var(--a-sans); }
 .w-clear { background: none; border: 0; color: var(--a-muted); font-size: 20px; cursor: pointer; }
 .w-loader { display: grid; place-items: center; min-height: 60vh; }
+/* кнопка звука стихии на страницах школ магии — правый нижний угол (слева кубики) */
+.w-amb { position: fixed; right: 16px; bottom: 16px; z-index: 250; padding: 8px 14px; border-radius: 99px; border: 1px solid rgba(185, 166, 255, .45); background: rgba(16, 14, 30, .85); backdrop-filter: blur(6px); color: #d9ceff; font: 700 13px "Manrope", sans-serif; cursor: pointer; box-shadow: 0 8px 22px rgba(0, 0, 0, .45); }
+.w-amb.on { border-color: #b9a6ff; box-shadow: 0 8px 22px rgba(0, 0, 0, .45), 0 0 18px rgba(155, 125, 255, .45); }
 /* магия: звёздное небо, светящиеся заголовки, мистические рамки */
 .theme-magic { position: relative; isolation: isolate; } /* свой слой: фон и стихия за текстом, но над фоном приложения */
 .theme-magic::before { content: ''; position: fixed; inset: 64px 0 0; z-index: -1; pointer-events: none;

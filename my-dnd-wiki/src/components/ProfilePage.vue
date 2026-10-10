@@ -140,7 +140,7 @@
           <button class="brass small" :disabled="!pw.old || !pw.new1 || pw.new1 !== pw.new2">Сменить пароль</button>
         </form>
         <div v-if="pw.new2 && pw.new1 !== pw.new2" class="err">Пароли не совпадают</div>
-        <label class="chk"><input type="checkbox" :checked="store.sound" @change="setSound($event.target.checked)" /> Звук пингов</label>
+        <label class="chk"><input type="checkbox" :checked="store.sound" @change="setSound($event.target.checked)" /> Звуки сайта: пинги, кубики, уведомления, стихии</label>
         <label v-if="store.role === 'player'" class="chk"><input type="checkbox" :checked="store.me.notifyArts" @change="setNotifyArts($event.target.checked)" /> Уведомлять, когда мастер выкладывает новые арты</label>
         <div class="row end"><button class="mini no" @click="out">Выйти из аккаунта</button></div>
       </section>
