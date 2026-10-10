@@ -13,6 +13,7 @@
     "import-map": "node tools/import-fmg.cjs"
   },
   "dependencies": {
+    "@3d-dice/dice-box": "1.1.4",
     "@mdi/font": "^7.4.47",
     "@mdi/js": "^7.4.47",
     "@panzoom/panzoom": "4.6.2",

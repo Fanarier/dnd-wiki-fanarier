@@ -2031,6 +2031,25 @@ function relay(from, msg) {
 
 const num = v => (Number.isFinite(Number(v)) ? Math.round(Number(v) * 10) / 10 : null)
 
+// Броски кубиков: кубики катаются у бросающего (3D), остальным приходит результат.
+// Сервер проверяет кубики и значения и сам пересчитывает сумму; тайные броски мастера видят только мастера.
+const DIE_SIDES = [4, 6, 8, 10, 12, 20, 100]
+const recentRolls = []
+function cleanRoll(m) {
+  const groups = (Array.isArray(m?.groups) ? m.groups : []).slice(0, 10).map(g => {
+    const sides = Number(g?.sides)
+    if (!DIE_SIDES.includes(sides)) return null
+    const values = (Array.isArray(g.values) ? g.values : []).slice(0, 20).map(Number)
+    return values.length && values.every(v => Number.isInteger(v) && v >= 1 && v <= sides) ? { sides, values } : null
+  })
+  if (!groups.length || groups.some(g => !g)) return null
+  const mod = Math.max(-99, Math.min(99, Math.round(Number(m.mod) || 0)))
+  const total = groups.reduce((s, g) => s + g.values.reduce((a, b) => a + b, 0), 0) + mod
+  const notation = groups.map(g => `${g.values.length}d${g.sides}`).join('+') + (mod ? (mod > 0 ? `+${mod}` : `${mod}`) : '')
+  return { groups, mod, total, notation, label: String(m.label || '').slice(0, 60).trim() }
+}
+const rollsFor = role => recentRolls.filter(r => !r.secret || role === 'master')
+
 wss.on('connection', ws => {
   const id = nextClientId++
   const client = { ws, role: 'guest', user: null, id, name: 'Гость', color: CURSOR_COLORS[id % CURSOR_COLORS.length], pings: [] }
@@ -2062,6 +2081,22 @@ wss.on('connection', ws => {
         client.name = user?.name || 'Гость'
         if (user?.color) client.color = user.color
         send(client, viewFor(user))
+        ws.send(JSON.stringify({ type: 'rolls', list: rollsFor(client.role) }))
+        break
+      }
+      case 'roll': {
+        if (!client.user) return // гости не бросают
+        const now = Date.now()
+        client.rollTimes = (client.rollTimes || []).filter(t => now - t < 60000)
+        if (client.rollTimes.length >= 30) return
+        client.rollTimes.push(now)
+        const r = cleanRoll(msg)
+        if (!r) return
+        const entry = { ...r, secret: !!msg.secret && client.role === 'master', id: client.id, name: client.name, color: client.color, avatar: client.user?.avatar || '', at: now }
+        recentRolls.push(entry)
+        if (recentRolls.length > 40) recentRolls.shift()
+        const data = JSON.stringify({ type: 'roll', ...entry })
+        for (const c of clients) if (c !== client && c.ws.readyState === 1 && (!entry.secret || c.role === 'master')) c.ws.send(data)
         break
       }
       case 'cursor': {

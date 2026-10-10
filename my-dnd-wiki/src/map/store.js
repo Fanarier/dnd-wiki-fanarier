@@ -398,6 +398,12 @@ function onPresence(msg) {
     case 'ping':
       addPing(msg)
       break
+    case 'roll':
+      addRoll(msg, true)
+      break
+    case 'rolls':
+      dice.rolls = (msg.list || []).slice().reverse()
+      break
     case 'follow':
       // мастер показывает всем: свой вид или едущий отряд
       if (store.role === 'master') return
@@ -405,6 +411,27 @@ function onPresence(msg) {
       toast(`${msg.by || 'Мастер'} показывает карту — двиньте карту, чтобы выйти`)
       break
   }
+}
+
+/* ---------------- Кубики: лента бросков и карточки с результатом ---------------- */
+export const dice = reactive({ rolls: [], pops: [] })
+// pop — показать карточку (чужой бросок или свой, когда кубики улеглись)
+export function addRoll(r, pop) {
+  dice.rolls.unshift(r)
+  if (dice.rolls.length > 40) dice.rolls.pop()
+  if (!pop) return
+  const p = { ...r, key: Math.random() }
+  dice.pops.push(p)
+  if (dice.pops.length > 3) dice.pops.shift()
+  setTimeout(() => { const i = dice.pops.indexOf(p); if (i !== -1) dice.pops.splice(i, 1) }, 7000)
+}
+// свой бросок: на сервер (он разошлёт остальным) и себе в ленту
+export function sendRoll(roll) {
+  wsSend({ type: 'roll', ...roll })
+  const mod = roll.mod || 0
+  const total = roll.groups.reduce((s, g) => s + g.values.reduce((a, b) => a + b, 0), 0) + mod
+  const notation = roll.groups.map(g => `${g.values.length}d${g.sides}`).join('+') + (mod ? (mod > 0 ? `+${mod}` : `${mod}`) : '')
+  addRoll({ ...roll, total, notation, id: store.presence.id, name: store.me?.name || 'Я', color: store.me?.color || '#e6c27a', avatar: store.me?.avatar || '', at: Date.now(), mine: true }, true)
 }
 
 export function sendFollow(msg) {
