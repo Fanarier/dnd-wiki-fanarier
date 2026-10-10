@@ -727,7 +727,7 @@ function onDbl(e) {
 }
 function onLeave() { hover.value = null; cursor.value = null; place.value = '' }
 function onKey(e) {
-  if (!lineTool.value || ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target?.tagName)) return
+  if (!lineTool.value || e.target?.closest?.('input, textarea, select, [contenteditable]')) return
   if (e.key === 'Enter') finishRoad()
   else if (e.key === 'Backspace') { draft.value = draft.value.slice(0, -1); e.preventDefault() }
   else if (e.key === 'Escape') draft.value = []

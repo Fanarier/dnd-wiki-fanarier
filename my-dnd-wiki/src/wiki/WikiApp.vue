@@ -32,7 +32,10 @@
         <!-- живая стихия школы магии за текстом -->
         <MagicBackdrop v-if="isMagic && !magicLoading && element" :key="element" :kind="element" />
         <!-- звук стихии: по умолчанию выключен, включается кнопкой (браузеры не дают играть звук без нажатия) -->
-        <button v-if="isMagic && element && store.sound" type="button" class="w-amb" :class="{ on: ambOn }" :title="ambOn ? 'Выключить звук стихии' : 'Включить звук стихии'" @click="ambOn = !ambOn">{{ ambOn ? '🔊' : '🔈' }} {{ AMB_LABEL[element] }}</button>
+        <div v-if="isMagic && element && store.sound" class="w-amb" :class="{ on: ambOn }">
+          <button type="button" :title="ambOn ? 'Выключить звук стихии' : 'Включить звук стихии'" @click="unlockAudio(); ambOn = !ambOn">{{ ambOn ? '🔊' : '🔈' }} {{ AMB_LABEL[element] }}</button>
+          <input v-if="ambOn" type="range" min="0" max="1" step="0.05" :value="ambVol" title="Громкость стихии" aria-label="Громкость стихии" @input="ambVol = +$event.target.value; setAmbienceVolume(ambVol)" />
+        </div>
         <MagicSparkles v-else-if="isMagic && !magicLoading" :key="currentCategory" />
         <div v-if="magicLoading" class="w-loader"><SteamLoader kind="magic" /></div>
         <transition v-else name="fade" mode="out-in">
@@ -59,7 +62,7 @@ import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
 import MagicBackdrop from './MagicBackdrop.vue'
-import { startAmbience, stopAmbience } from '../sound/sound.js'
+import { startAmbience, stopAmbience, unlockAudio, getAmbienceVolume, setAmbienceVolume } from '../sound/sound.js'
 // искры на общих страницах магии — библиотека грузится только там
 const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 
@@ -142,7 +145,8 @@ const magicLoading = ref(false)
 const ELEMENTS = { 'school-fire': 'fire', 'school-water': 'water', 'school-air': 'air', 'school-earth': 'earth' }
 const element = computed(() => ELEMENTS[currentCategory.value] || null)
 // фон стихии: включается кнопкой, выбор помним; уходим со страницы школы — стихает
-const AMB_LABEL = { fire: 'треск огня', water: 'журчание воды', air: 'дождь и гром', earth: 'ветер в листве' }
+const AMB_LABEL = { fire: 'треск огня', water: 'ручей и лёд', air: 'ветер и гром', earth: 'лес и птицы' }
+const ambVol = ref(getAmbienceVolume())
 const ambOn = ref((() => { try { return localStorage.getItem('anacaria-ambience') === 'on' } catch { return false } })())
 watch([ambOn, element, () => store.sound], ([on, el, snd]) => {
   try { localStorage.setItem('anacaria-ambience', on ? 'on' : 'off') } catch { /* приватный режим */ }
@@ -171,7 +175,9 @@ watch(currentCategory, (c, old) => {
 .w-clear { background: none; border: 0; color: var(--a-muted); font-size: 20px; cursor: pointer; }
 .w-loader { display: grid; place-items: center; min-height: 60vh; }
 /* кнопка звука стихии на страницах школ магии — правый нижний угол (слева кубики) */
-.w-amb { position: fixed; right: 16px; bottom: 16px; z-index: 250; padding: 8px 14px; border-radius: 99px; border: 1px solid rgba(185, 166, 255, .45); background: rgba(16, 14, 30, .85); backdrop-filter: blur(6px); color: #d9ceff; font: 700 13px "Manrope", sans-serif; cursor: pointer; box-shadow: 0 8px 22px rgba(0, 0, 0, .45); }
+.w-amb { position: fixed; right: 16px; bottom: 16px; z-index: 250; display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 99px; border: 1px solid rgba(185, 166, 255, .45); background: rgba(16, 14, 30, .85); backdrop-filter: blur(6px); color: #d9ceff; font: 700 13px "Manrope", sans-serif; cursor: pointer; box-shadow: 0 8px 22px rgba(0, 0, 0, .45); }
+.w-amb button { border: 0; background: none; color: inherit; font: inherit; cursor: pointer; padding: 2px 0; }
+.w-amb input[type=range] { width: 96px; accent-color: #b9a6ff; }
 .w-amb.on { border-color: #b9a6ff; box-shadow: 0 8px 22px rgba(0, 0, 0, .45), 0 0 18px rgba(155, 125, 255, .45); }
 /* магия: звёздное небо, светящиеся заголовки, мистические рамки */
 .theme-magic { position: relative; isolation: isolate; } /* свой слой: фон и стихия за текстом, но над фоном приложения */

@@ -22,11 +22,22 @@
     <button type="button" class="dt-fab" :class="{ open }" :title="open ? 'Закрыть' : 'Бросить кубики'" @click="open = !open; sfx(open ? 'open' : 'close', 0.35)">🎲</button>
 
     <section v-if="open" class="dt-panel" @keydown.enter.prevent="roll">
-      <header><b>Кубики</b><small>{{ formula || 'выбери кубики' }}</small></header>
+      <header><b>Кубики</b><small>Enter — бросить</small></header>
       <div class="dt-dice">
         <button v-for="d in SIDES" :key="d" type="button" :class="{ on: pick[d] }" :title="`Добавить d${d}; правый щелчок — убрать`" @click="pick[d] = Math.min(20, (pick[d] || 0) + 1)" @contextmenu.prevent="pick[d] = Math.max(0, (pick[d] || 0) - 1)">
           <span class="dt-die">d{{ d }}</span><em v-if="pick[d]">×{{ pick[d] }}</em>
         </button>
+      </div>
+      <!-- формула: пишется сама от кнопок, а можно набрать руками — кнопки подстроятся -->
+      <label class="dt-formula">Формула
+        <span class="dt-frow">
+          <input v-model="text" :class="{ bad: textError }" placeholder="2d6 + 1d20 + 3" spellcheck="false" autocomplete="off" @input="fromText" />
+          <button type="button" class="dt-star" title="Запомнить формулу (с подписью «Что бросаем»)" :disabled="!formula" @click="saveFav">☆</button>
+        </span>
+        <small v-if="textError" class="dt-err">{{ textError }}</small>
+      </label>
+      <div v-if="favs.length" class="dt-favs">
+        <button v-for="(fv, i) in favs" :key="i" type="button" :title="`${fv.formula} — щелчок: подставить, правый щелчок: забыть`" @click="useFav(fv)" @contextmenu.prevent="dropFav(i)">★ {{ fv.label || fv.formula }}</button>
       </div>
       <div class="dt-row">
         <label>Модификатор
@@ -40,7 +51,7 @@
         <button type="button" class="dt-btn" @click="quick(100)">d100</button>
         <span class="grow" />
         <button type="button" class="dt-btn" :disabled="!formula" @click="clearPick">Сброс</button>
-        <button type="button" class="dt-btn primary" :disabled="!formula || busy" @click="roll">{{ busy ? 'Катятся…' : 'Бросить' }}</button>
+        <button type="button" class="dt-btn primary" :disabled="!formula || busy || !!textError" @click="roll">{{ busy ? 'Катятся…' : 'Бросить' }}</button>
       </div>
       <div v-if="dice.rolls.length" class="dt-log">
         <div v-for="(r, i) in dice.rolls.slice(0, 12)" :key="i" class="dt-line" :style="{ '--pc': r.color || '#e6c27a' }">
@@ -54,7 +65,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { watch } from 'vue'
 import { store, dice, sendRoll, avatarUrl, toast } from '../map/store.js'
@@ -77,6 +88,58 @@ const formula = computed(() => {
   return parts.join(' + ') + (m ? (m > 0 ? ` + ${m}` : ` − ${-m}`) : '')
 })
 const clearPick = () => { for (const d of SIDES) pick[d] = 0; mod.value = 0 }
+
+// строка формулы: от кнопок — сама, руками — разбираем и выставляем кнопки и модификатор
+const text = ref('')
+const textError = ref('')
+let typing = false
+watch(formula, v => { if (!typing) { text.value = v.replace(/−/g, '-'); textError.value = '' } })
+function parseFormula(raw) {
+  const src = String(raw || '').toLowerCase().replace(/[кд]/g, 'd').replace(/[−–—]/g, '-').replace(/\s+/g, '')
+  if (!src) return { counts: {}, mod: 0 }
+  const counts = {}
+  let m = 0, pos = 0
+  const re = /([+-]?)(\d*)d(\d+)|([+-]?)(\d+)/y
+  while (pos < src.length) {
+    re.lastIndex = pos
+    const t = re.exec(src)
+    if (!t || (pos > 0 && !(t[1] || t[4]))) return { error: `Не понимаю «${src.slice(pos, pos + 8)}» — пиши так: 2d6 + 1d20 + 3` }
+    if (t[3]) {
+      const sides = Number(t[3]), n = t[2] === '' ? 1 : Number(t[2])
+      if (t[1] === '-') return { error: 'Вычитать кубики нельзя — только число' }
+      if (!SIDES.includes(sides)) return { error: `Нет кубика d${sides} — есть d4, d6, d8, d10, d12, d20, d100` }
+      counts[sides] = (counts[sides] || 0) + n
+      if (counts[sides] > 20 || n < 1) return { error: 'От 1 до 20 кубиков одного вида' }
+    } else m += (t[4] === '-' ? -1 : 1) * Number(t[5])
+    pos = re.lastIndex
+  }
+  if (Math.abs(m) > 99) return { error: 'Модификатор — от −99 до 99' }
+  return { counts, mod: m }
+}
+function applyText(v) {
+  const p = parseFormula(v)
+  if (p.error) { textError.value = p.error; return false }
+  textError.value = ''
+  typing = true
+  for (const d of SIDES) pick[d] = p.counts[d] || 0
+  mod.value = p.mod
+  nextTick(() => { typing = false })
+  return true
+}
+const fromText = () => applyText(text.value)
+
+// любимые формулы — в этом браузере
+const FAV_KEY = 'anacaria-dice-favs'
+const favs = ref((() => { try { return JSON.parse(localStorage.getItem(FAV_KEY) || '[]') } catch { return [] } })())
+const keepFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify(favs.value)) } catch { /* приватный режим */ } }
+function saveFav() {
+  const fv = { formula: text.value.trim() || formula.value, label: label.value }
+  favs.value = [fv, ...favs.value.filter(x => x.formula !== fv.formula || x.label !== fv.label)].slice(0, 10)
+  keepFavs()
+  toast(`Формула запомнена: ${fv.label || fv.formula}`)
+}
+function useFav(fv) { text.value = fv.formula; label.value = fv.label || ''; applyText(fv.formula) }
+function dropFav(i) { favs.value.splice(i, 1); keepFavs() }
 function quick(d) { clearPick(); pick[d] = 1; roll() }
 
 // натуральная 20 / 1 — только если бросали ровно один d20
@@ -109,7 +172,7 @@ function getBox() {
 const randomRoll = () => SIDES.filter(d => pick[d]).map(d => ({ sides: d, values: Array.from({ length: pick[d] }, () => 1 + Math.floor(Math.random() * d)) }))
 
 async function roll() {
-  if (!formula.value || busy.value) return
+  if (textError.value || !formula.value || busy.value) return
   busy.value = true
   sfx('diceShake')
   const m = Number(mod.value) || 0
@@ -167,6 +230,15 @@ async function roll() {
 .dt-dice button.on { background: rgba(231, 197, 111, .22); border-color: #e7c56f; }
 .dt-die { font: 800 12px 'Manrope', sans-serif; }
 .dt-dice em { position: absolute; right: -4px; top: -6px; padding: 0 5px; border-radius: 99px; background: #e7c56f; color: #1b140c; font: 800 10.5px 'Manrope', sans-serif; font-style: normal; }
+.dt-formula { display: grid; gap: 4px; }
+.dt-frow { display: flex; gap: 6px; }
+.dt-frow input { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .35); background: #0f0c08; color: #f3dc9e; font: 800 15px 'Manrope', sans-serif; letter-spacing: .02em; }
+.dt-frow input.bad { border-color: #ff7a6b; }
+.dt-star { width: 34px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .35); background: none; color: #ffd166; font-size: 16px; cursor: pointer; }
+.dt-star:disabled { opacity: .35; cursor: default; }
+.dt-err { color: #ff9b8f; font-weight: 700; }
+.dt-favs { display: flex; flex-wrap: wrap; gap: 5px; }
+.dt-favs button { padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(255, 209, 102, .4); background: rgba(255, 209, 102, .08); color: #ffd166; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .dt-row { display: flex; gap: 8px; align-items: end; }
 .dt-row label, .dt-panel label { display: grid; gap: 4px; color: #a8936c; font-weight: 700; font-size: 12px; min-width: 0; }
 .dt-row .grow { flex: 1; }

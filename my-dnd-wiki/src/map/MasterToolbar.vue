@@ -121,7 +121,8 @@ const KEYS = { v: 'select', m: 'ruler', g: 'ping', n: 'note', c: 'city', t: 'lab
 const RU = { м: 'v', ь: 'm', п: 'g', т: 'n', с: 'c', е: 't', к: 'r', ц: 'w', ф: 'a', з: 'p', а: 'f', у: 'e' }
 const PLAYER_TOOLS = ['select', 'ruler', 'ping', 'note']
 function onKey(e) {
-  if (e.target.closest?.('input, textarea, select') || e.altKey || e.metaKey) return
+  // печатаешь (поле ввода или текст с оформлением) — буквы не переключают инструменты
+  if (e.target.closest?.('input, textarea, select, [contenteditable]') || e.altKey || e.metaKey) return
   if (e.ctrlKey && e.key.toLowerCase() === 'z' && master.value) { e.preventDefault(); undoFog(); return }
   if (e.ctrlKey) return
   const k = e.key.toLowerCase()

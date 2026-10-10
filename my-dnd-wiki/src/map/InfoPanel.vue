@@ -150,7 +150,7 @@
       <!-- личная заметка -->
       <div v-if="type === 'notes'" class="note-edit">
         <template v-if="item.ownerId === store.me?.id">
-          <textarea v-model="noteText" class="ui-input" rows="4" placeholder="Что здесь? «тут торговец обманул»" @change="saveNote({ text: noteText })" />
+          <textarea ref="noteInput" v-model="noteText" class="ui-input" rows="4" placeholder="Что здесь? «тут торговец обманул»" @change="saveNote({ text: noteText })" />
           <div class="swatches">
             <button v-for="c in NOTE_COLORS" :key="c" type="button" class="sw" :class="{ on: item.color === c }" :style="{ background: c }" @click="saveNote({ color: c })" />
           </div>
@@ -372,7 +372,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import IconPicker from './IconPicker.vue'
 import RichEditor from '../components/RichEditor.vue'
@@ -631,7 +631,12 @@ function togglePlayer(list, id) {
 }
 const NOTE_COLORS = ['#ffd166', '#ff9a4e', '#ff7ac0', '#7ee06a', '#4fd8ff', '#c47aff', '#f2f2f2']
 const noteText = ref('')
-watch(() => (type.value === 'notes' ? item.value?.id : null), () => { noteText.value = item.value?.text || '' }, { immediate: true })
+// новая пустая заметка — сразу курсор в текст, иначе буквы уходят в горячие клавиши инструментов
+const noteInput = ref(null)
+watch(() => (type.value === 'notes' ? item.value?.id : null), id => {
+  noteText.value = item.value?.text || ''
+  if (id && !noteText.value) nextTick(() => noteInput.value?.focus())
+}, { immediate: true })
 const saveNote = patch => act('PATCH', `/api/notes/${item.value.id}`, patch).catch(() => {})
 async function deleteNote() {
   await act('DELETE', `/api/notes/${item.value.id}`, undefined, 'Заметка удалена').catch(() => {})

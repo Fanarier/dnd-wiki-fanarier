@@ -437,7 +437,7 @@ function removeItem(kind, id, how) {
 onKey()
 function onKey() {
   const h = e => {
-    if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target?.tagName)) return
+    if (e.key !== 'Escape' || e.target?.closest?.('input, textarea, select, [contenteditable]')) return
     // дорогу, которую рисуют, Esc сбрасывает сам; второй Esc — снять инструмент
     if ((tool.value?.road || tool.value?.wall) && mapRef.value?.draft?.length) return
     tool.value = null
