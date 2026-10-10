@@ -32,7 +32,7 @@
         <!-- живая стихия школы магии за текстом -->
         <MagicBackdrop v-if="isMagic && !magicLoading && element" :key="element" :kind="element" />
         <!-- звук стихии: по умолчанию выключен, включается кнопкой (браузеры не дают играть звук без нажатия) -->
-        <div v-if="isMagic && element && store.sound" class="w-amb" :class="{ on: ambOn }">
+        <div v-if="isMagic && element && store.sound && hasAmbience(element)" class="w-amb" :class="{ on: ambOn }">
           <button type="button" :title="ambOn ? 'Выключить звук стихии' : 'Включить звук стихии'" @click="unlockAudio(); ambOn = !ambOn">{{ ambOn ? '🔊' : '🔈' }} {{ AMB_LABEL[element] }}</button>
           <input v-if="ambOn" type="range" min="0" max="1" step="0.05" :value="ambVol" title="Громкость стихии" aria-label="Громкость стихии" @input="ambVol = +$event.target.value; setAmbienceVolume(ambVol)" />
         </div>
@@ -62,7 +62,7 @@ import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
 import MagicBackdrop from './MagicBackdrop.vue'
-import { startAmbience, stopAmbience, unlockAudio, getAmbienceVolume, setAmbienceVolume } from '../sound/sound.js'
+import { startAmbience, stopAmbience, unlockAudio, getAmbienceVolume, setAmbienceVolume, hasAmbience } from '../sound/sound.js'
 // искры на общих страницах магии — библиотека грузится только там
 const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 
@@ -145,7 +145,7 @@ const magicLoading = ref(false)
 const ELEMENTS = { 'school-fire': 'fire', 'school-water': 'water', 'school-air': 'air', 'school-earth': 'earth' }
 const element = computed(() => ELEMENTS[currentCategory.value] || null)
 // фон стихии: включается кнопкой, выбор помним; уходим со страницы школы — стихает
-const AMB_LABEL = { fire: 'треск огня', water: 'ручей и лёд', air: 'ветер и гром', earth: 'лес и птицы' }
+const AMB_LABEL = { fire: 'огонь', water: 'вода и лёд', air: 'ветер и гром', earth: 'лес' }
 const ambVol = ref(getAmbienceVolume())
 const ambOn = ref((() => { try { return localStorage.getItem('anacaria-ambience') === 'on' } catch { return false } })())
 watch([ambOn, element, () => store.sound], ([on, el, snd]) => {

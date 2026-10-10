@@ -19,7 +19,7 @@
       </TransitionGroup>
     </div>
 
-    <button type="button" class="dt-fab" :class="{ open }" :title="open ? 'Закрыть' : 'Бросить кубики'" @click="open = !open; sfx(open ? 'open' : 'close', 0.35)">🎲</button>
+    <button type="button" class="dt-fab" :class="{ open }" :title="open ? 'Закрыть' : 'Бросить кубики'" @click="open = !open; open && sfx('diceGrab', 0.22)">🎲</button>
 
     <section v-if="open" class="dt-panel" @keydown.enter.prevent="roll">
       <header><b>Кубики</b><small>Enter — бросить</small></header>
