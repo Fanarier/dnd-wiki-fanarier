@@ -14,7 +14,8 @@
       <span v-for="t in q.tags" :key="t" class="n-tag" :style="{ borderColor: QUEST_TAGS[t]?.color, color: QUEST_TAGS[t]?.color }">{{ QUEST_TAGS[t]?.label }}</span>
     </div>
 
-    <p class="n-desc">{{ q.description || 'Подробности у распорядителя гильдии.' }}</p>
+    <RichText v-if="q.description" class="n-desc" :text="q.description" />
+    <p v-else class="n-desc">Подробности у распорядителя гильдии.</p>
     <dl class="n-terms">
       <div v-if="q.duration"><dt>Длительность</dt><dd>{{ durationText }}</dd></div>
       <div><dt>Основная награда</dt><dd>{{ rewardText(q.reward) || '—' }}</dd></div>
@@ -115,6 +116,7 @@ import { computed } from 'vue'
 import { GUILDS, RANKS, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP } from '../shared/catalog.js'
 import { URGENCY, QUEST_TAGS, earlyChance, nextRollAt, rewardText } from '../shared/quests.js'
 import { store, portraitUrl } from '../map/store.js'
+import RichText from '../components/RichText.vue'
 
 const props = defineProps({ q: { type: Object, required: true }, master: Boolean })
 defineEmits(['edit', 'apply', 'map', 'pick', 'roll', 'accept', 'reject'])

@@ -211,7 +211,7 @@
           <label v-for="(d, k) in EVENT_DURATIONS" :key="k" class="chk"><input v-model="newEv.duration" type="checkbox" :value="k" /> {{ d.label }}</label>
         </div>
         <div class="evrow"><label class="chk">Срок <input v-model="newEv.deadline" type="date" /></label></div>
-        <textarea v-model="newEv.text" rows="3" placeholder="Что случилось — от лица жителей" />
+        <RichEditor v-model="newEv.text" :min-height="80" placeholder="Что случилось — от лица жителей. @ — упомянуть НПС или героя" />
         <input v-model="newEv.effect" placeholder="Влияние: «Угроза +45» (необязательно)" />
         <div class="evrow end"><button class="btn" @click="newEv = null">Отмена</button><button class="btn primary" :disabled="!newEv.title" @click="addEvent">Добавить и оповестить главу</button></div>
       </div>
@@ -236,7 +236,7 @@
               <span v-for="d in g.duration || []" :key="d" class="ev-dur" :style="{ background: EVENT_DURATIONS[d]?.color }">{{ EVENT_DURATIONS[d]?.label }}</span>
               <span class="ev-date">день {{ g.day }}</span>
             </div>
-            <p>{{ g.text }}</p>
+            <RichText class="ev-text" :text="g.text" />
             <div v-if="g.effect" class="ev-eff">{{ g.effect }}</div>
           </template>
           <label v-if="g.apply" class="chk apply"><input v-model="applyOn[g.id]" type="checkbox" /> применить сразу: {{ applyText(g.apply) }}</label>
@@ -257,7 +257,7 @@
           <span v-for="d in e.duration || []" :key="d" class="ev-dur" :style="{ background: EVENT_DURATIONS[d]?.color }">{{ EVENT_DURATIONS[d]?.label }}</span>
           <span v-if="e.deadline" class="ev-date">до {{ date(e.deadline) }}</span>
         </div>
-        <p>{{ e.text }}</p>
+        <RichText class="ev-text" :text="e.text" />
         <div v-if="e.effect" class="ev-eff">{{ e.effect }}</div>
         <div v-if="decEdit === e.id" class="ev-dec edit">
           <small>Решение</small>
@@ -329,6 +329,8 @@
 import { computed, nextTick, ref } from 'vue'
 import { store, heroCover, heroPortraitUrl, act, toast, uploadSettlementPortrait } from '../map/store.js'
 import { SPEC_ICONS, isGlyph } from './specIcons.js'
+import RichEditor from '../components/RichEditor.vue'
+import RichText from '../components/RichText.vue'
 import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, DAMAGE, shortFor, repairPrice, explored as isExplored } from '../shared/settlement.js'
 import { WORLD } from '../shared/terrainGen.js'
 import { applyText } from '../shared/settlementEvents.js'

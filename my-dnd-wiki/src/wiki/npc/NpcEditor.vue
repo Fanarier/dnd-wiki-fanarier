@@ -43,6 +43,12 @@
           <datalist id="ne-info-keys"><option v-for="k in allInfoKeys" :key="k" :value="k" /></datalist>
         </template>
 
+        <!-- ===== Описание и история (с оформлением, @-упоминания) ===== -->
+        <template v-else-if="sec === 'desc'">
+          <p class="ne-hint">Описание, характер, история. Оформление — кнопками сверху; «@» — упомянуть другого НПС, героя, город или поселение (станет ссылкой).</p>
+          <RichEditor v-model="f.desc" :min-height="260" placeholder="Кто это, чем живёт, что о нём знают…" />
+        </template>
+
         <!-- ===== Специализации и слабости ===== -->
         <template v-else-if="sec === 'levels'">
           <div class="ne-sub">Специализации <small>Новичок → Легенда</small></div>
@@ -234,6 +240,7 @@
 import { computed, defineComponent, h, reactive, ref, watch } from 'vue'
 import NpcSkillDialog from './NpcSkillDialog.vue'
 import { VueDraggable } from 'vue-draggable-plus'
+import RichEditor from '../../components/RichEditor.vue'
 import { store, npcState, loadNpcs, act, api, toast, heroPortraitUrl, uploadNpcArt, uploadNpcAvatar } from '../../map/store.js'
 import { cropImage } from '../../components/cropState.js'
 import { NPC_GROUPS, groupOf, SPEC_LEVELS, WEAK_LEVELS, STATS, COMBAT, mod, signed, INFO_KEYS, LIST_TITLES, SPELLS_TITLE, skillKey, findPlace } from '../../shared/npc.js'
@@ -251,7 +258,7 @@ const RowBtns = defineComponent({
 })
 
 const SECTIONS = [
-  { key: 'main', label: 'Основное' }, { key: 'levels', label: 'Специализации' }, { key: 'prof', label: 'Владения' },
+  { key: 'main', label: 'Основное' }, { key: 'desc', label: 'Описание' }, { key: 'levels', label: 'Специализации' }, { key: 'prof', label: 'Владения' },
   { key: 'skills', label: 'Навыки' }, { key: 'combat', label: 'Бой' }, { key: 'lists', label: 'Списки' }, { key: 'arts', label: 'Арты' }
 ]
 const sec = ref('main')
@@ -265,6 +272,7 @@ const clone = n => {
   const { arts, ...rest } = JSON.parse(JSON.stringify(n))
   rest.status ||= { text: '', color: '#9be07a' }
   for (const k of ['info', 'lists', 'specs', 'weak', 'prof', 'passives', 'actives', 'saves', 'resist', 'attacks', 'spells']) rest[k] ||= []
+  rest.desc ||= ''
   rest.combat ||= {}
   rest.stats ||= {}
   return rest

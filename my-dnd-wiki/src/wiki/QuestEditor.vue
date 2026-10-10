@@ -20,7 +20,7 @@
               <datalist id="qe-types"><option v-for="t in QUEST_TYPES" :key="t" :value="t" /></datalist>
             </label>
           </div>
-          <label>Описание<textarea v-model="f.description" rows="4" /></label>
+          <div class="qe-rich"><span>Описание</span><RichEditor v-model="f.description" placeholder="Что нужно сделать. @ — упомянуть НПС, героя, город" /></div>
           <div class="row">
             <label>Длительность, ч<input v-model.number="f.duration" type="number" min="0" /></label>
             <label>Минимальный ранг
@@ -152,6 +152,7 @@ import { computed, ref } from 'vue'
 import { GUILDS, RANKS, QUEST_TYPES, QUEST_STATUS, TASK_STATUS, QUEST_RESULT, MAX_GROUP } from '../shared/catalog.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, DAY } from '../shared/quests.js'
 import { store, portraitUrl } from '../map/store.js'
+import RichEditor from '../components/RichEditor.vue'
 
 const props = defineProps({ quest: { type: Object, default: null }, busy: Boolean })
 const emit = defineEmits(['close', 'save', 'delete', 'pick-on-map'])
@@ -248,4 +249,6 @@ input[type='checkbox'] { width: 16px; min-height: 16px; accent-color: #e7c56f; }
 @media (max-width: 640px) {
   .row, .row.three, .reward, .task { grid-template-columns: 1fr; }
 }
+.qe-rich { display: grid; gap: 4px; grid-column: 1 / -1; }
+.qe-rich > span { font-size: 12px; font-weight: 700; color: var(--a-muted, #a8936c); }
 </style>

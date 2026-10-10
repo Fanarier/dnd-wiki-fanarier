@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
 import { registerNpcRoutes, npcLinks, npcPins } from './npcs.js'
+import { cleanRich } from './richtext.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
 import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword, isOwner, listMasters, setMasterPassword, removeMaster, isMasterLogin } from './auth.js'
 import {
@@ -149,7 +150,8 @@ T.focus = () => v => ({ x: T.num(0, 100)(v?.x ?? 50), y: T.num(0, 100)(v?.y ?? 2
 const PLAYER_ID = v => (typeof v === 'string' && /^u[a-f0-9]{6,20}$/.test(v) ? v : null)
 
 const COORD = T.num(-500, 3000)
-const TEXT = T.str(20000)
+// описания и тайны — текст с оформлением (Tiptap): пропускаем только безопасный HTML
+const TEXT = v => cleanRich(v, 20000)
 const SCHEMAS = {
   states: {
     noCreate: true,
@@ -1264,7 +1266,7 @@ function notifyDeciders(s, text, tab = 'journal') {
 const T_EVENT = v => ({
   id: v.id || newId('e'), title: T.str(120)(v.title) || 'Событие', type: EVENT_TYPES[v.type] ? v.type : 'message',
   duration: (Array.isArray(v.duration) ? v.duration : []).filter(d => EVENT_DURATIONS[d]).slice(0, 3),
-  deadline: v.deadline ? T.str(20)(v.deadline) : null, text: T.str(4000)(v.text), effect: T.str(300)(v.effect),
+  deadline: v.deadline ? T.str(20)(v.deadline) : null, text: cleanRich(v.text, 8000), effect: T.str(300)(v.effect),
   decision: T.str(2000)(v.decision), decidedBy: v.decidedBy ? T.str(60)(v.decidedBy) : null, decidedAt: Number(v.decidedAt) || null,
   location: T.str(80)(v.location), createdAt: Number(v.createdAt) || Date.now()
 })

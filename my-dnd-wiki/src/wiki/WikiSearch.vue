@@ -35,6 +35,8 @@ const emit = defineEmits(['article', 'done'])
 
 // ё = е, регистр не важен — и в тексте, и в запросе
 const norm = s => String(s ?? '').toLowerCase().replace(/ё/g, 'е')
+// описания теперь бывают с оформлением (HTML) — для поиска и отрывков оставляем только текст
+const strip = s => String(s ?? '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
 const words = computed(() => norm(props.query).trim().split(/\s+/).filter(w => w.length > 1))
 // подсветка точных совпадений слов (опечатку подсветить нельзя — просто без подсветки)
@@ -71,7 +73,7 @@ const docs = computed(() => {
   for (const n of npcState.npcs) {
     const a = n.arts?.[0]
     d.push({ g: 'npcs', key: 'n' + n.id, title: n.name, sub: [groupOf(n.group).one, npcSubtitle(n), n.home].filter(Boolean).join(' · '),
-      text: [n.status?.text, ...n.info.map(x => x.v), ...n.lists.flatMap(l => l.items)].join(' '), img: a ? heroPortraitUrl(a.thumb || a.file) : '', to: { path: '/wiki', query: { npc: n.id } } })
+      text: [n.status?.text, strip(n.desc), ...n.info.map(x => x.v), ...n.lists.flatMap(l => l.items)].join(' '), img: a ? heroPortraitUrl(a.thumb || a.file) : '', to: { path: '/wiki', query: { npc: n.id } } })
   }
   for (const s of npcState.skills) {
     const who = npcUsers.value.get(skillKey(s.kind, s.name)) || []
@@ -85,9 +87,9 @@ const docs = computed(() => {
     d.push({ g: 'heroes', key: 'h' + h.id, title: h.name, sub: [h.location, h.group, h.status].filter(Boolean).join(' · '), text: [h.effectPlus, h.effectMinus, h.housing].join(' '),
       img: c ? heroPortraitUrl(c.thumb || c.file) : '', to: { path: '/wiki', query: { hero: h.id } } })
   }
-  for (const q of store.data.quests || []) d.push({ g: 'quests', key: 'q' + q.id, title: q.type, sub: [q.guild, q.rank, q.status === 'open' ? 'открыт' : ''].filter(Boolean).join(' · '), text: [q.description, q.reward, ...(q.tasks || [])].join(' '), to: { path: '/wiki', query: { quest: q.id } } })
+  for (const q of store.data.quests || []) d.push({ g: 'quests', key: 'q' + q.id, title: q.type, sub: [q.guild, q.rank, q.status === 'open' ? 'открыт' : ''].filter(Boolean).join(' · '), text: [strip(q.description), q.reward, ...(q.tasks || []).map(t => t.text || t)].join(' '), to: { path: '/wiki', query: { quest: q.id } } })
   for (const s of store.data.settlements || []) d.push({ g: 'places', key: 'st' + s.id, title: s.name, sub: 'поселение', text: '', to: { path: '/settlement/' + s.id } })
-  for (const c of store.data.cities || []) d.push({ g: 'places', key: 'c' + c.id, title: c.name, sub: 'на карте мира', text: c.description || '', to: { path: '/', query: { focus: 'cities:' + c.id } } })
+  for (const c of store.data.cities || []) d.push({ g: 'places', key: 'c' + c.id, title: c.name, sub: 'на карте мира', text: strip(c.description), to: { path: '/', query: { focus: 'cities:' + c.id } } })
   return d
 })
 const fuseOpts = threshold => ({

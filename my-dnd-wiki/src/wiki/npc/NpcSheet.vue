@@ -52,6 +52,10 @@
     <Transition name="ns-tab" mode="out-in">
     <!-- ===== Обзор ===== -->
     <section v-if="tab === 'overview'" key="overview" class="ns-body">
+      <div v-if="npc.desc" class="ns-box ns-desc">
+        <h4>Описание и история</h4>
+        <RichText :text="npc.desc" />
+      </div>
       <div v-if="npc.specs.length || npc.weak.length || hasSpecs(npc.group)" class="ns-two">
         <div class="ns-box">
           <h4>Специализации</h4>
@@ -175,6 +179,7 @@
 <script setup>
 import { computed, defineComponent, h, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FxText from './FxText.vue'
+import RichText from '../../components/RichText.vue'
 import HeroGalleryViewer from '../HeroGalleryViewer.vue'
 import { store, heroPortraitUrl } from '../../map/store.js'
 import { groupOf, SPEC_LEVELS, WEAK_LEVELS, levelColor, STATS, COMBAT, mod, signed, hasSpecs, unknown, npcLevel, skillKey, findPlace, placeLink } from '../../shared/npc.js'
@@ -293,6 +298,7 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-body > :nth-child(2) { animation-delay: .06s; } .ns-body > :nth-child(3) { animation-delay: .12s; } .ns-body > :nth-child(4) { animation-delay: .18s; } .ns-body > :nth-child(5) { animation-delay: .24s; }
 .ns-sk, .ns-tile, .ns-stat { animation: ns-pop .45s cubic-bezier(.2, .9, .3, 1.2) backwards; animation-delay: calc(var(--i, 0) * 40ms); }
 .ns-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
+.ns-desc { font-size: 14px; color: #e3d8bf; }
 .ns-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 14px; }
 .ns-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .ns-box { min-width: 0; padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, .025); border: 1px solid rgba(231, 197, 111, .14); }

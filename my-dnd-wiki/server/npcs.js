@@ -5,6 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { findPlace } from '../src/shared/npc.js'
+import { cleanRich } from './richtext.js'
 
 export const NPC_GROUPS = ['sidekick', 'personal', 'companion', 'important', 'aspect']
 const S = (v, n) => String(v ?? '').slice(0, n).trim()
@@ -23,6 +24,7 @@ export function cleanNpc(b = {}, old = {}) {
   if (has('order')) n.order = Number(b.order) || 0
   if (has('status')) n.status = { text: S(b.status?.text, 80), color: COLOR(b.status?.color) || '#9be07a' }
   if (has('home')) n.home = S(b.home, 120)
+  if (has('desc')) n.desc = cleanRich(b.desc, 20000) // описание и история — с оформлением
   if (has('info')) n.info = arr(b.info, 40, x => ({ k: S(x?.k, 60), v: S(x?.v, 300) })).filter(x => x.k)
   if (has('lists')) n.lists = arr(b.lists, 12, x => ({ title: S(x?.title, 60), items: arr(x?.items, 80, i => S(i, 300)).filter(Boolean) })).filter(x => x.title)
   const lv = x => ({ name: S(x?.name, 80), level: S(x?.level, 40) })

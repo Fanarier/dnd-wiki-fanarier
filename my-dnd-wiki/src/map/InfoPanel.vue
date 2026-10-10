@@ -170,7 +170,7 @@
           <span v-if="item.status === 'available'" class="ui-chip" :style="{ color: URGENCY[item.urgency]?.color }">{{ URGENCY[item.urgency]?.label }}</span>
           <span class="ui-chip">ранг: {{ RANKS.find(r => r.key === item.rank)?.label }}</span>
         </div>
-        <p class="ui-desc">{{ item.description }}</p>
+        <RichText class="ui-desc" :text="item.description" />
         <div class="ui-muted small">Награда: {{ rewardText(item.reward) || '—' }}</div>
         <ul v-if="item.tasks?.length" class="q-tasks">
           <li v-for="(t, i) in item.tasks" :key="i" :class="{ main: t.main }">{{ t.text }}</li>
@@ -187,7 +187,7 @@
         <ol>
           <li v-for="st in item.stops" :key="st.id" :class="{ on: store.selectedStop === st.id }" @click="store.selectedStop = st.id">
             <img :src="markIcon(st.icon).src" alt="" />
-            <div><b>{{ st.name }}</b><div v-if="st.description" class="ui-desc small">{{ st.description }}</div></div>
+            <div><b>{{ st.name }}</b><RichText v-if="st.description" class="ui-desc small" :text="st.description" /></div>
           </li>
         </ol>
       </div>
@@ -207,7 +207,7 @@
         <div v-if="item.toX != null">Движется по карте</div>
       </div>
 
-      <p v-if="item.description && !master" class="ui-desc">{{ item.description }}</p>
+      <RichText v-if="item.description && !master" class="ui-desc" :text="item.description" />
       <p v-else-if="!master" class="ui-muted">Описания пока нет.</p>
 
       <!-- ======= Редактор мастера ======= -->
@@ -349,7 +349,7 @@
           </div>
         </template>
 
-        <label v-if="type !== 'labels'" class="ui-field"><span>Описание (видят все)</span><textarea v-model="form.description" class="ui-input" rows="4" /></label>
+        <div v-if="type !== 'labels'" class="ui-field"><span>Описание (видят все)</span><RichEditor v-model="form.description" :min-height="90" placeholder="@ — упомянуть НПС, героя, город" /></div>
         <label v-if="type !== 'labels'" class="ui-field"><span><Icon name="lock" :size="12" /> Заметки мастера (игроки не видят)</span><textarea v-model="form.secret" class="ui-input" rows="3" /></label>
         <label class="ui-check"><input v-model="form.hidden" type="checkbox" /> Скрыть от игроков</label>
         <div v-if="form.hidden && 'revealTo' in form && roster.length" class="ui-field reveal">
@@ -375,6 +375,8 @@
 import { computed, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import IconPicker from './IconPicker.vue'
+import RichEditor from '../components/RichEditor.vue'
+import RichText from '../components/RichText.vue'
 import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km, toast, markIcon, sendFollow, avatarUrl } from './store.js'
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
 import { URGENCY, rewardText } from '../shared/quests.js'
