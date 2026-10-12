@@ -86,8 +86,14 @@
               <option v-for="r in RANKS" :key="r.key" :value="r.key">{{ r.label }}</option>
             </select>
             <button v-if="p.status === 'rejected'" class="mini" @click="call(`/api/players/${p.id}`, 'PATCH', 'Восстановлен', { status: 'active' })">Восстановить</button>
+            <button v-if="!p.linked" class="mini" title="Игрок забыл пароль — выдать новый, старые входы сбросятся" @click="resetPlayer(p)">Новый пароль</button>
           </template>
           <button class="mini no" title="Удалить аккаунт" @click="removePlayer(p)">✕</button>
+        </div>
+        <div v-if="issuedPlayer" class="ms-issued">
+          Передай игроку — логин <b>{{ issuedPlayer.login }}</b>, пароль <b>{{ issuedPlayer.password }}</b>
+          <button class="mini" @click="copyIssuedPlayer">Скопировать</button>
+          <button class="mini" title="Скрыть" @click="issuedPlayer = null">✕</button>
         </div>
       </section>
 
@@ -281,6 +287,22 @@ async function copyIssued() {
 }
 
 const call = (url, method, text, body) => act(method, url, method === 'DELETE' ? undefined : (body || {}), text).catch(() => {})
+// игрок забыл пароль: новый придумывает сайт, мастер передаёт его игроку
+const issuedPlayer = ref(null)
+async function resetPlayer(p) {
+  if (!confirm(`Выдать игроку «${p.character}» (${p.login}) новый пароль? Старый перестанет работать, его выкинет со всех устройств.`)) return
+  const password = genPass()
+  try {
+    await act('POST', `/api/players/${p.id}/password`, { password }, 'Пароль сменён')
+    issuedPlayer.value = { login: p.login, password }
+  } catch { /* тост */ }
+}
+async function copyIssuedPlayer() {
+  try {
+    await navigator.clipboard.writeText(`Анкария — вход\nЛогин: ${issuedPlayer.value.login}\nПароль: ${issuedPlayer.value.password}\nПароль можно сменить в профиле.`)
+    toast('Скопировано')
+  } catch { toast('Не получилось скопировать — перепиши вручную', 'error') }
+}
 function removePlayer(p) {
   if (confirm(`Удалить аккаунт «${p.character}» (${p.login})? Это нельзя отменить.`)) call(`/api/players/${p.id}`, 'DELETE', 'Аккаунт удалён')
 }

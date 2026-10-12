@@ -714,6 +714,15 @@ app.patch('/api/players/:id', requireMaster, (req, res) => {
   broadcast()
   res.json({ ok: true })
 })
+// игрок забыл пароль — мастер выдаёт новый (старые входы игрока сбрасываются)
+app.post('/api/players/:id/password', requireMaster, (req, res) => {
+  const p = getPlayer(req.params.id), password = String(req.body?.password || '')
+  if (!p) return res.status(404).json({ error: 'Игрок не найден' })
+  if (password.length < 6) return res.status(400).json({ error: 'Пароль — минимум 6 символов' })
+  setPlayerPassword(p.id, password)
+  broadcast()
+  res.json({ ok: true })
+})
 app.delete('/api/players/:id', requireMaster, (req, res) => {
   if (!removePlayer(req.params.id)) return res.status(404).json({ error: 'Игрок не найден' })
   resolveNotifications(n => n.kind === 'register' && n.data.playerId === req.params.id)
