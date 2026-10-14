@@ -41,16 +41,22 @@
       <i v-for="m in motes" :key="m.k" class="sb-mote" :style="m.style" aria-hidden="true" />
       <div ref="bookRef" class="sb-book" :class="{ opening }">
         <!-- кожаный переплёт с тиснёными уголками (под страницами) -->
-        <div ref="boardsRef" class="sb-boards" aria-hidden="true"><i class="cn tl" /><i class="cn tr" /><i class="cn bl" /><i class="cn br" /><i v-if="!single" class="sb-stitch" /></div>
+        <div v-if="!single" ref="boardLRef" class="sb-boards l" aria-hidden="true"><i class="cn tl" /><i class="cn bl" /></div>
+        <div class="sb-boards r" aria-hidden="true"><i class="cn tr" /><i class="cn br" /><template v-if="single"><i class="cn tl" /><i class="cn bl" /></template></div>
+        <i v-if="!single" ref="stitchRef" class="sb-stitch" aria-hidden="true" />
         <!-- левая страница: главное о персонаже (на узком экране её нет — главная становится разделом) -->
         <section v-if="!single" ref="leftRef" class="sb-page left">
+          <span class="sb-run" aria-hidden="true">{{ sheet.data.CharacterName }}</span>
           <div class="sb-scroll"><PMain /></div>
+          <span class="sb-pno" aria-hidden="true">— 1 —</span>
           <i class="sb-spine" aria-hidden="true" />
         </section>
         <section ref="rightRef" class="sb-page right" @pointerdown="swipeStart" @pointerup="swipeEnd">
+          <span class="sb-run" aria-hidden="true">{{ current.name }}</span>
           <div ref="scrollRef" class="sb-scroll" :key="cur">
             <component :is="current.comp" v-bind="current.props || {}" @go="goto" />
           </div>
+          <span class="sb-pno" aria-hidden="true">— {{ pageNo }} —</span>
         </section>
 
         <!-- закладки: шёлковые ленты, торчат из-за верхнего края страниц -->
@@ -73,7 +79,7 @@
               <small class="cv-sub">{{ [sheet.data.Class, sheet.data.Level ? sheet.data.Level + ' ур.' : ''].filter(Boolean).join(' · ') }}</small>
             </div>
           </div>
-          <div class="face back" />
+          <div class="face back"><i class="paper" /></div>
         </div>
         <div ref="burstRef" class="sb-burst" aria-hidden="true" />
       </div>
@@ -148,6 +154,7 @@ const readOnly = computed(() => !!sheet.meta?.deletedAt)
 provide('sheetReadOnly', readOnly)
 const opening = ref(false)
 provide('bookOpening', opening)
+provide('openDelay', 1.3) // числа и паутина ждут, пока обложка откроется
 
 /* ---------- одна страница или разворот ---------- */
 const single = ref(innerWidth < 980)
@@ -162,47 +169,67 @@ const pickStart = () => {
 }
 
 /* ---------- открытие книги ---------- */
-const boardsRef = ref(null), burstRef = ref(null)
+const boardLRef = ref(null), stitchRef = ref(null), burstRef = ref(null)
 const bookRef = ref(null), coverRef = ref(null), leftRef = ref(null), rightRef = ref(null), scrollRef = ref(null), searchRef = ref(null)
 const coverShown = ref(true)
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-let tl = null
+const pageNo = computed(() => visibleSections.value.findIndex(s => s.key === cur.value) + 2)
+let tl = null, coverTimer = 0
+
+// текст «проявляется чернилами»: из прозрачного и размытого, сверху вниз
+const ink = (els, at, step = 0.035) => tl.fromTo(els, { opacity: 0, y: 8, filter: 'blur(5px)' },
+  { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.55, stagger: step, ease: 'power2.out', clearProps: 'opacity,transform,filter' }, at)
 
 async function playOpen() {
   await nextTick()
   const book = bookRef.value, cover = coverRef.value
   if (!book || !cover) return
-  if (reduce) { coverShown.value = false; return }
-  opening.value = true
+  if (reduce) { coverShown.value = false; opening.value = false; return }
   const shift = single.value ? 0 : -book.offsetWidth / 4 // закрытая книга — по центру, открытая — разворот по центру
   // откуда прилетает обложка: карточка в списке листов
   let from = null
   try { from = JSON.parse(sessionStorage.getItem('sheet-fly') || 'null') } catch { /* нет */ }
   sessionStorage.removeItem('sheet-fly')
-  const pages = [...book.querySelectorAll('.sb-page'), boardsRef.value, ...book.querySelectorAll('.sb-ribbon')].filter(Boolean)
+  // левая половина (переплёт, страница, корешок, ляссе) появляется, только когда на неё ляжет обложка
+  const leftHalf = [boardLRef.value, leftRef.value, stitchRef.value, book.querySelector('.sb-ribbon')].filter(Boolean)
+  const marks = book.querySelectorAll('.sb-mark')
+  const front = cover.querySelector('.front'), back = cover.querySelector('.back')
+  const rightInk = rightRef.value?.querySelectorAll('.sb-anim, .sb-run, .sb-pno') || []
+  const leftInk = leftRef.value?.querySelectorAll('.sb-anim, .sb-run, .sb-pno') || []
   gsap.set(book, { x: shift })
-  gsap.set(pages, { opacity: 0 })
-  tl = gsap.timeline({ onComplete: () => { coverShown.value = false; setTimeout(() => { opening.value = false }, 600) } })
+  gsap.set(leftHalf, { opacity: 0 })
+  // правая половина — пока обложка летит, её не видно; показываем, когда обложка встала на место
+  const rightHalf = [book.querySelector('.sb-boards.r'), rightRef.value].filter(Boolean)
+  gsap.set(rightHalf, { opacity: 0 })
+  gsap.set([...rightInk, ...leftInk], { opacity: 0 })
+  gsap.set(marks, { y: 46, opacity: 0 })
+  gsap.set(back, { visibility: 'hidden' })
+  gsap.set(cover, { transformPerspective: 2600, transformOrigin: '0% 50%' })
+  const finish = () => { coverShown.value = false; setTimeout(() => { opening.value = false }, 400) }
+  tl = gsap.timeline({ onComplete: finish })
+  // запасной выход: что бы ни случилось с анимацией, обложка не останется висеть
+  clearTimeout(coverTimer)
+  coverTimer = setTimeout(finish, 6000)
   if (from?.id === sheet.id) {
     const r = cover.getBoundingClientRect()
-    tl.from(cover, { x: from.x - r.left, y: from.y - r.top, scaleX: from.w / r.width, scaleY: from.h / r.height, transformOrigin: '0 0', duration: 0.6, ease: 'power3.inOut' })
-  } else tl.from(cover, { y: 40, scale: 0.9, opacity: 0, duration: 0.5, ease: 'power3.out' })
-  // обложка поворачивается вокруг корешка; на середине (ребром к нам) лицо прячем, показываем изнанку —
-  // не полагаемся на backface-visibility: при плавном исчезновении браузер его не соблюдает
-  const front = cover.querySelector('.front'), back = cover.querySelector('.back')
-  gsap.set(back, { visibility: 'hidden' })
-  gsap.set(cover, { transformOrigin: '0% 50%' })
-  tl.set(pages, { opacity: 1 })
-    .addLabel('turn', '+=0.12')
-    .to(cover, { rotateY: -90, duration: 0.52, ease: 'power2.in' }, 'turn')
-    .to(book, { x: 0, duration: 1.05, ease: 'power2.inOut' }, 'turn')
-    .set(front, { visibility: 'hidden' }, 'turn+=0.52')
-    .set(back, { visibility: 'visible' }, 'turn+=0.52')
-    .to(cover, { rotateY: -180, duration: 0.53, ease: 'power2.out' }, 'turn+=0.52')
-    .to(cover, { opacity: 0, duration: 0.22 }, 'turn+=0.9')
-    .add(sparkle, 'turn+=0.45')
-    .from(book.querySelectorAll('.sb-anim'), { y: 16, opacity: 0, duration: 0.45, stagger: 0.025, ease: 'power2.out', clearProps: 'opacity,transform' }, 'turn+=0.55')
-    .from(book.querySelectorAll('.sb-mark'), { x: -24, opacity: 0, duration: 0.35, stagger: 0.03, ease: 'back.out(2)', clearProps: 'opacity,transform' }, 'turn+=0.55')
+    tl.from(cover, { x: from.x - r.left, y: from.y - r.top, scaleX: from.w / r.width, scaleY: from.h / r.height, transformOrigin: '0 0', duration: 0.65, ease: 'power3.inOut' })
+  } else tl.from(cover, { y: 50, scale: 0.92, opacity: 0, duration: 0.55, ease: 'power3.out' })
+  tl.addLabel('turn', '+=0.18')
+    .set(rightHalf, { opacity: 1 }, 'turn')
+    // обложку чуть приподнимает, потом она поворачивается вокруг корешка
+    .to(cover, { rotateY: -12, duration: 0.25, ease: 'power1.out' }, 'turn')
+    .to(cover, { rotateY: -90, duration: 0.45, ease: 'power2.in' }, 'turn+=0.25')
+    .to(book, { x: 0, duration: 1.15, ease: 'power2.inOut' }, 'turn')
+    .set(front, { visibility: 'hidden' }, 'turn+=0.7')
+    .set(back, { visibility: 'visible' }, 'turn+=0.7')
+    .to(cover, { rotateY: -180, duration: 0.5, ease: 'power2.out' }, 'turn+=0.7')
+    .add(sparkle, 'turn+=0.55')
+    // обложка легла: под ней левая половина книги
+    .set(leftHalf, { opacity: 1 }, 'turn+=1.2')
+    .to(cover, { opacity: 0, duration: 0.3 }, 'turn+=1.2')
+  ink(rightInk, 'turn+=0.35', 0.03)
+  ink(leftInk, 'turn+=1.25', 0.035)
+  tl.to(marks, { y: 0, opacity: 1, duration: 0.5, stagger: 0.04, ease: 'back.out(1.8)', clearProps: 'transform,opacity' }, 'turn+=1.1')
 }
 
 // золотые искры из раскрытой книги
@@ -247,6 +274,7 @@ function leafAt(page, faceNode, top) {
   front.append(shade)
   leaf.append(front, back)
   bookRef.value.append(leaf)
+  gsap.set(leaf, { transformPerspective: 2600, transformOrigin: '0% 50%' })
   if (faceNode) faceNode.scrollTop = top
   return { leaf, shade, front, back }
 }
@@ -257,7 +285,10 @@ async function goto(key, { instant = false } = {}) {
   turning = true
   const page = rightRef.value
   const dir = idx(key) > idx(cur.value) ? 1 : -1
-  const done = () => { turning = false }
+  // страховка: если анимацию прервут, лист не останется висеть поверх страниц
+  const extra = []
+  const safety = setTimeout(() => { extra.forEach(n => n.remove()); turning = false }, 1500)
+  const done = () => { clearTimeout(safety); turning = false }
   try {
     if (dir > 0) {
       // вперёд: старая страница переворачивается влево, под ней уже новая
@@ -265,6 +296,7 @@ async function goto(key, { instant = false } = {}) {
       cur.value = key
       await nextTick()
       const { leaf, shade, front, back } = leafAt(page, old.node, old.top)
+      extra.push(leaf)
       gsap.set(back, { visibility: 'hidden' })
       gsap.timeline({ onComplete: () => { leaf.remove(); done() } })
         .to(leaf, { rotateY: -90, duration: 0.31, ease: 'power2.in' })
@@ -272,16 +304,18 @@ async function goto(key, { instant = false } = {}) {
         .set(back, { visibility: 'visible' })
         .to(leaf, { rotateY: -180, duration: 0.31, ease: 'power2.out' })
         .fromTo(shade, { opacity: 0 }, { opacity: 0.55, duration: 0.31, ease: 'none' }, 0)
-        .from(scrollRef.value?.querySelectorAll('.sb-anim') || [], { opacity: 0, y: 10, stagger: 0.02, duration: 0.3, clearProps: 'opacity,transform' }, 0.35)
+        .fromTo(scrollRef.value?.querySelectorAll('.sb-anim') || [], { opacity: 0, y: 6, filter: 'blur(4px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', stagger: 0.025, duration: 0.4, clearProps: 'opacity,transform,filter' }, 0.18)
     } else {
       // назад: новая страница прилетает слева и ложится поверх старой
       const old = snapshot()
       const under = leafAt(page, old.node, old.top).leaf
+      extra.push(under)
       under.classList.add('flat')
       cur.value = key
       await nextTick()
       const fresh = snapshot()
       const { leaf, shade, front, back } = leafAt(page, fresh.node, fresh.top)
+      extra.push(leaf)
       gsap.set(leaf, { rotateY: -180 })
       gsap.set(front, { visibility: 'hidden' })
       gsap.timeline({ onComplete: () => { leaf.remove(); under.remove(); done() } })
@@ -351,6 +385,7 @@ function onKey(e) {
 
 async function load(id) {
   coverShown.value = true
+  opening.value = !reduce
   await openSheet(id)
   if (sheet.id !== id || !sheet.data) return
   pickStart()
@@ -366,6 +401,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   tl?.kill()
+  clearTimeout(coverTimer)
   removeEventListener('resize', onResize)
   removeEventListener('keydown', onKey)
   flush()
@@ -377,8 +413,9 @@ onBeforeUnmount(() => {
 /* ---- общие классы страниц листа (префикс sb-, чтобы не пересечься с остальным сайтом) ---- */
 .sb-root { --ink: #efe3c8; --muted: #a8936c; --paper: #1b1610; --paper2: #221b13; --line: color-mix(in srgb, var(--acc) 22%, transparent); }
 .sb-h { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 700 24px 'Cormorant Garamond', serif; color: color-mix(in srgb, var(--acc) 70%, #fff3d6); letter-spacing: .01em; }
-.sb-h::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line), transparent); }
-.sb-h .ic { font-size: 18px; filter: saturate(.7); }
+.sb-h::after { content: ''; flex: 1; height: 8px; background: radial-gradient(circle at 4px 4px, color-mix(in srgb, var(--acc) 60%, transparent) 2.5px, transparent 3px) no-repeat, linear-gradient(90deg, color-mix(in srgb, var(--acc) 40%, transparent), transparent) 10px 50% / 100% 1px no-repeat; }
+.sb-h .ic { flex: none; width: 30px; height: 30px; padding: 6px; box-sizing: border-box; border-radius: 50%; color: color-mix(in srgb, var(--acc) 70%, #fff3d6); background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--acc) 30%, #2a1d10), #120c07); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--acc) 60%, #e2c278), 0 0 12px color-mix(in srgb, var(--acc) 30%, transparent); }
+.sb-h::before { content: none; }
 .sb-h2 { margin: 18px 0 8px; font: 800 11px 'Manrope', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .sb-card { padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--acc) 5%, rgba(0, 0, 0, .18)); border: 1px solid var(--line); }
 .sb-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--acc) 40%, transparent); background: color-mix(in srgb, var(--acc) 8%, transparent); color: color-mix(in srgb, var(--acc) 60%, #fff3d6); font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; text-decoration: none; transition: background .15s, transform .15s; }
@@ -443,14 +480,24 @@ onBeforeUnmount(() => {
 .sb-mote { position: absolute; width: var(--sz); height: var(--sz); border-radius: 50%; background: #ffe2a8; box-shadow: 0 0 6px #ffcf7a; opacity: 0; animation: sb-mote var(--d) linear infinite; animation-delay: var(--dl); pointer-events: none; }
 @keyframes sb-mote { 0% { transform: translate(0, 20px); opacity: 0; } 15% { opacity: .55; } 85% { opacity: .35; } 100% { transform: translate(30px, -120px); opacity: 0; } }
 
-.sb-book { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: min(1500px, 100%); height: 100%; max-height: 1000px; padding: 14px; box-sizing: border-box; transform-style: preserve-3d; }
+.sb-book { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: min(1500px, 100%); height: 100%; max-height: 1000px; padding: 14px; box-sizing: border-box; }
 /* переплёт: кожа в цвет листа, тиснёная рамка, золотые уголки, прошитый корешок */
-.sb-boards { position: absolute; inset: 0; border-radius: 20px; z-index: 0;
+.sb-boards { position: absolute; top: 0; bottom: 0; z-index: 0;
   background:
     radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, .06), transparent 50%),
+    repeating-linear-gradient(45deg, rgba(255, 230, 170, .025) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(-45deg, rgba(255, 230, 170, .025) 0 1px, transparent 1px 22px),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23l)'/%3E%3C/svg%3E"),
     linear-gradient(160deg, color-mix(in srgb, var(--acc) 34%, #2c1b0e), color-mix(in srgb, var(--acc) 14%, #120a05));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 50%, #000), inset 0 0 0 5px rgba(0, 0, 0, .25), inset 0 0 0 6px color-mix(in srgb, var(--acc) 45%, #d9b66a), inset 0 0 40px rgba(0, 0, 0, .6), 0 40px 80px rgba(0, 0, 0, .75), 0 0 0 1px #000; }
+.sb-boards.l { left: 0; right: 50%; border-radius: 20px 4px 4px 20px; }
+.sb-boards.r { left: 50%; right: 0; border-radius: 4px 20px 20px 4px; }
+.single .sb-boards.r { left: 0; border-radius: 20px; }
+/* колонтитул и номер страницы — как в настоящей книге */
+.sb-run { position: absolute; top: 7px; left: 0; right: 0; z-index: 3; text-align: center; font: 700 10px 'Manrope', sans-serif; letter-spacing: .28em; text-transform: uppercase; color: color-mix(in srgb, var(--acc) 45%, var(--muted)); opacity: .7; pointer-events: none; }
+.sb-run::before, .sb-run::after { content: '❦'; margin: 0 10px; letter-spacing: 0; opacity: .7; }
+.sb-pno { position: absolute; bottom: 8px; left: 0; right: 0; z-index: 3; text-align: center; font: italic 600 13px 'Cormorant Garamond', serif; color: color-mix(in srgb, var(--acc) 50%, var(--muted)); opacity: .75; pointer-events: none; }
+.single .sb-run, .single .sb-pno { display: none; }
 .cn { position: absolute; width: 58px; height: 58px; pointer-events: none; opacity: .9;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' fill='none' stroke='%23e2c278' stroke-width='1.6' stroke-linecap='round'%3E%3Cpath d='M3 57V15Q3 3 15 3h42'/%3E%3Cpath d='M8 50V18q0-10 10-10h32'/%3E%3Cpath d='M3 3c9 0 15 6 15 15 0-6 4-10 10-10-6 0-10-4-10-10 0 5-4 9-9 9'/%3E%3Ccircle cx='18' cy='18' r='2.6' fill='%23e2c278'/%3E%3Cpath d='M30 3c0 5 3 7 7 8M3 30c5 0 7 3 8 7'/%3E%3C/svg%3E") center / contain no-repeat;
   filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .8)); }
@@ -476,9 +523,9 @@ onBeforeUnmount(() => {
 .sb-page.right::after { content: ''; position: absolute; right: 0; bottom: 0; width: 34px; height: 34px; background: linear-gradient(225deg, transparent 50%, rgba(0, 0, 0, .35) 50%, color-mix(in srgb, var(--paper2) 80%, #fff) 52%, var(--paper2) 70%); border-radius: 0 0 10px 0; box-shadow: -3px -3px 8px rgba(0, 0, 0, .35); pointer-events: none; z-index: 3; transition: width .3s, height .3s; }
 .sb-page.right:hover::after { width: 44px; height: 44px; }
 .single .sb-page.right::before { display: none; }
-.sb-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; padding: 24px 28px 44px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--acc) 35%, transparent) transparent; }
+.sb-scroll { position: absolute; inset: 22px 0 26px; overflow-y: auto; overflow-x: hidden; padding: 12px 28px 26px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--acc) 35%, transparent) transparent; }
 .sb-page.right .sb-scroll { padding-left: 40px; }
-.single .sb-scroll { padding: 16px 14px 50px; }
+.single .sb-scroll { inset: 0; padding: 16px 14px 50px; }
 
 /* закладки: шёлковые ленты из-за верхнего края */
 .sb-marks { position: absolute; left: 4%; right: 4%; bottom: calc(100% - 22px); display: flex; justify-content: center; align-items: flex-end; gap: 4px; z-index: 1; pointer-events: none; }
@@ -515,12 +562,19 @@ onBeforeUnmount(() => {
   display: grid; place-items: center;
   background:
     radial-gradient(ellipse at 40% 25%, rgba(255, 255, 255, .08), transparent 55%),
+    repeating-linear-gradient(45deg, rgba(255, 230, 170, .035) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(-45deg, rgba(255, 230, 170, .035) 0 1px, transparent 1px 22px),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .25 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23l)'/%3E%3C/svg%3E"),
     linear-gradient(160deg, color-mix(in srgb, var(--acc) 40%, #3a2716), color-mix(in srgb, var(--acc) 15%, #140d07));
   border: 1px solid color-mix(in srgb, var(--acc) 50%, #000); box-shadow: inset 0 0 0 6px rgba(0, 0, 0, .2), inset 0 0 0 8px color-mix(in srgb, var(--acc) 45%, #d9b66a), inset 0 0 90px rgba(0, 0, 0, .6), 0 30px 70px rgba(0, 0, 0, .75);
 }
 .sb-cover .front::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 30px; border-radius: 4px 0 0 4px; background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(255, 255, 255, .08), transparent); }
-.sb-cover .back { transform: rotateY(180deg); border-radius: 20px 4px 4px 20px; background: linear-gradient(180deg, var(--paper2), var(--paper)); border: 1px solid color-mix(in srgb, var(--acc) 30%, #3b2a1a); }
+.sb-cover .back { transform: rotateY(180deg); border-radius: 20px 4px 4px 20px; background: radial-gradient(ellipse at 30% 20%, rgba(255, 255, 255, .06), transparent 50%),
+    repeating-linear-gradient(45deg, rgba(255, 230, 170, .025) 0 1px, transparent 1px 22px),
+    repeating-linear-gradient(-45deg, rgba(255, 230, 170, .025) 0 1px, transparent 1px 22px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='l'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23l)'/%3E%3C/svg%3E"),
+    linear-gradient(160deg, color-mix(in srgb, var(--acc) 34%, #2c1b0e), color-mix(in srgb, var(--acc) 14%, #120a05)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 50%, #000), inset 0 0 0 6px color-mix(in srgb, var(--acc) 45%, #d9b66a); }
+.sb-cover .back .paper { position: absolute; top: 14px; bottom: 14px; left: 14px; right: 6px; border-radius: 10px 2px 2px 10px; background: linear-gradient(270deg, rgba(0, 0, 0, .45), transparent 40px), linear-gradient(180deg, var(--paper2), var(--paper)); }
 .sb-cover .cn { width: 74px; height: 74px; }
 .sb-cover .cn.tl { left: 18px; top: 14px; } .sb-cover .cn.tr { right: 14px; top: 14px; } .sb-cover .cn.bl { left: 18px; bottom: 14px; } .sb-cover .cn.br { right: 14px; bottom: 14px; }
 .cv-gem { position: absolute; top: 9%; left: 50%; width: 22px; height: 22px; margin-left: -11px; transform: rotate(45deg); background: radial-gradient(circle at 35% 35%, #fff, var(--acc) 40%, color-mix(in srgb, var(--acc) 50%, #000)); border: 2px solid #e2c278; box-shadow: 0 0 16px var(--acc); }

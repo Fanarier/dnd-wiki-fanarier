@@ -1,6 +1,6 @@
 <template>
   <div class="pi">
-    <h2 class="sb-h sb-anim"><span class="ic">🎒</span>Инвентарь <small class="pi-n">{{ items.length }}</small></h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="inv" class="ic" />Инвентарь <small class="pi-n">{{ items.length }}</small></h2>
 
     <div class="pi-wallet sb-anim" data-find="wallet">
       <span class="pi-wl">👛 Кошелёк</span>
@@ -49,6 +49,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, ref } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import Fld from '../ui/Fld.vue'

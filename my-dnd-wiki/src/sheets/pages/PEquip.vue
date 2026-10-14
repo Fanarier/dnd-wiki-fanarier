@@ -1,7 +1,7 @@
 <template>
   <!-- снаряжение: 15 слотов вокруг персонажа; перетащи предмет на другой слот — поменяются местами -->
   <div class="pe">
-    <h2 class="sb-h sb-anim"><span class="ic">🛡</span>Снаряжение</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="equip" class="ic" />Снаряжение</h2>
     <p class="pe-hint sb-anim">Щёлкни по слоту — посмотреть и править. Перетащи предмет на другой слот — поменяются местами. 🔒 — слот заперт от случайных правок.</p>
     <div class="pe-doll sb-anim">
       <div class="pe-sil" aria-hidden="true">

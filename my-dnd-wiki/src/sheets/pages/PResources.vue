@@ -1,6 +1,6 @@
 <template>
   <div class="pr">
-    <h2 class="sb-h sb-anim"><span class="ic">❤</span>Хиты</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="res" class="ic" />Хиты</h2>
     <section class="pr-hp sb-card sb-anim" data-find="HpData" :class="{ hit: flash === 'hit', heal: flash === 'heal' }">
       <div class="pr-hp-nums">
         <Fld path="HpData.Current" type="num" label="Текущие" center class="cur" />
@@ -26,7 +26,7 @@
       <button type="button" class="sb-btn" title="Бросок спасброска от смерти" @click="roll('1d20', 'Спасбросок от смерти')">🎲 Бросить</button>
     </section>
 
-    <h2 class="sb-h sb-anim" style="margin-top: 20px"><span class="ic">🔮</span>Ресурсы персонажа</h2>
+    <h2 class="sb-h sb-anim" style="margin-top: 20px"><SheetIcon name="res" class="ic" />Ресурсы персонажа</h2>
     <div class="sb-tools sb-anim">
       <span class="pr-hint">Щелчок по кружку или ячейке — отметить до неё, правый щелчок — снять одну.</span>
       <span class="grow" />
@@ -78,6 +78,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, reactive, ref } from 'vue'
 import Fld from '../ui/Fld.vue'
 import Num from '../ui/Num.vue'

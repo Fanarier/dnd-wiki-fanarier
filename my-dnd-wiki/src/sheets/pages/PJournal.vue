@@ -1,7 +1,7 @@
 <template>
   <!-- журнал сессий: записи с датой и тегами, текст с оформлением и @-упоминаниями -->
   <div class="pj">
-    <h2 class="sb-h sb-anim"><span class="ic">📝</span>Журнал сессий</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="journal" class="ic" />Журнал сессий</h2>
     <div class="sb-tools sb-anim">
       <input v-model="q" class="sb-input pj-q" placeholder="Поиск по записям и тегам…" />
       <span class="grow" />
@@ -37,6 +37,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, ref } from 'vue'
 import Fld from '../ui/Fld.vue'
 import RichEditor from '../../components/RichEditor.vue'

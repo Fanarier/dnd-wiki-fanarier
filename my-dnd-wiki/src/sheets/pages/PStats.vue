@@ -1,7 +1,7 @@
 <template>
   <!-- характеристики: шесть атрибутов, спасброски и 22 навыка; щелчок по бонусу — бросок d20 -->
   <div class="ps">
-    <h2 class="sb-h sb-anim"><span class="ic">📊</span>Характеристики</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="stats" class="ic" />Характеристики</h2>
     <div class="ps-top sb-anim">
       <Radar :axes="radar" :max="radarMax" :size="250" class="ps-radar" />
       <div class="ps-bm sb-card">
@@ -42,6 +42,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed } from 'vue'
 import Fld from '../ui/Fld.vue'
 import Bonus from '../ui/Bonus.vue'

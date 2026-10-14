@@ -1,7 +1,7 @@
 <template>
   <!-- свои листы: таблицы с любыми колонками (текст, флажок, число) -->
   <div class="pc">
-    <h2 class="sb-h sb-anim"><span class="ic">📋</span>Свои листы</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="custom" class="ic" />Свои листы</h2>
     <div class="pc-tabs sb-anim">
       <button v-for="(t, i) in tables" :key="keyOf(t)" type="button" class="sb-chip" :class="{ on: i === ti }" @click="ti = i">{{ t.Name || 'Без названия' }}</button>
       <button v-if="!ro && tables.length < 20" type="button" class="sb-btn" @click="addTable">＋ Лист</button>
@@ -46,6 +46,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, ref } from 'vue'
 import Fld from '../ui/Fld.vue'
 import { sheet, edit, keyOf, listOps } from '../sheetState.js'

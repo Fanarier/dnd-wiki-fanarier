@@ -1,7 +1,7 @@
 <template>
   <!-- атаки: тип и описание; кубы в описании («1к8 + 11») — кнопки броска урона -->
   <div class="pa">
-    <h2 class="sb-h sb-anim"><span class="ic">⚔</span>Атаки</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="attacks" class="ic" />Атаки</h2>
     <div class="sb-tools sb-anim">
       <span class="pa-hint">Щёлкни по кубам в описании — бросок урона. ● — отметка, например «основная атака».</span>
       <span class="grow" />
@@ -25,6 +25,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, reactive, ref } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import Fld from '../ui/Fld.vue'

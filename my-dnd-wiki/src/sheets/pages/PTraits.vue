@@ -1,7 +1,7 @@
 <template>
   <!-- владения: черты 4/9/18 уровня, черты гуманоидов (до 5), владения и языки с уровнем 0–3 -->
   <div class="pt">
-    <h2 class="sb-h sb-anim"><span class="ic">🎓</span>Черты</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="traits" class="ic" />Черты</h2>
     <div class="pt-traits sb-anim">
       <div v-for="t in LEVEL_TRAITS" :key="t.p" class="pt-trait" :class="{ got: d[t.p].IsAcquired }" :data-find="t.p">
         <span class="pt-lv">{{ t.lv }}<small>ур.</small></span>
@@ -21,7 +21,7 @@
       <button v-if="!ro && d.HumanoidTraits.length < 5" type="button" class="sb-btn" @click="hum.add({ Name: '', Description: '', IsAcquired: false })">＋ Черта гуманоида</button>
     </div>
 
-    <h2 class="sb-h sb-anim" style="margin-top: 22px"><span class="ic">📚</span>Владения и языки</h2>
+    <h2 class="sb-h sb-anim" style="margin-top: 22px"><SheetIcon name="traits" class="ic" />Владения и языки</h2>
     <div class="sb-tools sb-anim">
       <button v-for="f in FILTERS" :key="f.v" type="button" class="sb-chip" :class="{ on: kind === f.v }" @click="kind = f.v">{{ f.t }}</button>
       <span class="grow" />
@@ -44,6 +44,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, ref } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import Fld from '../ui/Fld.vue'

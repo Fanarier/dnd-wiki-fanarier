@@ -23,6 +23,7 @@ const props = defineProps({ axes: { type: Array, required: true }, max: { type: 
 const W = props.size, C = W / 2, R = W * 0.33
 const rings = 4
 const opening = inject('bookOpening', ref(false))
+const openDelay = inject('openDelay', 0)
 const vals = computed(() => props.axes.map(a => Math.max(0, Math.min(props.max, Number(a.value) || 0))))
 const anim = reactive({ k: opening.value ? 0 : 1, vals: vals.value.slice() })
 const shownVals = computed(() => anim.vals.map(v => v * anim.k))
@@ -37,7 +38,7 @@ const shapePts = computed(() => shownVals.value.map((v, i) => pt(i, v / props.ma
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
 let tw = []
 onMounted(() => {
-  if (opening.value && !reduce) tw.push(gsap.to(anim, { k: 1, duration: 1.3, delay: 0.35, ease: 'elastic.out(1, 0.6)' }))
+  if (opening.value && !reduce) tw.push(gsap.to(anim, { k: 1, duration: 1.3, delay: openDelay + 0.2, ease: 'elastic.out(1, 0.6)' }))
   else anim.k = 1
 })
 watch(vals, v => {

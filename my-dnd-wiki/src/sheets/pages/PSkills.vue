@@ -1,7 +1,7 @@
 <template>
   <!-- активные / пассивные навыки: название, категория (классовый / расовый), отметка ●, описание с кубами-кнопками -->
   <div class="pk">
-    <h2 class="sb-h sb-anim"><span class="ic">{{ list === 'Skills' ? '⚡' : '🌀' }}</span>{{ title }} <small class="pk-n">{{ items.length }}</small></h2>
+    <h2 class="sb-h sb-anim"><SheetIcon :name="list === 'Skills' ? 'active' : 'passive'" class="ic" />{{ title }} <small class="pk-n">{{ items.length }}</small></h2>
     <div class="sb-tools sb-anim">
       <input v-model="q" class="sb-input pk-q" placeholder="Поиск по названию и описанию…" />
       <button v-for="c in CATS" :key="c.v" type="button" class="sb-chip" :class="{ on: cat === c.v }" @click="cat = c.v">{{ c.t }}</button>
@@ -33,6 +33,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, reactive, ref } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import Fld from '../ui/Fld.vue'

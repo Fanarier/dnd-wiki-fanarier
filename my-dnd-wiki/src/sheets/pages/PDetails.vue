@@ -1,6 +1,6 @@
 <template>
   <div class="pd">
-    <h2 class="sb-h sb-anim"><span class="ic">📜</span>Предыстория</h2>
+    <h2 class="sb-h sb-anim"><SheetIcon name="details" class="ic" />Предыстория</h2>
     <div class="sb-grid3 sb-anim">
       <Fld path="Race" label="Раса" data-find="Race" />
       <Fld path="Worldview" label="Мировоззрение" data-find="Worldview" />
@@ -36,6 +36,7 @@
 </template>
 
 <script setup>
+import SheetIcon from '../ui/SheetIcon.vue'
 import Fld from '../ui/Fld.vue'
 </script>
 
