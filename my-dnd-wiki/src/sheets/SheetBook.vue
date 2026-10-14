@@ -60,8 +60,8 @@
         </section>
 
         <!-- закладки: шёлковые ленты, торчат из-за верхнего края страниц -->
-        <nav class="sb-marks" aria-label="Разделы листа">
-          <button v-for="(s, i) in visibleSections" :key="s.key" type="button" class="sb-mark" :class="{ on: s.key === cur }" :style="{ '--silk': SILK[i % SILK.length] }" :title="s.name" @click="goto(s.key)">
+        <nav v-for="g in markGroups" :key="g.side" class="sb-marks" :class="g.side" aria-label="Разделы листа">
+          <button v-for="s in g.items" :key="s.key" type="button" class="sb-mark" :class="{ on: s.key === cur }" :style="{ '--silk': SILK[s.n % SILK.length] }" :title="s.name" @click="goto(s.key)">
             <SheetIcon :name="s.key" class="ic" /><span class="nm">{{ s.tab || s.name }}</span>
           </button>
         </nav>
@@ -160,6 +160,13 @@ provide('openDelay', 1.3) // числа и паутина ждут, пока о�
 const single = ref(innerWidth < 980)
 const onResize = () => { single.value = innerWidth < 980 }
 const visibleSections = computed(() => SECTIONS.filter(s => !s.onlySingle || single.value))
+// закладки: на развороте — половина над левой страницей, половина над правой (корешок свободен)
+const markGroups = computed(() => {
+  const list = visibleSections.value.map((s, n) => ({ ...s, n }))
+  if (single.value) return [{ side: 'all', items: list }]
+  const half = Math.ceil(list.length / 2)
+  return [{ side: 'l', items: list.slice(0, half) }, { side: 'r', items: list.slice(half) }]
+})
 const cur = ref('stats')
 const current = computed(() => SECTIONS.find(s => s.key === cur.value) || SECTIONS[2])
 watch(single, s => { if (!s && cur.value === 'main') cur.value = 'stats' })
@@ -278,52 +285,81 @@ function leafAt(page, faceNode, top) {
   if (faceNode) faceNode.scrollTop = top
   return { leaf, shade, front, back }
 }
+// пустой лист «с текстом» — промежуточная страница при пролистывании веером
+function paperLeaf(page, z) {
+  const { leaf, shade } = leafAt(page, null, 0)
+  leaf.classList.add('blank')
+  leaf.style.zIndex = z
+  return { leaf, shade }
+}
 async function goto(key, { instant = false } = {}) {
   if (!key || key === cur.value || turning) return
   router.replace({ query: { ...route.query, p: key } })
   if (instant || reduce || !scrollRef.value) { cur.value = key; return }
   turning = true
   const page = rightRef.value
-  const dir = idx(key) > idx(cur.value) ? 1 : -1
-  // страховка: если анимацию прервут, лист не останется висеть поверх страниц
+  const from = idx(cur.value), to = idx(key), dir = to > from ? 1 : -1
+  const mid = Math.min(Math.abs(to - from) - 1, 8) // сколько страниц пролистнуть между
+  const D = mid ? 0.46 : 0.62, H = D / 2, STEP = 0.085
+  // страховка: если анимацию прервут, листы не останутся висеть поверх страниц
   const extra = []
-  const safety = setTimeout(() => { extra.forEach(n => n.remove()); turning = false }, 1500)
-  const done = () => { clearTimeout(safety); turning = false }
+  const done = () => { clearTimeout(safety); extra.forEach(n => n.remove()); turning = false }
+  const safety = setTimeout(done, 1800 + mid * 250)
   try {
+    const tl2 = gsap.timeline({ onComplete: done })
     if (dir > 0) {
-      // вперёд: старая страница переворачивается влево, под ней уже новая
+      // вперёд: старая страница уходит влево, за ней веером промежуточные, под ними уже новая
       const old = snapshot()
       cur.value = key
       await nextTick()
+      for (let k = 0; k < mid; k++) {
+        const { leaf, shade } = paperLeaf(page, 15 + mid - k)
+        extra.push(leaf)
+        const at = (k + 1) * STEP
+        tl2.to(leaf, { rotateY: -180, duration: D, ease: 'power1.inOut' }, at)
+          .fromTo(shade, { opacity: 0 }, { opacity: 0.5, duration: D / 2, ease: 'none' }, at)
+      }
       const { leaf, shade, front, back } = leafAt(page, old.node, old.top)
+      leaf.style.zIndex = 16 + mid
       extra.push(leaf)
       gsap.set(back, { visibility: 'hidden' })
-      gsap.timeline({ onComplete: () => { leaf.remove(); done() } })
-        .to(leaf, { rotateY: -90, duration: 0.31, ease: 'power2.in' })
-        .set(front, { visibility: 'hidden' })
-        .set(back, { visibility: 'visible' })
-        .to(leaf, { rotateY: -180, duration: 0.31, ease: 'power2.out' })
-        .fromTo(shade, { opacity: 0 }, { opacity: 0.55, duration: 0.31, ease: 'none' }, 0)
-        .fromTo(scrollRef.value?.querySelectorAll('.sb-anim') || [], { opacity: 0, y: 6, filter: 'blur(4px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', stagger: 0.025, duration: 0.4, clearProps: 'opacity,transform,filter' }, 0.18)
+      tl2.to(leaf, { rotateY: -90, duration: H, ease: 'power2.in' }, 0)
+        .set(front, { visibility: 'hidden' }, H)
+        .set(back, { visibility: 'visible' }, H)
+        .to(leaf, { rotateY: -180, duration: H, ease: 'power2.out' }, H)
+        .fromTo(shade, { opacity: 0 }, { opacity: 0.55, duration: H, ease: 'none' }, 0)
+        .fromTo(scrollRef.value?.querySelectorAll('.sb-anim') || [], { opacity: 0, y: 6, filter: 'blur(4px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', stagger: 0.025, duration: 0.4, clearProps: 'opacity,transform,filter' }, mid * STEP + D * 0.35)
     } else {
-      // назад: новая страница прилетает слева и ложится поверх старой
+      // назад: промежуточные страницы веером прилетают слева, последней ложится нужная
       const old = snapshot()
       const under = leafAt(page, old.node, old.top).leaf
       extra.push(under)
       under.classList.add('flat')
+      under.style.zIndex = 14
       cur.value = key
       await nextTick()
       const fresh = snapshot()
+      for (let k = 0; k < mid; k++) {
+        const { leaf, shade } = paperLeaf(page, 15 + k)
+        extra.push(leaf)
+        const at = k * STEP
+        gsap.set(leaf, { rotateY: -180, opacity: 0 })
+        tl2.set(leaf, { opacity: 1 }, at)
+          .to(leaf, { rotateY: 0, duration: D, ease: 'power1.inOut' }, at)
+          .fromTo(shade, { opacity: 0.5 }, { opacity: 0, duration: D, ease: 'power1.in' }, at)
+      }
       const { leaf, shade, front, back } = leafAt(page, fresh.node, fresh.top)
+      leaf.style.zIndex = 16 + mid
       extra.push(leaf)
-      gsap.set(leaf, { rotateY: -180 })
+      const at = mid * STEP
+      gsap.set(leaf, { rotateY: -180, opacity: mid ? 0 : 1 })
       gsap.set(front, { visibility: 'hidden' })
-      gsap.timeline({ onComplete: () => { leaf.remove(); under.remove(); done() } })
-        .to(leaf, { rotateY: -90, duration: 0.31, ease: 'power2.in' })
-        .set(back, { visibility: 'hidden' })
-        .set(front, { visibility: 'visible' })
-        .to(leaf, { rotateY: 0, duration: 0.31, ease: 'power2.out' })
-        .fromTo(shade, { opacity: 0.55 }, { opacity: 0, duration: 0.62, ease: 'power1.in' }, 0)
+      tl2.set(leaf, { opacity: 1 }, at)
+        .to(leaf, { rotateY: -90, duration: H, ease: 'power2.in' }, at)
+        .set(back, { visibility: 'hidden' }, at + H)
+        .set(front, { visibility: 'visible' }, at + H)
+        .to(leaf, { rotateY: 0, duration: H, ease: 'power2.out' }, at + H)
+        .fromTo(shade, { opacity: 0.55 }, { opacity: 0, duration: D, ease: 'power1.in' }, at)
     }
   } catch (e) { console.warn('[sheet] перелистывание', e); done() }
 }
@@ -505,8 +541,10 @@ onBeforeUnmount(() => {
 .cn.tr { right: 6px; top: 6px; transform: scaleX(-1); }
 .cn.bl { left: 6px; bottom: 6px; transform: scaleY(-1); }
 .cn.br { right: 6px; bottom: 6px; transform: scale(-1, -1); }
-.sb-stitch { position: absolute; left: 50%; top: 8px; bottom: 8px; width: 22px; transform: translateX(-50%); border-radius: 6px; background: linear-gradient(90deg, rgba(0, 0, 0, .5), color-mix(in srgb, var(--acc) 24%, #2a1a0d) 30%, color-mix(in srgb, var(--acc) 30%, #3a2412) 50%, color-mix(in srgb, var(--acc) 24%, #2a1a0d) 70%, rgba(0, 0, 0, .5)); }
-.sb-stitch::after { content: ''; position: absolute; left: 50%; top: 10px; bottom: 10px; border-left: 2px dashed color-mix(in srgb, var(--acc) 50%, #d9b66a); opacity: .55; }
+.sb-stitch { position: absolute; left: 50%; top: 14px; bottom: 14px; width: 12px; transform: translateX(-50%); z-index: 3; pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .55), #0d0805 45%, #0d0805 55%, rgba(0, 0, 0, .55)); box-shadow: 0 0 14px 4px rgba(0, 0, 0, .45); }
+/* стежки нитью: короткие золотые штрихи по центру складки */
+.sb-stitch::after { content: ''; position: absolute; left: 50%; top: 18px; bottom: 18px; width: 2px; margin-left: -1px; background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--acc) 40%, #c9a45a) 0 7px, transparent 7px 22px); opacity: .7; border-radius: 1px; }
 
 .sb-page { position: relative; z-index: 2; min-width: 0; overflow: hidden; background:
     radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--acc) 7%, transparent), transparent 70%),
@@ -520,15 +558,15 @@ onBeforeUnmount(() => {
 .sb-spine { position: absolute; right: 0; top: 0; bottom: 0; width: 50px; background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .3) 70%, rgba(0, 0, 0, .55)); pointer-events: none; z-index: 2; }
 .sb-page.right::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 40px; background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(255, 240, 210, .03) 60%, transparent); pointer-events: none; z-index: 2; }
 /* загнутый уголок */
-.sb-page.right::after { content: ''; position: absolute; right: 0; bottom: 0; width: 34px; height: 34px; background: linear-gradient(225deg, transparent 50%, rgba(0, 0, 0, .35) 50%, color-mix(in srgb, var(--paper2) 80%, #fff) 52%, var(--paper2) 70%); border-radius: 0 0 10px 0; box-shadow: -3px -3px 8px rgba(0, 0, 0, .35); pointer-events: none; z-index: 3; transition: width .3s, height .3s; }
-.sb-page.right:hover::after { width: 44px; height: 44px; }
 .single .sb-page.right::before { display: none; }
 .sb-scroll { position: absolute; inset: 22px 0 26px; overflow-y: auto; overflow-x: hidden; padding: 12px 28px 26px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--acc) 35%, transparent) transparent; }
 .sb-page.right .sb-scroll { padding-left: 40px; }
 .single .sb-scroll { inset: 0; padding: 16px 14px 50px; }
 
 /* закладки: шёлковые ленты из-за верхнего края */
-.sb-marks { position: absolute; left: 4%; right: 4%; bottom: calc(100% - 22px); display: flex; justify-content: center; align-items: flex-end; gap: 4px; z-index: 1; pointer-events: none; }
+.sb-marks { position: absolute; bottom: calc(100% - 22px); display: flex; align-items: flex-end; gap: 4px; z-index: 1; pointer-events: none; }
+.sb-marks.l { left: 3%; right: calc(50% + 26px); justify-content: flex-end; }
+.sb-marks.r { left: calc(50% + 26px); right: 3%; justify-content: flex-start; }
 .sb-mark { pointer-events: auto; position: relative; display: flex; align-items: center; gap: 6px; height: 54px; padding: 0 11px 18px; box-sizing: border-box; border: 0; border-radius: 8px 8px 0 0; cursor: pointer; color: #fff4dc; white-space: nowrap;
   background: linear-gradient(90deg, rgba(0, 0, 0, .28), rgba(255, 255, 255, .1) 35%, rgba(0, 0, 0, .05) 60%, rgba(0, 0, 0, .3)), var(--silk);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 -2px 8px rgba(0, 0, 0, .35);
@@ -550,7 +588,7 @@ onBeforeUnmount(() => {
 .sb-burst :deep(i) { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: radial-gradient(circle, #fff6d8, #ffc85a 45%, transparent 70%); box-shadow: 0 0 10px #ffcf6a; }
 
 .single .sb-stage { padding: 52px 6px 8px; }
-.single .sb-marks { left: 6px; right: 6px; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding-top: 10px; }
+.single .sb-marks { left: 6px; right: 6px; gap: 4px; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding-top: 10px; }
 .single .sb-mark { padding: 0 9px 18px; height: 52px; }
 .single .sb-mark:not(.on) .nm { display: none; }
 
@@ -598,5 +636,10 @@ onBeforeUnmount(() => {
 .sb-leaf .sb-backf { transform: rotateY(180deg); border-radius: 14px 4px 4px 14px; background: linear-gradient(270deg, rgba(0, 0, 0, .35), transparent 30%), linear-gradient(180deg, var(--paper2), var(--paper)); }
 .sb-leaf .sb-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .7), rgba(0, 0, 0, .15)); opacity: 0; pointer-events: none; }
 .sb-leaf.flat { z-index: 14; }
+.sb-leaf.blank .sb-face { background:
+    linear-gradient(90deg, transparent 40px, transparent calc(100% - 40px)),
+    repeating-linear-gradient(180deg, transparent 0 17px, color-mix(in srgb, var(--acc) 10%, rgba(255, 240, 210, .07)) 17px 19px) 48px 90px / calc(100% - 96px) calc(100% - 140px) no-repeat,
+    linear-gradient(90deg, color-mix(in srgb, var(--acc) 30%, transparent), transparent) 48px 48px / 40% 14px no-repeat,
+    linear-gradient(180deg, var(--paper2), var(--paper)); }
 .sb-leaf .sb-snap { position: absolute; inset: 0; }
 </style>
