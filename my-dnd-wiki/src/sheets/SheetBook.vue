@@ -59,6 +59,9 @@
           <span class="sb-pno" aria-hidden="true">— {{ pageNo }} —</span>
         </section>
 
+        <!-- уголок правой страницы: потянуть — перелистнуть -->
+        <PageCorner :page="rightRef" :book="bookRef" :scroll="scrollRef" :enabled="!coverShown && hasNext" @turn="peelTurn" />
+
         <!-- закладки: шёлковые ленты, торчат из-за верхнего края страниц -->
         <nav v-for="g in markGroups" :key="g.side" class="sb-marks" :class="g.side" aria-label="Разделы листа">
           <button v-for="s in g.items" :key="s.key" type="button" class="sb-mark" :class="{ on: s.key === cur }" :style="{ '--silk': SILK[s.n % SILK.length] }" :title="s.name" @click="goto(s.key)">
@@ -101,6 +104,7 @@ import { sheet, openSheet, closeSheet, rollMode, sheetImg, exportSheet, replaceF
 import { openColorMenu } from './ui/colorMenu.js'
 import ColorMenu from './ui/ColorMenu.vue'
 import SheetIcon from './ui/SheetIcon.vue'
+import PageCorner from './ui/PageCorner.vue'
 import SheetSearch from './SheetSearch.vue'
 import SheetHistory from './SheetHistory.vue'
 import SheetMeta from './SheetMeta.vue'
@@ -362,6 +366,17 @@ async function goto(key, { instant = false } = {}) {
         .fromTo(shade, { opacity: 0.55 }, { opacity: 0, duration: D, ease: 'power1.in' }, at)
     }
   } catch (e) { console.warn('[sheet] перелистывание', e); done() }
+}
+// страницу перевернули, потянув за уголок: следующий раздел проявляется чернилами
+const hasNext = computed(() => idx(cur.value) < visibleSections.value.length - 1)
+async function peelTurn() {
+  const list = visibleSections.value, i = idx(cur.value)
+  if (i >= list.length - 1 || turning) return
+  const key = list[i + 1].key
+  router.replace({ query: { ...route.query, p: key } })
+  cur.value = key
+  await nextTick()
+  if (!reduce) gsap.fromTo(scrollRef.value?.querySelectorAll('.sb-anim') || [], { opacity: 0, y: 6, filter: 'blur(4px)' }, { opacity: 1, y: 0, filter: 'blur(0px)', stagger: 0.025, duration: 0.4, clearProps: 'opacity,transform,filter' })
 }
 // свайп на телефоне: влево — следующий раздел, вправо — предыдущий
 let sw = null
