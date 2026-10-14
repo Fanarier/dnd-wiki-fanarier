@@ -212,6 +212,7 @@ function connect() {
       applyState(msg.state)
     } else if (msg.type === 'authFailed') tokenRevoked()
     else onPresence(msg)
+    for (const fn of wsListeners) fn(msg)
   }
   ws.onclose = () => {
     store.connected = false
@@ -226,6 +227,10 @@ export const offlineArt = ref('')
 function preloadOfflineArt() {
   fetch('/img/andy-sleep.webp').then(r => (r.ok ? r.blob() : null)).then(b => { if (b) offlineArt.value = URL.createObjectURL(b) }).catch(() => {})
 }
+
+// другие части сайта (листы персонажей) слушают свои сообщения сокета; 'hello' — новое подключение
+const wsListeners = new Set()
+export function wsListen(fn) { wsListeners.add(fn); return () => wsListeners.delete(fn) }
 
 let started = false
 export async function init() {
@@ -370,7 +375,7 @@ export function fmtDateTime(ms) {
 }
 
 /* ---------------- Присутствие: курсоры, пинги, линейки ---------------- */
-function wsSend(msg) {
+export function wsSend(msg) {
   if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg))
 }
 
@@ -415,7 +420,9 @@ function onPresence(msg) {
 }
 
 /* ---------------- Кубики: лента бросков и карточки с результатом ---------------- */
-export const dice = reactive({ rolls: [], pops: [] })
+export const dice = reactive({ rolls: [], pops: [], request: null })
+// бросок из другого места сайта (лист персонажа): { formula, label, adv } — кубики сами кинут
+export function requestRoll(r) { dice.request = { ...r, key: Math.random() } }
 // pop — показать карточку (чужой бросок или свой, когда кубики улеглись)
 export function addRoll(r, pop) {
   dice.rolls.unshift(r)
@@ -555,7 +562,7 @@ export const heroPortraitUrl = file => (file ? `/portraits/${file}` : '')
 export const artUrl = file => (file ? `/arts/${file}` : '')
 
 // картинка → blob не больше max по длинной стороне (webp); возвращает и размеры оригинала
-async function shrink(file, max, quality = 0.9) {
+export async function shrink(file, max, quality = 0.9) {
   if (!file.type.startsWith('image/') || file.type.includes('svg')) throw new Error('Нужна картинка PNG, JPG, GIF или WebP')
   const bmp = await createImageBitmap(file)
   const k = Math.min(1, max / Math.max(bmp.width, bmp.height))
@@ -567,7 +574,7 @@ async function shrink(file, max, quality = 0.9) {
   return { blob, w: bmp.width, h: bmp.height }
 }
 
-async function postBlob(url, blob) {
+export async function postBlob(url, blob) {
   const res = await fetch(url, {
     method: 'POST',
     headers: {

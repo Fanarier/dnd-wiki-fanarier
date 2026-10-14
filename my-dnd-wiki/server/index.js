@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
 import { registerNpcRoutes, npcLinks, npcPins } from './npcs.js'
+import { registerSheetRoutes, flushSheets, SHEET_IMG_DIR } from './sheets.js'
 import { cleanRich } from './richtext.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
 import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword, isOwner, listMasters, setMasterPassword, removeMaster, isMasterLogin } from './auth.js'
@@ -398,7 +399,7 @@ function viewFor(user, now = Date.now()) {
   if (role === 'master') {
     const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, npcs: _np, npcSkills: _ns, npcEffects: _ne, ...rest } = db
     return {
-      ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true),
+      ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true), sheetLinks: sheetApi?.linksFor(user) || [],
       notifications: notificationsFor(user),
       players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked }))
     }
@@ -441,6 +442,7 @@ function viewFor(user, now = Date.now()) {
       : s)),
     hud: db.hud?.visible ? db.hud : null,
     npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false),
+    sheetLinks: sheetApi?.linksFor(user) || [],
     roster: roster(),
     notes,
     notifications: user ? notificationsFor(user) : [],
@@ -451,6 +453,7 @@ function viewFor(user, now = Date.now()) {
 /* ------------------------- WebSocket ------------------------- */
 
 const clients = new Set() // { ws, user, role }
+let sheetApi = null // листы персонажей: связи с карточками героев и подписка на открытый лист
 let lastGuestView = ''
 
 const guestViewString = now => {
@@ -1093,6 +1096,8 @@ app.delete('/api/heroes/:id/gallery/:gid', requireUser, (req, res) => {
 const STATIC_IMG = { maxAge: '30d', immutable: true, index: false, setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff') }
 app.use('/portraits', express.static(PORTRAIT_DIR, STATIC_IMG))
 registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
+sheetApi = registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players: allPlayers, getDb, broadcast })
+app.use('/sheet-img', express.static(SHEET_IMG_DIR, STATIC_IMG))
 
 /* ---------- Новые арты: не часть мира, мастер выкладывает и чистит ---------- */
 app.post('/api/arts', requireMaster, express.raw({ type: () => true, limit: '40mb' }), (req, res) => {
@@ -2095,6 +2100,11 @@ wss.on('connection', ws => {
         if (user?.color) client.color = user.color
         send(client, viewFor(user))
         ws.send(JSON.stringify({ type: 'rolls', list: rollsFor(client.role) }))
+        sheetApi?.subscribe(client, client.sheetSub)
+        break
+      }
+      case 'sheetSub': {
+        sheetApi?.subscribe(client, typeof msg.id === 'string' ? msg.id : null)
         break
       }
       case 'roll': {
@@ -2167,4 +2177,4 @@ wss.on('connection', ws => {
 
 server.listen(PORT, HOST, () => console.log(`Анкария: http://${HOST || 'localhost'}:${PORT}`))
 
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); process.exit(0) })
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); flushSheets(); process.exit(0) })

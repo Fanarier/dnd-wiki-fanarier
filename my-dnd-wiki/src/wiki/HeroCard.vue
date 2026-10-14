@@ -59,6 +59,7 @@
               <svg viewBox="0 0 24 24"><path :d="PAW" fill="currentColor" /></svg> хозяин:
               <a href="#" @click.prevent.stop="$emit('focus', keeper.id)">{{ keeper.name }}</a>
             </span>
+            <router-link v-if="sheetId" class="npc-link" :to="`/sheets/${sheetId}`" title="Лист персонажа: характеристики, навыки, снаряжение" @click.stop>📜 лист персонажа</router-link>
             <router-link v-if="npcId" class="npc-link" :to="{ path: '/wiki', query: { npc: npcId } }" title="Полный лист: навыки, бой, арты" @click.stop>📜 лист НПС</router-link>
           </div>
           <button v-if="canEdit" class="edit" title="Изменить карточку" @click.stop="$emit('edit', hero)">✎</button>
@@ -161,6 +162,8 @@ const holo = computed(() => !!props.hero.holo || (props.hero.kind === 'companion
 const initial = computed(() => (props.hero.name || '?').trim()[0]?.toUpperCase() || '?')
 const staminaPct = computed(() => (props.hero.staminaMax ? Math.max(0, Math.min(100, (props.hero.stamina / props.hero.staminaMax) * 100)) : 0))
 const npcId = computed(() => store.data.npcLinks?.[props.hero.id] || null) // связанный лист в разделе «НПС»
+// лист персонажа, привязанный мастером (виден владельцу листа и мастерам)
+const sheetId = computed(() => (store.data.sheetLinks || []).find(l => l.heroId === props.hero.id)?.sheetId || null)
 const keeper = computed(() => props.hero.masterId && store.data.heroes?.find(h => h.id === props.hero.masterId))
 // локация совпала с городом на карте — становится ссылкой
 const city = computed(() => {

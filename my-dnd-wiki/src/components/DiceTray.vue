@@ -168,6 +168,17 @@ function saveFav() {
 function useFav(fv) { text.value = fv.formula; label.value = fv.label || ''; applyText(fv.formula) }
 function dropFav(i) { favs.value.splice(i, 1); keepFavs() }
 function quick(d) { clearPick(); pick[d] = 1; roll() }
+// бросок из листа персонажа: формула и подпись приходят снаружи, режим (преимущество/помеха) — тоже
+watch(() => dice.request?.key, () => {
+  const r = dice.request
+  if (!r) return
+  if (!applyText(r.formula)) { toast(`Не понял формулу «${r.formula}»`, 'error'); return }
+  text.value = r.formula
+  label.value = r.label || ''
+  mode.value = r.adv || ''
+  if (advError.value) mode.value = ''
+  nextTick(roll)
+})
 
 // натуральная 20 / 1 — только если бросали один d20 (с преимуществом — по засчитанному)
 const isCrit = r => natural(r) === 20

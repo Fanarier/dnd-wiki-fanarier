@@ -12,6 +12,7 @@
       <nav class="sp-tabs">
         <router-link to="/" class="sp-tab">Карта</router-link>
         <router-link to="/wiki" class="sp-tab">Вики</router-link>
+        <router-link v-if="store.me" to="/sheets" class="sp-tab">Листы</router-link>
         <router-link :to="`/settlement/${s?.id || ''}`" class="sp-tab active">Поселение</router-link>
       </nav>
       <span class="grow" />

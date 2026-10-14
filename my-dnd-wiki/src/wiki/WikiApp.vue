@@ -13,6 +13,7 @@
       <nav class="w-tabs">
         <router-link to="/" class="w-tab">Карта</router-link>
         <router-link to="/wiki" class="w-tab active">Вики</router-link>
+        <router-link v-if="store.me" to="/sheets" class="w-tab">Листы</router-link>
       </nav>
       <label class="w-search">
         <v-icon size="18">mdi-magnify</v-icon>
