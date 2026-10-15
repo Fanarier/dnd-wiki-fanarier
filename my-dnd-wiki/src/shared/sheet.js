@@ -249,8 +249,14 @@ const LABELS = {
   GoldCoins: 'Золото', SilverCoins: 'Серебро', CopperCoins: 'Медь', FieldColors: 'Цвет поля', Accent: 'Цвет листа', SlotLocks: 'Замок слота',
   Current: 'текущие', Max: 'максимум', Temp: 'временные', Name: 'название', Description: 'описание', SkillName: 'название',
   IsAcquired: 'получена', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
-  Stats_: 'статы', Effects: 'эффекты', AttackType: 'тип', Title: 'заголовок', Content: 'текст', Tags: 'теги', ImageFile: 'картинка'
+  Stats_: 'статы', Effects: 'эффекты', AttackType: 'тип', Title: 'заголовок', Content: 'текст', Tags: 'теги', ImageFile: 'картинка',
+  Style: 'вид', Color: 'цвет', Icon: 'значок', ResetOn: 'восстановление', CategoryIndex: 'категория', IsActiveSymbol: 'отметка ●',
+  IsActive: 'отметка ●', TypeIndex: 'тип', Cells: 'ячейки', Columns: 'колонки', Rows: 'строки', Header: 'название колонки',
+  ColumnType: 'тип колонки', Date: 'дата', Rarity_: 'редкость', DS_S1: 'спасбросок: успех 1', DS_S2: 'спасбросок: успех 2', DS_S3: 'спасбросок: успех 3',
+  DS_F1: 'спасбросок: провал 1', DS_F2: 'спасбросок: провал 2', DS_F3: 'спасбросок: провал 3'
 }
+// понятные значения служебных полей
+const VALUE_WORDS = { pips: 'кружки', ammo: 'ячейки', boxes: 'флажки', number: 'числа', text: 'текст', toggle: 'флажок', long: 'долгий отдых', short: 'короткий отдых', never: 'не восстанавливается' }
 for (const a of ATTRS) { LABELS[a.key + 'Base'] = a.name; LABELS[a.key + 'SaveProf'] = `Спасбросок: ${a.name}` }
 for (const s of SKILLS) { LABELS[s.key + 'T'] = `${s.name}: тренировка`; LABELS[s.key + 'P'] = `${s.name}: владение` }
 for (let i = 1; i <= 4; i++) { LABELS[`CustomField${i}Label`] = `Своё поле ${i}: название`; LABELS[`CustomField${i}Value`] = `Своё поле ${i}` }
@@ -270,11 +276,14 @@ export function pathLabel(path, data) {
   return out.filter(Boolean).join(' → ')
 }
 // короткий текст значения для истории
+export const isImageFile = v => typeof v === 'string' && /^[a-f0-9]{16,64}\.(png|jpe?g|gif|webp)$/i.test(v)
 export function shortValue(v) {
   if (v == null || v === '') return '—'
   if (typeof v === 'boolean') return v ? 'да' : 'нет'
   if (Array.isArray(v)) return `${v.length} шт.`
-  if (typeof v === 'object') return v.Name || v.SkillName || '…'
+  if (typeof v === 'object') return v.Name || v.SkillName || v.AttackType || v.Title || '…'
+  if (VALUE_WORDS[v]) return VALUE_WORDS[v]
+  if (isImageFile(v)) return '🖼 картинка'
   const s = String(v).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   return s.length > 60 ? s.slice(0, 57) + '…' : s
 }

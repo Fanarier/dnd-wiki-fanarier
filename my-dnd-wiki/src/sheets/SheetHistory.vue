@@ -27,13 +27,16 @@
                 <button v-if="canRevert(e)" type="button" class="sb-btn sh-rev" :disabled="busy === e.id" title="Вернуть как было до этой правки" @click="revert(e)">↶ Откатить</button>
               </div>
               <div class="sh-what">{{ label(e) }}</div>
-              <div v-if="!e.note || e.note === 'откат'" class="sh-diff">
-                <span class="from">{{ shortValue(e.from) }}</span>
+              <div v-if="e.p === '#owner'" class="sh-diff"><span class="from">{{ e.from }}</span><span class="arr">→</span><span class="to">{{ e.to }}</span></div>
+              <div v-else-if="!e.note || e.note === 'откат'" class="sh-diff">
+                <img v-if="isImageFile(e.from)" :src="sheetImg(e.from)" alt="было" class="sh-img from" />
+                <span v-else class="from">{{ shortValue(e.from) }}</span>
                 <span class="arr">→</span>
-                <span class="to">{{ shortValue(e.to) }}</span>
+                <img v-if="isImageFile(e.to)" :src="sheetImg(e.to)" alt="стало" class="sh-img" />
+                <span v-else class="to">{{ shortValue(e.to) }}</span>
                 <em v-if="e.note">({{ e.note }})</em>
               </div>
-              <div v-else class="sh-diff"><em>{{ e.note }}</em><template v-if="e.p === '#owner'">: {{ e.from }} → {{ e.to }}</template></div>
+              <div v-else class="sh-diff"><em>{{ e.note }}</em></div>
             </div>
           </template>
         </div>
@@ -44,8 +47,8 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { sheet, loadHistory, revertEntry, remoteTick } from './sheetState.js'
-import { pathLabel, shortValue } from '../shared/sheet.js'
+import { sheet, loadHistory, revertEntry, remoteTick, sheetImg } from './sheetState.js'
+import { pathLabel, shortValue, isImageFile } from '../shared/sheet.js'
 import { toast } from '../map/store.js'
 
 defineEmits(['close'])
@@ -86,9 +89,9 @@ async function revert(e) {
 .sh header b { flex: 1; font: 700 21px 'Cormorant Garamond', serif; color: #f3dc9e; }
 .sh-tools { display: grid; grid-template-columns: minmax(0, 1fr) 130px; gap: 6px; }
 .sh-tools select { color-scheme: dark; }
-.sh-list { flex: 1; overflow-y: auto; display: grid; gap: 6px; align-content: start; }
+.sh-list { flex: 1; overflow-y: auto; overflow-x: hidden; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; padding-right: 4px; }
 .sh-list h4 { margin: 8px 0 2px; font: 800 11px 'Manrope', sans-serif; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.sh-e { display: grid; gap: 3px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, .25); border-left: 3px solid #7cc4ff; }
+.sh-e { min-width: 0; display: grid; gap: 3px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, .25); border-left: 3px solid #7cc4ff; }
 .sh-e.master { border-left-color: #e7c56f; }
 .sh-e.note { opacity: .85; }
 .sh-top { display: flex; align-items: center; gap: 8px; }
@@ -97,7 +100,10 @@ async function revert(e) {
 .grow { flex: 1; }
 .sh-rev { padding: 3px 9px; font-size: 11.5px; }
 .sh-what { font: 700 12.5px 'Manrope', sans-serif; color: color-mix(in srgb, var(--acc) 60%, #fff3d6); }
-.sh-diff { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: 12.5px; }
+.sh-diff { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
+.sh-diff span { min-width: 0; }
+.sh-img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .35); }
+.sh-img.from { opacity: .55; filter: grayscale(.6); }
 .sh-diff .from { color: #ff9b8f; text-decoration: line-through; text-decoration-color: rgba(255, 155, 143, .5); }
 .sh-diff .to { color: #a8e6a1; }
 .sh-diff .arr { color: var(--muted); }
