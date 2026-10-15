@@ -4,9 +4,11 @@
 
     <div class="pi-wallet sb-anim" data-find="wallet">
       <span class="pi-wl">👛 Кошелёк</span>
-      <div class="pi-coin gold"><i /><Fld path="GoldCoins" type="num" center /><small>зм</small></div>
-      <div class="pi-coin silver"><i /><Fld path="SilverCoins" type="num" center /><small>см</small></div>
-      <div class="pi-coin copper"><i /><Fld path="CopperCoins" type="num" center /><small>мм</small></div>
+      <div v-for="c in COINS" :key="c.k" class="pi-coin" :class="c.k">
+        <i :key="coinFx[c.k]?.key || 0" :class="{ bounce: coinFx[c.k] }" />
+        <Fld :path="c.p" type="num" center /><small>{{ c.u }}</small>
+        <span v-if="coinFx[c.k]" :key="'d' + coinFx[c.k].key" class="pi-delta" :class="coinFx[c.k].d > 0 ? 'up' : 'down'">{{ coinFx[c.k].d > 0 ? '+' : '−' }}{{ Math.abs(coinFx[c.k].d) }}</span>
+      </div>
     </div>
 
     <div class="sb-tools sb-anim">
@@ -50,7 +52,8 @@
 
 <script setup>
 import SheetIcon from '../ui/SheetIcon.vue'
-import { computed, inject, ref } from 'vue'
+import { computed, inject, reactive, ref, watch } from 'vue'
+import { sfx } from '../../sound/sound.js'
 import { VueDraggable } from 'vue-draggable-plus'
 import Fld from '../ui/Fld.vue'
 import Num from '../ui/Num.vue'
@@ -59,6 +62,29 @@ import { sheet, edit, keyOf, listOps, sheetImg } from '../sheetState.js'
 import { RARITIES, rarityOf } from '../../shared/sheet.js'
 
 const ro = inject('sheetReadOnly', ref(false))
+const COINS = [{ k: 'gold', p: 'GoldCoins', u: 'зм' }, { k: 'silver', p: 'SilverCoins', u: 'см' }, { k: 'copper', p: 'CopperCoins', u: 'мм' }]
+// монеты: когда сумма поменялась (и ввод утих) — подпрыгивают со звоном и показывают разницу
+const coinFx = reactive({})
+const coinBase = {}
+const coinTimer = {}
+let coinKey = 0
+watch(() => COINS.map(c => sheet.data[c.p]), (n, o) => {
+  if (!o) return
+  COINS.forEach((c, i) => {
+    if (n[i] === o[i]) return
+    if (!(c.k in coinBase)) coinBase[c.k] = o[i]
+    clearTimeout(coinTimer[c.k])
+    coinTimer[c.k] = setTimeout(() => {
+      const d = (sheet.data[c.p] || 0) - coinBase[c.k]
+      delete coinBase[c.k]
+      if (!d) return
+      const fx = { d, key: ++coinKey }
+      coinFx[c.k] = fx
+      sfx('coins', 0.45)
+      setTimeout(() => { if (coinFx[c.k] === fx) delete coinFx[c.k] }, 1300)
+    }, 400)
+  })
+})
 const items = computed(() => sheet.data.Inventory)
 const ops = listOps('Inventory')
 const model = computed({ get: () => items.value, set: v => ops.set(v) })
@@ -86,7 +112,14 @@ function del(i, fromEditor) {
 .pi-n { margin-left: 4px; font: 800 12px 'Manrope', sans-serif; color: var(--muted); }
 .pi-wallet { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; margin-bottom: 12px; border-radius: 12px; background: rgba(0, 0, 0, .2); border: 1px solid var(--line); }
 .pi-wl { font: 800 12px 'Manrope', sans-serif; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
-.pi-coin { display: flex; align-items: center; gap: 4px; flex: 1 1 90px; }
+.pi-coin { position: relative; display: flex; align-items: center; gap: 4px; flex: 1 1 90px; }
+.pi-coin i.bounce { animation: pi-bounce .7s cubic-bezier(.2, 1.6, .4, 1); }
+@keyframes pi-bounce { 0% { transform: translateY(0) rotateY(0); } 35% { transform: translateY(-12px) rotateY(180deg); } 70% { transform: translateY(0) rotateY(360deg); } 85% { transform: translateY(-3px); } }
+.pi-delta { position: absolute; left: 4px; top: -6px; font: 900 15px 'Manrope', sans-serif; pointer-events: none; text-shadow: 0 1px 0 rgba(0, 0, 0, .7); animation: pi-float 1.3s ease-out forwards; }
+.pi-delta.up { color: #7ee06a; }
+.pi-delta.down { color: #ff8a7a; }
+@keyframes pi-float { from { transform: translateY(0) scale(.7); opacity: 0; } 15% { transform: translateY(-6px) scale(1.15); opacity: 1; } to { transform: translateY(-30px) scale(1); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pi-coin i.bounce, .pi-delta { animation: none; } }
 .pi-coin i { width: 18px; height: 18px; flex: none; border-radius: 50%; box-shadow: inset -2px -2px 0 rgba(0, 0, 0, .3), 0 0 8px currentColor; }
 .pi-coin.gold { color: #ffd166; } .pi-coin.gold i { background: radial-gradient(circle at 35% 35%, #fff2b3, #e2a92b); }
 .pi-coin.silver { color: #d6dde6; } .pi-coin.silver i { background: radial-gradient(circle at 35% 35%, #fff, #9aa6b2); }

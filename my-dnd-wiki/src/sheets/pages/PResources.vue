@@ -56,7 +56,7 @@
           <button type="button" :disabled="ro" @click="setCur(i, r.Current + 1)">＋</button>
         </div>
         <div v-else class="pr-marks" :class="r.Style" @contextmenu.prevent="setCur(i, r.Current - 1)">
-          <button v-for="k in Math.min(r.Max, 60)" :key="k" type="button" :class="{ on: k <= r.Current }" :title="`${k} из ${r.Max}`" @click="setCur(i, k === r.Current ? k - 1 : k)">
+          <button v-for="k in Math.min(r.Max, 60)" :key="k" type="button" :class="{ on: k <= r.Current, 'fx-on': pipFx[i]?.dir === 'on' && k > pipFx[i].a && k <= pipFx[i].b, 'fx-off': pipFx[i]?.dir === 'off' && k > pipFx[i].a && k <= pipFx[i].b }" :title="`${k} из ${r.Max}`" @click="setCur(i, k === r.Current ? k - 1 : k)">
             <template v-if="r.Style === 'boxes'">{{ k <= r.Current ? '✓' : '' }}</template>
           </button>
           <span v-if="!r.Max" class="pr-hint">Задай максимум в настройках ⚙</span>
@@ -82,7 +82,7 @@
 
 <script setup>
 import SheetIcon from '../ui/SheetIcon.vue'
-import { computed, inject, reactive, ref } from 'vue'
+import { computed, inject, reactive, ref, watch } from 'vue'
 import Fld from '../ui/Fld.vue'
 import Num from '../ui/Num.vue'
 import { sheet, edit, keyOf, listOps, roll } from '../sheetState.js'
@@ -93,6 +93,17 @@ const ro = inject('sheetReadOnly', ref(false))
 const hp = computed(() => sheet.data.HpData)
 const res = computed(() => sheet.data.Resources)
 const ops = listOps('Resources')
+// какие кружки только что поменялись (от кого угодно: игрок, мастер в сводке) — им короткая анимация
+const pipFx = reactive({})
+watch(() => res.value.map(r => r.Current), (n, o) => {
+  if (!o || n.length !== o.length) return
+  n.forEach((v, i) => {
+    if (v === o[i]) return
+    const fx = { dir: v > o[i] ? 'on' : 'off', a: Math.min(v, o[i]), b: Math.max(v, o[i]) }
+    pipFx[i] = fx
+    setTimeout(() => { if (pipFx[i] === fx) delete pipFx[i] }, 750)
+  })
+})
 const maxHp = computed(() => hpMax(sheet.data))
 const fromHits = computed(() => parseInt(String(sheet.data.Hits || '').replace(/^\+/, ''), 10) > 0)
 const pct = computed(() => (maxHp.value > 0 ? Math.max(0, Math.min(100, (hp.value.Current / maxHp.value) * 100)) : 0))
@@ -184,6 +195,14 @@ function restoreAll() {
 .pr-marks.ammo button { width: 16px; height: 30px; border-radius: 4px; }
 .pr-marks.boxes button { border-radius: 6px; }
 .pr-marks button.on { background: var(--rc); box-shadow: 0 0 10px color-mix(in srgb, var(--rc) 60%, transparent); }
+.pr-marks button { position: relative; }
+.pr-marks button.fx-on { animation: pr-on .55s cubic-bezier(.2, 1.4, .4, 1); }
+.pr-marks button.fx-off { animation: pr-off .5s ease-out; }
+.pr-marks button.fx-off::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; background: radial-gradient(circle, rgba(210, 200, 185, .7), rgba(210, 200, 185, .2) 45%, transparent 70%); animation: pr-smoke .75s ease-out forwards; pointer-events: none; }
+@keyframes pr-on { 0% { transform: scale(.4); } 55% { transform: scale(1.35); box-shadow: 0 0 22px 6px var(--rc); } 100% { transform: scale(1); } }
+@keyframes pr-off { 30% { transform: scale(.75); } }
+@keyframes pr-smoke { from { transform: scale(.6); opacity: .9; } to { transform: scale(2.2) translateY(-16px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pr-marks button.fx-on, .pr-marks button.fx-off, .pr-marks button.fx-off::after { animation: none; } }
 .pr-num { display: flex; align-items: center; gap: 8px; }
 .pr-num > button { width: 34px; height: 34px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--rc) 50%, transparent); background: none; color: var(--ink); font-size: 18px; cursor: pointer; }
 .pr-big { width: 110px; }

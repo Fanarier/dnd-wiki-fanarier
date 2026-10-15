@@ -5,7 +5,10 @@ import { store } from '../map/store.js'
 
 const FILES = {
   diceGrab: ['dice-grab-1', 'dice-grab-2'], diceShake: 'dice-shake-1', diceThrow: ['dice-throw-1', 'dice-throw-2', 'dice-throw-3'],
-  notify: 'bong_001', roll: 'pluck_001', crit: 'confirmation_002', fail: 'error_004'
+  notify: 'bong_001', roll: 'pluck_001', crit: 'confirmation_002', fail: 'error_004',
+  // книга листа персонажа (Kenney RPG Audio, CC0)
+  bookOpen: 'book-open', bookClose: 'book-close', pageFlip: ['book-flip-1', 'book-flip-2', 'book-flip-3'], bookPlace: 'book-place',
+  coins: ['coins-1', 'coins-2']
 }
 const cache = {}
 const howl = (src, opts = {}) => { const key = [].concat(src).join('|'); return (cache[key] ||= new Howl({ src: [].concat(src), volume: 0.55, preload: true, ...opts })) }

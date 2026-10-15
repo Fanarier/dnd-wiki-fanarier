@@ -8,7 +8,8 @@
     </div>
     <div v-if="!list.length" class="pb-empty">Пока нет листов, привязанных к игрокам.</div>
     <div class="pb-grid">
-      <article v-for="(s, i) in list" :key="s.id" class="pb-card" :style="{ '--acc': s.accent || '#C9A24F', '--i': i }" :class="{ down: s.hp.max && s.hp.cur <= 0 }">
+      <article v-for="(s, i) in list" :key="s.id" class="pb-card" :style="{ '--acc': s.accent || '#C9A24F', '--i': i }" :class="{ down: s.hp.max && s.hp.cur <= 0, lvlup: leveled.has(s.id) }">
+        <span v-if="leveled.has(s.id)" class="pb-lvl">⬆ {{ s.level }} уровень!</span>
         <header>
           <router-link :to="`/sheets/${s.id}`" class="pb-av" :title="`Открыть лист: ${s.name}`"><img v-if="s.photo" :src="sheetImg(s.photo)" alt="" /><span v-else>{{ s.name[0] }}</span></router-link>
           <div class="pb-id">
@@ -54,11 +55,26 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { sfx } from '../sound/sound.js'
 import { api, toast } from '../map/store.js'
 import { sheets, loadSheets, sheetImg } from './sheetState.js'
 
 const withNpc = ref(false)
+// кто-то поднял уровень — карточка на пару секунд вспыхивает золотом
+const leveled = reactive(new Set())
+const lastLevel = new Map()
+watch(() => sheets.list.map(s => [s.id, s.level]), list => {
+  for (const [id, lv] of list) {
+    const was = lastLevel.get(id)
+    lastLevel.set(id, lv)
+    if (was != null && lv > was) {
+      leveled.add(id)
+      sfx('crit', 0.4)
+      setTimeout(() => leveled.delete(id), 3200)
+    }
+  }
+}, { immediate: true })
 const amt = reactive({})
 const list = computed(() => sheets.list.filter(s => !s.deletedAt && (withNpc.value || s.ownerName)).sort((a, b) => a.name.localeCompare(b.name, 'ru')))
 const pct = s => (s.hp.max > 0 ? Math.max(0, Math.min(100, (s.hp.cur / s.hp.max) * 100)) : 0)
@@ -92,6 +108,11 @@ function setRes(s, ri, v) {
 .pb-empty { padding: 40px; text-align: center; color: #a8936c; border: 1px dashed rgba(231, 197, 111, .2); border-radius: 16px; }
 .pb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 14px; }
 .pb-card { display: grid; gap: 10px; padding: 12px; border-radius: 16px; background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 8%, #1d1710), #14100b); border: 1px solid color-mix(in srgb, var(--acc) 35%, #3b2a1a); box-shadow: 0 12px 30px rgba(0, 0, 0, .45); animation: pb-in .45s cubic-bezier(.2, .9, .3, 1.15) both; animation-delay: calc(var(--i) * 50ms); transition: box-shadow .3s; }
+.pb-card { position: relative; }
+.pb-card.lvlup { animation: pb-lvl 3.2s ease-out; }
+@keyframes pb-lvl { 0% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); } 12% { box-shadow: 0 0 0 3px #ffd166, 0 0 40px rgba(255, 209, 102, .7); transform: translateY(-4px) scale(1.02); } 100% { box-shadow: 0 12px 30px rgba(0, 0, 0, .45); } }
+.pb-lvl { position: absolute; right: 12px; top: -12px; z-index: 2; padding: 3px 10px; border-radius: 99px; background: linear-gradient(180deg, #ffe39a, #e0a93e); color: #1b140c; font: 900 12px 'Manrope', sans-serif; box-shadow: 0 0 16px rgba(255, 209, 102, .7); animation: pb-lvl-tag 3.2s ease-out forwards; }
+@keyframes pb-lvl-tag { 0% { transform: translateY(10px) scale(.6); opacity: 0; } 12% { transform: none; opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-8px); opacity: 0; } }
 .pb-card.down { border-color: rgba(255, 107, 94, .6); box-shadow: 0 0 26px rgba(255, 90, 70, .25); }
 @keyframes pb-in { from { opacity: 0; transform: translateY(18px) scale(.97); } }
 .pb-card header { display: flex; align-items: center; gap: 10px; }

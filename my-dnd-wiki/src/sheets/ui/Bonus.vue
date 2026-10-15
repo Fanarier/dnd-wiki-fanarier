@@ -1,6 +1,6 @@
 <template>
   <!-- итоговый бонус: зелёный / красный, щелчок — бросок d20 с этим бонусом -->
-  <button type="button" class="bn" :class="{ pos: value > 0, neg: value < 0, sm: small }" :title="`Бросить: ${label} (1d20${fmt})`" @click="rollBonus(value, label)">
+  <button type="button" class="bn" :class="{ pos: value > 0, neg: value < 0, sm: small }" :title="`Бросить: ${label} (1d20${fmt})`" @click="rollBonus(value, label, $event.currentTarget)">
     <Num :value="value" :sign="true" />
     <i class="bn-die" aria-hidden="true">🎲</i>
   </button>

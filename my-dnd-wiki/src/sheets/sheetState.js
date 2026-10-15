@@ -201,11 +201,15 @@ export async function pickImage(path, { crop = true, title = 'Картинка',
 }
 
 /* ---------- броски ---------- */
-export function roll(formula, label) {
+// последний бросок из листа: подпись и элемент, по которому щёлкнули (итог всплывёт рядом с ним)
+export const lastRoll = { label: '', el: null, at: 0 }
+export function roll(formula, label, el = null) {
   const who = sheet.data?.CharacterName ? `${sheet.data.CharacterName}: ` : ''
-  requestRoll({ formula, label: (who + (label || '')).slice(0, 60), adv: rollMode.value })
+  const full = (who + (label || '')).slice(0, 60)
+  Object.assign(lastRoll, { label: full, el, at: Date.now() })
+  requestRoll({ formula, label: full, adv: rollMode.value })
 }
-export const rollBonus = (bonus, label) => roll(`1d20${bonus ? (bonus > 0 ? '+' + bonus : bonus) : ''}`, label)
+export const rollBonus = (bonus, label, el) => roll(`1d20${bonus ? (bonus > 0 ? '+' + bonus : bonus) : ''}`, label, el)
 
 /* ---------- списки (навыки, предметы, атаки…): добавить, убрать, переставить ---------- */
 // ключ для v-for: у элементов файла нет своих id — запоминаем объект

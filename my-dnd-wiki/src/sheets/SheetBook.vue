@@ -2,7 +2,7 @@
   <!-- лист персонажа — книга: обложка раскрывается, слева главная страница, справа раздел; закладки сбоку -->
   <div class="sb-root" :style="themeVars">
     <header class="sb-top">
-      <router-link to="/sheets" class="sb-back" title="Ко всем листам">←<span class="hide-sm"> Листы</span></router-link>
+      <a href="/sheets" class="sb-back" title="Закрыть книгу — ко всем листам" @click.prevent="closeBook">←<span class="hide-sm"> Листы</span></a>
       <div class="sb-title">
         <b>{{ sheet.data?.CharacterName || 'Лист персонажа' }}</b>
         <small v-if="sheet.meta">{{ subtitle }}</small>
@@ -40,7 +40,7 @@
     <div v-else class="sb-stage" :class="{ single }">
       <!-- пылинки в свете свечи -->
       <i v-for="m in motes" :key="m.k" class="sb-mote" :style="m.style" aria-hidden="true" />
-      <div ref="bookRef" class="sb-book" :class="{ opening }">
+      <div ref="bookRef" class="sb-book" :class="{ opening, downed }">
         <!-- кожаный переплёт с тиснёными уголками (под страницами) -->
         <div v-if="!single" ref="boardLRef" class="sb-boards l" aria-hidden="true"><i class="cn tl" /><i class="cn bl" /></div>
         <div class="sb-boards r" aria-hidden="true"><i class="cn tr" /><i class="cn br" /><template v-if="single"><i class="cn tl" /><i class="cn bl" /></template></div>
@@ -72,7 +72,7 @@
           </button>
         </nav>
         <!-- ляссе — ленточка из корешка -->
-        <i v-if="!single" class="sb-ribbon" aria-hidden="true" />
+        <i v-if="!single" ref="ribbonRef" class="sb-ribbon-wrap" title="Дёрни ленточку" @pointerdown="tugRibbon"><i class="sb-ribbon" /></i>
 
         <!-- обложка: видна только пока книга открывается -->
         <div v-if="coverShown" ref="coverRef" class="sb-cover" aria-hidden="true">
@@ -88,6 +88,7 @@
           <div class="face back"><i class="paper" /></div>
         </div>
         <div ref="burstRef" class="sb-burst" aria-hidden="true" />
+        <BookFx ref="fxRef" :book="bookRef" />
       </div>
     </div>
 
@@ -103,7 +104,12 @@ import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import UserMenu from '../components/UserMenu.vue'
 import { store, init, toast } from '../map/store.js'
-import { sheet, openSheet, closeSheet, rollMode, sheetImg, exportSheet, replaceFromFile, deleteSheet, flush } from './sheetState.js'
+import { sheet, openSheet, closeSheet, rollMode, sheetImg, exportSheet, replaceFromFile, deleteSheet, flush, lastRoll } from './sheetState.js'
+import BookFx from './ui/BookFx.vue'
+import { sfx } from '../sound/sound.js'
+import { dice } from '../map/store.js'
+import { natural } from '../shared/dice.js'
+import { hpMax } from '../shared/sheet.js'
 import { openColorMenu } from './ui/colorMenu.js'
 import ColorMenu from './ui/ColorMenu.vue'
 import SheetIcon from './ui/SheetIcon.vue'
@@ -211,8 +217,9 @@ async function playOpen() {
   let from = null
   try { from = JSON.parse(sessionStorage.getItem('sheet-fly') || 'null') } catch { /* нет */ }
   sessionStorage.removeItem('sheet-fly')
+  flyBack = from?.id === sheet.id ? from : null
   // левая половина (переплёт, страница, корешок, ляссе) появляется, только когда на неё ляжет обложка
-  const leftHalf = [boardLRef.value, leftRef.value, stitchRef.value, book.querySelector('.sb-ribbon')].filter(Boolean)
+  const leftHalf = [boardLRef.value, leftRef.value, stitchRef.value, book.querySelector('.sb-ribbon-wrap')].filter(Boolean)
   const marks = book.querySelectorAll('.sb-mark')
   const front = cover.querySelector('.front'), back = cover.querySelector('.back')
   const rightInk = rightRef.value?.querySelectorAll('.sb-anim, .sb-run, .sb-pno') || []
@@ -237,6 +244,7 @@ async function playOpen() {
   } else tl.from(cover, { y: 50, scale: 0.92, opacity: 0, duration: 0.55, ease: 'power3.out' })
   tl.addLabel('turn', '+=0.18')
     .set(rightHalf, { opacity: 1 }, 'turn')
+    .call(() => sfx('bookOpen', 0.5), null, 'turn')
     // обложку чуть приподнимает, потом она поворачивается вокруг корешка
     .to(cover, { rotateY: -12, duration: 0.25, ease: 'power1.out' }, 'turn')
     .to(cover, { rotateY: -90, duration: 0.45, ease: 'power2.in' }, 'turn+=0.25')
@@ -342,7 +350,7 @@ function heal() {
   if (!book || tl?.isActive()) return
   if (coverShown.value) coverShown.value = false
   book.querySelectorAll('.sb-leaf').forEach(n => n.remove())
-  const stuck = [...book.querySelectorAll('.sb-page, .sb-boards, .sb-stitch, .sb-ribbon, .sb-mark, .sb-anim, .sb-run, .sb-pno')]
+  const stuck = [...book.querySelectorAll('.sb-page, .sb-boards, .sb-stitch, .sb-ribbon-wrap, .sb-mark, .sb-anim, .sb-run, .sb-pno')]
     .filter(el => (el.style.opacity !== '' || el.style.filter !== '' || el.style.transform !== '') && !gsap.isTweening(el))
   if (stuck.length) gsap.set(stuck, { clearProps: 'opacity,filter,transform' })
 }
@@ -363,6 +371,8 @@ async function goto(key, { instant = false } = {}) {
   const dir = toS > fromS ? 1 : -1
   const n = Math.min(Math.abs(toS - fromS) / PER.value, 8) // сколько листов перевернуть
   const D = n > 1 ? 0.5 : 0.72, H = D / 2, STEP = 0.11
+  for (let k = 0; k < Math.min(n, 3); k++) setTimeout(() => sfx('pageFlip', 0.35), k * STEP * 1000 * (n > 3 ? n / 3 : 1))
+  breeze(dir)
   const extra = []
   const done = () => { clearTimeout(safety); extra.forEach(x => x.remove()); turning = false }
   const safety = setTimeout(done, 2000 + n * 250)
@@ -413,6 +423,108 @@ async function goto(key, { instant = false } = {}) {
 }
 // соседний разворот (кнопки, свайп, уголок)
 const stepKey = d => SECTIONS[Math.max(0, Math.min(SECTIONS.length - 1, spreadStart.value + d * PER.value))]?.key
+// ветерок от перевёрнутой страницы: закладки и ленточка колышутся
+function breeze(dir = 1) {
+  if (reduce || !bookRef.value) return
+  bookRef.value.querySelectorAll('.sb-mark').forEach((m, i) => {
+    gsap.fromTo(m, { rotation: 0 }, { keyframes: { rotation: [dir * (2 + Math.random() * 3), -dir * 2, dir, 0] }, duration: 0.9, delay: i * 0.025, ease: 'sine.inOut', transformOrigin: '50% 100%', clearProps: 'rotation,transform' })
+  })
+  tugRibbon(null, dir * 10)
+}
+// ляссе можно дёрнуть — качается и успокаивается
+const ribbonRef = ref(null)
+function tugRibbon(e, force) {
+  const r = ribbonRef.value
+  if (!r || reduce) return
+  const f = force ?? (e ? (Math.random() < 0.5 ? -1 : 1) * 22 : 12)
+  gsap.killTweensOf(r)
+  gsap.fromTo(r, { rotation: f }, { rotation: 0, duration: 1.8, ease: 'elastic.out(1.2, 0.25)', transformOrigin: '50% 0%' })
+}
+
+/* ---------- живые эффекты: хиты, уровень, броски ---------- */
+const fxRef = ref(null)
+const downed = computed(() => !!sheet.data && hpMax(sheet.data) > 0 && sheet.data.HpData.Current <= 0)
+const hpEl = () => bookRef.value?.querySelector('.pr-hp, .pm-hp')
+let fxSheet = null // эффекты — только когда меняется тот же лист, а не при открытии другого
+// числа вписывают по цифре (8 → 87): ждём, пока ввод утихнет, и показываем итоговую разницу
+let fxBase = null, fxTimer = 0
+watch(() => [sheet.id, sheet.data?.HpData?.Current, sheet.data?.Level], (n, o) => {
+  if (!o || n[0] !== o[0] || fxSheet !== n[0] || opening.value) { fxSheet = n[0]; fxBase = null; clearTimeout(fxTimer); return }
+  fxBase ||= { hp: o[1] ?? 0, lv: o[2] ?? 0 }
+  clearTimeout(fxTimer)
+  fxTimer = setTimeout(() => {
+    const base = fxBase
+    fxBase = null
+    if (!base || !sheet.data) return
+    const d = (sheet.data.HpData.Current ?? 0) - base.hp
+    if (d < 0) fxRef.value?.hit(-d, hpEl())
+    else if (d > 0) fxRef.value?.heal(d, hpEl())
+    if ((sheet.data.Level ?? 0) > base.lv) { fxRef.value?.levelUp(sheet.data.Level); sfx('crit', 0.5) }
+  }, 380)
+})
+// свой бросок из листа долетел — итог всплывает у того, по чему щёлкнули
+watch(() => dice.pops.length, (len, old) => {
+  if (len <= old) return
+  const p = dice.pops[len - 1]
+  if (!p?.mine || !lastRoll.el || p.label !== lastRoll.label || Date.now() - lastRoll.at > 20000) return
+  const nat = natural(p)
+  fxRef.value?.roll(p.total, nat === 20 ? 'crit' : nat === 1 ? 'fail' : '', lastRoll.el)
+  lastRoll.el = null
+})
+
+/* ---------- закрытие книги: обложка захлопывается, книга уезжает на полку ---------- */
+let closing = false
+async function closeBook() {
+  if (closing) return
+  closing = true
+  await flush()
+  if (reduce || !bookRef.value || !ready.value) { router.push('/sheets'); return }
+  skipOpening()
+  coverShown.value = true
+  await nextTick()
+  const book = bookRef.value, cover = coverRef.value
+  if (!cover) { router.push('/sheets'); return }
+  const front = cover.querySelector('.front'), back = cover.querySelector('.back')
+  const leftHalf = [boardLRef.value, leftRef.value, stitchRef.value, book.querySelector('.sb-ribbon-wrap')].filter(Boolean)
+  const shift = single.value ? 0 : -book.offsetWidth / 4
+  gsap.set(cover, { transformPerspective: 2600, transformOrigin: '0% 50%', rotateY: single.value ? -90 : -180, opacity: 1 })
+  gsap.set(front, { visibility: 'hidden' })
+  gsap.set(back, { visibility: 'visible' })
+  sfx('pageFlip', 0.3)
+  const ctl = gsap.timeline({ onComplete: () => router.push('/sheets') })
+    .to(book.querySelectorAll('.sb-mark'), { y: 46, opacity: 0, duration: 0.3, stagger: 0.015, ease: 'power2.in' }, 0)
+    .set(leftHalf, { opacity: 0 }, 0.05)
+    .to(cover, { rotateY: -90, duration: 0.32, ease: 'power2.in' }, 0.05)
+    .set(back, { visibility: 'hidden' }, 0.37)
+    .set(front, { visibility: 'visible' }, 0.37)
+    .to(cover, { rotateY: 0, duration: 0.3, ease: 'power3.in' }, 0.37)
+    .to(book, { x: shift, duration: 0.62, ease: 'power2.inOut' }, 0.05)
+    .call(() => { sfx('bookClose', 0.6); dust() }, null, 0.67)
+    .to(book, { keyframes: { y: [0, 4, 0] }, duration: 0.18 }, 0.67)
+  // на полку: сжимается и улетает к своей обложке в списке (если знаем, где она была)
+  const r = cover.getBoundingClientRect()
+  if (flyBack) {
+    ctl.to(book, { x: shift + flyBack.x - r.left, y: flyBack.y - r.top, scale: Math.min(flyBack.w / r.width, flyBack.h / r.height), transformOrigin: single.value ? '0 0' : '50% 0', duration: 0.5, ease: 'power3.inOut' }, 0.95)
+      .to(book, { opacity: 0, duration: 0.15 }, '>-0.1')
+      .call(() => sfx('bookPlace', 0.5), null, '<')
+  } else ctl.to(book, { y: 30, scale: 0.9, opacity: 0, duration: 0.35, ease: 'power2.in' }, 0.95)
+}
+// пыль из-под захлопнутой обложки
+function dust() {
+  const host = burstRef.value, book = bookRef.value
+  if (!host || !book) return
+  const W = book.offsetWidth, H = book.offsetHeight, x0 = single.value ? 0 : W / 2
+  for (let i = 0; i < 26; i++) {
+    const p = document.createElement('i')
+    p.className = 'dust'
+    host.append(p)
+    const side = Math.random() < 0.5, x = side ? x0 + Math.random() * (W - x0) : W - 4, y = side ? H - 4 : Math.random() * H
+    gsap.timeline({ onComplete: () => p.remove() })
+      .fromTo(p, { x, y, scale: 0.5, opacity: 0.8 }, { x: x + (side ? (Math.random() - 0.5) * 60 : 30 + Math.random() * 50), y: y + (side ? 10 + Math.random() * 25 : (Math.random() - 0.5) * 40), scale: 1.6 + Math.random(), opacity: 0, duration: 0.8 + Math.random() * 0.5, ease: 'power2.out' })
+  }
+}
+let flyBack = null
+
 // страницу перевернули, потянув за уголок: новый разворот проявляется чернилами
 const hasNext = computed(() => spreadStart.value + PER.value < SECTIONS.length)
 const hasPrev = computed(() => spreadStart.value > 0)
@@ -426,6 +538,8 @@ async function peelBack() {
   await nextTick()
   inkIn(scrollLRef.value)
   inkIn(scrollRef.value)
+  sfx('pageFlip', 0.35)
+  breeze(-1)
 }
 async function peelTurn() {
   skipOpening()
@@ -436,6 +550,8 @@ async function peelTurn() {
   await nextTick()
   inkIn(leftRef.value?.querySelector('.sb-scroll'))
   inkIn(scrollRef.value)
+  sfx('pageFlip', 0.35)
+  breeze(1)
 }
 // свайп на телефоне: влево — дальше, вправо — назад
 let sw = null
@@ -655,11 +771,17 @@ onBeforeUnmount(() => {
 @media (max-width: 1360px) { .sb-mark:not(.on):not(:hover) .nm { display: none; } }
 
 /* ляссе */
-.sb-ribbon { position: absolute; left: calc(50% + 14px); top: calc(100% - 16px); width: 16px; height: 62px; z-index: 3; background: linear-gradient(90deg, rgba(0, 0, 0, .3), rgba(255, 255, 255, .15) 40%, rgba(0, 0, 0, .25)), var(--acc); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); transform-origin: 50% 0; animation: sb-sway 4.5s ease-in-out infinite; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .5)); }
+.sb-ribbon-wrap { position: absolute; left: calc(50% + 14px); top: calc(100% - 16px); width: 16px; height: 62px; z-index: 3; cursor: grab; }
+.sb-ribbon { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .3), rgba(255, 255, 255, .15) 40%, rgba(0, 0, 0, .25)), var(--acc); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); transform-origin: 50% 0; animation: sb-sway 4.5s ease-in-out infinite; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .5)); }
 @keyframes sb-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
 
 /* искры при открытии */
 .sb-burst { position: absolute; inset: 0; z-index: 30; pointer-events: none; --glow: 0; --gx: 75%; background: radial-gradient(ellipse 28% 45% at var(--gx) 55%, rgba(255, 214, 140, calc(var(--glow) * .32)), transparent 70%); }
+.sb-burst :deep(i.dust) { width: 10px; height: 10px; margin: -5px; background: radial-gradient(circle, rgba(200, 180, 150, .55), transparent 70%); box-shadow: none; }
+/* хиты на нуле: книга тускнеет, по краям медленно пульсирует багровый свет */
+.sb-book.downed .sb-page { filter: saturate(.55) brightness(.85); transition: filter .8s; }
+.sb-book.downed::after { content: ''; position: absolute; inset: 0; z-index: 30; border-radius: 20px; pointer-events: none; box-shadow: inset 0 0 120px 30px rgba(120, 10, 10, .55); animation: sb-down 2.4s ease-in-out infinite; }
+@keyframes sb-down { 50% { opacity: .45; } }
 .sb-burst :deep(i) { position: absolute; left: 0; top: 0; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: radial-gradient(circle, #fffaf0, #ffd27a 50%, transparent 72%); box-shadow: 0 0 6px 1px rgba(255, 207, 106, .8); }
 .sb-burst :deep(i.big) { width: 7px; height: 7px; margin: -3.5px; box-shadow: 0 0 12px 2px rgba(255, 207, 106, .7); }
 

@@ -2,7 +2,8 @@
   <!-- главная: портрет, имя, класс, хиты и всё, что нужно в бою под рукой -->
   <div class="pm">
     <div class="pm-head sb-anim">
-      <div class="pm-photo" :class="{ empty: !d.PhotoFile }" data-find="photo">
+      <div class="pm-photo" :class="{ empty: !d.PhotoFile }" data-find="photo" @pointermove="tilt" @pointerleave="untilt">
+        <i v-if="d.PhotoFile" class="pm-holo" aria-hidden="true" />
         <img v-if="d.PhotoFile" :src="sheetImg(d.PhotoFile)" alt="Портрет" @click="viewOpen = true" />
         <button v-else type="button" class="pm-add" :disabled="ro" @click="setPhoto">＋<small>портрет</small></button>
         <div v-if="!ro" class="pm-photo-acts">
@@ -115,6 +116,22 @@ const maxHp = computed(() => hpMax(d.value))
 const hpPct = computed(() => { const h = d.value.HpData; return maxHp.value > 0 ? Math.max(0, Math.min(100, (h.Current / maxHp.value) * 100)) : 0 })
 const tmpPct = computed(() => { const h = d.value.HpData; return maxHp.value > 0 ? Math.min(100, (h.Temp / maxHp.value) * 100) : 0 })
 const hpTone = computed(() => (hpPct.value <= 25 ? 'low' : hpPct.value <= 55 ? 'mid' : ''))
+// портрет наклоняется за мышкой, по нему бежит радужный блик (как у карточек «Героев Анкарии»)
+function tilt(e) {
+  if (e.pointerType !== 'mouse') return
+  const el = e.currentTarget, r = el.getBoundingClientRect()
+  const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height
+  el.style.setProperty('--rx', `${((0.5 - y) * 16).toFixed(2)}deg`)
+  el.style.setProperty('--ry', `${((x - 0.5) * 18).toFixed(2)}deg`)
+  el.style.setProperty('--mx', `${(x * 100).toFixed(1)}%`)
+  el.style.setProperty('--my', `${(y * 100).toFixed(1)}%`)
+  el.classList.add('tilting')
+}
+function untilt(e) {
+  const el = e.currentTarget
+  el.classList.remove('tilting')
+  for (const p of ['--rx', '--ry', '--mx', '--my']) el.style.removeProperty(p)
+}
 async function setPhoto() {
   try { await pickImage('PhotoFile', { title: 'Портрет персонажа', size: 640 }) } catch (e) { toast(e.message, 'error') }
 }
@@ -123,6 +140,13 @@ async function setPhoto() {
 <style scoped>
 .pm { display: grid; gap: 4px; }
 .pm-head { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: start; }
+.pm-photo { transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .35s ease-out, box-shadow .35s; will-change: transform; }
+.pm-photo.tilting { transition: transform .08s linear, box-shadow .35s; box-shadow: 0 18px 34px rgba(0, 0, 0, .55), 0 0 0 4px rgba(0, 0, 0, .25), 0 0 26px color-mix(in srgb, var(--acc) 35%, transparent); }
+.pm-holo { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .3s; mix-blend-mode: color-dodge;
+  background:
+    radial-gradient(circle at var(--mx, 50%) var(--my, 30%), rgba(255, 255, 255, .55), transparent 38%),
+    linear-gradient(115deg, transparent 20%, rgba(255, 90, 160, .35) 35%, rgba(255, 230, 120, .35) 45%, rgba(90, 230, 200, .35) 55%, rgba(120, 140, 255, .35) 65%, transparent 80%) var(--mx, 50%) 0 / 260% 100%; }
+.pm-photo.tilting .pm-holo { opacity: .65; }
 .pm-photo { position: relative; width: 150px; aspect-ratio: 3 / 4; border-radius: 14px; overflow: hidden; border: 2px solid color-mix(in srgb, var(--acc) 60%, transparent); box-shadow: 0 10px 26px rgba(0, 0, 0, .5), 0 0 0 4px rgba(0, 0, 0, .25); background: rgba(0, 0, 0, .3); }
 .pm-photo img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; transition: transform .5s; }
 .pm-photo:hover img { transform: scale(1.04); }

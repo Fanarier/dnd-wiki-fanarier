@@ -1,6 +1,6 @@
 <template>
   <!-- текст, где «1к8 + 11», «3к12» — кнопки броска -->
-  <span class="dt-txt"><template v-for="(part, i) in parts" :key="i"><button v-if="part.f" type="button" class="dt-roll" :title="`Бросить ${part.f}`" @click.stop="roll(part.f, label)">🎲 {{ part.t }}</button><template v-else>{{ part.t }}</template></template></span>
+  <span class="dt-txt"><template v-for="(part, i) in parts" :key="i"><button v-if="part.f" type="button" class="dt-roll" :title="`Бросить ${part.f}`" @click.stop="roll(part.f, label, $event.currentTarget)">🎲 {{ part.t }}</button><template v-else>{{ part.t }}</template></template></span>
 </template>
 
 <script setup>
