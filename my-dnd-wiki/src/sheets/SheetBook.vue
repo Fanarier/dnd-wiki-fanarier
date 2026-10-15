@@ -484,7 +484,8 @@ function tugRibbon(e, force) {
 
 /* ---------- живые эффекты: хиты, уровень, броски ---------- */
 const fxRef = ref(null)
-const downed = computed(() => !!sheet.data && hpMax(sheet.data) > 0 && sheet.data.HpData.Current <= 0)
+// хиты на нуле — книга тускнеет (пока она открывается или закрывается — нет: рамка видна была бы вокруг обложки)
+const downed = computed(() => !!sheet.data && !coverShown.value && hpMax(sheet.data) > 0 && sheet.data.HpData.Current <= 0)
 const hpEl = () => bookRef.value?.querySelector('.pr-hp, .pm-hp')
 let fxSheet = null // эффекты — только когда меняется тот же лист, а не при открытии другого
 // числа вписывают по цифре (8 → 87): ждём, пока ввод утихнет, и показываем итоговую разницу

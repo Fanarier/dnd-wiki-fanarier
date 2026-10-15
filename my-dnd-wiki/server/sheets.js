@@ -22,6 +22,18 @@ let timer = null
 function load() {
   try { store = JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch { store = { sheets: [] } }
   store.sheets ||= []
+  // трекером здоровья в приложении не пользовались (текущие и максимум — 0), а «Хиты» указаны:
+  // считаем персонажа здоровым, иначе лист выглядит как «без сознания»
+  let fixed = 0
+  for (const sh of store.sheets) if (fillHp(sh.data)) fixed++
+  if (fixed) { console.log(`[sheets] хиты заполнены из поля «Хиты»: ${fixed}`); save() }
+}
+function fillHp(d) {
+  const hits = parseInt(String(d?.Hits || '').replace(/^\+/, ''), 10)
+  if (!(hits > 0) || !d.HpData || d.HpData.Current || d.HpData.Max) return false
+  d.HpData.Current = hits
+  d.HpData.Max = hits
+  return true
 }
 function writeNow() {
   timer = null
@@ -73,6 +85,7 @@ function fromAppFile(raw, imageExt) {
   if (!looksLike) throw new Error('В файле нет листа персонажа (нет имени, характеристик, навыков…)')
   const d = cleanBy(SCHEMA, src)
   d.CharacterName ||= 'Без имени'
+  fillHp(d)
   cleanJournal(d)
   return d
 }
