@@ -314,6 +314,14 @@ const flyFrom = (el, f) => {
   const r = el.getBoundingClientRect()
   return { x: f.x + f.w / 2 - (r.left + r.width / 2), y: f.y + f.h / 2 - (r.top + r.height / 2), scale: Math.min(1, f.w / r.width) }
 }
+// обрезка бумаги сверху и снизу (в процентах или пикселях). Строку inset() браузер сокращает
+// («inset(50% 0% 50%)»), и gsap путает числа — поэтому анимируем сами числа
+function clipSet(el, t, b, u = '%') { el.style.clipPath = `inset(${t}${u} 0${u} ${b}${u} 0${u})` }
+function clipTween(el, from, to, vars, u = '%') {
+  const o = { t: from[0], b: from[1] }
+  clipSet(el, o.t, o.b, u)
+  return gsap.to(o, { t: to[0], b: to[1], ...vars, onUpdate: () => clipSet(el, o.t, o.b, u), onComplete: () => { if (!to[0] && !to[1]) el.style.clipPath = '' } })
+}
 function playUnroll() {
   const sx = bookRef.value, seal = coverRef.value, paper = paperRef.value
   const rods = [rodTopRef.value, rodBotRef.value]
@@ -327,7 +335,7 @@ function playUnroll() {
   const { top, bot } = rolled()
   gsap.set(rods[0], { y: top })
   gsap.set(rods[1], { y: bot })
-  gsap.set(paper, { clipPath: 'inset(50% 0% 50% 0%)' })
+  clipSet(paper, 50, 50)
   gsap.set(txt, { opacity: 0 })
   gsap.set(tabs, { y: -36 })
   const finish = () => { clearTimeout(coverTimer); coverShown.value = false; heal(); setTimeout(() => { opening.value = false }, 400) }
@@ -348,7 +356,7 @@ function playUnroll() {
     .addLabel('unroll', 'crack+=0.34')
     .call(() => { sfx('pageFlip', 0.45); setTimeout(() => sfx('pageFlip', 0.25), 380) }, null, 'unroll')
     .to(rods, { y: 0, duration: 0.9, ease: 'power3.inOut' }, 'unroll')
-    .to(paper, { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.9, ease: 'power3.inOut' }, 'unroll')
+    .add(clipTween(paper, [50, 50], [0, 0], { duration: 0.9, ease: 'power3.inOut' }), 'unroll')
     .add(sparkle, 'unroll+=0.5')
     .to(tabs, { y: 0, duration: 0.5, stagger: 0.03, ease: 'back.out(2)', clearProps: 'transform' }, 'unroll+=0.5')
   ink(txt, 'unroll+=0.45', 0.03)
@@ -373,10 +381,10 @@ function rollTo(key) {
   sfx('pageFlip', 0.35)
   gsap.timeline({ onComplete: done })
     .to(rod, { y: rise, duration: 0.3, ease: 'power2.in' }, 0)
-    .fromTo(paper, { clipPath: 'inset(0px 0px 0px 0px)' }, { clipPath: `inset(0px 0px ${cut}px 0px)`, duration: 0.3, ease: 'power2.in' }, 0)
+    .add(clipTween(paper, [0, 0], [0, cut], { duration: 0.3, ease: 'power2.in' }, 'px'), 0)
     .call(() => { cur.value = key; nextTick(() => inkIn(scrollRef.value, 0.08)) }, null, 0.3)
     .to(rod, { y: 0, duration: 0.5, ease: 'power2.out', clearProps: 'transform' }, 0.36)
-    .to(paper, { clipPath: 'inset(0px 0px 0px 0px)', duration: 0.5, ease: 'power2.out', clearProps: 'clipPath' }, 0.36)
+    .add(clipTween(paper, [0, cut], [0, 0], { duration: 0.5, ease: 'power2.out' }, 'px'), 0.36)
     .call(() => sfx('pageFlip', 0.2), null, 0.42)
 }
 // закрыть: валики сходятся, сверху ложится печать, свиток улетает на полку
@@ -390,7 +398,7 @@ function rollUp() {
     .to(tabsRef.value?.querySelectorAll('.sx-tab') || [], { y: -36, duration: 0.25, stagger: 0.012, ease: 'power2.in' }, 0)
     .to(rodTopRef.value, { y: top, duration: 0.55, ease: 'power3.inOut' }, 0.05)
     .to(rodBotRef.value, { y: bot, duration: 0.55, ease: 'power3.inOut' }, 0.05)
-    .to(paperRef.value, { clipPath: 'inset(50% 0% 50% 0%)', duration: 0.55, ease: 'power3.inOut' }, 0.05)
+    .add(clipTween(paperRef.value, [0, 0], [50, 50], { duration: 0.55, ease: 'power3.inOut' }), 0.05)
     .to(seal, { scale: 1, opacity: 1, duration: 0.22, ease: 'power3.in' }, 0.6)
     .call(() => { sfx('bookClose', 0.5); dust() }, null, 0.82)
     .to(sx, { keyframes: { y: [0, 3, 0] }, duration: 0.16 }, 0.82)
@@ -500,7 +508,7 @@ function heal() {
   if (stuck.length) gsap.set(stuck, { clearProps: 'opacity,filter,transform' })
   // свиток: валики на местах, бумага раскатана целиком
   const parts = [rodTopRef.value, rodBotRef.value, paperRef.value, clipRef.value, ...(tabsRef.value?.children || [])]
-    .filter(el => el && !gsap.isTweening(el) && (el.style.transform || el.style.clipPath || el.style.opacity))
+    .filter(el => el && !gsap.isTweening(el) && !turning && (el.style.transform || el.style.clipPath || el.style.opacity))
   if (parts.length) gsap.set(parts, { clearProps: 'transform,clipPath,opacity' })
 }
 let healTimer = 0

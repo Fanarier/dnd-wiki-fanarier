@@ -133,5 +133,7 @@ li.pending { background: rgba(224, 40, 30, .08); border-color: #e0604a; }
   .mode-t, .crown { display: none; }
   .um-btn { padding: 0 6px; }
   .me { padding: 0 2px; }
+  /* панель уведомлений — во всю ширину экрана под шапкой, а не от колокольчика влево за край */
+  .panel { position: fixed; left: 8px; right: 8px; top: 62px; width: auto; max-height: calc(100vh - 80px); }
 }
 </style>
