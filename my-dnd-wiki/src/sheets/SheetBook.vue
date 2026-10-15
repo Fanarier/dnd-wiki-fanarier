@@ -48,7 +48,7 @@
         <!-- разворот: левая и правая страницы — соседние разделы книги (на узком экране — одна страница) -->
         <section v-if="!single" ref="leftRef" class="sb-page left">
           <span class="sb-run" aria-hidden="true">{{ leftPage.name }}</span>
-          <div class="sb-scroll" :key="'L' + leftPage.key"><component :is="leftPage.comp" v-bind="leftPage.props || {}" @go="goto" /></div>
+          <div ref="scrollLRef" class="sb-scroll" :key="'L' + leftPage.key"><component :is="leftPage.comp" v-bind="leftPage.props || {}" @go="goto" /></div>
           <span class="sb-pno" aria-hidden="true">— {{ spreadStart + 1 }} —</span>
           <i class="sb-spine" aria-hidden="true" />
         </section>
@@ -62,6 +62,8 @@
 
         <!-- уголок правой страницы: потянуть — перелистнуть -->
         <PageCorner :page="rightRef" :book="bookRef" :scroll="scrollRef" :enabled="!coverShown && hasNext" @turn="peelTurn" />
+        <!-- и левой: потянуть вправо — назад -->
+        <PageCorner v-if="!single" side="left" :page="leftRef" :book="bookRef" :scroll="scrollLRef" :enabled="!coverShown && hasPrev" @turn="peelBack" />
 
         <!-- закладки: шёлковые ленты, торчат из-за верхнего края страниц -->
         <nav v-for="g in markGroups" :key="g.side" class="sb-marks" :class="g.side" aria-label="Разделы листа">
@@ -188,6 +190,7 @@ const pickStart = () => {
 }
 
 /* ---------- открытие книги ---------- */
+const scrollLRef = ref(null)
 const boardLRef = ref(null), stitchRef = ref(null), burstRef = ref(null)
 const bookRef = ref(null), coverRef = ref(null), leftRef = ref(null), rightRef = ref(null), scrollRef = ref(null), searchRef = ref(null)
 const coverShown = ref(true)
@@ -412,6 +415,18 @@ async function goto(key, { instant = false } = {}) {
 const stepKey = d => SECTIONS[Math.max(0, Math.min(SECTIONS.length - 1, spreadStart.value + d * PER.value))]?.key
 // страницу перевернули, потянув за уголок: новый разворот проявляется чернилами
 const hasNext = computed(() => spreadStart.value + PER.value < SECTIONS.length)
+const hasPrev = computed(() => spreadStart.value > 0)
+// левую страницу перевернули вправо — предыдущий разворот
+async function peelBack() {
+  skipOpening()
+  if (!hasPrev.value || turning) return
+  const key = stepKey(-1)
+  router.replace({ query: { ...route.query, p: key } })
+  cur.value = key
+  await nextTick()
+  inkIn(scrollLRef.value)
+  inkIn(scrollRef.value)
+}
 async function peelTurn() {
   skipOpening()
   if (!hasNext.value || turning) return
