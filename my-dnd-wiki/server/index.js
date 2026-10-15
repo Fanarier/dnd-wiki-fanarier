@@ -376,6 +376,63 @@ function notifyNewQuest(q) {
 
 const strip = ({ secret, revealTo, ...rest }) => rest
 
+// Линия под туманом: игроку уходят только видимые куски, обрезанные ровно по краю тумана —
+// иначе дорогу, скрытую туманом на карте, видно в ответе сервера (F12).
+// Возвращает куски { pts, a, b }: a и b — где кусок начинается и кончается вдоль исходной линии (0…1)
+function clipToFog(points, fogged) {
+  const total = polyLength(points)
+  if (!(total > 0)) return fogged(points[0]) ? [] : [{ pts: points, a: 0, b: 1 }]
+  const runs = []
+  let cur = null, at = 0
+  const edge = (A, B) => { // точка на отрезке A(виден) → B(в тумане), где начинается туман
+    let lo = 0, hi = 1
+    for (let i = 0; i < 14; i++) {
+      const m = (lo + hi) / 2
+      if (fogged([A[0] + (B[0] - A[0]) * m, A[1] + (B[1] - A[1]) * m])) hi = m
+      else lo = m
+    }
+    return lo
+  }
+  for (let i = 0; i < points.length; i++) {
+    const P = points[i], vis = !fogged(P)
+    if (i > 0) {
+      const A = points[i - 1], len = Math.hypot(P[0] - A[0], P[1] - A[1])
+      const prevVis = !!cur
+      if (prevVis && !vis) { // вошли в туман: кусок кончается на краю
+        const t = edge(A, P)
+        cur.pts.push([A[0] + (P[0] - A[0]) * t, A[1] + (P[1] - A[1]) * t])
+        cur.b = (at + len * t) / total
+        runs.push(cur)
+        cur = null
+      } else if (!prevVis && vis) { // вышли из тумана: новый кусок с края
+        const t = 1 - edge(P, A)
+        cur = { pts: [[A[0] + (P[0] - A[0]) * t, A[1] + (P[1] - A[1]) * t]], a: (at + len * t) / total, b: 1 }
+      }
+      at += len
+    }
+    if (vis) {
+      if (!cur) cur = { pts: [], a: at / total, b: 1 }
+      cur.pts.push(P)
+      cur.b = at / total
+    }
+  }
+  if (cur) runs.push(cur)
+  return runs.filter(x => x.pts.length > 1)
+}
+// дорога или маршрут — по видимым кускам; остановки маршрута переносятся в свой кусок
+function fogClipLine(o, fogged) {
+  const runs = clipToFog(o.points, fogged)
+  if (runs.length === 1 && runs[0].a === 0 && runs[0].b === 1 && runs[0].pts.length === o.points.length) return [o]
+  return runs.map((run, i) => {
+    const out = { ...o, id: i ? `${o.id}~${i}` : o.id, points: run.pts.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]) }
+    if (o.stops) {
+      const span = run.b - run.a
+      out.stops = o.stops.filter(st => st.s >= run.a && st.s <= run.b).map(st => ({ ...st, s: span > 0 ? (st.s - run.a) / span : 0 }))
+    }
+    return out
+  })
+}
+
 function roster() {
   return allPlayers().filter(p => p.status === 'active').map(p => {
     const pub = publicPlayer(p)
@@ -417,7 +474,7 @@ function viewFor(user, now = Date.now()) {
     settings: db.settings,
     states: db.states.filter(s => vis(s) && !(s.pole && fogged(s, s.pole[0], s.pole[1]))).map(pub),
     cities: db.cities.filter(c => vis(c) && !fogged(c, c.x, c.y)).map(pub),
-    roads: db.roads.filter(vis).map(pub),
+    roads: db.roads.filter(vis).flatMap(r => (fogOn && !mine(r) ? fogClipLine(r, pt => isFogged(pt, fog)) : [r])).map(pub),
     anomalies: db.anomalies
       .filter(a => {
         if (!vis(a)) return false
@@ -425,9 +482,11 @@ function viewFor(user, now = Date.now()) {
         return st.active && !fogged(a, st.x, st.y)
       })
       .map(pub),
-    parties: db.parties.filter(vis).map(pub),
+    // отряд под туманом видят только те, кто в нём идёт
+    parties: db.parties.filter(p => vis(p) && (!fogged(p, p.x, p.y) || (uid && p.members?.includes(uid)))).map(pub),
     labels: db.labels.filter(l => vis(l) && !fogged(l, l.x, l.y)).map(pub),
-    routes: db.routes.filter(vis).map(r => ({ ...pub(r), stops: r.stops.filter(st => !st.hidden) })),
+    routes: db.routes.filter(vis).map(r => ({ ...r, stops: r.stops.filter(st => !st.hidden) }))
+      .flatMap(r => (fogOn && !mine(r) ? fogClipLine(r, pt => isFogged(pt, fog)) : [r])).map(pub),
     icons: db.icons,
     quests: db.quests.filter(vis).map(({ secret, early, expiresAt, applicants, revealTo, ...q }) => ({
       ...q, applicantsCount: applicants?.length || 0, applied: !!uid && !!applicants?.some(a => a.userId === uid),
@@ -543,6 +602,30 @@ setInterval(backupDb, 6 * 3600 * 1000)
 const app = express()
 app.disable('x-powered-by')
 app.set('trust proxy', 'loopback')
+// Заголовки безопасности: чужой сайт не встроит наш в рамку, браузер не угадывает типы файлов,
+// а скрипты грузятся только с нашего адреса (даже если в текст пролезет вредный HTML, он не запустится)
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'wasm-unsafe-eval'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "media-src 'self' data: blob:",
+  "connect-src 'self' ws: wss:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'"
+].join('; ')
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', CSP)
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
+  next()
+})
 app.use(express.json({ limit: '5mb' }))
 
 function requireMaster(req, res, next) {
