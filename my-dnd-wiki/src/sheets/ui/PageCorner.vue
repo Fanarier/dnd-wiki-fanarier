@@ -3,7 +3,7 @@
        отпустишь далеко — перевернётся, недалеко — вернётся. При наведении уголок чуть приподнимается. -->
   <div v-if="enabled" ref="root" class="pcn" :class="side" :style="box" aria-hidden="true">
     <div class="pcn-under" :style="{ clipPath: cutClip, background: underBg }" />
-    <div class="pcn-flapwrap"><div class="pcn-flap" :style="{ clipPath: flapClip, background: flapBg }" /></div>
+    <div class="pcn-flapwrap"><div class="pcn-flap" :style="{ clipPath: flapClip, background: flapBg, left: -pad + 'px', top: -pad + 'px', width: rect.w + pad * 2 + 'px', height: rect.h + pad * 2 + 'px' }" /></div>
     <div class="pcn-hit" :title="side === 'left' ? 'Потяни за уголок вправо — назад' : 'Потяни за уголок — перелистнуть'" @pointerenter="enter" @pointerleave="leave" @pointerdown="down" />
   </div>
 </template>
@@ -62,9 +62,11 @@ const geo = computed(() => {
   const reflect = q => { const k = 2 * ((q.x - mx) * nx + (q.y - my) * ny); return { x: q.x - k * nx, y: q.y - k * ny } }
   return { keep, cut, flap: cut.map(reflect), ang: (Math.atan2(dx, -dy) * 180) / Math.PI, len }
 })
+// загнутый край может выйти за страницу (если тянуть высоко или далеко) — рисуем его на поле с запасом
+const pad = computed(() => Math.round(rect.w + rect.h))
 const poly = pts => (pts?.length > 2 ? `polygon(${pts.map(p => `${p.x.toFixed(1)}px ${p.y.toFixed(1)}px`).join(',')})` : 'polygon(0 0)')
 const cutClip = computed(() => poly(geo.value?.cut))
-const flapClip = computed(() => poly(geo.value?.flap))
+const flapClip = computed(() => poly(geo.value?.flap?.map(q => ({ x: q.x + pad.value, y: q.y + pad.value }))))
 // изнанка страницы: от сгиба (тень) к кончику (светлее); под ней — следующий лист с тенью у сгиба
 const flapBg = computed(() => {
   const a = geo.value?.ang ?? 0
@@ -155,7 +157,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .pcn { position: absolute; z-index: 12; pointer-events: none; }
-.pcn-under, .pcn-flap { position: absolute; inset: 0; }
+.pcn-under { position: absolute; inset: 0; }
+.pcn-flap { position: absolute; }
 .pcn-flapwrap { position: absolute; inset: 0; filter: drop-shadow(-6px 4px 8px rgba(0, 0, 0, .55)); }
 .pcn-flap { border-radius: 2px; }
 .pcn.left .pcn-flapwrap { filter: drop-shadow(6px 4px 8px rgba(0, 0, 0, .55)); }
