@@ -44,19 +44,19 @@
         <div v-if="!single" ref="boardLRef" class="sb-boards l" aria-hidden="true"><i class="cn tl" /><i class="cn bl" /></div>
         <div class="sb-boards r" aria-hidden="true"><i class="cn tr" /><i class="cn br" /><template v-if="single"><i class="cn tl" /><i class="cn bl" /></template></div>
         <i v-if="!single" ref="stitchRef" class="sb-stitch" aria-hidden="true" />
-        <!-- левая страница: главное о персонаже (на узком экране её нет — главная становится разделом) -->
+        <!-- разворот: левая и правая страницы — соседние разделы книги (на узком экране — одна страница) -->
         <section v-if="!single" ref="leftRef" class="sb-page left">
-          <span class="sb-run" aria-hidden="true">{{ sheet.data.CharacterName }}</span>
-          <div class="sb-scroll"><PMain /></div>
-          <span class="sb-pno" aria-hidden="true">— 1 —</span>
+          <span class="sb-run" aria-hidden="true">{{ leftPage.name }}</span>
+          <div class="sb-scroll" :key="'L' + leftPage.key"><component :is="leftPage.comp" v-bind="leftPage.props || {}" @go="goto" /></div>
+          <span class="sb-pno" aria-hidden="true">— {{ spreadStart + 1 }} —</span>
           <i class="sb-spine" aria-hidden="true" />
         </section>
         <section ref="rightRef" class="sb-page right" @pointerdown="swipeStart" @pointerup="swipeEnd">
-          <span class="sb-run" aria-hidden="true">{{ current.name }}</span>
-          <div ref="scrollRef" class="sb-scroll" :key="cur">
-            <component :is="current.comp" v-bind="current.props || {}" @go="goto" />
+          <span class="sb-run" aria-hidden="true">{{ rightPage.name }}</span>
+          <div ref="scrollRef" class="sb-scroll" :key="'R' + rightPage.key">
+            <component :is="rightPage.comp" v-bind="rightPage.props || {}" @go="goto" />
           </div>
-          <span class="sb-pno" aria-hidden="true">— {{ pageNo }} —</span>
+          <span class="sb-pno" aria-hidden="true">— {{ rightNo }} —</span>
         </section>
 
         <!-- уголок правой страницы: потянуть — перелистнуть -->
@@ -64,7 +64,7 @@
 
         <!-- закладки: шёлковые ленты, торчат из-за верхнего края страниц -->
         <nav v-for="g in markGroups" :key="g.side" class="sb-marks" :class="g.side" aria-label="Разделы листа">
-          <button v-for="s in g.items" :key="s.key" type="button" class="sb-mark" :class="{ on: s.key === cur }" :style="{ '--silk': SILK[s.n % SILK.length] }" :title="s.name" @click="goto(s.key)">
+          <button v-for="s in g.items" :key="s.key" type="button" class="sb-mark" :class="{ on: shown(s.key) }" :style="{ '--silk': SILK[s.n % SILK.length] }" :title="s.name" @click="goto(s.key)">
             <SheetIcon :name="s.key" class="ic" /><span class="nm">{{ s.tab || s.name }}</span>
           </button>
         </nav>
@@ -121,9 +121,9 @@ import PJournal from './pages/PJournal.vue'
 import PCustom from './pages/PCustom.vue'
 
 const SECTIONS = [
-  { key: 'main', name: 'Главная', icon: '👤', comp: PMain, onlySingle: true },
-  { key: 'details', name: 'Предыстория', icon: '📜', comp: PDetails },
+  { key: 'main', name: 'Главная', icon: '👤', comp: PMain },
   { key: 'stats', name: 'Характеристики', icon: '📊', comp: PStats },
+  { key: 'details', name: 'Предыстория', icon: '📜', comp: PDetails },
   { key: 'active', name: 'Активные навыки', tab: 'Активные', icon: '⚡', comp: PSkills, props: { list: 'Skills' } },
   { key: 'passive', name: 'Пассивные навыки', tab: 'Пассивные', icon: '🌀', comp: PSkills, props: { list: 'PassiveSkills' } },
   { key: 'attacks', name: 'Атаки', icon: '⚔', comp: PAttacks },
@@ -163,7 +163,7 @@ provide('openDelay', 1.3) // числа и паутина ждут, пока о�
 /* ---------- одна страница или разворот ---------- */
 const single = ref(innerWidth < 980)
 const onResize = () => { single.value = innerWidth < 980 }
-const visibleSections = computed(() => SECTIONS.filter(s => !s.onlySingle || single.value))
+const visibleSections = computed(() => SECTIONS)
 // закладки: на развороте — половина над левой страницей, половина над правой (корешок свободен)
 const markGroups = computed(() => {
   const list = visibleSections.value.map((s, n) => ({ ...s, n }))
@@ -171,12 +171,19 @@ const markGroups = computed(() => {
   const half = Math.ceil(list.length / 2)
   return [{ side: 'l', items: list.slice(0, half) }, { side: 'r', items: list.slice(half) }]
 })
-const cur = ref('stats')
-const current = computed(() => SECTIONS.find(s => s.key === cur.value) || SECTIONS[2])
-watch(single, s => { if (!s && cur.value === 'main') cur.value = 'stats' })
+// cur — раздел, к которому шли (для ссылки и закладки); на экране — разворот, где он лежит
+const cur = ref('main')
+const PER = computed(() => (single.value ? 1 : 2))
+const pageIdx = k => SECTIONS.findIndex(s => s.key === k)
+const startOf = i => (single.value ? i : i - (i % 2))
+const spreadStart = computed(() => startOf(Math.max(0, pageIdx(cur.value))))
+const leftPage = computed(() => SECTIONS[spreadStart.value])
+const rightPage = computed(() => SECTIONS[single.value ? spreadStart.value : spreadStart.value + 1] || SECTIONS[SECTIONS.length - 1])
+const rightNo = computed(() => spreadStart.value + (single.value ? 1 : 2))
+const shown = k => { const i = pageIdx(k); return i >= spreadStart.value && i < spreadStart.value + PER.value }
 const pickStart = () => {
   const q = route.query.p
-  cur.value = SECTIONS.some(s => s.key === q && (!s.onlySingle || single.value)) ? q : single.value ? 'main' : 'stats'
+  cur.value = SECTIONS.some(s => s.key === q) ? q : 'main'
 }
 
 /* ---------- открытие книги ---------- */
@@ -184,7 +191,6 @@ const boardLRef = ref(null), stitchRef = ref(null), burstRef = ref(null)
 const bookRef = ref(null), coverRef = ref(null), leftRef = ref(null), rightRef = ref(null), scrollRef = ref(null), searchRef = ref(null)
 const coverShown = ref(true)
 const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-const pageNo = computed(() => visibleSections.value.findIndex(s => s.key === cur.value) + 2)
 let tl = null, coverTimer = 0
 
 // текст «проявляется чернилами»: из прозрачного и размытого, сверху вниз
@@ -262,43 +268,59 @@ function sparkle() {
 /* ---------- перелистывание ---------- */
 let turning = false
 const idx = k => visibleSections.value.findIndex(s => s.key === k)
-// копия правой страницы целиком (фон, колонтитул, номер) — лист выглядит в точности как страница,
+// копия страницы целиком (фон, колонтитул, номер) — лист выглядит в точности как страница,
 // поэтому в момент подмены ничего не дёргается; поля ввода копируют и значения
-function snapshot() {
-  const src = rightRef.value
-  const c = src.cloneNode(true)
-  const a = src.querySelectorAll('input, textarea, select'), b = c.querySelectorAll('input, textarea, select')
+function clonePage(sec) {
+  if (!sec) return null
+  const c = sec.cloneNode(true)
+  const a = sec.querySelectorAll('input, textarea, select'), b = c.querySelectorAll('input, textarea, select')
   a.forEach((el, i) => { if (b[i]) b[i].value = el.value })
   c.classList.add('sb-snap')
   c.removeAttribute('style')
-  return { node: c, top: scrollRef.value?.scrollTop || 0 }
+  return { node: c, top: sec.querySelector('.sb-scroll')?.scrollTop || 0 }
 }
-function leafAt(page, faceNode, top) {
+const putPage = (face, pg) => {
+  if (!pg) return
+  face.classList.add('pg')
+  face.prepend(pg.node)
+  const sc = pg.node.querySelector('.sb-scroll')
+  if (sc) sc.scrollTop = pg.top
+}
+const rectIn = el => {
+  const r = el.getBoundingClientRect(), br = bookRef.value.getBoundingClientRect()
+  return { left: r.left - br.left + 'px', top: r.top - br.top + 'px', width: r.width + 'px', height: r.height + 'px' }
+}
+// лист над правой страницей: лицо и оборот (копии страниц или чистая бумага); вращается вокруг корешка
+function makeLeaf(front, back, z) {
   const leaf = document.createElement('div')
   leaf.className = 'sb-leaf'
-  const r = page.getBoundingClientRect(), br = bookRef.value.getBoundingClientRect()
-  Object.assign(leaf.style, { left: r.left - br.left + 'px', top: r.top - br.top + 'px', width: r.width + 'px', height: r.height + 'px' })
-  const front = document.createElement('div'), back = document.createElement('div'), shade = document.createElement('i')
-  front.className = 'sb-face sb-front' + (faceNode ? ' pg' : '')
-  back.className = 'sb-face sb-backf'
+  Object.assign(leaf.style, rectIn(rightRef.value), { zIndex: z })
+  const f = document.createElement('div'), b = document.createElement('div'), shade = document.createElement('i')
+  f.className = 'sb-face sb-front' + (front ? '' : ' blank')
+  b.className = 'sb-face sb-backf' + (back ? '' : ' blank')
   shade.className = 'sb-shade'
-  if (faceNode) front.append(faceNode)
-  front.append(shade)
-  leaf.append(front, back)
+  f.append(shade)
+  leaf.append(f, b)
   bookRef.value.append(leaf)
-  gsap.set(leaf, { transformPerspective: 2600, transformOrigin: '0% 50%' })
-  const sc = faceNode?.querySelector('.sb-scroll')
-  if (sc) sc.scrollTop = top
-  return { leaf, shade, front, back }
+  putPage(f, front)
+  putPage(b, back)
+  // ось — середина корешка: перевёрнутый лист ложится точно на левую страницу
+  gsap.set(leaf, { transformPerspective: 2600, transformOrigin: single.value ? '0% 50%' : '-6px 50%' })
+  return { leaf, f, b, shade }
 }
-// пустой лист «с текстом» — промежуточная страница при пролистывании веером
-function paperLeaf(page, z) {
-  const { leaf, shade, front, back } = leafAt(page, null, 0)
-  leaf.classList.add('blank')
-  leaf.style.zIndex = z
-  return { leaf, shade, front, back }
+// неподвижная копия страницы поверх настоящей — пока её не закроет лист
+function flatCopy(sec, pg, z) {
+  const el = document.createElement('div')
+  el.className = 'sb-leaf flat'
+  Object.assign(el.style, rectIn(sec), { zIndex: z })
+  const f = document.createElement('div')
+  f.className = 'sb-face sb-front'
+  el.append(f)
+  bookRef.value.append(el)
+  putPage(f, pg)
+  return el
 }
-// текст новой страницы проявляется чернилами (без сдвига — только прозрачность и размытие)
+// текст страницы проявляется чернилами (без сдвига — только прозрачность и размытие)
 function inkIn(root, delay = 0) {
   const els = root?.querySelectorAll('.sb-anim') || []
   if (!els.length || reduce) return
@@ -320,96 +342,82 @@ let healTimer = 0
 // клик по закладке, пока книга раскрывается: раскрытие доигрываем сразу
 function skipOpening() { if (tl?.isActive()) tl.progress(1) }
 
+// перелистывание как в настоящей книге: правая страница переворачивается и ложится налево —
+// на её обороте следующая левая страница; через несколько разворотов — веером
 async function goto(key, { instant = false } = {}) {
   skipOpening()
-  if (!key || key === cur.value || turning) return
+  const to = pageIdx(key)
+  if (to < 0 || turning) return
+  const fromS = spreadStart.value, toS = startOf(to)
   router.replace({ query: { ...route.query, p: key } })
-  if (instant || reduce || !scrollRef.value) { cur.value = key; return }
+  if (toS === fromS || instant || reduce || !rightRef.value) { cur.value = key; return }
   turning = true
-  const page = rightRef.value
-  const from = idx(cur.value), to = idx(key), dir = to > from ? 1 : -1
-  const mid = Math.min(Math.abs(to - from) - 1, 8) // сколько страниц пролистнуть между
-  const D = mid ? 0.46 : 0.62, H = D / 2, STEP = 0.085
-  // страховка: если анимацию прервут, листы не останутся висеть поверх страниц
+  const dir = toS > fromS ? 1 : -1
+  const n = Math.min(Math.abs(toS - fromS) / PER.value, 8) // сколько листов перевернуть
+  const D = n > 1 ? 0.5 : 0.72, H = D / 2, STEP = 0.11
   const extra = []
-  const done = () => { clearTimeout(safety); extra.forEach(n => n.remove()); turning = false }
-  const safety = setTimeout(done, 1500 + mid * 200)
+  const done = () => { clearTimeout(safety); extra.forEach(x => x.remove()); turning = false }
+  const safety = setTimeout(done, 2000 + n * 250)
   try {
+    const oldL = clonePage(leftRef.value), oldR = clonePage(rightRef.value)
+    cur.value = key
+    await nextTick()
+    const newL = clonePage(leftRef.value), newR = clonePage(rightRef.value)
     const tl2 = gsap.timeline({ onComplete: done })
-    // лист ложится на левую страницу и растворяется в ней — главная страница видна сразу
-    const landFade = (leaf, at) => tl2.to(leaf, { opacity: 0, duration: H * 0.4, ease: 'power2.out' }, at)
     if (dir > 0) {
-      // вперёд: старая страница уходит влево, за ней веером промежуточные, под ними — новая
-      const old = snapshot()
-      cur.value = key
-      await nextTick()
-      inkIn(scrollRef.value, mid * STEP + D * 0.35)
-      for (let k = 0; k < mid; k++) {
-        const { leaf, shade } = paperLeaf(page, 15 + mid - k)
-        extra.push(leaf)
-        const at = (k + 1) * STEP
-        tl2.to(leaf, { rotateY: -180, duration: D, ease: 'power1.inOut' }, at)
-          .fromTo(shade, { opacity: 0 }, { opacity: 0.5, duration: H, ease: 'none' }, at)
-        landFade(leaf, at + H)
-      }
-      const { leaf, shade, front, back } = leafAt(page, old.node, old.top)
-      leaf.style.zIndex = 16 + mid
-      extra.push(leaf)
-      gsap.set(back, { visibility: 'hidden' })
-      tl2.to(leaf, { rotateY: -90, duration: H, ease: 'power2.in' }, 0)
-        .fromTo(shade, { opacity: 0 }, { opacity: 0.55, duration: H, ease: 'none' }, 0)
-        .set(front, { visibility: 'hidden' }, H)
-        .set(back, { visibility: 'visible' }, H)
-        .to(leaf, { rotateY: -180, duration: H, ease: 'power2.out' }, H)
-      landFade(leaf, H)
-    } else {
-      // назад: листы веером поднимаются с левой страницы (проявляясь из неё) и ложатся направо;
-      // последним — нужный раздел, точная копия страницы, так что подмена незаметна
-      const old = snapshot()
-      const under = leafAt(page, old.node, old.top).leaf
-      extra.push(under)
-      under.classList.add('flat')
-      under.style.zIndex = 14
-      cur.value = key
-      await nextTick()
-      const fresh = snapshot()
-      for (let k = 0; k < mid; k++) {
-        const { leaf, shade } = paperLeaf(page, 15 + k)
+      // слева пока видна старая страница — её закроет приземлившийся лист
+      if (oldL) extra.push(flatCopy(leftRef.value, oldL, 13))
+      if (!oldL) inkIn(scrollRef.value, D * 0.35) // одна страница на экране: новая проявляется под листом
+      for (let k = 0; k < n; k++) {
+        const { leaf, f, b, shade } = makeLeaf(k === 0 ? oldR : null, k === n - 1 ? newL : null, 30 - k)
         extra.push(leaf)
         const at = k * STEP
-        gsap.set(leaf, { rotateY: -180, opacity: 0 })
-        tl2.to(leaf, { rotateY: 0, duration: D, ease: 'power1.inOut' }, at)
-          .to(leaf, { opacity: 1, duration: H * 0.4, ease: 'power2.in' }, at + H * 0.6)
-          .fromTo(shade, { opacity: 0.5 }, { opacity: 0, duration: D, ease: 'power1.in' }, at)
+        gsap.set(b, { visibility: 'hidden' })
+        tl2.to(leaf, { rotateY: -90, duration: H, ease: 'power2.in' }, at)
+          .fromTo(shade, { opacity: 0 }, { opacity: 0.5, duration: H, ease: 'none' }, at)
+          .set(f, { visibility: 'hidden' }, at + H)
+          .set(b, { visibility: 'visible' }, at + H)
+          .set(leaf, { zIndex: 40 + k }, at + H)
+          .to(leaf, { rotateY: -180, duration: H, ease: 'power2.out' }, at + H)
+        if (single.value) tl2.to(leaf, { opacity: 0, duration: H * 0.4, ease: 'power2.out' }, at + H)
       }
-      const { leaf, shade, front, back } = leafAt(page, fresh.node, fresh.top)
-      leaf.style.zIndex = 16 + mid
-      extra.push(leaf)
-      const at = mid * STEP
-      gsap.set(leaf, { rotateY: -180, opacity: 0 })
-      gsap.set(front, { visibility: 'hidden' })
-      tl2.to(leaf, { rotateY: -90, duration: H, ease: 'power2.in' }, at)
-        .to(leaf, { opacity: 1, duration: H * 0.4, ease: 'power2.in' }, at + H * 0.6)
-        .set(back, { visibility: 'hidden' }, at + H)
-        .set(front, { visibility: 'visible' }, at + H)
-        .to(leaf, { rotateY: 0, duration: H, ease: 'power2.out' }, at + H)
-        .fromTo(shade, { opacity: 0.55 }, { opacity: 0, duration: D, ease: 'power1.in' }, at)
+    } else {
+      // справа пока видна старая страница — её закроет прилетевший лист;
+      // первый лист лежит слева точной копией старой левой страницы и поднимается, открывая новую
+      extra.push(flatCopy(rightRef.value, oldR, 13))
+      for (let k = 0; k < n; k++) {
+        const { leaf, f, b, shade } = makeLeaf(k === n - 1 ? newR : null, k === 0 ? oldL : null, 30 - k)
+        extra.push(leaf)
+        const at = k * STEP
+        gsap.set(leaf, { rotateY: -180 })
+        gsap.set(f, { visibility: 'hidden' })
+        if (single.value) { gsap.set(leaf, { opacity: 0 }); tl2.to(leaf, { opacity: 1, duration: H * 0.4, ease: 'power2.in' }, at + H * 0.6) }
+        tl2.to(leaf, { rotateY: -90, duration: H, ease: 'power2.in' }, at)
+          .set(b, { visibility: 'hidden' }, at + H)
+          .set(f, { visibility: 'visible' }, at + H)
+          .set(leaf, { zIndex: 40 + k }, at + H)
+          .to(leaf, { rotateY: 0, duration: H, ease: 'power2.out' }, at + H)
+          .fromTo(shade, { opacity: 0.5 }, { opacity: 0, duration: H, ease: 'none' }, at + H)
+      }
     }
+    void newR
   } catch (e) { console.warn('[sheet] перелистывание', e); done() }
 }
-// страницу перевернули, потянув за уголок: следующий раздел проявляется чернилами
-const hasNext = computed(() => idx(cur.value) < visibleSections.value.length - 1)
+// соседний разворот (кнопки, свайп, уголок)
+const stepKey = d => SECTIONS[Math.max(0, Math.min(SECTIONS.length - 1, spreadStart.value + d * PER.value))]?.key
+// страницу перевернули, потянув за уголок: новый разворот проявляется чернилами
+const hasNext = computed(() => spreadStart.value + PER.value < SECTIONS.length)
 async function peelTurn() {
-  const list = visibleSections.value, i = idx(cur.value)
   skipOpening()
-  if (i >= list.length - 1 || turning) return
-  const key = list[i + 1].key
+  if (!hasNext.value || turning) return
+  const key = stepKey(1)
   router.replace({ query: { ...route.query, p: key } })
   cur.value = key
   await nextTick()
+  inkIn(leftRef.value?.querySelector('.sb-scroll'))
   inkIn(scrollRef.value)
 }
-// свайп на телефоне: влево — следующий раздел, вправо — предыдущий
+// свайп на телефоне: влево — дальше, вправо — назад
 let sw = null
 const swipeStart = e => { if (e.pointerType !== 'mouse') sw = { x: e.clientX, y: e.clientY, t: Date.now() } }
 function swipeEnd(e) {
@@ -417,16 +425,13 @@ function swipeEnd(e) {
   const dx = e.clientX - sw.x, dy = e.clientY - sw.y, fast = Date.now() - sw.t < 600
   sw = null
   if (!fast || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6 || e.target.closest('input, textarea, [contenteditable]')) return
-  const list = visibleSections.value, i = idx(cur.value)
-  goto(list[Math.max(0, Math.min(list.length - 1, i + (dx < 0 ? 1 : -1)))].key)
+  goto(stepKey(dx < 0 ? 1 : -1))
 }
-// найдено поиском: к разделу, прокрутить и подсветить
+// найдено поиском: к развороту, прокрутить и подсветить
 async function goFound(hit) {
-  const target = single.value || hit.section !== 'main' ? hit.section : null
-  if (target && target !== cur.value) { await goto(target); await new Promise(r => setTimeout(r, 650)) }
+  if (startOf(pageIdx(hit.section)) !== spreadStart.value) { await goto(hit.section); await new Promise(r => setTimeout(r, 800)) }
   await nextTick()
-  const root = target ? scrollRef.value : leftRef.value
-  const el = root?.querySelector(`[data-find="${CSS.escape(hit.anchor)}"]`)
+  const el = bookRef.value?.querySelector(`.sb-page [data-find="${CSS.escape(hit.anchor)}"]`)
   if (!el) return
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
   el.classList.remove('sb-flash')
@@ -459,9 +464,8 @@ async function doDelete() {
 function onKey(e) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && ready.value) { e.preventDefault(); searchRef.value?.focus() }
   if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return
-  const list = visibleSections.value, i = idx(cur.value)
-  if (e.key === 'PageDown') { e.preventDefault(); goto(list[Math.min(list.length - 1, i + 1)].key) }
-  if (e.key === 'PageUp') { e.preventDefault(); goto(list[Math.max(0, i - 1)].key) }
+  if (e.key === 'PageDown') { e.preventDefault(); goto(stepKey(1)) }
+  if (e.key === 'PageUp') { e.preventDefault(); goto(stepKey(-1)) }
   if (e.key === 'Escape') menuOpen.value = false
 }
 
@@ -684,9 +688,9 @@ onBeforeUnmount(() => {
 .sb-leaf .sb-backf { transform: rotateY(180deg); border-radius: 14px 4px 4px 14px; background: linear-gradient(270deg, rgba(0, 0, 0, .35), transparent 30%), linear-gradient(180deg, var(--paper2), var(--paper)); }
 .sb-leaf .sb-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .7), rgba(0, 0, 0, .15)); opacity: 0; pointer-events: none; }
 .sb-leaf.flat { z-index: 14; }
-.sb-leaf .sb-front.pg { background: none; border: 0; border-radius: 0; overflow: visible; }
-.sb-leaf .sb-front.pg > .sb-snap { position: absolute; inset: 0; margin: 0; pointer-events: none; }
-.sb-leaf.blank .sb-face { background:
+.sb-leaf .sb-face.pg { background: none; border: 0; border-radius: 0; overflow: visible; }
+.sb-leaf .sb-face.pg > .sb-snap { position: absolute; inset: 0; margin: 0; pointer-events: none; }
+.sb-leaf .sb-face.blank { background:
     linear-gradient(90deg, transparent 40px, transparent calc(100% - 40px)),
     repeating-linear-gradient(180deg, transparent 0 17px, color-mix(in srgb, var(--acc) 10%, rgba(255, 240, 210, .07)) 17px 19px) 48px 90px / calc(100% - 96px) calc(100% - 140px) no-repeat,
     linear-gradient(90deg, color-mix(in srgb, var(--acc) 30%, transparent), transparent) 48px 48px / 40% 14px no-repeat,
