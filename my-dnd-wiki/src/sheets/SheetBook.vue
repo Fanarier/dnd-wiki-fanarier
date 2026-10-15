@@ -216,11 +216,11 @@ async function playOpen() {
   gsap.set(marks, { y: 46, opacity: 0 })
   gsap.set(back, { visibility: 'hidden' })
   gsap.set(cover, { transformPerspective: 2600, transformOrigin: '0% 50%' })
-  const finish = () => { coverShown.value = false; setTimeout(() => { opening.value = false }, 400) }
+  const finish = () => { clearTimeout(coverTimer); coverShown.value = false; heal(); setTimeout(() => { opening.value = false }, 400) }
   tl = gsap.timeline({ onComplete: finish })
   // запасной выход: что бы ни случилось с анимацией, обложка не останется висеть
   clearTimeout(coverTimer)
-  coverTimer = setTimeout(finish, 6000)
+  coverTimer = setTimeout(finish, 4500)
   if (from?.id === sheet.id) {
     const r = cover.getBoundingClientRect()
     tl.from(cover, { x: from.x - r.left, y: from.y - r.top, scaleX: from.w / r.width, scaleY: from.h / r.height, transformOrigin: '0 0', duration: 0.65, ease: 'power3.inOut' })
@@ -296,7 +296,27 @@ function paperLeaf(page, z) {
   leaf.style.zIndex = z
   return { leaf, shade }
 }
+// книга сама следит за собой: когда ничего не анимируется, не должно остаться ни обложки,
+// ни перевёрнутых листов поверх страниц, ни текста, застрявшего прозрачным посреди анимации
+function heal() {
+  if (turning || dragHold) return
+  const book = bookRef.value
+  if (!book) return
+  if (!tl?.isActive()) {
+    if (coverShown.value) coverShown.value = false
+    book.querySelectorAll('.sb-leaf').forEach(n => n.remove())
+    const stuck = [...book.querySelectorAll('.sb-page, .sb-boards, .sb-stitch, .sb-ribbon, .sb-mark, .sb-anim, .sb-run, .sb-pno')]
+      .filter(el => el.style.opacity !== '' || el.style.filter !== '' || el.style.transform !== '')
+    if (stuck.length) gsap.set(stuck, { clearProps: 'opacity,filter,transform' })
+  }
+}
+let dragHold = false
+let healTimer = 0
+// клик по закладке, пока книга раскрывается: раскрытие доигрываем сразу
+function skipOpening() { if (tl?.isActive()) tl.progress(1) }
+
 async function goto(key, { instant = false } = {}) {
+  skipOpening()
   if (!key || key === cur.value || turning) return
   router.replace({ query: { ...route.query, p: key } })
   if (instant || reduce || !scrollRef.value) { cur.value = key; return }
@@ -307,7 +327,7 @@ async function goto(key, { instant = false } = {}) {
   const D = mid ? 0.46 : 0.62, H = D / 2, STEP = 0.085
   // страховка: если анимацию прервут, листы не останутся висеть поверх страниц
   const extra = []
-  const done = () => { clearTimeout(safety); extra.forEach(n => n.remove()); turning = false }
+  const done = () => { clearTimeout(safety); extra.forEach(n => n.remove()); turning = false; setTimeout(heal, 300) }
   const safety = setTimeout(done, 1800 + mid * 250)
   try {
     const tl2 = gsap.timeline({ onComplete: done })
@@ -371,6 +391,7 @@ async function goto(key, { instant = false } = {}) {
 const hasNext = computed(() => idx(cur.value) < visibleSections.value.length - 1)
 async function peelTurn() {
   const list = visibleSections.value, i = idx(cur.value)
+  skipOpening()
   if (i >= list.length - 1 || turning) return
   const key = list[i + 1].key
   router.replace({ query: { ...route.query, p: key } })
@@ -445,12 +466,14 @@ async function load(id) {
 }
 watch(() => route.params.id, id => { if (id) load(id) })
 onMounted(() => {
+  healTimer = setInterval(heal, 2000)
   init()
   addEventListener('resize', onResize)
   addEventListener('keydown', onKey)
   load(route.params.id)
 })
 onBeforeUnmount(() => {
+  clearInterval(healTimer)
   tl?.kill()
   clearTimeout(coverTimer)
   removeEventListener('resize', onResize)
