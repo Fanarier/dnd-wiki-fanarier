@@ -250,20 +250,24 @@ async function playOpen() {
   tl.to(marks, { y: 0, opacity: 1, duration: 0.5, stagger: 0.04, ease: 'back.out(1.8)', clearProps: 'transform,opacity' }, 'turn+=1.1')
 }
 
-// золотые искры из раскрытой книги
+// из раскрывающейся книги поднимается золотая пыль — со страницы, которую открыла обложка
 function sparkle() {
   const host = burstRef.value
   if (!host) return
   const W = bookRef.value.offsetWidth, H = bookRef.value.offsetHeight
-  for (let i = 0; i < 34; i++) {
+  const x0 = single.value ? 0.08 : 0.52, x1 = 0.94 // правая страница (на телефоне — вся)
+  gsap.set(host, { '--gx': `${((x0 + x1) / 2) * 100}%` })
+  for (let i = 0; i < 46; i++) {
     const p = document.createElement('i')
+    if (i % 5 === 0) p.className = 'big'
     host.append(p)
-    const a = Math.random() * Math.PI * 2, d = 120 + Math.random() * Math.min(W, H) * 0.55
-    gsap.fromTo(p, { x: W / 2, y: H / 2, scale: 0.4 + Math.random(), opacity: 1 }, {
-      x: W / 2 + Math.cos(a) * d * 1.4, y: H / 2 + Math.sin(a) * d - 60, opacity: 0, scale: 0, duration: 0.9 + Math.random() * 0.9, ease: 'power2.out', onComplete: () => p.remove()
-    })
+    const x = W * (x0 + Math.random() * (x1 - x0)), y = H * (0.2 + Math.random() * 0.7)
+    gsap.timeline({ delay: Math.random() * 0.7, onComplete: () => p.remove() })
+      .fromTo(p, { x, y, scale: 0.3, opacity: 0 }, { scale: 0.5 + Math.random() * 0.8, opacity: 1, duration: 0.25, ease: 'power1.out' })
+      .to(p, { x: x + (Math.random() - 0.4) * 90, y: y - 90 - Math.random() * 170, duration: 1.3 + Math.random() * 1.1, ease: 'sine.out' }, 0)
+      .to(p, { opacity: 0, scale: 0.1, duration: 0.7, ease: 'power1.in' }, '-=0.7')
   }
-  gsap.fromTo(host, { '--glow': 1 }, { '--glow': 0, duration: 1.2, ease: 'power2.out' })
+  gsap.fromTo(host, { '--glow': 0 }, { '--glow': 1, duration: 0.35, ease: 'power1.out', yoyo: true, repeat: 1, repeatDelay: 0.3 })
 }
 
 /* ---------- перелистывание ---------- */
@@ -481,7 +485,7 @@ async function load(id) {
 }
 watch(() => route.params.id, id => { if (id) load(id) })
 // сменили вход (мастер ↔ игра персонажем) — права на лист другие, перечитываем
-watch(() => [store.role, store.me?.id], (n, o) => { if (o && route.params.id) load(route.params.id) })
+watch(() => `${store.me?.id}|${store.role}`, (n, o) => { if (o && !o.startsWith('undefined|') && n !== o && route.params.id) load(route.params.id) })
 onMounted(() => {
   healTimer = setInterval(heal, 2000)
   init()
@@ -615,7 +619,7 @@ onBeforeUnmount(() => {
 .sb-page.right::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 40px; background: linear-gradient(90deg, rgba(0, 0, 0, .55), rgba(255, 240, 210, .03) 60%, transparent); pointer-events: none; z-index: 2; }
 /* загнутый уголок */
 .single .sb-page.right::before { display: none; }
-.sb-scroll { position: absolute; inset: 22px 0 26px; overflow-y: auto; overflow-x: hidden; padding: 12px 28px 26px; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--acc) 35%, transparent) transparent; }
+.sb-scroll { position: absolute; inset: 22px 0 26px; overflow-y: auto; overflow-x: hidden; padding: 12px 28px 26px; }
 .sb-page.right .sb-scroll { padding-left: 40px; }
 .single .sb-scroll { inset: 0; padding: 16px 14px 50px; }
 
@@ -640,8 +644,9 @@ onBeforeUnmount(() => {
 @keyframes sb-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
 
 /* искры при открытии */
-.sb-burst { position: absolute; inset: 0; z-index: 30; pointer-events: none; --glow: 0; background: radial-gradient(ellipse 40% 50% at 50% 50%, rgba(255, 214, 140, calc(var(--glow) * .45)), transparent 70%); }
-.sb-burst :deep(i) { position: absolute; left: 0; top: 0; width: 6px; height: 6px; margin: -3px; border-radius: 50%; background: radial-gradient(circle, #fff6d8, #ffc85a 45%, transparent 70%); box-shadow: 0 0 10px #ffcf6a; }
+.sb-burst { position: absolute; inset: 0; z-index: 30; pointer-events: none; --glow: 0; --gx: 75%; background: radial-gradient(ellipse 28% 45% at var(--gx) 55%, rgba(255, 214, 140, calc(var(--glow) * .32)), transparent 70%); }
+.sb-burst :deep(i) { position: absolute; left: 0; top: 0; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: radial-gradient(circle, #fffaf0, #ffd27a 50%, transparent 72%); box-shadow: 0 0 6px 1px rgba(255, 207, 106, .8); }
+.sb-burst :deep(i.big) { width: 7px; height: 7px; margin: -3.5px; box-shadow: 0 0 12px 2px rgba(255, 207, 106, .7); }
 
 .single .sb-stage { padding: 52px 6px 8px; }
 .single .sb-marks { left: 6px; right: 6px; gap: 4px; justify-content: flex-start; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding-top: 10px; }
@@ -686,6 +691,9 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
+/* полоса прокрутки страниц — в цвет листа */
+.sb-root ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 75%, transparent), color-mix(in srgb, var(--acc) 45%, #000)) padding-box; }
+.sb-root ::-webkit-scrollbar-thumb:hover { background: var(--acc) padding-box; }
 /* лист, который переворачивается (создаётся скриптом — без scoped) */
 .sb-leaf { position: absolute; z-index: 15; transform-style: preserve-3d; transform-origin: 0% 50%; pointer-events: none; }
 .sb-leaf .sb-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; border-radius: 4px 14px 14px 4px; background: linear-gradient(180deg, var(--paper2), var(--paper)); border: 1px solid color-mix(in srgb, var(--acc) 30%, #3b2a1a); }

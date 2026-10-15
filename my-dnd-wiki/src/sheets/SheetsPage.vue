@@ -101,7 +101,9 @@ const view = ref('shelf')
 const q = ref(''), ownerFilter = ref(''), busy = ref(false), metaFor = ref(null), dropHint = ref(false)
 
 // сменили вход (мастер ↔ игра персонажем, другой аккаунт) — список листов другой
-watch(() => [store.role, store.me?.id], () => { sheets.loaded = false; sheets.list = []; if (store.me) loadSheets(); if (store.role !== 'master') view.value = 'shelf' })
+watch(() => `${store.me?.id}|${store.role}`, (n, o) => {
+  if (!o || o.startsWith('undefined|') || n === o) return
+  sheets.loaded = false; sheets.list = []; if (store.me) loadSheets(); if (store.role !== 'master') view.value = 'shelf' })
 const live = computed(() => sheets.list.filter(s => !s.deletedAt))
 const trash = computed(() => sheets.list.filter(s => s.deletedAt))
 const groups = computed(() => {

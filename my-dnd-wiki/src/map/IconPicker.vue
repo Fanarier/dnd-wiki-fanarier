@@ -77,7 +77,7 @@ const rename = (ic, name) => act('PATCH', `/api/icons/${ic.id}`, { name }).catch
 </script>
 
 <style scoped>
-.picker { display: grid; gap: 10px; max-height: 300px; overflow-y: auto; padding: 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--line-2); scrollbar-width: thin; }
+.picker { display: grid; gap: 10px; max-height: 300px; overflow-y: auto; padding: 10px; border-radius: 12px; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--line-2); }
 .pk-title { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
 .pk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 5px; }
 .pk-cell { position: relative; }

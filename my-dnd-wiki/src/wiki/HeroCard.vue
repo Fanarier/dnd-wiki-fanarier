@@ -436,7 +436,7 @@ function untilt() {
 .b-sub { margin: 0 6px 4px; font-size: 12px; color: #a8936c; }
 .kv { display: grid; grid-template-columns: 62px 1fr; align-items: center; gap: 7px 8px; font-size: 12.5px; }
 .kv .k { color: #a8936c; }
-.rels { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.rels { min-height: 0; overflow-y: auto; }
 .rel { display: grid; gap: 4px; margin-bottom: 10px; }
 .who { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; font-size: 13px; color: #ff86b8; }
 .who a { color: inherit; text-decoration: none; border-bottom: 1px dotted; }

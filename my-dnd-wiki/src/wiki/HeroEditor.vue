@@ -239,7 +239,7 @@ h3 { margin: 2px 0 0; font: 700 28px 'Cormorant Garamond', Georgia, serif; color
 .pbtns .link:disabled { opacity: .3; cursor: default; }
 .link.no { color: #ff9b8f; }
 .cover-note { font-size: 12px; font-weight: 700; color: #e6c27a; }
-.gstrip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px; scrollbar-width: thin; }
+.gstrip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 4px; }
 .gth { position: relative; flex: none; width: 46px; height: 54px; padding: 0; border-radius: 7px; overflow: hidden; border: 2px solid transparent; background: #120e09; cursor: pointer; opacity: .6; }
 .gth img { width: 100%; height: 100%; object-fit: cover; }
 .gth.on { opacity: 1; border-color: #e6c27a; }

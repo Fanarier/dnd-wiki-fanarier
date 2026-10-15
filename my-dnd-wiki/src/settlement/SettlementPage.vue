@@ -543,7 +543,7 @@ function setTab(id) {
 .day-row { display: flex; gap: 5px; }
 .day-row button { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .1); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .day-row input { width: 52px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); }
-.sp-panel { min-width: 0; overflow-y: auto; padding: 18px 18px 30px; scrollbar-width: thin; }
+.sp-panel { min-width: 0; overflow-y: auto; padding: 18px 18px 30px; }
 
 .sp-head { padding: 14px 16px; border-radius: 16px; background: linear-gradient(170deg, #241c13, #16110c); border: 1px solid #6e4f22; box-shadow: 0 0 0 3px #1a140e, 0 0 0 4px rgba(201, 162, 79, .3); }
 .sp-title { display: flex; align-items: center; gap: 12px; }
