@@ -401,7 +401,7 @@ function viewFor(user, now = Date.now()) {
     return {
       ...rest, role, me, serverTime: now, notes, roster: roster(), arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true), sheetLinks: sheetApi?.linksFor(user) || [],
       notifications: notificationsFor(user),
-      players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked }))
+      players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked, tech: !!p.linked && isOwner(p.login) }))
     }
   }
   const fogOn = db.settings.fogEnabled

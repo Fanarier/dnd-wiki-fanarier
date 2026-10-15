@@ -7,7 +7,7 @@
         <label>Игрок
           <select v-model="owner" class="sb-input">
             <option value="">— без игрока (лист у мастера) —</option>
-            <option v-for="o in sheets.owners" :key="o.id" :value="o.id">{{ o.name }} · {{ o.linked ? 'персонаж мастера ' + o.login : o.login }}</option>
+            <option v-for="o in sheets.owners" :key="o.id" :value="o.id">{{ o.name }} · {{ o.linked ? (o.tech ? 'персонаж техспециалиста ' : 'персонаж мастера ') + o.login : o.login }}</option>
           </select>
         </label>
         <label>Карточка героя (вики)

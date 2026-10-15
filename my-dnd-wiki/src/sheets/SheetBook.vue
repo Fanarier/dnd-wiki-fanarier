@@ -32,6 +32,7 @@
 
     <div v-if="sheet.status === 'error'" class="sb-err">
       <b>{{ sheet.error }}</b>
+      <small v-if="store.me?.asMaster">Ты сейчас играешь персонажем — тебе видны только его листы. Чужие листы — в режиме мастера.</small>
       <router-link to="/sheets" class="sb-btn">К списку листов</router-link>
     </div>
     <div v-else-if="!ready" class="sb-loading"><span class="sb-spin" /> Открываю книгу…</div>
@@ -479,6 +480,8 @@ async function load(id) {
   playOpen()
 }
 watch(() => route.params.id, id => { if (id) load(id) })
+// сменили вход (мастер ↔ игра персонажем) — права на лист другие, перечитываем
+watch(() => [store.role, store.me?.id], (n, o) => { if (o && route.params.id) load(route.params.id) })
 onMounted(() => {
   healTimer = setInterval(heal, 2000)
   init()
@@ -557,6 +560,7 @@ onBeforeUnmount(() => {
 @keyframes sb-pop { from { opacity: 0; transform: translateY(-6px); } }
 .sb-err, .sb-loading { margin: auto; display: grid; gap: 14px; justify-items: center; color: var(--muted); font: 700 14px 'Manrope', sans-serif; }
 .sb-err b { color: #ff9b8f; font-size: 16px; }
+.sb-err small { max-width: 420px; text-align: center; color: var(--muted); font-weight: 600; line-height: 1.5; }
 .sb-spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(231, 197, 111, .2); border-top-color: #e7c56f; animation: sb-spin .9s linear infinite; }
 @keyframes sb-spin { to { transform: rotate(360deg); } }
 

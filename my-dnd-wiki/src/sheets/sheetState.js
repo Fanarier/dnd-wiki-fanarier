@@ -71,6 +71,7 @@ export function edit(path, value, { now = false } = {}) {
   if (!s) return console.warn('[sheet] нет такого поля', path)
   const v = cleanBy(s, value)
   setAt(sheet.data, path, v)
+  if (path === 'Hits') { const n = parseInt(String(v).replace(/^\+/, ''), 10); if (n > 0 && sheet.data.HpData.Max !== n) { setAt(sheet.data, 'HpData.Max', n); pending.set('HpData.Max', n) } }
   // правка целого списка перекрывает недосланные правки его элементов
   for (const k of pending.keys()) if (k.startsWith(path + '.')) pending.delete(k)
   pending.set(path, v)

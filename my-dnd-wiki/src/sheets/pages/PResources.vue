@@ -5,7 +5,10 @@
       <div class="pr-hp-nums">
         <Fld path="HpData.Current" type="num" label="Текущие" center class="cur" />
         <span class="pr-sl">/</span>
-        <Fld path="HpData.Max" type="num" label="Максимум" center />
+        <div v-if="fromHits" class="pr-max" title="Максимум берётся из поля «Хиты» на главной странице">
+          <span>Максимум</span><b><Num :value="maxHp" /></b><small>из «Хиты»</small>
+        </div>
+        <Fld v-else path="HpData.Max" type="num" label="Максимум" center />
         <Fld path="HpData.Temp" type="num" label="Временные" center class="tmp" />
       </div>
       <div class="pr-bar"><i :style="{ width: pct + '%' }" :class="tone" /><i v-if="hp.Temp" class="t" :style="{ width: tmpPct + '%' }" /></div>
@@ -83,15 +86,17 @@ import { computed, inject, reactive, ref } from 'vue'
 import Fld from '../ui/Fld.vue'
 import Num from '../ui/Num.vue'
 import { sheet, edit, keyOf, listOps, roll } from '../sheetState.js'
-import { RES_STYLES } from '../../shared/sheet.js'
+import { RES_STYLES, hpMax } from '../../shared/sheet.js'
 import { openColorMenu } from '../ui/colorMenu.js'
 
 const ro = inject('sheetReadOnly', ref(false))
 const hp = computed(() => sheet.data.HpData)
 const res = computed(() => sheet.data.Resources)
 const ops = listOps('Resources')
-const pct = computed(() => (hp.value.Max > 0 ? Math.max(0, Math.min(100, (hp.value.Current / hp.value.Max) * 100)) : 0))
-const tmpPct = computed(() => (hp.value.Max > 0 ? Math.min(100, (hp.value.Temp / hp.value.Max) * 100) : 0))
+const maxHp = computed(() => hpMax(sheet.data))
+const fromHits = computed(() => parseInt(String(sheet.data.Hits || '').replace(/^\+/, ''), 10) > 0)
+const pct = computed(() => (maxHp.value > 0 ? Math.max(0, Math.min(100, (hp.value.Current / maxHp.value) * 100)) : 0))
+const tmpPct = computed(() => (maxHp.value > 0 ? Math.min(100, (hp.value.Temp / maxHp.value) * 100) : 0))
 const tone = computed(() => (pct.value <= 25 ? 'low' : pct.value <= 55 ? 'mid' : ''))
 const amount = ref(null)
 const flash = ref('')
@@ -107,12 +112,12 @@ function apply(sign) {
     edit('HpData.Current', Math.max(0, h.Current - n), { now: true })
     blink('hit')
   } else {
-    edit('HpData.Current', h.Max > 0 ? Math.min(h.Max, h.Current + n) : h.Current + n, { now: true })
+    edit('HpData.Current', maxHp.value > 0 ? Math.min(maxHp.value, h.Current + n) : h.Current + n, { now: true })
     blink('heal')
   }
   amount.value = null
 }
-function fullHeal() { edit('HpData.Current', hp.value.Max, { now: true }); blink('heal') }
+function fullHeal() { edit('HpData.Current', maxHp.value, { now: true }); blink('heal') }
 const ds = (kind, k) => { if (!ro.value) edit(`HpData.DS_${kind}${k}`, !hp.value[`DS_${kind}${k}`], { now: true }) }
 function resetDs() { for (const k of ['S1', 'S2', 'S3', 'F1', 'F2']) edit(`HpData.DS_${k}`, false); edit('HpData.DS_F3', false, { now: true }) }
 
@@ -140,6 +145,10 @@ function restoreAll() {
 .pr-hp-nums :deep(input) { font-size: 26px; font-weight: 800; }
 .pr-hp-nums .cur :deep(input) { color: #7ee06a; font-size: 32px; }
 .pr-hp-nums .tmp :deep(input) { color: #4fd8ff; }
+.pr-max { display: grid; justify-items: center; gap: 1px; }
+.pr-max span { font: 700 10.5px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pr-max b { font: 800 26px 'Manrope', sans-serif; }
+.pr-max small { color: var(--muted); font-size: 10.5px; }
 .pr-sl { font: 300 30px 'Manrope', sans-serif; color: var(--muted); padding-bottom: 4px; }
 .pr-bar { position: relative; height: 16px; border-radius: 99px; background: rgba(0, 0, 0, .45); overflow: hidden; box-shadow: inset 0 1px 4px rgba(0, 0, 0, .6); }
 .pr-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(90deg, #3fae5a, #7ee06a); transition: width .6s cubic-bezier(.2, .9, .3, 1); }

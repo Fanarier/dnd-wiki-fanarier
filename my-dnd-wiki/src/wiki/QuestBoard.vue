@@ -46,6 +46,7 @@
               <b>{{ q.type }}</b> · {{ q.guild }}
               <span class="c-st" :style="{ background: QUEST_STATUS[q.status].color }">{{ QUEST_STATUS[q.status].label }}</span>
               <span v-if="questRep(q)" class="c-rep" :class="questRep(q) > 0 ? 'up' : 'down'">{{ questRep(q) > 0 ? '+' : '' }}{{ questRep(q) }} реп.</span>
+              <button v-if="master" type="button" class="c-del" title="Удалить запись из хроники" @click="dropChron(q)">✕</button>
             </div>
             <div v-if="q.group.length" class="c-group">Группа: {{ q.group.map(m => m.name).filter(Boolean).join(', ') }}</div>
             <p v-if="q.report || q.closedReason">{{ q.report || q.closedReason }}</p>
@@ -115,6 +116,11 @@ const board = computed(() => {
     // сверху — срочные и свежие
     .sort((a, b) => URG_ORDER.indexOf(a.urgency) - URG_ORDER.indexOf(b.urgency) || (b.postedAt || 0) - (a.postedAt || 0))
 })
+// мастер убирает ошибочную запись из хроники (вместе с ней уходит и её влияние на репутацию)
+async function dropChron(q) {
+  if (!confirm(`Удалить из хроники «${q.type}» (${q.guild})?${questRep(q) ? ` Репутация гильдии изменится на ${-questRep(q) > 0 ? '+' : ''}${-questRep(q)}.` : ''} Отменить нельзя.`)) return
+  try { await act('DELETE', `/api/quests/${q.id}`, undefined, 'Запись удалена') } catch { /* тост */ }
+}
 const chronicle = computed(() => quests.value.filter(q => ['done', 'failed', 'closed'].includes(q.status)).sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0)))
 const guilds = computed(() => guildStats(quests.value, store.data.guildRep || {}))
 
@@ -235,6 +241,8 @@ watch(() => [route.query.quest, store.ready, master.value], () => {
 .c-top img { width: 20px; height: 20px; }
 .c-st { color: #fff; font-size: 11px; font-weight: 800; padding: 1px 8px; border-radius: 99px; }
 .c-rep { font-size: 12px; font-weight: 800; }
+.c-del { margin-left: auto; width: 26px; height: 26px; border-radius: 7px; border: 1px solid rgba(255, 122, 107, .35); background: none; color: #ff9b8f; cursor: pointer; opacity: .55; transition: opacity .15s, background .15s; }
+.c-del:hover { opacity: 1; background: rgba(255, 122, 107, .12); }
 .c-rep.up { color: #7ee0a3; }
 .c-rep.down { color: #ff8a7a; }
 .c-group { font-size: 12.5px; color: #c9c2b4; margin-top: 4px; }

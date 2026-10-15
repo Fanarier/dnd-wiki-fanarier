@@ -117,7 +117,7 @@ export const ROUTE_COLORS = ['#ff4a3d', '#ffb02e', '#4fd8ff', '#7ee06a', '#c47af
 /* ---------------- Гильдии авантюристов и заказы ---------------- */
 export const GUILDS = [
   { name: 'Алый коготь', country: 'Страна Фенрисов', color: '#ff4a4a' },
-  { name: 'Кошкин дом', country: 'Страна Фенрисов', color: '#c47aff' },
+  { name: 'Кошкин дом', country: 'Страна Нэко', color: '#c47aff' },
   { name: 'Око дракона', country: 'Страна Драконидов', color: '#ffb02e' },
   { name: 'Разящие пегасы', country: 'Страна Кентавров', color: '#7cc4ff' },
   { name: 'Инферно', country: 'Страна Тифлингов', color: '#ff6a2c' },

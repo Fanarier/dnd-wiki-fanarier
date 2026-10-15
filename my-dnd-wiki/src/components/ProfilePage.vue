@@ -75,7 +75,7 @@
           <span v-else class="pl-av ini" :style="{ background: p.color }">{{ p.character[0] }}</span>
           <div class="pl-main">
             <b>{{ p.character }}</b><span v-if="p.race" class="muted"> · {{ p.race }}</span>
-            <div class="muted small">{{ p.linked ? `персонаж мастера ${p.login}` : `логин ${p.login} · ${STATUS[p.status]}` }}</div>
+            <div class="muted small">{{ p.linked ? `персонаж ${p.tech ? 'техспециалиста' : 'мастера'} ${p.login}` : `логин ${p.login} · ${STATUS[p.status]}` }}</div>
           </div>
           <template v-if="p.status === 'pending'">
             <button class="mini ok" @click="call(`/api/players/${p.id}/approve`, 'POST', 'Игрок одобрен')">Одобрить</button>

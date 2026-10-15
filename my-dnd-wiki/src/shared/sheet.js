@@ -226,6 +226,8 @@ export function skillBonus(d, skill) {
     default: return t + m
   }
 }
+// максимум хитов: число из поля «Хиты» на главной; если там пусто — максимум из трекера
+export const hpMax = d => { const n = int(d?.Hits); return n > 0 ? n : Number(d?.HpData?.Max) || 0 }
 export const fmtBonus = v => (v >= 0 ? `+${v}` : `${v}`)
 
 // кубы в тексте: «1к8 + 11», «3d12», «2к6+1к4−2» — для кнопок броска в атаках и предметах

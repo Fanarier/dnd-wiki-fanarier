@@ -96,7 +96,7 @@ const BUTTONS = [
 </script>
 
 <style scoped>
-.re { border-radius: 10px; border: 1px solid rgba(231, 197, 111, .25); background: #0f0c08; color: #efe3c8; transition: border-color .15s; }
+.re { min-width: 0; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .25); background: #0f0c08; color: #efe3c8; transition: border-color .15s; }
 .re.focus { border-color: rgba(231, 197, 111, .6); }
 .re-bar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-bottom: 1px solid rgba(231, 197, 111, .15); }
 .re-bar button { min-width: 28px; height: 26px; padding: 0 6px; border: 0; border-radius: 6px; background: none; color: #cdbf9f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
@@ -105,7 +105,7 @@ const BUTTONS = [
 .re-bar .b { font-weight: 900; } .re-bar .i { font-style: italic; } .re-bar .u { text-decoration: underline; } .re-bar .s { text-decoration: line-through; }
 .re-sep { flex: 1; }
 .re-body { padding: 8px 10px; font: 500 13.5px/1.55 'Manrope', sans-serif; cursor: text; }
-.re-body :deep(.ProseMirror) { outline: none; min-height: inherit; white-space: pre-wrap; }
+.re-body :deep(.ProseMirror) { outline: none; min-height: inherit; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .re-body :deep(.ProseMirror p) { margin: 0 0 .5em; }
 .re-body :deep(.ProseMirror h3), .re-body :deep(.ProseMirror h4) { margin: .5em 0 .3em; font-family: 'Cormorant Garamond', serif; color: #e6c27a; }
 .re-body :deep(.ProseMirror ul), .re-body :deep(.ProseMirror ol) { padding-left: 1.3em; margin: .2em 0 .5em; }

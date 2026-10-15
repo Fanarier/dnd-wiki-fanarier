@@ -26,7 +26,7 @@
     <!-- хиты из трекера: полоса, щелчок — к «Ресурсам» -->
     <button type="button" class="pm-hp sb-anim" title="Хиты: открыть трекер на странице «Ресурсы»" @click="$emit('go', 'res')">
       <span class="pm-hp-bar"><i :style="{ width: hpPct + '%' }" :class="hpTone" /><i v-if="d.HpData.Temp" class="tmp" :style="{ width: tmpPct + '%' }" /></span>
-      <span class="pm-hp-txt">❤ <b><Num :value="d.HpData.Current" /></b> / {{ d.HpData.Max }}<em v-if="d.HpData.Temp"> +{{ d.HpData.Temp }}</em></span>
+      <span class="pm-hp-txt">❤ <b><Num :value="d.HpData.Current" /></b> / {{ maxHp }}<em v-if="d.HpData.Temp"> +{{ d.HpData.Temp }}</em></span>
     </button>
 
     <div class="pm-pools sb-anim">
@@ -89,6 +89,7 @@ import IconRating from '../ui/IconRating.vue'
 import Radar from '../ui/Radar.vue'
 import { sheet, sheetImg, pickImage, edit } from '../sheetState.js'
 import { toast } from '../../map/store.js'
+import { hpMax } from '../../shared/sheet.js'
 
 defineEmits(['go'])
 const d = computed(() => sheet.data)
@@ -110,8 +111,9 @@ const RATES = [
   { p: 'Aura', l: 'Восприятие (Аура)', max: 10, icon: 'aura' }
 ]
 const tri = computed(() => [{ label: 'ТЕЛО', value: d.value.BodyDev }, { label: 'РАЗУМ', value: d.value.MindDev }, { label: 'ДУХ', value: d.value.SpiritDev }])
-const hpPct = computed(() => { const h = d.value.HpData; return h.Max > 0 ? Math.max(0, Math.min(100, (h.Current / h.Max) * 100)) : 0 })
-const tmpPct = computed(() => { const h = d.value.HpData; return h.Max > 0 ? Math.min(100, (h.Temp / h.Max) * 100) : 0 })
+const maxHp = computed(() => hpMax(d.value))
+const hpPct = computed(() => { const h = d.value.HpData; return maxHp.value > 0 ? Math.max(0, Math.min(100, (h.Current / maxHp.value) * 100)) : 0 })
+const tmpPct = computed(() => { const h = d.value.HpData; return maxHp.value > 0 ? Math.min(100, (h.Temp / maxHp.value) * 100) : 0 })
 const hpTone = computed(() => (hpPct.value <= 25 ? 'low' : hpPct.value <= 55 ? 'mid' : ''))
 async function setPhoto() {
   try { await pickImage('PhotoFile', { title: 'Портрет персонажа', size: 640 }) } catch (e) { toast(e.message, 'error') }

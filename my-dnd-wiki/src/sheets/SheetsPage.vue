@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UserMenu from '../components/UserMenu.vue'
 import PartyBoard from './PartyBoard.vue'
@@ -100,6 +100,8 @@ const VIEWS = [{ k: 'shelf', t: 'Полка' }, { k: 'party', t: 'Отряд' },
 const view = ref('shelf')
 const q = ref(''), ownerFilter = ref(''), busy = ref(false), metaFor = ref(null), dropHint = ref(false)
 
+// сменили вход (мастер ↔ игра персонажем, другой аккаунт) — список листов другой
+watch(() => [store.role, store.me?.id], () => { sheets.loaded = false; sheets.list = []; if (store.me) loadSheets(); if (store.role !== 'master') view.value = 'shelf' })
 const live = computed(() => sheets.list.filter(s => !s.deletedAt))
 const trash = computed(() => sheets.list.filter(s => s.deletedAt))
 const groups = computed(() => {

@@ -107,7 +107,7 @@
             <label>Чей персонаж
               <select v-model="h.ownerId">
                 <option :value="null">ничей (ведёт мастер)</option>
-                <option v-for="p in players" :key="p.id" :value="p.id">{{ p.character }} — {{ p.linked ? 'персонаж мастера' : p.login }}</option>
+                <option v-for="p in players" :key="p.id" :value="p.id">{{ p.character }} — {{ p.linked ? (p.tech ? 'персонаж техспециалиста' : 'персонаж мастера') : p.login }}</option>
               </select>
             </label>
             <label class="chk" :class="{ off: !h.ownerId }"><input v-model="h.canEdit" type="checkbox" :disabled="!h.ownerId" /> Игрок может менять карточку сам</label>

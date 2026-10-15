@@ -5,8 +5,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS } from '../src/shared/sheet.js'
+import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS, hpMax } from '../src/shared/sheet.js'
 import { cleanRich } from './richtext.js'
+import { isOwner } from './auth.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'sheets.json')
@@ -148,7 +149,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   const ownerName = id => {
     if (!id) return ''
     const p = getPlayer(id)
-    return p ? (p.linked ? `${p.character} — персонаж мастера ${p.login}` : `${p.character} · ${p.login}`) : ''
+    return p ? (p.linked ? `${p.character} — персонаж ${isOwner(p.login) ? 'техспециалиста' : 'мастера'} ${p.login}` : `${p.character} · ${p.login}`) : ''
   }
   const heroName = id => (id ? getDb().heroes?.find(h => h.id === id)?.name || '' : '')
   const summary = sh => {
@@ -156,7 +157,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     return {
       id: sh.id, ownerId: sh.ownerId, ownerName: ownerName(sh.ownerId), heroId: sh.heroId, heroName: heroName(sh.heroId),
       name: d.CharacterName, cls: d.Class, sub: d.Subclass, race: d.Race, level: d.Level, photo: d.PhotoFile, accent: d.Accent,
-      hp: { cur: d.HpData.Current, max: d.HpData.Max, temp: d.HpData.Temp, hits: d.Hits },
+      hp: { cur: d.HpData.Current, max: hpMax(d), temp: d.HpData.Temp, hits: d.Hits },
       ds: ['S1', 'S2', 'S3', 'F1', 'F2', 'F3'].map(k => d.HpData['DS_' + k]),
       mana: d.Mana, stamina: d.Stamina, defense: d.Defense, evasion: d.Evasion, superHits: d.SuperHits, exhaustion: d.Exhaustion,
       res: d.Resources.map(r => ({ id: r.Id, name: r.Name, icon: r.Icon, cur: r.Current, max: r.Max, color: r.Color, style: r.Style })),
@@ -205,7 +206,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
 
   app.get('/api/sheets', requireUser, (req, res) => {
     const list = store.sheets.filter(sh => canSee(req.user, sh)).map(summary)
-    const owners = req.user.role === 'master' ? players().filter(p => p.status === 'active').map(p => ({ id: p.id, name: p.character, login: p.login, linked: !!p.linked })) : []
+    const owners = req.user.role === 'master' ? players().filter(p => p.status === 'active').map(p => ({ id: p.id, name: p.character, login: p.login, linked: !!p.linked, tech: !!p.linked && isOwner(p.login) })) : []
     res.json({ sheets: list, owners })
   })
 
