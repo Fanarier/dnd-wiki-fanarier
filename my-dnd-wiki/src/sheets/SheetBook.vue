@@ -337,7 +337,7 @@ async function goto(key, { instant = false } = {}) {
   try {
     const tl2 = gsap.timeline({ onComplete: done })
     // лист ложится на левую страницу и растворяется в ней — главная страница видна сразу
-    const landFade = (leaf, at) => tl2.to(leaf, { opacity: 0, duration: H, ease: 'power1.in' }, at)
+    const landFade = (leaf, at) => tl2.to(leaf, { opacity: 0, duration: H * 0.4, ease: 'power2.out' }, at)
     if (dir > 0) {
       // вперёд: старая страница уходит влево, за ней веером промежуточные, под ними — новая
       const old = snapshot()
@@ -379,7 +379,7 @@ async function goto(key, { instant = false } = {}) {
         const at = k * STEP
         gsap.set(leaf, { rotateY: -180, opacity: 0 })
         tl2.to(leaf, { rotateY: 0, duration: D, ease: 'power1.inOut' }, at)
-          .to(leaf, { opacity: 1, duration: H, ease: 'power1.out' }, at)
+          .to(leaf, { opacity: 1, duration: H * 0.4, ease: 'power2.in' }, at + H * 0.6)
           .fromTo(shade, { opacity: 0.5 }, { opacity: 0, duration: D, ease: 'power1.in' }, at)
       }
       const { leaf, shade, front, back } = leafAt(page, fresh.node, fresh.top)
@@ -389,7 +389,7 @@ async function goto(key, { instant = false } = {}) {
       gsap.set(leaf, { rotateY: -180, opacity: 0 })
       gsap.set(front, { visibility: 'hidden' })
       tl2.to(leaf, { rotateY: -90, duration: H, ease: 'power2.in' }, at)
-        .to(leaf, { opacity: 1, duration: H, ease: 'power1.out' }, at)
+        .to(leaf, { opacity: 1, duration: H * 0.4, ease: 'power2.in' }, at + H * 0.6)
         .set(back, { visibility: 'hidden' }, at + H)
         .set(front, { visibility: 'visible' }, at + H)
         .to(leaf, { rotateY: 0, duration: H, ease: 'power2.out' }, at + H)
