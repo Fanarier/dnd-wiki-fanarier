@@ -81,5 +81,5 @@ defineExpose({ focus: () => { inp.value?.focus(); inp.value?.select() } })
 .ss-drop small { color: #a8936c; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ss-none { padding: 10px; color: #a8936c; font: 600 13px 'Manrope', sans-serif; }
 @keyframes ss-in { from { opacity: 0; transform: translateY(-4px); } }
-@media (max-width: 760px) { .ss { width: 34px; } .ss-in { padding: 7px 4px; text-indent: 4px; } .ss-in:focus { position: absolute; right: 0; width: 70vw; z-index: 61; } }
+@media (max-width: 760px) and (min-width: 641px) { .ss { width: 34px; } .ss-in { padding: 7px 4px; text-indent: 4px; } .ss-in:focus { position: absolute; right: 0; width: 70vw; z-index: 61; } }
 </style>

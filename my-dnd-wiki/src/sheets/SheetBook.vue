@@ -37,6 +37,29 @@
     </div>
     <div v-else-if="!ready" class="sb-loading"><span class="sb-spin" /> Открываю книгу…</div>
 
+    <!-- телефон: лист — свиток. Печать ломается, свиток раскатывается; разделы — ленточки под верхним валиком,
+         переход между ними — нижний валик сворачивает бумагу и раскатывает снова -->
+    <div v-else-if="phone" class="sx-stage">
+      <div ref="bookRef" class="sx" :class="{ downed }">
+        <div ref="rodTopRef" class="sx-rod" aria-hidden="true"><i class="sx-knob l" /><i class="sx-knob r" /></div>
+        <div ref="paperRef" class="sx-paper">
+          <nav ref="tabsRef" class="sx-tabs" aria-label="Разделы листа">
+            <button v-for="(s, n) in SECTIONS" :key="s.key" type="button" class="sx-tab" :class="{ on: cur === s.key }" :style="{ '--silk': SILK[n % SILK.length] }" :title="s.name" :aria-label="s.name" @click="goto(s.key)">
+              <SheetIcon :name="s.key" class="ic" />
+            </button>
+          </nav>
+          <div ref="clipRef" class="sx-clip" @pointerdown="swipeStart" @pointerup="swipeEnd">
+            <div ref="scrollRef" class="sx-body" :key="'X' + rightPage.key"><component :is="rightPage.comp" v-bind="rightPage.props || {}" @go="goto" /></div>
+          </div>
+        </div>
+        <div ref="rodBotRef" class="sx-rod" aria-hidden="true"><i class="sx-knob l" /><i class="sx-knob r" /></div>
+        <!-- сургучная печать в цвет листа: видна, пока свиток закрыт -->
+        <div v-if="coverShown" ref="coverRef" class="sx-seal" aria-hidden="true"><i class="half l"><b>{{ initial }}</b></i><i class="half r"><b>{{ initial }}</b></i></div>
+        <div ref="burstRef" class="sb-burst" aria-hidden="true" />
+        <BookFx ref="fxRef" :book="bookRef" />
+      </div>
+    </div>
+
     <div v-else class="sb-stage" :class="{ single }">
       <!-- пылинки в свете свечи -->
       <i v-for="m in motes" :key="m.k" class="sb-mote" :style="m.style" aria-hidden="true" />
@@ -183,8 +206,11 @@ provide('bookOpening', opening)
 provide('openDelay', 1.3) // числа и паутина ждут, пока обложка откроется
 
 /* ---------- одна страница или разворот ---------- */
-const single = ref(innerWidth < 980)
-const onResize = () => { single.value = innerWidth < 980 }
+// телефон (узкий экран или лёжа) — вместо книги свиток
+const isPhone = () => innerWidth < 640 || innerHeight < 480
+const phone = ref(isPhone())
+const single = ref(innerWidth < 980 || phone.value)
+const onResize = () => { phone.value = isPhone(); single.value = innerWidth < 980 || phone.value }
 const visibleSections = computed(() => SECTIONS)
 // закладки: на развороте — половина над левой страницей, половина над правой (корешок свободен)
 const markGroups = computed(() => {
@@ -225,6 +251,7 @@ async function playOpen() {
   const book = bookRef.value, cover = coverRef.value
   if (!book || !cover) return
   if (reduce) { coverShown.value = false; opening.value = false; return }
+  if (phone.value) return playUnroll()
   const shift = single.value ? 0 : -book.offsetWidth / 4 // закрытая книга — по центру, открытая — разворот по центру
   // откуда прилетает обложка: карточка в списке листов
   let from = null
@@ -274,6 +301,110 @@ async function playOpen() {
   ink(leftInk, 'turn+=1.25', 0.035)
   tl.to(marks, { y: 0, opacity: 1, duration: 0.5, stagger: 0.04, ease: 'back.out(1.8)', clearProps: 'transform,opacity' }, 'turn+=1.1')
 }
+
+/* ---------- свиток (телефон) ---------- */
+const rodTopRef = ref(null), rodBotRef = ref(null), paperRef = ref(null), clipRef = ref(null), tabsRef = ref(null)
+const initial = computed(() => (sheet.data?.CharacterName || '?').trim().charAt(0).toUpperCase() || '?')
+// свёрнутый свиток: валики сошлись посередине, бумага скатана между ними
+function rolled() {
+  const H = bookRef.value.offsetHeight, rh = rodTopRef.value.offsetHeight, mid = H / 2 - rh
+  return { top: mid, bot: -mid }
+}
+const flyFrom = (el, f) => {
+  const r = el.getBoundingClientRect()
+  return { x: f.x + f.w / 2 - (r.left + r.width / 2), y: f.y + f.h / 2 - (r.top + r.height / 2), scale: Math.min(1, f.w / r.width) }
+}
+function playUnroll() {
+  const sx = bookRef.value, seal = coverRef.value, paper = paperRef.value
+  const rods = [rodTopRef.value, rodBotRef.value]
+  let from = null
+  try { from = JSON.parse(sessionStorage.getItem('sheet-fly') || 'null') } catch { /* нет */ }
+  sessionStorage.removeItem('sheet-fly')
+  flyBack = from?.id === sheet.id ? from : null
+  const halves = seal.querySelectorAll('.half')
+  const txt = clipRef.value?.querySelectorAll('.sb-anim') || []
+  const tabs = tabsRef.value?.querySelectorAll('.sx-tab') || []
+  const { top, bot } = rolled()
+  gsap.set(rods[0], { y: top })
+  gsap.set(rods[1], { y: bot })
+  gsap.set(paper, { clipPath: 'inset(50% 0% 50% 0%)' })
+  gsap.set(txt, { opacity: 0 })
+  gsap.set(tabs, { y: -36 })
+  const finish = () => { clearTimeout(coverTimer); coverShown.value = false; heal(); setTimeout(() => { opening.value = false }, 400) }
+  tl = gsap.timeline({ onComplete: finish })
+  clearTimeout(coverTimer)
+  coverTimer = setTimeout(finish, 4500)
+  // свёрнутый свиток прилетает с полки (или просто появляется)
+  if (flyBack) tl.from(sx, { ...flyFrom(sx, flyBack), duration: 0.6, ease: 'power3.inOut' })
+  else tl.from(sx, { y: 40, scale: 0.9, opacity: 0, duration: 0.5, ease: 'power3.out' })
+  // печать вздрагивает и раскалывается надвое
+  tl.addLabel('crack', '+=0.12')
+    .to(seal, { scale: 1.14, duration: 0.14, ease: 'power2.out' }, 'crack')
+    .to(seal, { scale: 1, duration: 0.1, ease: 'power2.in' }, 'crack+=0.14')
+    .call(() => sfx('bookPlace', 0.6), null, 'crack+=0.22')
+    .to(halves[0], { x: -24, y: 44, rotation: -38, opacity: 0, duration: 0.6, ease: 'power2.in' }, 'crack+=0.24')
+    .to(halves[1], { x: 24, y: 50, rotation: 32, opacity: 0, duration: 0.6, ease: 'power2.in' }, 'crack+=0.24')
+    // валики расходятся — бумага раскатывается из середины
+    .addLabel('unroll', 'crack+=0.34')
+    .call(() => { sfx('pageFlip', 0.45); setTimeout(() => sfx('pageFlip', 0.25), 380) }, null, 'unroll')
+    .to(rods, { y: 0, duration: 0.9, ease: 'power3.inOut' }, 'unroll')
+    .to(paper, { clipPath: 'inset(0% 0% 0% 0%)', duration: 0.9, ease: 'power3.inOut' }, 'unroll')
+    .add(sparkle, 'unroll+=0.5')
+    .to(tabs, { y: 0, duration: 0.5, stagger: 0.03, ease: 'back.out(2)', clearProps: 'transform' }, 'unroll+=0.5')
+  ink(txt, 'unroll+=0.45', 0.03)
+}
+// другой раздел: нижний валик сворачивает бумагу до ленточек и раскатывает уже с новым разделом
+let queued = null
+function rollTo(key) {
+  const clip = clipRef.value, rod = rodBotRef.value, paper = paperRef.value
+  if (reduce || !clip || !rod || !paper) { cur.value = key; return }
+  turning = true
+  const done = () => {
+    clearTimeout(safety)
+    turning = false
+    const k = queued
+    queued = null
+    if (k && k !== cur.value) goto(k)
+  }
+  const safety = setTimeout(() => { gsap.set([paper, rod], { clearProps: 'clipPath,transform' }); done() }, 2000)
+  const rise = paper.offsetTop + clip.offsetTop - rod.offsetTop - 4
+  // бумага под валиком наматывается на него: снизу обрезаем ровно до середины валика
+  const cut = paper.offsetHeight - (rod.offsetTop + rise + rod.offsetHeight / 2 - paper.offsetTop)
+  sfx('pageFlip', 0.35)
+  gsap.timeline({ onComplete: done })
+    .to(rod, { y: rise, duration: 0.3, ease: 'power2.in' }, 0)
+    .fromTo(paper, { clipPath: 'inset(0px 0px 0px 0px)' }, { clipPath: `inset(0px 0px ${cut}px 0px)`, duration: 0.3, ease: 'power2.in' }, 0)
+    .call(() => { cur.value = key; nextTick(() => inkIn(scrollRef.value, 0.08)) }, null, 0.3)
+    .to(rod, { y: 0, duration: 0.5, ease: 'power2.out', clearProps: 'transform' }, 0.36)
+    .to(paper, { clipPath: 'inset(0px 0px 0px 0px)', duration: 0.5, ease: 'power2.out', clearProps: 'clipPath' }, 0.36)
+    .call(() => sfx('pageFlip', 0.2), null, 0.42)
+}
+// закрыть: валики сходятся, сверху ложится печать, свиток улетает на полку
+function rollUp() {
+  const sx = bookRef.value, seal = coverRef.value
+  if (!seal || !rodTopRef.value) { router.push('/sheets'); return }
+  const { top, bot } = rolled()
+  gsap.set(seal, { scale: 2.2, opacity: 0 })
+  sfx('pageFlip', 0.4)
+  const ctl = gsap.timeline({ onComplete: () => router.push('/sheets') })
+    .to(tabsRef.value?.querySelectorAll('.sx-tab') || [], { y: -36, duration: 0.25, stagger: 0.012, ease: 'power2.in' }, 0)
+    .to(rodTopRef.value, { y: top, duration: 0.55, ease: 'power3.inOut' }, 0.05)
+    .to(rodBotRef.value, { y: bot, duration: 0.55, ease: 'power3.inOut' }, 0.05)
+    .to(paperRef.value, { clipPath: 'inset(50% 0% 50% 0%)', duration: 0.55, ease: 'power3.inOut' }, 0.05)
+    .to(seal, { scale: 1, opacity: 1, duration: 0.22, ease: 'power3.in' }, 0.6)
+    .call(() => { sfx('bookClose', 0.5); dust() }, null, 0.82)
+    .to(sx, { keyframes: { y: [0, 3, 0] }, duration: 0.16 }, 0.82)
+  if (flyBack) {
+    ctl.to(sx, { ...flyFrom(sx, flyBack), duration: 0.5, ease: 'power3.inOut' }, 1.05)
+      .to(sx, { opacity: 0, duration: 0.15 }, '>-0.1')
+      .call(() => sfx('bookPlace', 0.5), null, '<')
+  } else ctl.to(sx, { y: 30, scale: 0.9, opacity: 0, duration: 0.35, ease: 'power2.in' }, 1.05)
+}
+// активная ленточка — всегда на виду
+watch(cur, () => nextTick(() => {
+  const t = tabsRef.value, b = t?.querySelector('.on')
+  if (b) t.scrollTo({ left: b.offsetLeft - t.clientWidth / 2 + b.offsetWidth / 2, behavior: reduce ? 'auto' : 'smooth' })
+}))
 
 // из раскрывающейся книги поднимается золотая пыль — со страницы, которую открыла обложка
 function sparkle() {
@@ -367,6 +498,10 @@ function heal() {
   const stuck = [...book.querySelectorAll('.sb-page, .sb-boards, .sb-stitch, .sb-ribbon-wrap, .sb-mark, .sb-anim, .sb-run, .sb-pno')]
     .filter(el => (el.style.opacity !== '' || el.style.filter !== '' || el.style.transform !== '') && !gsap.isTweening(el))
   if (stuck.length) gsap.set(stuck, { clearProps: 'opacity,filter,transform' })
+  // свиток: валики на местах, бумага раскатана целиком
+  const parts = [rodTopRef.value, rodBotRef.value, paperRef.value, clipRef.value, ...(tabsRef.value?.children || [])]
+    .filter(el => el && !gsap.isTweening(el) && (el.style.transform || el.style.clipPath || el.style.opacity))
+  if (parts.length) gsap.set(parts, { clearProps: 'transform,clipPath,opacity' })
 }
 let healTimer = 0
 let closing = false // книга закрывается — самопроверка не должна убирать обложку
@@ -378,9 +513,11 @@ function skipOpening() { if (tl?.isActive()) tl.progress(1) }
 async function goto(key, { instant = false } = {}) {
   skipOpening()
   const to = pageIdx(key)
-  if (to < 0 || turning) return
+  if (to < 0) return
+  if (turning) { if (phone.value) queued = key; return }
   const fromS = spreadStart.value, toS = startOf(to)
   router.replace({ query: { ...route.query, p: key } })
+  if (phone.value && toS !== fromS && !instant) return rollTo(key)
   if (toS === fromS || instant || reduce || !rightRef.value) { cur.value = key; return }
   turning = true
   const dir = toS > fromS ? 1 : -1
@@ -523,6 +660,7 @@ async function closeBook() {
   skipOpening()
   coverShown.value = true
   await nextTick()
+  if (phone.value) return rollUp()
   const book = bookRef.value, cover = coverRef.value
   if (!cover) { router.push('/sheets'); return }
   const front = cover.querySelector('.front'), back = cover.querySelector('.back')
@@ -555,6 +693,17 @@ function dust() {
   const host = burstRef.value, book = bookRef.value
   if (!host || !book) return
   const W = book.offsetWidth, H = book.offsetHeight, x0 = single.value ? 0 : W / 2
+  if (phone.value) {
+    for (let i = 0; i < 22; i++) {
+      const p = document.createElement('i'), up = Math.random() < 0.5
+      p.className = 'dust'
+      host.append(p)
+      const x = W * (0.12 + Math.random() * 0.76), y = H / 2 + (up ? -16 : 16)
+      gsap.timeline({ onComplete: () => p.remove() })
+        .fromTo(p, { x, y, scale: 0.5, opacity: 0.8 }, { x: x + (Math.random() - 0.5) * 50, y: y + (up ? -1 : 1) * (14 + Math.random() * 30), scale: 1.6 + Math.random(), opacity: 0, duration: 0.8 + Math.random() * 0.5, ease: 'power2.out' })
+    }
+    return
+  }
   for (let i = 0; i < 26; i++) {
     const p = document.createElement('i')
     p.className = 'dust'
@@ -608,7 +757,8 @@ function swipeEnd(e) {
 async function goFound(hit) {
   if (startOf(pageIdx(hit.section)) !== spreadStart.value) { await goto(hit.section); await new Promise(r => setTimeout(r, 800)) }
   await nextTick()
-  const el = bookRef.value?.querySelector(`.sb-page [data-find="${CSS.escape(hit.anchor)}"]`)
+  const a = CSS.escape(hit.anchor)
+  const el = bookRef.value?.querySelector(`.sb-page [data-find="${a}"], .sx-body [data-find="${a}"]`)
   if (!el) return
   el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
   el.classList.remove('sb-flash')
@@ -867,6 +1017,69 @@ onBeforeUnmount(() => {
   .sb-top { gap: 6px; padding: 8px 10px; }
   .sb-mode button { min-width: 24px; padding: 4px 5px; }
 }
+/* телефон: имя персонажа — во всю первую строку, поиск и броски — второй строкой */
+@media (max-width: 640px) {
+  .sb-top { flex-wrap: wrap; row-gap: 6px; padding: 6px 8px; min-height: 0; }
+  .sb-top .grow { display: none; }
+  .sb-title { flex: 1 1 0; }
+  .sb-title b { font-size: 19px; }
+  .sb-top::after { content: ''; order: 9; flex-basis: 100%; }
+  .sb-top > .ss { order: 10; flex: 1 1 auto; width: auto; }
+  .sb-mode { order: 11; }
+  .sb-mode button { min-width: 34px; padding: 5px 8px; }
+}
+
+/* ---- свиток (телефон) ---- */
+.sx-stage { position: relative; flex: 1; min-height: 0; display: flex; padding: 12px 8px 10px; }
+.sx-stage::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 55% at 50% 50%, color-mix(in srgb, var(--acc) 20%, rgba(255, 170, 80, .14)), transparent 70%); animation: sb-candle 5s ease-in-out infinite; pointer-events: none; }
+.sx { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+/* валики: тёмное дерево с волокнами, золотые кольца и навершия */
+.sx-rod { position: relative; z-index: 4; flex: none; height: 22px; margin: 0 10px; border-radius: 11px;
+  background:
+    linear-gradient(180deg, rgba(255, 236, 200, .3), transparent 32%, rgba(0, 0, 0, .5) 82%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .14) 0 1px, transparent 1px 6px, rgba(255, 220, 170, .06) 6px 8px, transparent 8px 15px),
+    linear-gradient(180deg, color-mix(in srgb, var(--acc) 12%, #7a4d27), #3e2410);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(0, 0, 0, .5); }
+.sx-rod::before, .sx-rod::after { content: ''; position: absolute; top: -2px; bottom: -2px; width: 8px; border-radius: 3px; background: linear-gradient(180deg, #fff1c4, #d8b25f 40%, #7d5a20); box-shadow: 0 0 0 1px rgba(0, 0, 0, .45); }
+.sx-rod::before { left: 12px; }
+.sx-rod::after { right: 12px; }
+.sx-knob { position: absolute; top: 50%; width: 15px; height: 28px; margin-top: -14px; border-radius: 50% / 42%; background: radial-gradient(circle at 40% 30%, #fff4d0, #e2c278 30%, #9a7430 70%, #4e3510); box-shadow: 0 3px 6px rgba(0, 0, 0, .6); }
+.sx-knob.l { left: -11px; }
+.sx-knob.r { right: -11px; }
+/* бумага: заходит под валики, у краёв темнее — будто загибается */
+.sx-paper { position: relative; z-index: 2; flex: 1; min-height: 0; margin: -8px 18px;
+  border-left: 1px solid color-mix(in srgb, var(--acc) 25%, #3b2a1a); border-right: 1px solid color-mix(in srgb, var(--acc) 25%, #3b2a1a);
+  background:
+    radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--acc) 7%, transparent), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix values='0 0 0 0 .9 0 0 0 0 .8 0 0 0 0 .6 0 0 0 .06 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"),
+    linear-gradient(180deg, var(--paper2), var(--paper));
+  box-shadow: inset 0 20px 16px -12px rgba(0, 0, 0, .7), inset 0 -20px 16px -12px rgba(0, 0, 0, .7), inset 12px 0 18px -14px rgba(0, 0, 0, .7), inset -12px 0 18px -14px rgba(0, 0, 0, .7), 0 14px 30px rgba(0, 0, 0, .55); }
+/* разделы — шёлковые ленточки, свисают из-под верхнего валика */
+.sx-tabs { position: absolute; top: 0; left: 0; right: 0; z-index: 3; height: 52px; display: flex; align-items: flex-start; gap: 3px; padding: 0 8px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.sx-tabs::-webkit-scrollbar { display: none; }
+.sx-tab:first-child { margin-left: auto; }
+.sx-tab:last-child { margin-right: auto; }
+.sx-tab { position: relative; flex: none; width: 28px; height: 36px; padding: 0 0 11px; border: 0; display: grid; justify-items: center; align-content: end; cursor: pointer; color: #fff4dc;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .32), rgba(255, 255, 255, .13) 40%, rgba(0, 0, 0, .05) 62%, rgba(0, 0, 0, .32)), var(--silk);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 8px), 0 100%);
+  filter: saturate(.8) brightness(.88); transition: height .32s cubic-bezier(.2, 1.5, .4, 1), filter .2s; }
+.sx-tab .ic { width: 15px; height: 15px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .6)); }
+.sx-tab.on { height: 50px; filter: none; }
+.sx-tab.on::after { content: ''; position: absolute; left: 50%; top: 10px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: #ffe7a8; box-shadow: 0 0 6px #ffd27a; }
+.sx-clip { position: absolute; top: 54px; left: 0; right: 0; bottom: 0; touch-action: pan-y; }
+.sx-body { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: 6px 12px 64px;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 12px, #000 calc(100% - 18px), transparent); mask-image: linear-gradient(180deg, transparent, #000 12px, #000 calc(100% - 18px), transparent); }
+/* сургучная печать: цвет листа, буква персонажа; при открытии раскалывается по неровной трещине */
+.sx-seal { position: absolute; left: 50%; top: 50%; z-index: 6; width: 76px; height: 76px; margin: -38px 0 0 -38px; pointer-events: none; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .65)); }
+.sx-seal .half { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 47% 53% 50% 50% / 52% 46% 54% 48%;
+  background: radial-gradient(circle, transparent 50%, rgba(0, 0, 0, .28) 53%, transparent 57%), radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--acc) 55%, #fff) 0%, var(--acc) 34%, color-mix(in srgb, var(--acc) 50%, #000) 100%);
+  box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--acc) 75%, #000), inset 0 -4px 8px rgba(0, 0, 0, .35); }
+.sx-seal .half.l { clip-path: polygon(0 0, 54% 0, 47% 27%, 57% 50%, 45% 74%, 51% 100%, 0 100%); }
+.sx-seal .half.r { clip-path: polygon(54% 0, 100% 0, 100% 100%, 51% 100%, 45% 74%, 57% 50%, 47% 27%); }
+.sx-seal b { font: 700 38px/1 'Cormorant Garamond', serif; color: color-mix(in srgb, var(--acc) 45%, #000); text-shadow: 0 1px 0 color-mix(in srgb, var(--acc) 60%, #fff), 0 -1px 0 rgba(0, 0, 0, .4); }
+/* хиты на нуле — свиток тускнеет, по краям багровый свет */
+.sx.downed .sx-paper { filter: saturate(.55) brightness(.85); transition: filter .8s; }
+.sx.downed::after { content: ''; position: absolute; inset: 0 10px; z-index: 5; border-radius: 14px; pointer-events: none; box-shadow: inset 0 0 90px 20px rgba(120, 10, 10, .55); animation: sb-down 2.4s ease-in-out infinite; }
 </style>
 
 <style>

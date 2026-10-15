@@ -360,5 +360,18 @@ async function exportDb() {
   /* у мастера внизу панель инструментов — зум жестами */
   .is-master .zoom { display: none; }
   .is-master .scale { bottom: 96px; right: 12px; }
+  /* масштаб не лезет поверх раскрытой легенды */
+  .scale { z-index: 13; }
+}
+/* телефон: значок мира без названия и кнопки без подписей — шапка в одну строку, поиск второй строкой.
+   Так легенда (top: 106px) открывается под поиском, а не под ним */
+@media (max-width: 600px) {
+  .brand { padding: 0; width: 44px; justify-content: center; }
+  .brand-text { display: none; }
+  .right { flex: 0 1 auto; min-width: 0; gap: 0; padding: 0 4px; overflow-x: auto; scrollbar-width: none; }
+  .right::-webkit-scrollbar { display: none; }
+  .right > * { flex: none; }
+  .clock { padding: 0 6px; gap: 5px; }
+  .right .ui-btn.small { padding: 0 8px; }
 }
 </style>

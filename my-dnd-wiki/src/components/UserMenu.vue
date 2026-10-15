@@ -37,7 +37,7 @@
       <button v-if="store.me.canPlay" class="um-btn mode" :class="{ playing: store.me.asMaster }"
               :title="store.me.asMaster ? 'Сейчас ты играешь персонажем — вернуться в режим мастера' : `Играть персонажем «${store.me.character}»`"
               @click="switchMode">
-        {{ store.me.asMaster ? '⚔ Персонаж' : '♛ Мастер' }}<span class="arrow">⇄</span>
+        {{ store.me.asMaster ? '⚔' : '♛' }}<span class="mode-t">{{ store.me.asMaster ? 'Персонаж' : 'Мастер' }}</span><span class="arrow">⇄</span>
       </button>
       <router-link to="/profile" class="um-btn me" :title="`${store.me.name} — профиль`">
         <img v-if="store.me.avatar" :src="avatarUrl(store.me.avatar)" alt="" />
@@ -106,6 +106,7 @@ function ago(ms) {
 .crown { color: #e6c27a; font-style: normal; }
 .mode { border-color: rgba(231, 197, 111, .4); color: #f3d99a; background: rgba(231, 197, 111, .1); }
 .mode.playing { border-color: rgba(126, 224, 163, .5); color: #9be07a; background: rgba(126, 224, 163, .1); }
+.mode { gap: 5px; white-space: nowrap; flex: none; }
 .mode .arrow { opacity: .7; }
 @media (max-width: 760px) { .mode { padding: 0 6px; font-size: 12px; } }
 .um-login { height: 34px; padding: 0 14px; border-radius: 10px; border: 1px solid #6e4f22; cursor: pointer; color: #1e150a; font: 800 13px 'Manrope', sans-serif; background: linear-gradient(180deg, #f2d58f, #c99a48 55%, #a87a33); box-shadow: inset 0 1px 0 rgba(255, 245, 210, .7), 0 2px 0 #5a3e1a; }
@@ -126,4 +127,11 @@ li.pending { background: rgba(224, 40, 30, .08); border-color: #e0604a; }
 .mini.no { color: #ff9b8f; }
 @keyframes ring { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(14deg); } 80% { transform: rotate(-12deg); } 85% { transform: rotate(8deg); } 90% { transform: rotate(-4deg); } }
 @media (max-width: 760px) { .me-name { display: none; } }
+/* телефон: «♛⇄» без подписи, корона у аватара лишняя — шапка влезает в одну строку */
+@media (max-width: 600px) {
+  .um { gap: 2px; }
+  .mode-t, .crown { display: none; }
+  .um-btn { padding: 0 6px; }
+  .me { padding: 0 2px; }
+}
 </style>

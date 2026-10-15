@@ -145,4 +145,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .brush { display: flex; align-items: center; gap: 8px; min-width: 220px; }
 .brush b { font-size: 12px; min-width: 52px; }
 .fog-on { margin: 0 4px; font-size: 12.5px; }
+/* телефон: панель начинается правее кнопки кубиков, чтобы та не закрывала первый инструмент */
+@media (max-width: 760px) {
+  .mt { left: 70px; right: 8px; bottom: 14px; transform: none; max-width: none; align-items: stretch; }
+  .mt-bar { align-self: flex-start; }
+  .tool { min-width: 52px; }
+}
 </style>

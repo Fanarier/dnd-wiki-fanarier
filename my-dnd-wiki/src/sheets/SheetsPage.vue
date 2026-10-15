@@ -253,9 +253,11 @@ onBeforeUnmount(() => {
 .sp-acts .danger:hover { color: #ff9b8f; border-color: rgba(255, 122, 107, .5); }
 @media (hover: none) { .sp-acts { opacity: 1; transform: none; } }
 @media (max-width: 600px) {
-  .sp-top { gap: 8px; padding: 8px 10px; }
+  .sp-top { gap: 6px; padding: 10px 8px; }
   .sp-logo span { display: none; }
-  .sp-tab { padding: 6px 10px; }
+  .sp-top .grow { display: none; }
+  .sp-tabs { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; margin-right: auto; max-width: max-content; }
+  .sp-tab { padding: 6px 10px; white-space: nowrap; flex: none; }
   .sp-head h1 { font-size: 26px; }
   .sp-shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; }
 }

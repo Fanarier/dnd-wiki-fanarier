@@ -15,7 +15,7 @@
         <router-link to="/wiki" class="w-tab active">Вики</router-link>
         <router-link v-if="store.me" to="/sheets" class="w-tab">Листы</router-link>
       </nav>
-      <label class="w-search">
+      <label class="w-search" :class="{ filled: search }" title="Поиск по всему сайту">
         <v-icon size="18">mdi-magnify</v-icon>
         <input v-model="search" placeholder="Поиск: НПС, навыки, города, заказы…" aria-label="Поиск по всему сайту" />
         <button v-if="search" class="w-clear" aria-label="Очистить" @click="search = ''">×</button>
@@ -133,6 +133,24 @@ watch(currentCategory, () => { search.value = '' })
 const route = useRoute()
 const router = useRouter()
 onMounted(init)
+// таблицы статей: каждой ячейке — подпись её колонки (на телефоне строки показываются карточками «Круг: 1»).
+// Колонку с описанием не подписываем — и так понятно
+let tableObs = null
+function labelTables() {
+  for (const t of document.querySelectorAll('.w-main table:not([data-labeled])')) {
+    t.dataset.labeled = '1'
+    const heads = [...t.querySelectorAll('thead th')].map(th => th.textContent.trim())
+    for (const tr of t.querySelectorAll('tbody tr')) {
+      [...tr.children].forEach((td, i) => { if (heads[i] && !/описание/i.test(heads[i])) td.dataset.label = heads[i] })
+    }
+  }
+}
+onMounted(() => {
+  labelTables()
+  const main = document.querySelector('.w-main')
+  if (main) { tableObs = new MutationObserver(labelTables); tableObs.observe(main, { childList: true, subtree: true }) }
+})
+onBeforeUnmount(() => tableObs?.disconnect())
 // ссылка с карты на заказ открывает доску заказов
 watch(() => route.query.quest, q => { if (q) currentCategory.value = 'quests' }, { immediate: true })
 // ссылки на карточку героя и на новые арты (из колокольчика, профиля)
@@ -233,5 +251,18 @@ watch(currentCategory, (c, old) => {
   .w-side.open { transform: none; }
   .w-scrim { display: block; position: fixed; inset: 0; z-index: 35; background: rgba(0, 0, 0, 0.5); }
   .w-main { padding: 18px 14px 50px; }
+}
+/* телефон: шапка в одну строку — вкладки прокручиваются, поиск свёрнут в значок и раскрывается под шапкой */
+@media (max-width: 600px) {
+  .w-top { gap: 6px; padding: 0 8px; }
+  .w-brand { display: none; }
+  .w-tabs { flex: 0 1 auto; min-width: 0; margin-right: auto; overflow-x: auto; scrollbar-width: none; }
+  .w-tabs::-webkit-scrollbar { display: none; }
+  .w-tab { padding: 6px 10px; white-space: nowrap; }
+  .w-search { flex: none; width: 38px; height: 38px; margin-left: 0; padding: 0; justify-content: center; cursor: pointer; }
+  .w-search input, .w-search .w-clear { position: absolute; width: 1px; opacity: 0; pointer-events: none; }
+  .w-search:focus-within, .w-search.filled { position: absolute; left: 8px; right: 8px; top: calc(100% + 6px); width: auto; height: 44px; padding: 0 12px; justify-content: flex-start; background: #10141c; border-color: rgba(231, 197, 111, .5); box-shadow: 0 12px 30px rgba(0, 0, 0, .55); cursor: text; }
+  .w-search:focus-within input, .w-search.filled input, .w-search.filled .w-clear { position: static; width: auto; opacity: 1; pointer-events: auto; }
+  .w-side { top: 0; }
 }
 </style>

@@ -616,4 +616,13 @@ function setTab(id) {
   .sp-body.wide .sp-panel { padding: 14px 12px 30px; }
   .sp-body.wide .sp-tabbar { top: 64px; margin: 14px -12px 12px; padding: 10px 12px 8px; }
 }
+/* телефон: четыре вкладки не влезают — прокручиваются вбок, шапка не распирает страницу */
+@media (max-width: 600px) {
+  .sp-top { gap: 6px; padding: 0 8px; }
+  .sp-brand { display: none; }
+  .sp-top .grow { display: none; }
+  .sp-tabs { flex: 1 1 auto; min-width: 0; max-width: max-content; margin-right: auto; overflow-x: auto; scrollbar-width: none; }
+  .sp-tabs::-webkit-scrollbar { display: none; }
+  .sp-tab { padding: 6px 10px; white-space: nowrap; flex: none; }
+}
 </style>

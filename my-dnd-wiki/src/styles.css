@@ -85,6 +85,26 @@ html, body, #app {
   .wiki .magic-table th, .wiki .magic-table td { padding: 10px 10px; font-size: 14px; }
 }
 
+/* телефон: таблицы заклинаний — карточками, без прокрутки вбок. Подписи колонок (data-label) ставит WikiApp */
+@media (max-width: 640px) {
+  .wiki .v-card.pa-4 { padding: 6px !important; }
+  .wiki .v-card .v-card-title, .wiki .v-card .v-card-text { padding-left: 10px; padding-right: 10px; }
+  .wiki .v-card .v-card-title { white-space: normal; }
+  .wiki .table-wrap { overflow: visible; }
+  .wiki .magic-table, .wiki .magic-table tbody, .wiki .magic-table tr, .wiki .magic-table td { display: block; width: auto !important; }
+  .wiki .magic-table caption { display: block; }
+  .wiki .magic-table thead { display: none; }
+  .wiki .magic-table tbody tr { padding: 12px 14px; border-bottom: 1px solid rgba(255, 255, 255, .07); }
+  .wiki .magic-table tbody tr:hover { transform: none; }
+  .wiki .magic-table th, .wiki .magic-table td { padding: 2px 0; border: 0; font-size: 14.5px; line-height: 1.5; }
+  .wiki .magic-table td:first-child { margin-bottom: 4px; font-weight: 800; font-size: 16px; }
+  .wiki .magic-table td:empty { display: none; }
+  /* круг — значком рядом с названием */
+  .wiki .magic-table td:first-child:has(+ td[data-label="Круг"]) { display: inline; }
+  .wiki .magic-table td[data-label="Круг"] { display: inline-block; margin: 0 0 6px 8px; padding: 0 9px; border-radius: 99px; background: rgba(185, 166, 255, .14); font-size: 12.5px; font-weight: 700; vertical-align: 2px; }
+  .wiki .magic-table td[data-label]:not(:first-child)::before { content: attr(data-label) ': '; font-weight: 700; opacity: .65; }
+}
+
 /* Карта на весь экран — без прокрутки страницы (Vuetify по умолчанию включает её у html) */
 html:has(.anacaria) { overflow: hidden; }
 
