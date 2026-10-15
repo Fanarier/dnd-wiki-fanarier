@@ -56,6 +56,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import QuestBoard from './QuestBoard.vue'
+import CampaignPage from './CampaignPage.vue'
 import HeroesPage from './HeroesPage.vue'
 import SettlementsPage from './SettlementsPage.vue'
 import NpcsPage from './npc/NpcsPage.vue'
@@ -84,6 +85,7 @@ import SchoolEarth from '../pages/SchoolEarth.vue'
 */
 const categories = ref([
   { id: 'quests', title: 'Заказы гильдий', description: 'Доска объявлений, хроника, репутация', component: QuestBoard },
+  { id: 'campaign', title: 'Квесты', description: 'Квесты героев и хроника сюжета', component: CampaignPage },
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
   { id: 'npcs', title: 'НПС', description: 'Полные листы: сайд-кики, компаньоны, важные НПС', component: NpcsPage },
   { id: 'settlements', title: 'Поселения', description: 'Урюпинск: карта, жители, стройка, журнал', component: SettlementsPage },

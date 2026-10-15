@@ -87,6 +87,9 @@ const docs = computed(() => {
     d.push({ g: 'heroes', key: 'h' + h.id, title: h.name, sub: [h.location, h.group, h.status].filter(Boolean).join(' · '), text: [h.effectPlus, h.effectMinus, h.housing].join(' '),
       img: c ? heroPortraitUrl(c.thumb || c.file) : '', to: { path: '/wiki', query: { hero: h.id } } })
   }
+  // квесты кампании и главы сюжета — на страницу «Квесты»
+  for (const q of store.data.campaign?.quests || []) d.push({ g: 'campaign', key: 'cq' + q.id, title: q.name, sub: [q.status, q.difficulty, q.region, q.location].filter(Boolean).join(' · '), text: [q.desc, q.source, q.taker].join(' '), to: { path: '/wiki', query: { section: 'campaign' } } })
+  for (const c of store.data.campaign?.chapters || []) d.push({ g: 'campaign', key: 'ch' + c.id, title: c.title, sub: ['сюжет', c.act, c.dateWorld].filter(Boolean).join(' · '), text: c.result, to: { path: '/wiki', query: { section: 'campaign' } } })
   for (const q of store.data.quests || []) d.push({ g: 'quests', key: 'q' + q.id, title: q.type, sub: [q.guild, q.rank, q.status === 'open' ? 'открыт' : ''].filter(Boolean).join(' · '), text: [strip(q.description), q.reward, ...(q.tasks || []).map(t => t.text || t)].join(' '), to: { path: '/wiki', query: { quest: q.id } } })
   for (const s of store.data.settlements || []) d.push({ g: 'places', key: 'st' + s.id, title: s.name, sub: 'поселение', text: '', to: { path: '/settlement/' + s.id } })
   for (const c of store.data.cities || []) d.push({ g: 'places', key: 'c' + c.id, title: c.name, sub: 'на карте мира', text: strip(c.description), to: { path: '/', query: { focus: 'cities:' + c.id } } })
@@ -104,7 +107,7 @@ const fuseStrict = computed(() => new Fuse(docs.value, fuseOpts(0.12)))
 
 const GROUPS = [
   { key: 'npcs', label: 'НПС', icon: '🜲' }, { key: 'heroes', label: 'Герои Анкарии', icon: '⚔' }, { key: 'places', label: 'Места', icon: '📍' },
-  { key: 'quests', label: 'Заказы гильдий', icon: '📜' }, { key: 'skills', label: 'Навыки', icon: '✦' }, { key: 'effects', label: 'Эффекты', icon: '◈' },
+  { key: 'quests', label: 'Заказы гильдий', icon: '📜' }, { key: 'campaign', label: 'Квесты и сюжет', icon: '🗺' }, { key: 'skills', label: 'Навыки', icon: '✦' }, { key: 'effects', label: 'Эффекты', icon: '◈' },
   { key: 'articles', label: 'Статьи', icon: '📖' }
 ]
 const open = reactive({})

@@ -90,6 +90,13 @@ function migrate(d) {
     delete h.portraitPos
     changed = true
   }
+  // квесты и хроника сюжета со старой таблицы — один раз (tools/campaign-xlsx-to-json.py)
+  const CAMPAIGN_SEED = path.resolve(import.meta.dirname, 'seed', 'campaign.json')
+  if (!d.campaignSeeded && fs.existsSync(CAMPAIGN_SEED)) {
+    if (!d.campaign?.quests?.length) d.campaign = JSON.parse(fs.readFileSync(CAMPAIGN_SEED, 'utf8'))
+    d.campaignSeeded = true
+    changed = true
+  }
   // НПС и их общие справочники навыков и эффектов (данные — отдельным запросом /api/npcs, в состоянии только номер версии)
   if (!d.npcs) { d.npcs = []; d.npcSkills = []; d.npcEffects = []; d.npcsRev = 1; changed = true }
   if (changed) console.log('[db] мир дополнен новыми полями из seed')
