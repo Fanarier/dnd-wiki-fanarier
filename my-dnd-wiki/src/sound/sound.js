@@ -14,15 +14,34 @@ const cache = {}
 const howl = (src, opts = {}) => { const key = [].concat(src).join('|'); return (cache[key] ||= new Howl({ src: [].concat(src), volume: 0.55, preload: true, ...opts })) }
 const pickOne = f => (Array.isArray(f) ? f[Math.floor(Math.random() * f.length)] : f)
 
-// короткий звук; из списка — случайный вариант
+// чтобы повторяющиеся звуки не надоедали: высота и громкость чуть плавают,
+// а один и тот же файл два раза подряд не играет (как шаги и страницы в играх)
+const VARY = {
+  pageFlip: { rate: [0.84, 1.14], vol: 0.3 }, bookPlace: { rate: [0.92, 1.08], vol: 0.15 }, bookOpen: { rate: [0.94, 1.04], vol: 0.1 },
+  bookClose: { rate: [0.92, 1.06], vol: 0.12 }, coins: { rate: [0.9, 1.12], vol: 0.2 },
+  diceGrab: { rate: [0.9, 1.12], vol: 0.25 }, diceShake: { rate: [0.92, 1.1], vol: 0.2 }, diceThrow: { rate: [0.88, 1.12], vol: 0.25 }, roll: { rate: [0.94, 1.06], vol: 0.1 }
+}
+const lastPick = {}
+function pickFor(key, f) {
+  if (!Array.isArray(f)) return f
+  let i
+  do i = Math.floor(Math.random() * f.length)
+  while (f.length > 1 && i === lastPick[key])
+  lastPick[key] = i
+  return f[i]
+}
+
+// короткий звук; из списка — случайный вариант (не тот же, что в прошлый раз)
 export function sfx(key, volume) {
   if (!store.sound) return
   const f = FILES[key]
   if (!f) return
   try {
-    const h = howl(`/sounds/${pickOne(f)}.ogg`)
+    const h = howl(`/sounds/${pickFor(key, f)}.ogg`)
     const id = h.play()
-    if (volume != null) h.volume(volume, id)
+    const v = VARY[key], base = volume ?? 0.55
+    h.volume(v ? Math.min(1, base * (1 - v.vol / 2 + Math.random() * v.vol)) : base, id)
+    if (v?.rate) h.rate(v.rate[0] + Math.random() * (v.rate[1] - v.rate[0]), id)
   } catch { /* браузер не дал звук — не страшно */ }
 }
 

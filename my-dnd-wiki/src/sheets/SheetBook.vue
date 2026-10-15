@@ -72,7 +72,20 @@
           </button>
         </nav>
         <!-- ляссе — ленточка из корешка -->
-        <i v-if="!single" ref="ribbonRef" class="sb-ribbon-wrap" title="Дёрни ленточку" @pointerdown="tugRibbon"><i class="sb-ribbon" /></i>
+        <svg v-if="!single" ref="ribbonRef" class="sb-ribbon-wrap" viewBox="-20 0 60 130" aria-hidden="true" @pointerdown="tugRibbon">
+          <title>Дёрни ленточку</title>
+          <defs>
+            <linearGradient id="sb-rb-g" x1="0" x2="1">
+              <stop offset="0" style="stop-color: color-mix(in srgb, var(--acc) 55%, #000)" />
+              <stop offset=".45" style="stop-color: color-mix(in srgb, var(--acc) 85%, #fff)" />
+              <stop offset=".7" style="stop-color: var(--acc)" />
+              <stop offset="1" style="stop-color: color-mix(in srgb, var(--acc) 50%, #000)" />
+            </linearGradient>
+          </defs>
+          <path :d="ribbonPath" fill="url(#sb-rb-g)" />
+          <path :d="ribbonPath" fill="none" stroke="rgba(0, 0, 0, .35)" stroke-width=".6" />
+          <path :d="ribbonSheen" fill="none" stroke="rgba(255, 250, 230, .35)" stroke-width="1.2" stroke-linecap="round" />
+        </svg>
 
         <!-- обложка: видна только пока книга открывается -->
         <div v-if="coverShown" ref="coverRef" class="sb-cover" aria-hidden="true">
@@ -99,7 +112,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import UserMenu from '../components/UserMenu.vue'
@@ -244,7 +257,8 @@ async function playOpen() {
   } else tl.from(cover, { y: 50, scale: 0.92, opacity: 0, duration: 0.55, ease: 'power3.out' })
   tl.addLabel('turn', '+=0.18')
     .set(rightHalf, { opacity: 1 }, 'turn')
-    .call(() => sfx('bookOpen', 0.5), null, 'turn')
+    // открытие: хлопок обложки и шорох первых страниц
+    .call(() => { sfx('bookOpen', 1); setTimeout(() => sfx('pageFlip', 0.3), 260) }, null, 'turn')
     // обложку чуть приподнимает, потом она поворачивается вокруг корешка
     .to(cover, { rotateY: -12, duration: 0.25, ease: 'power1.out' }, 'turn')
     .to(cover, { rotateY: -90, duration: 0.45, ease: 'power2.in' }, 'turn+=0.25')
@@ -345,7 +359,7 @@ function inkIn(root, delay = 0) {
 // книга сама следит за собой: когда ничего не анимируется, не должно остаться ни обложки,
 // ни перевёрнутых листов поверх страниц, ни текста, застрявшего прозрачным посреди анимации
 function heal() {
-  if (turning) return
+  if (turning || closing) return
   const book = bookRef.value
   if (!book || tl?.isActive()) return
   if (coverShown.value) coverShown.value = false
@@ -355,6 +369,7 @@ function heal() {
   if (stuck.length) gsap.set(stuck, { clearProps: 'opacity,filter,transform' })
 }
 let healTimer = 0
+let closing = false // книга закрывается — самопроверка не должна убирать обложку
 // клик по закладке, пока книга раскрывается: раскрытие доигрываем сразу
 function skipOpening() { if (tl?.isActive()) tl.progress(1) }
 
@@ -431,14 +446,40 @@ function breeze(dir = 1) {
   })
   tugRibbon(null, dir * 10)
 }
-// ляссе можно дёрнуть — качается и успокаивается
+// ляссе — шёлковая лента из корешка: гнётся волной, чуть закручивается; её можно дёрнуть
 const ribbonRef = ref(null)
+const rb = reactive({ kick: 0, t: 0 })
+const RB_LEN = 112
+function ribbonPts() {
+  const sway = Math.sin(rb.t * 0.7) * 0.22 + rb.kick, out = []
+  for (let i = 0; i <= 14; i++) {
+    const t = i / 14, y = t * RB_LEN
+    // изгиб нарастает к концу ленты, по ней бежит лёгкая волна
+    const x = 10 + sway * 26 * t * t + Math.sin(t * 5 - rb.t * 1.8) * 2.2 * t
+    // лента закручивается: видимая ширина то шире, то уже
+    const w = 6.5 * (0.62 + 0.38 * Math.abs(Math.cos(t * 2.2 + rb.t * 0.9 + sway)))
+    out.push({ x, y, w })
+  }
+  return out
+}
+const ribbonPath = computed(() => {
+  const p = ribbonPts(), last = p[p.length - 1]
+  const left = p.map(q => `${(q.x - q.w).toFixed(2)},${q.y.toFixed(2)}`), right = p.map(q => `${(q.x + q.w).toFixed(2)},${q.y.toFixed(2)}`).reverse()
+  // хвост ласточкой
+  return `M${left.join(' L')} L${last.x.toFixed(2)},${(last.y - 9).toFixed(2)} L${right.join(' L')} Z`
+})
+const ribbonSheen = computed(() => `M${ribbonPts().slice(0, -1).map(q => `${(q.x - q.w * 0.15).toFixed(2)},${q.y.toFixed(2)}`).join(' L')}`)
+let rbRaf = 0, rbLast = 0
+function rbLoop(now) {
+  rb.t += Math.min(0.05, (now - (rbLast || now)) / 1000)
+  rbLast = now
+  rbRaf = requestAnimationFrame(rbLoop)
+}
 function tugRibbon(e, force) {
-  const r = ribbonRef.value
-  if (!r || reduce) return
-  const f = force ?? (e ? (Math.random() < 0.5 ? -1 : 1) * 22 : 12)
-  gsap.killTweensOf(r)
-  gsap.fromTo(r, { rotation: f }, { rotation: 0, duration: 1.8, ease: 'elastic.out(1.2, 0.25)', transformOrigin: '50% 0%' })
+  if (reduce) return
+  const f = force != null ? force / 25 : (e ? (Math.random() < 0.5 ? -1 : 1) * 0.95 : 0.5)
+  gsap.killTweensOf(rb, 'kick')
+  gsap.fromTo(rb, { kick: f }, { kick: 0, duration: 2.2, ease: 'elastic.out(1.1, 0.22)' })
 }
 
 /* ---------- живые эффекты: хиты, уровень, броски ---------- */
@@ -473,7 +514,6 @@ watch(() => dice.pops.length, (len, old) => {
 })
 
 /* ---------- закрытие книги: обложка захлопывается, книга уезжает на полку ---------- */
-let closing = false
 async function closeBook() {
   if (closing) return
   closing = true
@@ -619,6 +659,7 @@ watch(() => route.params.id, id => { if (id) load(id) })
 watch(() => `${store.me?.id}|${store.role}`, (n, o) => { if (o && !o.startsWith('undefined|') && n !== o && route.params.id) load(route.params.id) })
 onMounted(() => {
   healTimer = setInterval(heal, 2000)
+  if (!reduce) rbRaf = requestAnimationFrame(rbLoop)
   init()
   addEventListener('resize', onResize)
   addEventListener('keydown', onKey)
@@ -626,6 +667,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   clearInterval(healTimer)
+  cancelAnimationFrame(rbRaf)
   tl?.kill()
   clearTimeout(coverTimer)
   removeEventListener('resize', onResize)
@@ -771,9 +813,8 @@ onBeforeUnmount(() => {
 @media (max-width: 1360px) { .sb-mark:not(.on):not(:hover) .nm { display: none; } }
 
 /* ляссе */
-.sb-ribbon-wrap { position: absolute; left: calc(50% + 14px); top: calc(100% - 16px); width: 16px; height: 62px; z-index: 3; cursor: grab; }
-.sb-ribbon { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0, 0, 0, .3), rgba(255, 255, 255, .15) 40%, rgba(0, 0, 0, .25)), var(--acc); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); transform-origin: 50% 0; animation: sb-sway 4.5s ease-in-out infinite; filter: drop-shadow(0 4px 4px rgba(0, 0, 0, .5)); }
-@keyframes sb-sway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
+.sb-ribbon-wrap { position: absolute; left: calc(50% - 4px); top: calc(100% - 16px); width: 46px; height: 100px; z-index: 3; overflow: visible; cursor: grab; filter: drop-shadow(1px 4px 3px rgba(0, 0, 0, .55)); }
+.sb-ribbon-wrap:active { cursor: grabbing; }
 
 /* искры при открытии */
 .sb-burst { position: absolute; inset: 0; z-index: 30; pointer-events: none; --glow: 0; --gx: 75%; background: radial-gradient(ellipse 28% 45% at var(--gx) 55%, rgba(255, 214, 140, calc(var(--glow) * .32)), transparent 70%); }
