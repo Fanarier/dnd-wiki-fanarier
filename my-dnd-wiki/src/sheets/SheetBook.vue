@@ -63,7 +63,7 @@
     <div v-else class="sb-stage" :class="{ single }">
       <!-- пылинки в свете свечи -->
       <i v-for="m in motes" :key="m.k" class="sb-mote" :style="m.style" aria-hidden="true" />
-      <div ref="bookRef" class="sb-book" :class="{ opening, downed }">
+      <div ref="bookRef" class="sb-book" :class="{ opening, downed, 'marks-tight': marksTight }">
         <!-- кожаный переплёт с тиснёными уголками (под страницами) -->
         <div v-if="!single" ref="boardLRef" class="sb-boards l" aria-hidden="true"><i class="cn tl" /><i class="cn bl" /></div>
         <div class="sb-boards r" aria-hidden="true"><i class="cn tr" /><i class="cn br" /><template v-if="single"><i class="cn tl" /><i class="cn bl" /></template></div>
@@ -212,7 +212,20 @@ provide('openDelay', 1.3) // числа и паутина ждут, пока о�
 const isPhone = () => innerWidth < 640 || innerHeight < 480
 const phone = ref(isPhone())
 const single = ref(innerWidth < 980 || phone.value)
-const onResize = () => { phone.value = isPhone(); single.value = innerWidth < 980 || phone.value }
+const onResize = () => { phone.value = isPhone(); single.value = innerWidth < 980 || phone.value; fitMarks() }
+// закладки с подписями должны помещаться над своей страницей; не влезают — подпись только у открытых (и под мышкой).
+// Меряем по-настоящему: ширина экрана, масштаб браузера и шрифты бывают любые
+const marksTight = ref(false)
+async function fitMarks() {
+  marksTight.value = false
+  await nextTick()
+  const navs = bookRef.value?.querySelectorAll('.sb-marks') || []
+  for (const nav of navs) {
+    const marks = [...nav.children]
+    const need = marks.reduce((w, m) => w + m.offsetWidth, 0) + 4 * Math.max(0, marks.length - 1)
+    if (need > nav.clientWidth) { marksTight.value = true; return }
+  }
+}
 const visibleSections = computed(() => SECTIONS)
 // закладки: на развороте — половина над левой страницей, половина над правой (корешок свободен)
 const markGroups = computed(() => {
@@ -814,6 +827,8 @@ async function load(id) {
   pickStart()
   document.title = `${sheet.data.CharacterName} — лист персонажа`
   playOpen()
+  fitMarks()
+  document.fonts?.ready.then(fitMarks)
 }
 watch(() => route.params.id, id => { if (id) load(id) })
 // сменили вход (мастер ↔ игра персонажем) — права на лист другие, перечитываем
@@ -972,7 +987,7 @@ onBeforeUnmount(() => {
 .sb-mark.on { transform: translateY(0); filter: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 -4px 16px color-mix(in srgb, var(--silk) 70%, transparent), 0 0 0 1px color-mix(in srgb, var(--acc) 60%, #fff3d6); }
 .sb-mark.on::after { content: ''; position: absolute; left: 50%; top: 6px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #ffe7a8; box-shadow: 0 0 8px #ffd27a; }
 /* 13 закладок с подписями влезают только на очень широком экране — иначе подпись у открытой и под мышкой */
-@media (max-width: 1800px) { .sb-mark:not(.on):not(:hover) .nm { display: none; } }
+.marks-tight .sb-mark:not(.on):not(:hover) .nm { display: none; }
 
 /* ляссе */
 .sb-ribbon-wrap { position: absolute; left: calc(50% - 4px); top: calc(100% - 16px); width: 46px; height: 100px; z-index: 3; overflow: visible; cursor: grab; filter: drop-shadow(1px 4px 3px rgba(0, 0, 0, .55)); }
