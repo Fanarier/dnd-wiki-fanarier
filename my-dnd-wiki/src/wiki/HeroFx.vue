@@ -52,9 +52,45 @@
       </svg>
     </template>
 
+    <!-- ЯРОСТЬ ДРАКОНА: рык расходится волнами из-за портрета, раз в несколько секунд — удар об землю:
+         трещины вспыхивают, по земле бежит ударная волна, летит пыль; рамка бьётся сердцем и ускоряется -->
+    <template v-else-if="theme === 'rage'">
+      <template v-if="on('back')">
+        <i v-for="n in 3" :key="'roar' + n" class="roar" :style="{ animationDelay: s((n - 1) * 0.9) }" />
+        <svg class="cracks" viewBox="-100 -100 200 100">
+          <path d="M0 0l-8-14 4-12-14-18 2-14-10-16M0 0l10-12-2-16 16-14-4-18 12-12M0 0l-22-6-14-14-22-2-16-14M0 0l24-4 12-14 24 2 14-16M0 0l-4-20 6-10-6-16" />
+        </svg>
+        <i class="shock" />
+      </template>
+      <i v-if="on('front')" class="heart" />
+    </template>
+
+    <!-- КОВАНЫЙ: золотые дорожки платы, по ним бегут импульсы; чипы мигают; скан и помехи -->
+    <template v-else-if="theme === 'circuit'">
+      <svg v-if="on('back')" class="pcb" viewBox="0 0 330 560" preserveAspectRatio="xMidYMid slice">
+        <g class="trace">
+          <path v-for="(d, n) in TRACES" :key="'t' + n" :d="d" pathLength="100" />
+        </g>
+        <g class="pulse">
+          <path v-for="(d, n) in TRACES" :key="'p' + n" :d="d" pathLength="100" :style="{ animationDelay: s(-((n * 0.73) % 2.6)), animationDuration: s(2.2 + (n % 3) * 0.6) }" />
+        </g>
+        <g class="via"><circle v-for="(v, n) in VIAS" :key="'v' + n" :cx="v[0]" :cy="v[1]" r="3.2" /></g>
+        <g v-for="(c, n) in CHIPS" :key="'c' + n" class="chip" :transform="`translate(${c[0]} ${c[1]})`">
+          <path :d="`M-4 6h-6M-4 14h-6M-4 22h-6M${c[2] + 4} 6h6M${c[2] + 4} 14h6M${c[2] + 4} 22h6`" />
+          <rect :width="c[2]" height="28" rx="3" />
+          <circle class="led" :cx="c[2] / 2" cy="14" r="2.6" :style="{ animationDelay: s(n * 0.7) }" />
+        </g>
+      </svg>
+      <template v-if="on('front')">
+        <i class="scan" />
+        <i class="glitch g1" /><i class="glitch g2" />
+      </template>
+    </template>
+
     <!-- частицы (у каждой свой слой) -->
     <i v-for="(p, n) in shown" :key="n" :class="p.k" :style="p.st">
       <template v-if="p.k === 'tcard'"><b class="seal" /></template>
+      <template v-else-if="p.k === 'bit'">{{ p.t }}</template>
     </i>
   </div>
 </template>
@@ -72,6 +108,14 @@ const props = defineProps({
 const card = computed(() => props.mode === 'card')
 const on = l => props.layer === 'all' || props.layer === l
 const RUNES = ['ᚦ', 'ᛉ', 'ᛟ', 'ᚱ', 'ᛞ', 'ᚹ', 'ᛇ', 'ᛝ']
+// плата Кованого: дорожки идут по краям и снизу, мимо портрета и текста
+const TRACES = [
+  'M0 40H22V120H8V232', 'M330 60H308V122H321V206', 'M0 296H9V404H4', 'M330 286H321V372L326 378V468',
+  'M70 560V550H150', 'M262 560V550H190', 'M0 476H8V536H40V560', 'M330 514H322V550H296', 'M0 20H60V0', 'M330 18H270V0'
+]
+const VIAS = [[8, 232], [321, 206], [4, 404], [326, 468], [150, 550], [190, 550], [40, 560], [296, 550], [60, 0], [270, 0]]
+// чипы — у краёв, чтобы не закрывать подписи
+const CHIPS = [[-2, 248, 12], [320, 408, 12]]
 
 const pct = v => `${(v * 100).toFixed(1)}%`
 const s = v => `${v.toFixed(2)}s`
@@ -111,6 +155,15 @@ const parts = computed(() => {
         ...many(8, 'back', 'dflame', i => ({ st: { left: pct(-0.05 + (i / 8) * 1.05 + r() * 0.05), '--sz': `${70 + r() * 50}px`, animationDelay: s(-r() * 2), animationDuration: s(2 + r() * 1.2) } })),
         ...ember(14, ['var(--ta)', 'var(--ta)', 'var(--tb)'])
       ]
+    case 'rage':
+      return [
+        ...many(6, 'back', 'rsmoke', i => ({ st: { left: pct(r() * 0.9 - 0.05), '--sz': `${90 + r() * 70}px`, '--dx': `${(r() - 0.5) * 60}px`, ...timing(r, 3.4, 2, i) } })),
+        ...ember(14, ['#ff3b2f', '#ff9a3c', '#ffd06a']),
+        // пыль от удара — вылетает разом, в такт с трещинами и толчком карточки
+        ...many(12, 'front', 'dust', () => ({ st: { left: pct(0.3 + r() * 0.4), '--dx': `${(r() - 0.5) * 240}px`, '--dy': `${-(20 + r() * 70)}px`, '--sz': `${6 + r() * 12}px` } }))
+      ]
+    case 'circuit':
+      return many(12, 'front', 'bit', i => ({ t: r() < 0.5 ? '0' : '1', st: { left: pct(0.04 + r() * 0.92), '--dx': `${(r() - 0.5) * 30}px`, fontSize: `${9 + r() * 6}px`, ...timing(r, 3.2, 2.5, i) } }))
     case 'marksman':
       return many(3, 'front', 'tracer', () => ({ st: { top: pct(0.12 + r() * 0.76), animationDelay: s(0.3 + r() * 2.4), animationDuration: s(2.2 + r() * 1.6) } }))
   }
@@ -281,6 +334,57 @@ const shown = computed(() => parts.value.filter(p => on(p.l)))
   18% { opacity: 1; transform: translateX(var(--w)); }
   19%, 100% { opacity: 0; transform: translateX(var(--w)); }
 }
+
+/* ---------- ярость дракона ---------- */
+/* рык: алые волны расходятся из-за портрета */
+.roar { top: calc(var(--port-top) + var(--port-h) / 2 - 70px); left: calc(50% - 70px); width: 140px; height: 140px; border-radius: 50%; border: 3px solid rgba(255, 59, 47, .7); box-shadow: 0 0 18px rgba(255, 59, 47, .6), inset 0 0 18px rgba(255, 120, 60, .4); filter: blur(1px); opacity: 0; animation: roar 2.7s ease-out infinite both; }
+.m-ambient .roar { top: calc(50% - 20vmin); left: calc(50% - 20vmin); width: 40vmin; height: 40vmin; }
+@keyframes roar { 0% { opacity: 0; transform: scale(.45); } 12% { opacity: .9; } 100% { opacity: 0; transform: scale(3.3); } }
+.rsmoke { bottom: calc(var(--sz) / -2); width: var(--sz); height: var(--sz); margin-left: calc(var(--sz) / -2); border-radius: 50%; background: radial-gradient(circle, rgba(40, 4, 2, .95), rgba(150, 24, 12, .45) 50%, transparent 70%); filter: blur(8px); opacity: 0; animation: smoke ease-in-out infinite both; }
+.m-ambient .rsmoke { --sz: 260px !important; filter: blur(20px); }
+/* трещины в земле под ногами: тлеют и вспыхивают при ударе (цикл 4.6 с — тот же, что у толчка карточки) */
+.cracks { left: calc(50% - 170px); bottom: -2px; width: 340px; height: 170px; stroke: #ff7a2a; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 4px #ff3b2f) drop-shadow(0 0 10px rgba(255, 59, 47, .7)); stroke-dasharray: 400; animation: draw 1.6s ease-out both, crack-flash 4.6s ease-out infinite; }
+.m-ambient .cracks { left: calc(50% - 50vw); width: 100vw; height: 50vw; }
+@keyframes crack-flash { 0%, 84% { opacity: .35; } 87% { opacity: 1; stroke: #ffe0a0; } 100% { opacity: .35; } }
+/* ударная волна по земле */
+.shock { left: calc(50% - 40px); bottom: -20px; width: 80px; height: 40px; border-radius: 50%; border: 3px solid rgba(255, 200, 140, .9); box-shadow: 0 0 20px rgba(255, 90, 40, .8); opacity: 0; animation: shock 4.6s ease-out infinite; }
+.m-ambient .shock { width: 160px; height: 80px; left: calc(50% - 80px); }
+@keyframes shock { 0%, 85% { opacity: 0; transform: scale(.3); } 87% { opacity: 1; } 100% { opacity: 0; transform: scale(6, 4); } }
+.dust { bottom: 0; width: var(--sz); height: var(--sz); border-radius: 50%; background: radial-gradient(circle, rgba(170, 120, 90, .7), transparent 70%); opacity: 0; animation: dust 4.6s ease-out infinite; }
+@keyframes dust { 0%, 85% { opacity: 0; transform: translate(0, 0) scale(.4); } 87% { opacity: .9; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(2.2); } }
+/* сердцебиение: двойной удар «тук-тук» алым по краям; через несколько ударов пульс учащается */
+.heart { inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 2px rgba(255, 59, 47, 0), inset 0 0 50px rgba(200, 20, 10, 0); animation: beat 1.15s ease-out 4, beat .72s ease-out 4.6s infinite; }
+@keyframes beat {
+  0% { box-shadow: inset 0 0 0 2px rgba(255, 59, 47, 0), inset 0 0 50px rgba(200, 20, 10, 0); }
+  10% { box-shadow: inset 0 0 0 2px rgba(255, 59, 47, .9), inset 0 0 60px rgba(220, 30, 15, .55); }
+  24% { box-shadow: inset 0 0 0 2px rgba(255, 59, 47, .2), inset 0 0 40px rgba(200, 20, 10, .15); }
+  34% { box-shadow: inset 0 0 0 2px rgba(255, 59, 47, .65), inset 0 0 50px rgba(220, 30, 15, .4); }
+  60%, 100% { box-shadow: inset 0 0 0 2px rgba(255, 59, 47, 0), inset 0 0 50px rgba(200, 20, 10, 0); }
+}
+
+/* ---------- кованый ---------- */
+.pcb { inset: 0; width: 100%; height: 100%; }
+.pcb .trace path { stroke: rgba(242, 238, 228, .22); stroke-width: 2.2; stroke-linejoin: round; stroke-dasharray: 100; animation: draw-pcb 1.4s ease-out both; }
+@keyframes draw-pcb { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+/* импульс бежит по дорожке */
+.pcb .pulse path { stroke: #ffd77a; stroke-width: 2.6; stroke-linecap: round; stroke-dasharray: 9 130; filter: drop-shadow(0 0 4px #e2b64a) drop-shadow(0 0 8px rgba(226, 182, 74, .8)); animation: pulse-run linear infinite; }
+@keyframes pulse-run { from { stroke-dashoffset: 109; } to { stroke-dashoffset: -30; } }
+.pcb .via circle { fill: #e2b64a; stroke: #f2eee4; stroke-width: 1; filter: drop-shadow(0 0 3px #e2b64a); }
+.pcb .chip rect { fill: #24221d; stroke: #e2b64a; stroke-width: 1.4; }
+.pcb .chip path { stroke: #e2b64a; stroke-width: 1.6; }
+.pcb .chip .led { fill: #ffd77a; animation: led 1.4s steps(2, jump-none) infinite; filter: drop-shadow(0 0 4px #ffd77a); }
+@keyframes led { 0% { opacity: .15; } 100% { opacity: 1; } }
+/* скан-линия сверху вниз */
+.scan { left: 0; right: 0; top: 0; height: 2px; background: linear-gradient(90deg, transparent, rgba(255, 215, 122, .9), transparent); box-shadow: 0 0 10px rgba(226, 182, 74, .9); opacity: .8; animation: scan 3.6s linear infinite; }
+@keyframes scan { from { transform: translateY(-10px); } to { transform: translateY(var(--fall)); } }
+/* помехи: полоски на миг смещаются */
+.glitch { left: 0; right: 0; height: 6px; background: linear-gradient(90deg, rgba(226, 182, 74, .0), rgba(242, 238, 228, .35) 30%, rgba(226, 182, 74, .45) 70%, transparent); mix-blend-mode: screen; opacity: 0; }
+.g1 { top: 38%; animation: glitch 5.3s steps(1) infinite; }
+.g2 { top: 71%; height: 3px; animation: glitch 4.1s steps(1) 1.2s infinite; }
+@keyframes glitch { 0%, 90%, 94%, 100% { opacity: 0; transform: translateX(0); } 91% { opacity: 1; transform: translateX(-14px); } 92% { opacity: .6; transform: translateX(10px); } 93% { opacity: 1; transform: translateX(-4px); } }
+/* двоичные частицы поднимаются от нижней платы */
+.bit { bottom: -12px; color: #ffd77a; font: 700 12px 'Consolas', 'Courier New', monospace; text-shadow: 0 0 6px #e2b64a; opacity: 0; animation: mote ease-in-out infinite both; }
+.m-ambient .bit { font-size: 22px !important; }
 
 @keyframes spin { to { rotate: 360deg; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }

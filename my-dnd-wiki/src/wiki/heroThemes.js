@@ -1,6 +1,6 @@
 // Свои темы карточек героев: цвета, узор фона, знак и эффекты при наведении (см. HeroFx.vue).
 // Тема привязана к герою: по id стартовой карточки, а если карточку пересоздали — по имени.
-import { mdiCog, mdiPentagram, mdiSnowflake, mdiWhiteBalanceSunny, mdiYinYang, mdiCardsPlaying, mdiMoonWaningCrescent, mdiCrosshairsGps } from '@mdi/js'
+import { mdiCog, mdiPentagram, mdiSnowflake, mdiWhiteBalanceSunny, mdiYinYang, mdiCardsPlaying, mdiMoonWaningCrescent, mdiCrosshairsGps, mdiArmFlex, mdiChip } from '@mdi/js'
 
 const svg = s => `url("data:image/svg+xml,${encodeURIComponent(s)}")`
 
@@ -65,11 +65,28 @@ export const HERO_THEMES = {
     c: { a: '#ff4b3a', b: '#c9ced6', l: '#f3f4f6', bg1: '#1d1d20', bg2: '#0b0b0d', f: '#5b6068' },
     // мишень в углу и деления прицела
     pattern: 'repeating-radial-gradient(circle at 88% 92%, transparent 0 22px, rgba(255, 75, 58, .1) 22px 23.5px), repeating-linear-gradient(90deg, rgba(201, 206, 214, .05) 0 1px, transparent 1px 18px)'
+  },
+  rage: {
+    label: 'Ярость дракона', icon: mdiArmFlex,
+    c: { a: '#ff3b2f', b: '#ff9a3c', l: '#ffd9c9', bg1: '#260c09', bg2: '#0e0403', f: '#7d1e15' },
+    // следы когтей и трещины
+    pattern: svg(`<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140' fill='none' stroke='#ff3b2f' stroke-opacity='.1' stroke-linecap='round'>
+      <path d='M20 18l26 40M32 12l26 42M44 8l24 40' stroke-width='3'/>
+      <path d='M90 140l8-22-10-14 14-18M120 90l-14 6-6 16M0 96l16 2 8 12' stroke-width='1.3'/></svg>`)
+  },
+  circuit: {
+    label: 'Кованый', icon: mdiChip,
+    c: { a: '#e2b64a', b: '#f2eee4', l: '#fff4d6', bg1: '#3a3832', bg2: '#181714', f: '#a08955' },
+    // белый металл с золотыми дорожками платы
+    pattern: svg(`<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120' fill='none' stroke-linecap='square'>
+      <path d='M0 24h30l10 10v30M120 70H86l-8-8V30M60 120V96l12-12h20M0 100h18l6-6' stroke='#f2eee4' stroke-opacity='.07' stroke-width='2'/>
+      <g fill='#e2b64a' fill-opacity='.16'><circle cx='40' cy='64' r='3'/><circle cx='78' cy='30' r='3'/><circle cx='92' cy='84' r='3'/><circle cx='24' cy='94' r='2.5'/></g>
+      <rect x='92' y='8' width='18' height='14' rx='2' stroke='#e2b64a' stroke-opacity='.1'/></svg>`)
   }
 }
 
-const BY_ID = { hs01: 'steam', hs02: 'sun', hs03: 'frost', hs06: 'marksman', hs07: 'demon', hs10: 'dragon', hs11: 'chi', hs12: 'tarot' }
-const BY_NAME = { энди: 'steam', белатор: 'sun', джилл: 'frost', лева: 'marksman', цуруя: 'demon', элиас: 'dragon', хироши: 'chi', касуми: 'tarot' }
+const BY_ID = { hs01: 'steam', hs02: 'sun', hs03: 'frost', hs06: 'marksman', hs07: 'demon', hs08: 'rage', hs10: 'dragon', hs11: 'chi', hs12: 'tarot', hb767c9cc5b: 'circuit' }
+const BY_NAME = { энди: 'steam', белатор: 'sun', джилл: 'frost', лева: 'marksman', цуруя: 'demon', элиас: 'dragon', хироши: 'chi', касуми: 'tarot', долор: 'rage', kr1st1an: 'circuit', кристиан: 'circuit' }
 
 export function heroThemeKey(h) {
   if (!h || h.kind !== 'character') return null

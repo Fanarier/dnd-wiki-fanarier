@@ -483,6 +483,13 @@ function untilt() {
 .th-chi.live .mark { animation: spin 5s linear infinite; }
 .th-tarot.live .mark { animation: throb 1.8s ease-in-out infinite; }
 .th-demon.live .mark, .th-dragon.live .mark, .th-marksman.live .mark { animation: throb 1.8s ease-in-out infinite; }
+/* ярость дракона: знак бьётся в такт сердцу, а карточку раз в 4.6 с встряхивает удар об землю */
+.th-rage.live .mark { animation: throb .72s ease-in-out infinite; }
+.th-rage.live:not(.flip) .face { animation: rage-slam 4.6s ease-out infinite; }
+@keyframes rage-slam { 0%, 84% { translate: 0 0; } 86% { translate: 0 5px; } 88% { translate: -3px -2px; } 90% { translate: 2px 1px; } 92% { translate: -1px 0; } 94% { translate: 0 0; } }
+/* кованый: знак-чип моргает, как светодиод */
+.th-circuit.live .mark { animation: throb 1.2s steps(2, jump-none) infinite; }
+@media (prefers-reduced-motion: reduce) { .th-rage.live .face { animation: none; } }
 /* при наведении арт подсвечивается по краю — сам арт эффекты не закрывают */
 .themed .dcard.top, .themed .port:not(.art) { transition: transform .5s cubic-bezier(.2, .8, .2, 1), filter .5s, opacity .4s, box-shadow .6s; }
 .th-demon.live :is(.dcard.top, .port:not(.art)) { box-shadow: 0 0 0 1px rgba(224, 51, 90, .55), 0 0 22px rgba(224, 51, 90, .45), 0 0 40px rgba(155, 77, 255, .25); }
