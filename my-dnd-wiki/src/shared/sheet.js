@@ -110,6 +110,9 @@ const main = {
     Rows: A(O({ Cells: A(S(2000), 12) }), 300)
   }), 20),
   JournalEntries: A(O({ Id: S(60), Title: S(200), Content: S(60000), Tags: S(300), Date: S(40) }), 500),
+  // тренировки и обучение (поле сайта, в приложении его не было): прогресс Cur из Max, этап («2», «Освоение»…),
+  // статус — пустой = сам (дошёл до максимума — завершено, иначе в процессе), или задан вручную
+  Trainings: A(O({ Id: S(40), Name: S(160), Note: S(4000), Cur: I(0, 1e7), Max: I(0, 1e7), Stage: S(40), ProgNote: S(8000), Status: E('', 'planned', 'active', 'done') }), 300),
   HpData: O({ Current: I(), Max: I(), Temp: I(0, 1e9), DS_S1: B, DS_S2: B, DS_S3: B, DS_F1: B, DS_F2: B, DS_F3: B }),
   Resources: A(O({ Id: S(60), Name: S(80), Current: I(), Max: I(0, 999), Color: COLOR, ResetOn: E('long', 'short', 'never'), Style: E('pips', 'ammo', 'boxes', 'number'), Notes: S(1000), Icon: S(16) }), 40),
   Trait4: TRAIT, Trait9: TRAIT, Trait18: TRAIT,
@@ -174,6 +177,28 @@ export const blankSheet = () => cleanBy(SCHEMA, {
   CharacterName: 'Новый персонаж', Stats: Object.fromEntries(ATTRS.map(a => [a.key + 'Base', 10])),
   HpData: {}, Trait4: {}, Trait9: {}, Trait18: {}
 })
+
+/* ---------- тренировки ---------- */
+export const TRAIN_STATUS = {
+  active: { name: 'В процессе', color: '#e6c25a' },
+  planned: { name: 'Запланировано', color: '#6fa8dc' },
+  done: { name: 'Завершено', color: '#7ccf8b' }
+}
+export const trainStatus = t => t?.Status || (t?.Max > 0 && t.Cur >= t.Max ? 'done' : 'active')
+// этапы владений и освоения — подсказки для поля «№»
+export const TRAIN_STAGES = ['Нет', 'Обычный', 'Базовое', 'Эксперт', 'Легенда', 'Освоение']
+// шаблоны: название и сколько очков обычно нужно (этап числом подставляется сам — следующий по счёту)
+export const TRAIN_TEMPLATES = [
+  { k: 'attr', name: 'Характеристика', items: [...ATTRS.map(a => a.name), 'Магия'], num: true, max: [50, 150, 250, 500, 500] },
+  { k: 'skill', name: 'Навык', items: SKILLS.map(s => s.name), num: true, max: [50, 150, 250, 500, 500] },
+  { k: 'tri', name: 'Треугольник', prefix: 'Треугольник: ', items: ['Тело', 'Разум', 'Дух', 'Сила', 'Ловкость', 'Интеллект'], num: true, max: [100, 100, 100] },
+  { k: 'prof', name: 'Владение', prefix: 'Владение: ', stage: 'Базовое', max: [1000] },
+  { k: 'trait', name: 'Черта', prefix: 'Черта: ', stage: 'Освоение', max: [100] },
+  { k: 'spell', name: 'Заклинание', prefix: 'Заклинание: ', stage: 'Освоение', max: [50] },
+  { k: 'magic', name: 'Магия школы', items: ['Магия Огня', 'Магия Воды', 'Магия Воздуха', 'Магия Земли', 'Магия Льда', 'Магия Тьмы', 'Магия Света', 'Магия призыва'], suffix: [' Базовая', ' Экспертная', ' Легендарная'], stage: ['Нет', 'Базовое', 'Эксперт'], max: [100, 500, 2000] },
+  { k: 'lang', name: 'Язык', prefix: 'Язык: ', stage: 'Освоение', max: [1000] },
+  { k: 'craft', name: 'Ремесло', prefix: 'Ремесло: ', stage: 'Базовое', max: [1000] }
+]
 
 // путь «Stats.StrBase» / «Skills.3.Description» → схема этого места (или null, если такого нет)
 export function schemaAt(path) {
@@ -244,7 +269,7 @@ const LABELS = {
   StartBonus2: 'Старт-бонус 2', StartBonus3: 'Старт-бонус 3', Level: 'Уровень', Experience: 'Опыт', BodyDev: 'Тело',
   MindDev: 'Разум', SpiritDev: 'Дух', Awakening: 'Пробуждение', Buff: 'Бафф', Debuff: 'Дебафф', Stats: 'Характеристики',
   Skills: 'Активные навыки', PassiveSkills: 'Пассивные навыки', Attacks: 'Атаки', CustomSheets: 'Свои листы',
-  JournalEntries: 'Журнал', HpData: 'Хиты (трекер)', Resources: 'Ресурсы', Trait4: 'Черта 4 ур.', Trait9: 'Черта 9 ур.',
+  JournalEntries: 'Журнал', Trainings: 'Тренировки', HpData: 'Хиты (трекер)', Resources: 'Ресурсы', Trait4: 'Черта 4 ур.', Trait9: 'Черта 9 ур.',
   Trait18: 'Черта 18 ур.', HumanoidTraits: 'Черты гуманоидов', Proficiencies: 'Владения', Inventory: 'Инвентарь',
   GoldCoins: 'Золото', SilverCoins: 'Серебро', CopperCoins: 'Медь', FieldColors: 'Цвет поля', Accent: 'Цвет листа', SlotLocks: 'Замок слота',
   Current: 'текущие', Max: 'максимум', Temp: 'временные', Name: 'название', Description: 'описание', SkillName: 'название',
@@ -252,11 +277,11 @@ const LABELS = {
   Stats_: 'статы', Effects: 'эффекты', AttackType: 'тип', Title: 'заголовок', Content: 'текст', Tags: 'теги', ImageFile: 'картинка',
   Style: 'вид', Color: 'цвет', Icon: 'значок', ResetOn: 'восстановление', CategoryIndex: 'категория', IsActiveSymbol: 'отметка ●',
   IsActive: 'отметка ●', TypeIndex: 'тип', Cells: 'ячейки', Columns: 'колонки', Rows: 'строки', Header: 'название колонки',
-  ColumnType: 'тип колонки', Date: 'дата', Rarity_: 'редкость', DS_S1: 'спасбросок: успех 1', DS_S2: 'спасбросок: успех 2', DS_S3: 'спасбросок: успех 3',
+  ColumnType: 'тип колонки', Date: 'дата', Cur: 'прогресс', Stage: 'этап', ProgNote: 'примечание к прогрессу', Note: 'примечание', Status: 'статус', Rarity_: 'редкость', DS_S1: 'спасбросок: успех 1', DS_S2: 'спасбросок: успех 2', DS_S3: 'спасбросок: успех 3',
   DS_F1: 'спасбросок: провал 1', DS_F2: 'спасбросок: провал 2', DS_F3: 'спасбросок: провал 3'
 }
 // понятные значения служебных полей
-const VALUE_WORDS = { pips: 'кружки', ammo: 'ячейки', boxes: 'флажки', number: 'числа', text: 'текст', toggle: 'флажок', long: 'долгий отдых', short: 'короткий отдых', never: 'не восстанавливается' }
+const VALUE_WORDS = { planned: 'запланировано', active: 'в процессе', done: 'завершено', pips: 'кружки', ammo: 'ячейки', boxes: 'флажки', number: 'числа', text: 'текст', toggle: 'флажок', long: 'долгий отдых', short: 'короткий отдых', never: 'не восстанавливается' }
 for (const a of ATTRS) { LABELS[a.key + 'Base'] = a.name; LABELS[a.key + 'SaveProf'] = `Спасбросок: ${a.name}` }
 for (const s of SKILLS) { LABELS[s.key + 'T'] = `${s.name}: тренировка`; LABELS[s.key + 'P'] = `${s.name}: владение` }
 for (let i = 1; i <= 4; i++) { LABELS[`CustomField${i}Label`] = `Своё поле ${i}: название`; LABELS[`CustomField${i}Value`] = `Своё поле ${i}` }

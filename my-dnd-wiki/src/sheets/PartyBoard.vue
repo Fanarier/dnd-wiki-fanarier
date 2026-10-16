@@ -38,6 +38,15 @@
           <span v-if="s.ds.some(Boolean)" class="ds" title="Спасброски от смерти">☠ <i v-for="k in 3" :key="'s' + k" :class="{ on: s.ds[k - 1] }" class="ok" /><i v-for="k in 3" :key="'f' + k" :class="{ on: s.ds[k + 2] }" class="bad" /></span>
         </div>
 
+        <!-- что сейчас тренирует: ближе всего к завершению — первым -->
+        <div v-if="s.train?.length" class="pb-train" :title="trainTitle(s)">
+          <span class="pb-tr-h">🏋 Тренирует <small v-if="s.train.length > 2">ещё {{ s.train.length - 2 }}</small></span>
+          <div v-for="(t, ti) in s.train.slice(0, 2)" :key="ti" class="pb-tr">
+            <span class="pb-tr-n">{{ t.name }}<small v-if="t.stage"> · {{ t.stage }}</small></span>
+            <span class="pb-tr-bar"><i :style="{ width: (t.max ? Math.min(100, t.cur / t.max * 100) : 0) + '%' }" /></span>
+            <span class="pb-tr-v">{{ t.cur }}<small>/{{ t.max }}</small></span>
+          </div>
+        </div>
         <div v-if="s.res.length" class="pb-res">
           <div v-for="(r, ri) in s.res" :key="r.id || ri" class="pb-r" :style="{ '--rc': r.color || 'var(--acc)' }">
             <span class="pb-r-n">{{ r.icon }} {{ r.name }}</span>
@@ -61,6 +70,8 @@ import { api, toast } from '../map/store.js'
 import { sheets, loadSheets, sheetImg } from './sheetState.js'
 
 const withNpc = ref(false)
+// подсказка: все тренировки «в процессе» построчно
+const trainTitle = s => s.train.map(t => `${t.name}${t.stage ? ` (${t.stage})` : ''}: ${t.cur}/${t.max}`).join('\n')
 // кто-то поднял уровень — карточка на пару секунд вспыхивает золотом
 const leveled = reactive(new Set())
 const lastLevel = new Map()
@@ -148,6 +159,16 @@ function setRes(s, ri, v) {
 .pb-pools .ds i.ok { border-color: #5cc96f; } .pb-pools .ds i.ok.on { background: #5cc96f; }
 .pb-pools .ds i.bad { border-color: #e5483b; } .pb-pools .ds i.bad.on { background: #e5483b; }
 .pb-res { display: grid; gap: 5px; }
+.pb-train { display: grid; gap: 4px; padding: 6px 8px; border-radius: 10px; background: rgba(0, 0, 0, .22); border: 1px solid rgba(230, 194, 90, .18); }
+.pb-tr-h { font: 800 10px 'Manrope', sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #a8936c; }
+.pb-tr-h small { letter-spacing: 0; text-transform: none; opacity: .8; }
+.pb-tr { display: grid; grid-template-columns: minmax(0, 1fr) 70px auto; align-items: center; gap: 8px; }
+.pb-tr-n { font: 700 12.5px 'Manrope', sans-serif; color: #d9c9a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-tr-n small { color: #a8936c; }
+.pb-tr-bar { height: 7px; border-radius: 99px; background: rgba(0, 0, 0, .45); overflow: hidden; }
+.pb-tr-bar i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #b8893f, #e6c25a); transition: width .6s; }
+.pb-tr-v { font: 800 12px 'Manrope', sans-serif; color: #e6c25a; font-variant-numeric: tabular-nums; }
+.pb-tr-v small { color: #a8936c; }
 .pb-r { display: flex; align-items: center; gap: 8px; }
 .pb-r-n { flex: 1; min-width: 0; font: 700 12.5px 'Manrope', sans-serif; color: #d9c9a6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pb-r-pips { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; }

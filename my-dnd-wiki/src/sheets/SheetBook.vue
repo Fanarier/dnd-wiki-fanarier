@@ -159,6 +159,7 @@ import PStats from './pages/PStats.vue'
 import PSkills from './pages/PSkills.vue'
 import PAttacks from './pages/PAttacks.vue'
 import PTraits from './pages/PTraits.vue'
+import PTraining from './pages/PTraining.vue'
 import PEquip from './pages/PEquip.vue'
 import PInventory from './pages/PInventory.vue'
 import PResources from './pages/PResources.vue'
@@ -173,6 +174,7 @@ const SECTIONS = [
   { key: 'passive', name: 'Пассивные навыки', tab: 'Пассивные', icon: '🌀', comp: PSkills, props: { list: 'PassiveSkills' } },
   { key: 'attacks', name: 'Атаки', icon: '⚔', comp: PAttacks },
   { key: 'traits', name: 'Владения', icon: '🎓', comp: PTraits },
+  { key: 'train', name: 'Тренировки и обучение', tab: 'Тренировки', icon: '🏋', comp: PTraining },
   { key: 'equip', name: 'Снаряжение', icon: '🛡', comp: PEquip },
   { key: 'inv', name: 'Инвентарь', icon: '🎒', comp: PInventory },
   { key: 'res', name: 'Ресурсы', icon: '❤', comp: PResources },
@@ -180,7 +182,7 @@ const SECTIONS = [
   { key: 'custom', name: 'Свои листы', icon: '📋', comp: PCustom }
 ]
 // цвета шёлковых закладок
-const SILK = ['#8e2f3a', '#2f5a8e', '#6d3f9a', '#2f7a64', '#a0662a', '#8a2f68', '#4f6e2a', '#a0822a', '#b2433a', '#3f528a', '#6a4632', '#2f6a7a']
+const SILK = ['#8e2f3a', '#2f5a8e', '#6d3f9a', '#2f7a64', '#a0662a', '#8a2f68', '#4f6e2a', '#7a5a9e', '#a0822a', '#b2433a', '#3f528a', '#6a4632', '#2f6a7a']
 // пылинки: место, размер, скорость — случайные, но постоянные
 const motes = Array.from({ length: 16 }, (_, k) => ({ k, style: { left: `${5 + Math.random() * 90}%`, top: `${10 + Math.random() * 80}%`, '--d': `${9 + Math.random() * 10}s`, '--dl': `${-Math.random() * 12}s`, '--sz': `${1.5 + Math.random() * 2.5}px` } }))
 const MODES = [{ v: '', t: 'd20', cls: '' }, { v: 'adv', t: '▲', cls: 'm-hi' }, { v: 'dis', t: '▼', cls: 'm-lo' }]
@@ -969,7 +971,8 @@ onBeforeUnmount(() => {
 .sb-mark:hover { transform: translateY(6px); filter: none; }
 .sb-mark.on { transform: translateY(0); filter: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 -4px 16px color-mix(in srgb, var(--silk) 70%, transparent), 0 0 0 1px color-mix(in srgb, var(--acc) 60%, #fff3d6); }
 .sb-mark.on::after { content: ''; position: absolute; left: 50%; top: 6px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #ffe7a8; box-shadow: 0 0 8px #ffd27a; }
-@media (max-width: 1360px) { .sb-mark:not(.on):not(:hover) .nm { display: none; } }
+/* 13 закладок с подписями влезают только на очень широком экране — иначе подпись у открытой и под мышкой */
+@media (max-width: 1800px) { .sb-mark:not(.on):not(:hover) .nm { display: none; } }
 
 /* ляссе */
 .sb-ribbon-wrap { position: absolute; left: calc(50% - 4px); top: calc(100% - 16px); width: 46px; height: 100px; z-index: 3; overflow: visible; cursor: grab; filter: drop-shadow(1px 4px 3px rgba(0, 0, 0, .55)); }

@@ -5,7 +5,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS, hpMax } from '../src/shared/sheet.js'
+import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS, hpMax, trainStatus } from '../src/shared/sheet.js'
 import { cleanRich } from './richtext.js'
 import { isOwner } from './auth.js'
 
@@ -27,6 +27,27 @@ function load() {
   let fixed = 0
   for (const sh of store.sheets) if (fillHp(sh.data)) fixed++
   if (fixed) { console.log(`[sheets] хиты заполнены из поля «Хиты»: ${fixed}`); save() }
+  for (const sh of store.sheets) seedTrainings(sh)
+}
+// тренировки из таблицы Excel (server/seed/trainings.json): каждая запись вписывается один раз —
+// в лист с этим id, а у кого листа ещё нет — в первый лист с таким именем, когда он появится
+let trainSeed = null
+function seedTrainings(sh) {
+  if (!trainSeed) {
+    try { trainSeed = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, 'seed', 'trainings.json'), 'utf8')) } catch { trainSeed = { byId: {}, byName: {} } }
+  }
+  const applied = (store.trainingsApplied ||= [])
+  const name = String(sh.data?.CharacterName || '').trim()
+  const key = trainSeed.byId?.[sh.id] ? 'id:' + sh.id : trainSeed.byName?.[name] ? 'name:' + name : null
+  if (!key || applied.includes(key) || sh.deletedAt) return false
+  applied.push(key)
+  if (!sh.data.Trainings?.length) {
+    sh.data.Trainings = cleanBy(schemaAt('Trainings'), trainSeed.byId?.[sh.id] || trainSeed.byName[name])
+    record(sh, { id: 'system', name: 'Перенос из Excel', role: 'master' }, 'Trainings', [], sh.data.Trainings, 'тренировки из таблицы')
+    console.log(`[sheets] тренировки из Excel → ${name}: ${sh.data.Trainings.length}`)
+  }
+  save()
+  return true
 }
 function fillHp(d) {
   const hits = parseInt(String(d?.Hits || '').replace(/^\+/, ''), 10)
@@ -174,6 +195,10 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       ds: ['S1', 'S2', 'S3', 'F1', 'F2', 'F3'].map(k => d.HpData['DS_' + k]),
       mana: d.Mana, stamina: d.Stamina, defense: d.Defense, evasion: d.Evasion, superHits: d.SuperHits, exhaustion: d.Exhaustion,
       res: d.Resources.map(r => ({ id: r.Id, name: r.Name, icon: r.Icon, cur: r.Current, max: r.Max, color: r.Color, style: r.Style })),
+      // для сводки отряда: что сейчас тренирует (ближе всего к завершению — первым)
+      train: (d.Trainings || []).filter(t => trainStatus(t) === 'active')
+        .map(t => ({ name: t.Name, note: t.Note, cur: t.Cur, max: t.Max, stage: t.Stage }))
+        .sort((a, b) => (b.max ? b.cur / b.max : 0) - (a.max ? a.cur / a.max : 0)),
       createdAt: sh.createdAt, updatedAt: sh.updatedAt, deletedAt: sh.deletedAt || null, rev: sh.rev
     }
   }
@@ -208,6 +233,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     const sh = { id: 'sh' + crypto.randomBytes(5).toString('hex'), ownerId, heroId: null, createdAt: Date.now(), updatedAt: Date.now(), rev: 1, data, history: [] }
     record(sh, by(req), '', null, null, 'лист создан')
     store.sheets.push(sh)
+    seedTrainings(sh)
     save()
     return sh
   }
