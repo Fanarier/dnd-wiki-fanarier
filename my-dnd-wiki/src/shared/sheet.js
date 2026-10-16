@@ -114,7 +114,7 @@ const main = {
   // статус — пустой = сам (дошёл до максимума — завершено, иначе в процессе), или задан вручную
   Trainings: A(O({ Id: S(40), Name: S(160), Note: S(4000), Cur: I(0, 1e7), Max: I(0, 1e7), Stage: S(40), ProgNote: S(8000), Status: E('', 'planned', 'active', 'done') }), 300),
   HpData: O({ Current: I(), Max: I(), Temp: I(0, 1e9), DS_S1: B, DS_S2: B, DS_S3: B, DS_F1: B, DS_F2: B, DS_F3: B }),
-  Resources: A(O({ Id: S(60), Name: S(80), Current: I(), Max: I(0, 999), Color: COLOR, ResetOn: E('long', 'short', 'never'), Style: E('pips', 'ammo', 'boxes', 'number'), Notes: S(1000), Icon: S(16) }), 40),
+  Resources: A(O({ Id: S(60), Name: S(80), Current: I(), Max: I(0, 1e7), Color: COLOR, ResetOn: E('long', 'short', 'never'), Style: E('pips', 'ammo', 'boxes', 'number'), Notes: S(1000), Icon: S(16) }), 40),
   Trait4: TRAIT, Trait9: TRAIT, Trait18: TRAIT,
   HumanoidTraits: A(TRAIT, 5),
   Proficiencies: A(O({ TypeIndex: I(0, 1), Description: S(400), Rating: I(0, 3) }), 120),

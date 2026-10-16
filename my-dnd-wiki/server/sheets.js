@@ -28,6 +28,10 @@ function load() {
   for (const sh of store.sheets) if (fillHp(sh.data)) fixed++
   if (fixed) { console.log(`[sheets] хиты заполнены из поля «Хиты»: ${fixed}`); save() }
   for (const sh of store.sheets) seedTrainings(sh)
+  // максимум ресурса раньше упирался в 999 — мана 1110 сохранялась как «1110 / 999»; возвращаем настоящий максимум
+  let capped = 0
+  for (const sh of store.sheets) for (const r of sh.data?.Resources || []) if (r.Max === 999 && r.Current > 999) { r.Max = r.Current; capped++ }
+  if (capped) { console.log(`[sheets] максимум ресурсов больше 999 восстановлен: ${capped}`); save() }
 }
 // тренировки из таблицы Excel (server/seed/trainings.json): каждая запись вписывается один раз —
 // в лист с этим id, а у кого листа ещё нет — в первый лист с таким именем, когда он появится
