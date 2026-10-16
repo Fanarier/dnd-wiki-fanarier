@@ -121,6 +121,11 @@ const main = {
   // Stored — лежит на личном складе (поле сайта), а не при себе
   Inventory: A(O({ ImageFile: IMG, Name: S(160), Description: S(8000), Rarity: S(40), Quantity: I(0, 1e6), Notes: S(4000), Equipped: B, Stored: B }), 600),
   GoldCoins: I(0, 2e9), SilverCoins: I(0, 2e9), CopperCoins: I(0, 2e9),
+  // связь с правилами вики (поля сайта): раса, класс и архетип из вики (пусто — узнаются по полям «Раса», «Класс», «Подкласс»),
+  // выбранные расовые навыки по уровням и какие навыки из вики уже добавлялись (удалённый вручную не вернётся)
+  RulesRace: S(80), RulesClass: S(80), RulesArch: S(80),
+  RaceChoices: M(S(120), 40),
+  WikiAdded: M(B, 800),
   FieldColors: M(COLOR, 400),
   Accent: COLOR,
   SlotLocks: M(B, 20)
@@ -257,7 +262,7 @@ export const hpMax = d => { const n = int(d?.Hits); return n > 0 ? n : Number(d?
 export const fmtBonus = v => (v >= 0 ? `+${v}` : `${v}`)
 
 // кубы в тексте: «1к8 + 11», «3d12», «2к6+1к4−2» — для кнопок броска в атаках и предметах
-export const DICE_RE = /(\d{0,2})\s*[кКdDдД]\s*(4|6|8|10|12|20|100)(?![0-9])((?:\s*[+\-−]\s*(?:\d{0,2}\s*[кКdDдД]\s*(?:4|6|8|10|12|20|100)(?![0-9])|\d{1,3}))*)/g
+export const DICE_RE = /(?<![A-Za-zА-Яа-яЁё])(\d{0,2})\s*[кКdDдД]\s*(4|6|8|10|12|20|100)(?![0-9])((?:\s*[+\-−]\s*(?:\d{0,2}\s*[кКdDдД]\s*(?:4|6|8|10|12|20|100)(?![0-9])|\d{1,3}))*)/g
 export const diceToFormula = s => String(s).replace(/[кКдДD]/g, 'd').replace(/−/g, '-').replace(/\s+/g, '').replace(/(^|[+-])d/g, '$11d')
 
 /* ---------- подписи для истории изменений ---------- */
@@ -274,7 +279,8 @@ const LABELS = {
   Trait18: 'Черта 18 ур.', HumanoidTraits: 'Черты гуманоидов', Proficiencies: 'Владения', Inventory: 'Инвентарь',
   GoldCoins: 'Золото', SilverCoins: 'Серебро', CopperCoins: 'Медь', FieldColors: 'Цвет поля', Accent: 'Цвет листа', SlotLocks: 'Замок слота',
   Current: 'текущие', Max: 'максимум', Temp: 'временные', Name: 'название', Description: 'описание', SkillName: 'название',
-  IsAcquired: 'получена', Stored: 'на складе', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
+  IsAcquired: 'получена', Stored: 'на складе', RulesRace: 'Раса из вики', RulesClass: 'Класс из вики', RulesArch: 'Архетип из вики',
+  RaceChoices: 'Выбор расового навыка', WikiAdded: 'Навыки из вики', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
   Stats_: 'статы', Effects: 'эффекты', AttackType: 'тип', Title: 'заголовок', Content: 'текст', Tags: 'теги', ImageFile: 'картинка',
   Style: 'вид', Color: 'цвет', Icon: 'значок', ResetOn: 'восстановление', CategoryIndex: 'категория', IsActiveSymbol: 'отметка ●',
   IsActive: 'отметка ●', TypeIndex: 'тип', Cells: 'ячейки', Columns: 'колонки', Rows: 'строки', Header: 'название колонки',

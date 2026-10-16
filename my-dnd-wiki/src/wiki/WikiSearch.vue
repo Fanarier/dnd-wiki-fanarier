@@ -27,7 +27,7 @@
 import { computed, reactive, watch } from 'vue'
 import Fuse from 'fuse.js'
 import articles from '../data/articles.js'
-import { store, npcState, loadNpcs, heroPortraitUrl, heroCover } from '../map/store.js'
+import { store, npcState, loadNpcs, rulesState, loadRules, heroPortraitUrl, heroCover } from '../map/store.js'
 import { groupOf, npcSubtitle, skillKey } from '../shared/npc.js'
 
 const props = defineProps({ query: { type: String, default: '' } })
@@ -54,7 +54,7 @@ function snippet(text, margin = 70) {
 }
 
 // листы НПС приходят отдельным запросом — подгружаем при первом поиске
-watch(() => props.query, q => { if (q.trim()) loadNpcs() }, { immediate: true })
+watch(() => props.query, q => { if (q.trim()) { loadNpcs(); loadRules() } }, { immediate: true })
 
 const npcUsers = computed(() => {
   const m = new Map()
@@ -91,6 +91,20 @@ const docs = computed(() => {
   for (const q of store.data.campaign?.quests || []) d.push({ g: 'campaign', key: 'cq' + q.id, title: q.name, sub: [q.status, q.difficulty, q.region, q.location].filter(Boolean).join(' · '), text: [q.desc, q.source, q.taker].join(' '), to: { path: '/wiki', query: { section: 'campaign' } } })
   for (const c of store.data.campaign?.chapters || []) d.push({ g: 'campaign', key: 'ch' + c.id, title: c.title, sub: ['сюжет', c.act, c.dateWorld].filter(Boolean).join(' · '), text: c.result, to: { path: '/wiki', query: { section: 'campaign' } } })
   for (const q of store.data.quests || []) d.push({ g: 'quests', key: 'q' + q.id, title: q.type, sub: [q.guild, q.rank, q.status === 'open' ? 'открыт' : ''].filter(Boolean).join(' · '), text: [strip(q.description), q.reward, ...(q.tasks || []).map(t => t.text || t)].join(' '), to: { path: '/wiki', query: { quest: q.id } } })
+  // правила: расы, классы, их навыки и статьи (механики, рабочие места, деятельности)
+  const GROUP_SEC = { mechanics: 'Механики', workplaces: 'Рабочие места', activities: 'Деятельности', races: 'Расы', classes: 'Классы' }
+  for (const r of rulesState.races) {
+    d.push({ g: 'rules', key: 'rr' + r.id, title: r.name, sub: 'раса', text: strip(r.intro), to: { path: '/wiki', query: { race: r.id } } })
+    const sk = (x, sub) => d.push({ g: 'rskills', key: 'rs' + r.id + x.name + sub, title: x.name, sub: `${r.name} · ${sub}`, text: strip(x.html), to: { path: '/wiki', query: { race: r.id } } })
+    for (const x of r.base) sk(x, 'базовый навык')
+    for (const l of r.levels) { if (l.auto) sk(l.auto, `${l.lv} ур.`); for (const o of l.options) sk(o, `${l.lv} ур., на выбор`) }
+  }
+  for (const k of rulesState.classes) {
+    d.push({ g: 'rules', key: 'rk' + k.id, title: k.name, sub: 'класс · ' + k.archetypes.map(a => a.name).join(', '), text: strip(k.intro), to: { path: '/wiki', query: { cls: k.id } } })
+    for (const x of k.skills) if (x.html) d.push({ g: 'rskills', key: 'ks' + k.id + x.name + x.lv, title: x.name, sub: `${k.name} · ${x.lv} ур. · ${x.kind}`, text: strip(x.html), to: { path: '/wiki', query: { cls: k.id } } })
+    for (const a of k.archetypes) for (const x of a.skills) if (x.html) d.push({ g: 'rskills', key: 'ka' + k.id + a.name + x.name + x.lv, title: x.name, sub: `${k.name}: ${a.name} · ${x.lv} ур.`, text: strip(x.html), to: { path: '/wiki', query: { cls: k.id, arch: a.name } } })
+  }
+  for (const a of rulesState.articles) d.push({ g: 'rules', key: 'ra' + a.id, title: a.title, sub: GROUP_SEC[a.group] || 'правила', text: strip(a.html), to: { path: '/wiki', query: { section: a.group === 'races' || a.group === 'classes' ? a.group : a.group, a: a.id } } })
   for (const s of store.data.settlements || []) d.push({ g: 'places', key: 'st' + s.id, title: s.name, sub: 'поселение', text: '', to: { path: '/settlement/' + s.id } })
   for (const c of store.data.cities || []) d.push({ g: 'places', key: 'c' + c.id, title: c.name, sub: 'на карте мира', text: strip(c.description), to: { path: '/', query: { focus: 'cities:' + c.id } } })
   return d
@@ -108,6 +122,7 @@ const fuseStrict = computed(() => new Fuse(docs.value, fuseOpts(0.12)))
 const GROUPS = [
   { key: 'npcs', label: 'НПС', icon: '🜲' }, { key: 'heroes', label: 'Герои Анкарии', icon: '⚔' }, { key: 'places', label: 'Места', icon: '📍' },
   { key: 'quests', label: 'Заказы гильдий', icon: '📜' }, { key: 'campaign', label: 'Квесты и сюжет', icon: '🗺' }, { key: 'skills', label: 'Навыки', icon: '✦' }, { key: 'effects', label: 'Эффекты', icon: '◈' },
+  { key: 'rules', label: 'Правила: расы, классы, механики', icon: '⚜' }, { key: 'rskills', label: 'Навыки рас и классов', icon: '✧' },
   { key: 'articles', label: 'Статьи', icon: '📖' }
 ]
 const open = reactive({})
@@ -116,7 +131,7 @@ const groups = computed(() => {
   const q = norm(props.query).trim()
   if (q.length < 2) return []
   // каждое слово ищем отдельно и оставляем то, где нашлись все; выше — где совпало точнее
-  const ws = q.split(/s+/).filter(w => w.length > 1)
+  const ws = q.split(/\s+/).filter(w => w.length > 1)
   if (!ws.length) return []
   let best = null
   for (const w of ws) {

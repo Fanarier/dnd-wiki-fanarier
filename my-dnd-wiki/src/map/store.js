@@ -630,6 +630,28 @@ export async function loadNpcs(force = false) {
     npcsAgain = false
   }
 }
+/* ---------- правила игры (расы, классы, механики): отдельный запрос, перезапрашиваем по rulesRev ---------- */
+export const rulesState = reactive({ rev: -1, role: '', articles: [], races: [], classes: [], loading: false, loaded: false })
+let rulesAgain = false
+export async function loadRules(force = false) {
+  if (rulesState.loading) { rulesAgain = true; return }
+  const want = store.data.rulesRev ?? 0
+  if (!force && rulesState.loaded && rulesState.rev === want && rulesState.role === store.role) return
+  rulesState.loading = true
+  let ok = false
+  try {
+    const j = await api('GET', '/api/rules')
+    Object.assign(rulesState, { rev: j.rev, role: store.role, articles: j.articles, races: j.races, classes: j.classes, loaded: true })
+    ok = true
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    rulesState.loading = false
+    if (ok && (rulesAgain || (store.data.rulesRev ?? 0) > rulesState.rev)) { rulesAgain = false; loadRules(true) }
+    rulesAgain = false
+  }
+}
+
 // миниатюра НПС для карты (уже обрезанный квадрат из окна обрезки)
 export const uploadNpcAvatar = (npcId, blob) => postBlob(`/api/npcs/${npcId}/avatar`, blob)
 // арт НПС: целиком до 2400px + лёгкий 720px для карточки

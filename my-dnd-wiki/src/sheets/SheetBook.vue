@@ -144,6 +144,8 @@ import gsap from 'gsap'
 import UserMenu from '../components/UserMenu.vue'
 import { store, init, toast } from '../map/store.js'
 import { sheet, openSheet, closeSheet, rollMode, sheetImg, exportSheet, replaceFromFile, deleteSheet, flush, lastRoll } from './sheetState.js'
+import { syncWikiSkills } from './rulesSync.js'
+import { rulesState, loadRules } from '../map/store.js'
 import BookFx from './ui/BookFx.vue'
 import { sfx } from '../sound/sound.js'
 import { dice } from '../map/store.js'
@@ -801,6 +803,21 @@ async function goFound(hit) {
   void el.offsetWidth
   el.classList.add('sb-flash')
 }
+
+/* ---------- навыки из вики: по расе, классу, архетипу и уровню добавляются сами ---------- */
+let wikiTimer = 0
+function wikiSync() {
+  clearTimeout(wikiTimer)
+  wikiTimer = setTimeout(() => {
+    if (!ready.value || readOnly.value || !rulesState.loaded) return
+    const r = syncWikiSkills()
+    if (r.added) toast(`Из вики добавлено навыков: ${r.added}`)
+    else if (r.filled) toast(`Описания навыков дописаны из вики: ${r.filled}`)
+  }, 1200)
+}
+watch(() => [ready.value, rulesState.rev, sheet.data?.Level, sheet.data?.Race, sheet.data?.Class, sheet.data?.Subclass, sheet.data?.RulesRace, sheet.data?.RulesClass, sheet.data?.RulesArch, JSON.stringify(sheet.data?.RaceChoices || {})],
+  ([ok]) => { if (ok) { loadRules(); wikiSync() } })
+watch(() => store.data.rulesRev, () => { if (ready.value) loadRules() })
 
 /* ---------- меню ---------- */
 const menuOpen = ref(false), historyOpen = ref(false), metaOpen = ref(false), shareOpen = ref(false)

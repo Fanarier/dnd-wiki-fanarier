@@ -60,6 +60,9 @@ import CampaignPage from './CampaignPage.vue'
 import HeroesPage from './HeroesPage.vue'
 import SettlementsPage from './SettlementsPage.vue'
 import NpcsPage from './npc/NpcsPage.vue'
+import RacesPage from './rules/RacesPage.vue'
+import ClassesPage from './rules/ClassesPage.vue'
+import RulesArticles from './rules/RulesArticles.vue'
 import { init, store } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
@@ -89,6 +92,12 @@ const categories = ref([
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
   { id: 'npcs', title: 'НПС', description: 'Полные листы: сайд-кики, компаньоны, важные НПС', component: NpcsPage },
   { id: 'settlements', title: 'Поселения', description: 'Урюпинск: карта, жители, стройка, журнал', component: SettlementsPage },
+  // правила Heroes & Adventures (перенесены из Google Docs, правит мастер)
+  { id: 'races', title: 'Расы', description: 'Базовые навыки и навыки по уровням', component: RacesPage },
+  { id: 'classes', title: 'Классы', description: 'Навыки по уровням и архетипы', component: ClassesPage },
+  { id: 'mechanics', title: 'Механики', description: 'Формулы, характеристики, бой, черты', component: RulesArticles, group: 'mechanics' },
+  { id: 'workplaces', title: 'Рабочие места', description: 'Столы и мастерские для крафта', component: RulesArticles, group: 'workplaces' },
+  { id: 'activities', title: 'Деятельности', description: 'Чем заняться между приключениями', component: RulesArticles, group: 'activities' },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
   { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SchoolFire },
@@ -104,6 +113,8 @@ const currentContent = computed(() => categories.value.find(x => x.id === curren
 function onCategorySelect(id) {
   // уходя из «НПС», убираем из адреса открытый лист и вкладку группы
   if (id !== 'npcs' && (route.query.npc || route.query.g)) router.replace({ query: { ...route.query, npc: undefined, g: undefined } })
+  // и открытую расу, класс, статью правил
+  if (route.query.race || route.query.cls || route.query.arch || route.query.a) router.replace({ query: { ...route.query, race: undefined, cls: undefined, arch: undefined, a: undefined } })
   currentCategory.value = id
   drawer.value = false
 }
@@ -158,6 +169,8 @@ watch(() => [route.query.hero, route.query.heroes], ([h, t]) => { if (h || t) cu
 // /wiki?section=settlements — открыть раздел сразу
 watch(() => route.query.npc, v => { if (v) currentCategory.value = 'npcs' }, { immediate: true })
 watch(() => route.query.section, v => { if (v && categories.value.some(c => c.id === v)) currentCategory.value = String(v) }, { immediate: true })
+// ссылка на расу или класс (из листа персонажа) — сразу в нужный раздел
+watch(() => [route.query.race, route.query.cls], ([r, k]) => { if (r) currentCategory.value = 'races'; else if (k) currentCategory.value = 'classes' }, { immediate: true })
 
 /* -------------------- Магические страницы: свой стиль и загрузка -------------------- */
 const MAGIC = ['general', 'utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
