@@ -11,25 +11,31 @@
       </div>
     </div>
 
+    <!-- при себе и личный склад: предмет перекладывается одной кнопкой -->
+    <div class="pi-tabs sb-anim" role="tablist">
+      <button type="button" role="tab" :class="{ on: tab === 'carry' }" :aria-selected="tab === 'carry'" @click="tab = 'carry'">🎒 При себе <small>{{ carried.length }}</small></button>
+      <button type="button" role="tab" :class="{ on: tab === 'store' }" :aria-selected="tab === 'store'" @click="tab = 'store'">🏛 Склад <small>{{ stored.length }}</small></button>
+    </div>
+
     <div class="sb-tools sb-anim">
       <input v-model="q" class="sb-input pi-q" placeholder="Поиск…" />
       <button type="button" class="sb-chip" :class="{ on: !rar }" @click="rar = ''">Все</button>
       <button v-for="r in RARITIES" :key="r.name" type="button" class="sb-chip" :class="{ on: rar === r.name }" :style="{ color: r.color }" @click="rar = rar === r.name ? '' : r.name">{{ r.name }}</button>
-      <button type="button" class="sb-chip" :class="{ on: onlyEq }" @click="onlyEq = !onlyEq">Надетые</button>
+      <button v-if="tab === 'carry'" type="button" class="sb-chip" :class="{ on: onlyEq }" @click="onlyEq = !onlyEq">Надетые</button>
       <span class="grow" />
       <button v-if="!ro" type="button" class="sb-btn primary" @click="add">＋ Предмет</button>
     </div>
 
-    <div v-if="!items.length" class="sb-empty sb-anim">Сумка пуста.</div>
+    <div v-if="!model.length" class="sb-empty sb-anim">{{ tab === 'store' ? 'На складе пусто. Кнопка 🏛 у предмета отправляет его сюда.' : 'Сумка пуста.' }}</div>
     <div v-else-if="!shown.length" class="sb-empty">Ничего не нашлось.</div>
     <VueDraggable v-model="model" handle=".sb-handle" :animation="200" :disabled="filtered || ro" class="pi-list">
-      <article v-for="(it, i) in model" v-show="visible(it)" :key="keyOf(it)" class="pi-item sb-anim" :class="{ eq: it.Equipped }" :style="rarityOf(it.Rarity) ? { '--rc': rarityOf(it.Rarity).color } : null" :data-find="`Inventory-${i}`">
+      <article v-for="it in model" v-show="visible(it)" :key="keyOf(it)" class="pi-item sb-anim" :class="{ eq: it.Equipped, moving: moving === it }" :style="rarityOf(it.Rarity) ? { '--rc': rarityOf(it.Rarity).color } : null" :data-find="`Inventory-${idx(it)}`">
         <span v-if="!filtered && !ro" class="sb-handle">⠿</span>
-        <button type="button" class="pi-img" title="Открыть предмет" @click="open = i">
+        <button type="button" class="pi-img" title="Открыть предмет" @click="open = idx(it)">
           <img v-if="it.ImageFile" :src="sheetImg(it.ImageFile)" alt="" />
           <span v-else>📦</span>
         </button>
-        <div class="pi-main" @click="open = i">
+        <div class="pi-main" @click="open = idx(it)">
           <b>{{ it.Name || 'Без названия' }}</b>
           <small>
             <em v-if="it.Rarity" class="pi-rar">{{ it.Rarity }}</em>
@@ -37,12 +43,13 @@
           </small>
         </div>
         <div class="pi-qty" title="Количество">
-          <button type="button" :disabled="ro || it.Quantity <= 0" @click="set(i, 'Quantity', it.Quantity - 1)">−</button>
+          <button type="button" :disabled="ro || it.Quantity <= 0" @click="set(idx(it), 'Quantity', it.Quantity - 1)">−</button>
           <b><Num :value="it.Quantity" /></b>
-          <button type="button" :disabled="ro" @click="set(i, 'Quantity', it.Quantity + 1)">＋</button>
+          <button type="button" :disabled="ro" @click="set(idx(it), 'Quantity', it.Quantity + 1)">＋</button>
         </div>
-        <button type="button" class="pi-eq" :class="{ on: it.Equipped }" :title="it.Equipped ? 'Надет' : 'Не надет'" @click="set(i, 'Equipped', !it.Equipped)">⚔</button>
-        <button v-if="!ro" type="button" class="sb-x" title="Удалить" @click="del(i)">✕</button>
+        <button v-if="tab === 'carry'" type="button" class="pi-eq" :class="{ on: it.Equipped }" :title="it.Equipped ? 'Надет' : 'Не надет'" @click="set(idx(it), 'Equipped', !it.Equipped)">⚔</button>
+        <button v-if="!ro" type="button" class="pi-move" :title="it.Stored ? 'Забрать со склада' : 'Отнести на склад'" @click="move(it)">{{ it.Stored ? '🎒' : '🏛' }}</button>
+        <button v-if="!ro" type="button" class="sb-x" title="Удалить" @click="del(idx(it))">✕</button>
       </article>
     </VueDraggable>
 
@@ -87,18 +94,44 @@ watch(() => COINS.map(c => sheet.data[c.p]), (n, o) => {
 })
 const items = computed(() => sheet.data.Inventory)
 const ops = listOps('Inventory')
-const model = computed({ get: () => items.value, set: v => ops.set(v) })
+const tab = ref('carry')
+const carried = computed(() => items.value.filter(it => !it.Stored))
+const stored = computed(() => items.value.filter(it => it.Stored))
+const idx = it => items.value.indexOf(it)
+// перетаскивание внутри вкладки: предметы другой вкладки остаются на своих местах
+const model = computed({
+  get: () => (tab.value === 'store' ? stored.value : carried.value),
+  set: v => {
+    const slots = items.value.map((it, i) => (!!it.Stored === (tab.value === 'store') ? i : -1)).filter(i => i >= 0)
+    const next = items.value.slice()
+    slots.forEach((slot, k) => { next[slot] = v[k] })
+    ops.set(next)
+  }
+})
 const q = ref(''), rar = ref(''), onlyEq = ref(false), open = ref(null)
+watch(tab, () => { onlyEq.value = false })
 const filtered = computed(() => !!q.value.trim() || !!rar.value || onlyEq.value)
 const visible = it => {
   const s = q.value.trim().toLowerCase()
   return (!s || `${it.Name} ${it.Description} ${it.Notes}`.toLowerCase().includes(s)) && (!rar.value || rarityOf(it.Rarity)?.name === rar.value) && (!onlyEq.value || it.Equipped)
 }
-const shown = computed(() => items.value.filter(visible))
-const set = (i, k, v) => { if (!ro.value) edit(`Inventory.${i}.${k}`, v) }
+const shown = computed(() => model.value.filter(visible))
+const set = (i, k, v) => { if (!ro.value && i >= 0) edit(`Inventory.${i}.${k}`, v) }
+// на склад и обратно: на складе предмет не надет
+const moving = ref(null)
+function move(it) {
+  const i = idx(it)
+  if (i < 0 || ro.value) return
+  moving.value = it
+  sfx('coins', 0.15)
+  setTimeout(() => {
+    moving.value = null
+    edit(`Inventory.${i}`, { ...it, Stored: !it.Stored, Equipped: false }, { now: true })
+  }, 260)
+}
 function add() {
   q.value = ''; rar.value = ''; onlyEq.value = false
-  ops.add({ Name: 'Новый предмет', Rarity: 'Обычный', Quantity: 1, Description: '', Notes: '', Equipped: false, ImageFile: '' }, { first: true })
+  ops.add({ Name: 'Новый предмет', Rarity: 'Обычный', Quantity: 1, Description: '', Notes: '', Equipped: false, ImageFile: '', Stored: tab.value === 'store' }, { first: true })
   open.value = 0
 }
 function del(i, fromEditor) {
@@ -127,6 +160,15 @@ function del(i, fromEditor) {
 .pi-coin small { font: 800 11px 'Manrope', sans-serif; }
 .pi-coin :deep(input) { font-size: 17px; font-weight: 800; color: inherit; }
 .pi-q { flex: 1 1 140px; }
+.pi-tabs { display: flex; gap: 4px; margin-bottom: 10px; padding: 3px; border-radius: 11px; background: rgba(0, 0, 0, .25); border: 1px solid var(--line); }
+.pi-tabs button { flex: 1; padding: 7px 10px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: 800 13px 'Manrope', sans-serif; cursor: pointer; transition: background .2s, color .2s; }
+.pi-tabs button small { opacity: .7; }
+.pi-tabs button.on { background: color-mix(in srgb, var(--acc) 20%, transparent); color: var(--ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 45%, transparent); }
+.pi-move { flex: none; width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: none; cursor: pointer; font-size: 14px; transition: transform .2s; }
+.pi-move:hover { transform: scale(1.12); border-color: var(--acc); }
+/* уезжает на склад (или со склада) */
+.pi-item.moving { animation: pi-away .26s ease-in forwards; }
+@keyframes pi-away { to { opacity: 0; transform: translateX(40px) scale(.96); } }
 .pi-list { display: grid; gap: 6px; }
 .pi-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 12px; background: rgba(0, 0, 0, .18); border: 1px solid var(--line); border-left: 3px solid var(--rc, var(--line)); transition: background .2s; }
 .pi-item:hover { background: color-mix(in srgb, var(--rc, var(--acc)) 7%, rgba(0, 0, 0, .18)); }

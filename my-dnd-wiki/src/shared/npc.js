@@ -51,6 +51,19 @@ export const hasSpecs = g => g === 'sidekick' || g === 'personal'
 
 export const infoOf = (n, k) => n?.info?.find(x => x.k === k)?.v || ''
 export const unknown = v => !v || String(v).trim() === '???'
+
+// хозяин компаньона (поле «Хозяин» в листе НПС) ↔ персонаж: по имени. «Энди» = «Энди ???», «Орвилл» = «Орвилл Солес»;
+// «Азиэль Астарот» ≠ «Азазель Астарот» — первое слово должно совпасть
+const nameKey = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9 ]+/g, ' ').trim().split(/\s+/).filter(Boolean)
+export function sameOwner(a, b) {
+  const x = nameKey(a), y = nameKey(b)
+  if (!x.length || !y.length || x[0] !== y[0] || x[0].length < 3) return false
+  // оба с фамилией — фамилии тоже должны совпасть
+  return !(x[1] && y[1] && x[1] !== y[1])
+}
+export const ownerOf = npc => npc?.info?.find(r => /^хозяин/i.test(r.k))?.v || ''
+// компаньоны персонажа: НПС из группы «Компаньоны», у которых он хозяин
+export const companionsOf = (npcs, name) => (npcs || []).filter(n => n.group === 'companion' && sameOwner(ownerOf(n), name))
 // короткая подпись под именем на карточке
 export function npcSubtitle(n) {
   if (n.group === 'companion') return [infoOf(n, 'Вид') || infoOf(n, 'Раса'), infoOf(n, 'Редкость')].filter(Boolean).join(' · ')

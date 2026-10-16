@@ -7,7 +7,8 @@
         <b>{{ sheet.data?.CharacterName || 'Лист персонажа' }}</b>
         <small v-if="sheet.meta">{{ subtitle }}</small>
       </div>
-      <span class="sb-save" :class="sheet.status" :title="SAVE_HINT[sheet.status]">{{ SAVE_TEXT[sheet.status] || '' }}</span>
+      <span v-if="ready && !canEdit" class="sb-view" title="Владелец открыл тебе этот лист — смотреть можно, менять нельзя">👁 просмотр</span>
+      <span v-else class="sb-save" :class="sheet.status" :title="SAVE_HINT[sheet.status]">{{ SAVE_TEXT[sheet.status] || '' }}</span>
       <span class="grow" />
       <SheetSearch v-if="ready" ref="searchRef" :sections="SECTIONS" @go="goFound" />
       <div class="sb-mode" role="group" aria-label="Броски из листа" title="Броски из листа: обычный, с преимуществом или с помехой">
@@ -16,15 +17,16 @@
       <div class="sb-menu-wrap">
         <button type="button" class="sb-icon-btn" title="Меню листа" :disabled="!ready" @click="menuOpen = !menuOpen">⋯</button>
         <div v-if="menuOpen" class="sb-menu" @click="menuOpen = false">
-          <button type="button" @click="openAccent">🎨 Цвет листа</button>
+          <button v-if="canEdit" type="button" @click="openAccent">🎨 Цвет листа</button>
+          <button v-if="canEdit" type="button" @click="shareOpen = true">👁 Кто видит лист <small v-if="shareWord">{{ shareWord }}</small></button>
           <button type="button" @click="doExport">⇩ Выгрузить .json</button>
-          <button type="button" @click="doReplace">⇪ Заменить из файла…</button>
+          <button v-if="canEdit" type="button" @click="doReplace">⇪ Заменить из файла…</button>
           <template v-if="isMaster">
             <button type="button" @click="metaOpen = true">👤 Владелец и карточка героя</button>
             <button type="button" @click="historyOpen = true">🕓 История изменений</button>
           </template>
           <router-link v-if="sheet.meta?.heroId" :to="{ path: '/wiki', query: { hero: sheet.meta.heroId } }">⚑ Карточка героя</router-link>
-          <button type="button" class="danger" @click="doDelete">🗑 Удалить лист</button>
+          <button v-if="canEdit" type="button" class="danger" @click="doDelete">🗑 Удалить лист</button>
         </div>
       </div>
       <UserMenu />
@@ -131,6 +133,7 @@
     <ColorMenu />
     <SheetHistory v-if="historyOpen && ready" @close="historyOpen = false" />
     <SheetMeta v-if="metaOpen && ready" :sheet-id="sheet.id" @close="metaOpen = false" />
+    <SheetShare v-if="shareOpen && ready" @close="shareOpen = false" />
   </div>
 </template>
 
@@ -153,6 +156,7 @@ import PageCorner from './ui/PageCorner.vue'
 import SheetSearch from './SheetSearch.vue'
 import SheetHistory from './SheetHistory.vue'
 import SheetMeta from './SheetMeta.vue'
+import SheetShare from './SheetShare.vue'
 import PMain from './pages/PMain.vue'
 import PDetails from './pages/PDetails.vue'
 import PStats from './pages/PStats.vue'
@@ -201,7 +205,9 @@ const themeVars = computed(() => {
   const acc = sheet.data?.Accent || '#C9A24F'
   return { '--acc': acc }
 })
-const readOnly = computed(() => !!sheet.meta?.deletedAt)
+// чужой лист, который открыли посмотреть, — только чтение
+const canEdit = computed(() => sheet.meta?.canEdit !== false)
+const readOnly = computed(() => !!sheet.meta?.deletedAt || !canEdit.value)
 provide('sheetReadOnly', readOnly)
 const opening = ref(false)
 provide('bookOpening', opening)
@@ -797,7 +803,8 @@ async function goFound(hit) {
 }
 
 /* ---------- меню ---------- */
-const menuOpen = ref(false), historyOpen = ref(false), metaOpen = ref(false)
+const menuOpen = ref(false), historyOpen = ref(false), metaOpen = ref(false), shareOpen = ref(false)
+const shareWord = computed(() => { const sh = sheet.meta?.share; return sh?.all ? 'всем' : sh?.ids?.length ? `${sh.ids.length} игр.` : '' })
 const openAccent = e => openColorMenu({ clientX: innerWidth - 260, clientY: 70 }, 'Accent', sheet.data.Accent, 'Цвет листа')
 async function doExport() {
   try { await exportSheet(sheet.id, sheet.data.CharacterName) } catch (e) { toast(e.message, 'error') }
@@ -906,6 +913,8 @@ onBeforeUnmount(() => {
 .sb-title small { color: var(--muted); font-weight: 700; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sb-save { font: 700 11.5px 'Manrope', sans-serif; color: var(--muted); white-space: nowrap; }
 .sb-save.saved { color: #7ccf8b; }
+.sb-view { flex: none; padding: 3px 9px; border-radius: 99px; border: 1px solid rgba(111, 168, 220, .45); background: rgba(111, 168, 220, .12); color: #9cc6ec; font: 800 11.5px 'Manrope', sans-serif; white-space: nowrap; }
+.sb-menu small { margin-left: 6px; color: var(--muted); font-weight: 700; }
 .sb-save.offline { color: #ff9b8f; }
 .grow { flex: 1; }
 .sb-mode { display: flex; padding: 2px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .22); background: rgba(0, 0, 0, .3); }

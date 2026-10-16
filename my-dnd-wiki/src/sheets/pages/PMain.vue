@@ -67,6 +67,19 @@
       </div>
     </div>
 
+    <!-- компаньоны: НПС, у которых этот персонаж записан хозяином -->
+    <template v-if="companions.length">
+      <h3 class="sb-h2 sb-anim">🐾 Компаньоны</h3>
+      <div class="pm-comps sb-anim">
+        <router-link v-for="n in companions" :key="n.id" class="pm-comp" :to="{ path: '/wiki', query: { npc: n.id } }" :title="`Лист компаньона «${n.name}»`">
+          <img v-if="npcPic(n)" :src="heroPortraitUrl(npcPic(n))" alt="" loading="lazy" />
+          <span v-else class="pm-comp-i">{{ n.name[0] }}</span>
+          <span class="pm-comp-t"><b>{{ n.name }}</b><small>{{ infoOf(n, 'Вид') || infoOf(n, 'Раса') }}</small></span>
+          <em v-if="n.status?.text" :style="{ '--sc': n.status.color }">{{ n.status.text }}</em>
+        </router-link>
+      </div>
+    </template>
+
     <h3 class="sb-h2 sb-anim">Свои поля</h3>
     <div class="pm-custom sb-anim">
       <div v-for="i in 4" :key="i" class="pm-cf" :data-find="`CustomField${i}Value`">
@@ -89,13 +102,19 @@ import Bonus from '../ui/Bonus.vue'
 import IconRating from '../ui/IconRating.vue'
 import Radar from '../ui/Radar.vue'
 import { sheet, sheetImg, pickImage, edit } from '../sheetState.js'
-import { toast } from '../../map/store.js'
+import { toast, npcState, loadNpcs, heroPortraitUrl } from '../../map/store.js'
+import { companionsOf } from '../../shared/npc.js'
 import { hpMax } from '../../shared/sheet.js'
 
 defineEmits(['go'])
 const d = computed(() => sheet.data)
 const ro = inject('sheetReadOnly', ref(false))
 const viewOpen = ref(false)
+// компаньоны из вики (листы НПС подгружаются один раз и кэшируются)
+loadNpcs()
+const companions = computed(() => companionsOf(npcState.npcs, d.value.CharacterName))
+const npcPic = n => n.avatar || n.arts?.[0]?.thumb || n.arts?.[0]?.file || ''
+const infoOf = (n, k) => n.info?.find(r => r.k === k)?.v || ''
 const MAIN = [
   { p: 'Defense', l: 'Броня', ic: '🛡', num: true },
   { p: 'Evasion', l: 'Уклонение', ic: '💨', num: true },
@@ -196,6 +215,14 @@ async function setPhoto() {
 .pm-custom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .pm-cf { display: grid; gap: 2px; padding: 6px 8px; border-radius: 10px; background: rgba(0, 0, 0, .14); }
 .pm-cf .lbl :deep(input) { font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 2px 6px; }
+.pm-comps { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.pm-comp { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 12px; background: rgba(0, 0, 0, .2); border: 1px solid var(--line); color: var(--ink); text-decoration: none; transition: border-color .2s, transform .2s; min-width: 0; }
+.pm-comp:hover { border-color: var(--acc); transform: translateY(-2px); }
+.pm-comp img, .pm-comp-i { width: 42px; height: 42px; flex: none; border-radius: 50%; object-fit: cover; border: 2px solid color-mix(in srgb, var(--acc) 60%, #e2c278); display: grid; place-items: center; background: #120d08; font: 700 18px 'Cormorant Garamond', serif; color: var(--acc); }
+.pm-comp-t { display: grid; min-width: 0; flex: 1; }
+.pm-comp-t b { font: 700 16px 'Cormorant Garamond', serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-comp-t small { color: var(--muted); font: 600 11.5px 'Manrope', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-comp em { flex: none; font: 800 10.5px 'Manrope', sans-serif; font-style: normal; color: var(--sc, var(--muted)); }
 .pm-view { position: fixed; inset: 0; z-index: 700; display: grid; place-items: center; background: rgba(5, 4, 3, .9); cursor: zoom-out; animation: pm-fade .2s; }
 .pm-view img { max-width: 94vw; max-height: 92vh; border-radius: 12px; box-shadow: 0 30px 80px rgba(0, 0, 0, .8); }
 @keyframes pm-fade { from { opacity: 0; } }

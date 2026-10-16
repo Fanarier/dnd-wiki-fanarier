@@ -44,7 +44,7 @@ const index = computed(() => {
   d.Proficiencies.forEach((p, i) => add('traits', `Proficiencies-${i}`, p.Description, p.TypeIndex ? 'язык' : 'владение'))
   ;(d.Trainings || []).forEach((t, i) => add('train', `Trainings-${i}`, t.Name, `тренировка ${t.Stage} ${t.Cur}/${t.Max} ${t.Note} ${t.ProgNote}`))
   for (const s of EQUIP_SLOTS) if (d[s.key]) add('equip', s.key, d[s.key].Name || s.name, `${s.name} ${d[s.key].Rarity} ${d[s.key].Stats} ${d[s.key].Effects}`)
-  d.Inventory.forEach((it, i) => add('inv', `Inventory-${i}`, it.Name, `${it.Rarity} ${it.Description} ${it.Notes}`))
+  d.Inventory.forEach((it, i) => add('inv', `Inventory-${i}`, it.Name, `${it.Stored ? 'склад ' : ''}${it.Rarity} ${it.Description} ${it.Notes}`))
   d.Resources.forEach((r, i) => add('res', `Resources-${i}`, `${r.Icon} ${r.Name}`, r.Notes))
   d.JournalEntries.forEach((e, i) => add('journal', `JournalEntries-${i}`, e.Title, `${e.Tags} ${e.Content}`))
   d.CustomSheets.forEach((t, i) => add('custom', `CustomSheets-${i}`, t.Name, t.Rows.map(r => r.Cells.join(' ')).join(' ')))

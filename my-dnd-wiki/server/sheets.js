@@ -77,7 +77,9 @@ export function backupSheets() {
 const find = id => store.sheets.find(s => s.id === id)
 // журнал — текст с оформлением (показывается как HTML): пропускаем только безопасные теги
 const cleanJournal = d => { for (const e of d.JournalEntries || []) e.Content = cleanRich(e.Content, 60000) }
+// править: мастер и владелец; смотреть — ещё и те, кому владелец (или мастер) открыл лист: всем игрокам или выбранным
 const canSee = (u, sh) => !!u && !!sh && (u.role === 'master' || (!sh.deletedAt && !!sh.ownerId && sh.ownerId === u.id))
+const canView = (u, sh) => canSee(u, sh) || (!!u && !!sh && !sh.deletedAt && (!!sh.share?.all || !!sh.share?.ids?.includes(u.id)))
 
 /* ---------- картинки ---------- */
 function saveImage(buf, imageExt) {
@@ -176,9 +178,39 @@ function applyOp(sh, op, by, note) {
 /* ---------- маршруты ---------- */
 export function registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players, getDb, broadcast }) {
   load()
+  seedCharacters()
   sweepImages()
   setInterval(backupSheets, 6 * 3600 * 1000)
   backupSheets()
+
+  // персонажи из таблицы Excel, у которых ещё нет листа (server/seed/characters.json): заводим один раз —
+  // без игрока, с привязкой к карточке героя с тем же именем и её портретом; тренировки подтянутся сами
+  function seedCharacters() {
+    let seed
+    try { seed = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, 'seed', 'characters.json'), 'utf8')) } catch { return }
+    const applied = (store.charactersApplied ||= [])
+    let made = 0
+    for (const [name, raw] of Object.entries(seed)) {
+      if (applied.includes(name)) continue
+      applied.push(name)
+      if (store.sheets.some(sh => !sh.deletedAt && String(sh.data?.CharacterName || '').trim() === name)) continue
+      const blank = blankSheet()
+      const data = cleanBy(SCHEMA, { ...blank, ...raw, Stats: { ...blank.Stats, ...(raw.Stats || {}) } })
+      fillHp(data)
+      cleanJournal(data)
+      const hero = (getDb().heroes || []).find(h => h.kind === 'character' && String(h.name).trim() === name)
+      if (hero?.gallery?.[0]?.file && !data.PhotoFile) {
+        try { data.PhotoFile = saveImage(fs.readFileSync(path.join(DATA_DIR, 'portraits', path.basename(hero.gallery[0].file))), imageExt) } catch { /* файла нет */ }
+      }
+      const sh = { id: 'sh' + crypto.randomBytes(5).toString('hex'), ownerId: null, heroId: hero?.id || null, createdAt: Date.now(), updatedAt: Date.now(), rev: 1, data, history: [] }
+      record(sh, { id: 'system', name: 'Перенос из Excel', role: 'master' }, '', null, null, 'лист перенесён из таблицы персонажей')
+      store.sheets.push(sh)
+      seedTrainings(sh)
+      made++
+      console.log(`[sheets] лист из Excel: ${name}${hero ? ' (карточка героя привязана)' : ''}`)
+    }
+    if (made || applied.length) save()
+  }
 
   const ownerName = id => {
     if (!id) return ''
@@ -186,9 +218,10 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     return p ? (p.linked ? `${p.character} — персонаж ${isOwner(p.login) ? 'техспециалиста' : 'мастера'} ${p.login}` : `${p.character} · ${p.login}`) : ''
   }
   const heroName = id => (id ? getDb().heroes?.find(h => h.id === id)?.name || '' : '')
-  const summary = sh => {
+  const summary = (sh, u) => {
     const d = sh.data
     return {
+      canEdit: u ? canSee(u, sh) : true, share: { all: !!sh.share?.all, ids: sh.share?.ids || [] },
       id: sh.id, ownerId: sh.ownerId, ownerName: ownerName(sh.ownerId), heroId: sh.heroId, heroName: heroName(sh.heroId),
       name: d.CharacterName, cls: d.Class, sub: d.Subclass, race: d.Race, level: d.Level, photo: d.PhotoFile, accent: d.Accent,
       hp: { cur: d.HpData.Current, max: hpMax(d), temp: d.HpData.Temp, hits: d.Hits },
@@ -209,7 +242,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     const listMsg = JSON.stringify({ type: 'sheetsChanged', id: sh.id })
     for (const c of clients) {
       if (c.ws.readyState !== 1 || !c.user) continue
-      const sees = canSee(c.user, sh)
+      const sees = canView(c.user, sh)
       // владелец узнаёт и о том, что лист ушёл в корзину, — чтобы убрать его из списка
       if (!sees && sh.ownerId !== c.user.id) continue
       if (sees && opsMsg && c.sheetSub === sh.id && String(c.id) !== String(byClient)) c.ws.send(opsMsg)
@@ -221,6 +254,12 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   function get(req, res) {
     const sh = find(req.params.id)
     if (!sh || !canSee(req.user, sh)) { res.status(404).json({ error: 'Лист не найден' }); return null }
+    return sh
+  }
+  // только посмотреть (открытый для игрока лист): читать и выгружать можно, править — нет
+  function getView(req, res) {
+    const sh = find(req.params.id)
+    if (!sh || !canView(req.user, sh)) { res.status(404).json({ error: 'Лист не найден' }); return null }
     return sh
   }
   const by = req => ({ id: req.user.id, name: req.user.name, role: req.user.role })
@@ -244,7 +283,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   }
 
   app.get('/api/sheets', requireUser, (req, res) => {
-    const list = store.sheets.filter(sh => canSee(req.user, sh)).map(summary)
+    const list = store.sheets.filter(sh => canView(req.user, sh)).map(sh => summary(sh, req.user))
     const owners = req.user.role === 'master' ? players().filter(p => p.status === 'active').map(p => ({ id: p.id, name: p.character, login: p.login, linked: !!p.linked, tech: !!p.linked && isOwner(p.login) })) : []
     res.json({ sheets: list, owners })
   })
@@ -273,8 +312,24 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   })
 
   app.get('/api/sheets/:id', requireUser, (req, res) => {
+    const sh = getView(req, res)
+    if (sh) res.json({ ...summary(sh, req.user), data: sh.data })
+  })
+
+  // кто ещё видит лист: всем игрокам, выбранным или никому (кроме владельца и мастера). Решают владелец и мастер
+  app.patch('/api/sheets/:id/share', requireUser, (req, res) => {
     const sh = get(req, res)
-    if (sh) res.json({ ...summary(sh), data: sh.data })
+    if (!sh) return
+    const b = req.body || {}
+    const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(String))].filter(id => getPlayer(id)?.status === 'active' && id !== sh.ownerId).slice(0, 100)
+    const next = { all: !!b.all, ids: b.all ? [] : ids }
+    const word = s => (s?.all ? 'всем игрокам' : s?.ids?.length ? s.ids.map(id => getPlayer(id)?.character || '?').join(', ') : 'никому')
+    if (word(next) !== word(sh.share)) record(sh, by(req), '#share', word(sh.share), word(next), 'кто видит лист')
+    sh.share = next
+    touch(sh)
+    notify(sh)
+    broadcast() // кнопка «Лист персонажа» на карточке героя появляется у тех, кому открыли
+    res.json(summary(sh, req.user))
   })
 
   app.patch('/api/sheets/:id', requireUser, (req, res) => {
@@ -305,7 +360,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   })
 
   app.get('/api/sheets/:id/export', requireUser, (req, res) => {
-    const sh = get(req, res)
+    const sh = getView(req, res)
     if (!sh) return
     const name = (sh.data.CharacterName || 'Персонаж').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)
     res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -399,8 +454,8 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
 
   // видимые пользователю связи «карточка героя → лист» (кнопка «Лист персонажа» на карточке)
   return {
-    linksFor: u => (u ? store.sheets.filter(sh => sh.heroId && canSee(u, sh) && !sh.deletedAt).map(sh => ({ heroId: sh.heroId, sheetId: sh.id })) : []),
+    linksFor: u => (u ? store.sheets.filter(sh => sh.heroId && canView(u, sh) && !sh.deletedAt).map(sh => ({ heroId: sh.heroId, sheetId: sh.id })) : []),
     // подписка подключения на открытый лист — только если его можно видеть
-    subscribe(client, id) { client.sheetSub = id && canSee(client.user, find(id)) ? id : null }
+    subscribe(client, id) { client.sheetSub = id && canView(client.user, find(id)) ? id : null }
   }
 }

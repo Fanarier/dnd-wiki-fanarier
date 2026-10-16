@@ -27,7 +27,7 @@
                 <button v-if="canRevert(e)" type="button" class="sb-btn sh-rev" :disabled="busy === e.id" title="Вернуть как было до этой правки" @click="revert(e)">↶ Откатить</button>
               </div>
               <div class="sh-what">{{ label(e) }}</div>
-              <div v-if="e.p === '#owner'" class="sh-diff"><span class="from">{{ e.from }}</span><span class="arr">→</span><span class="to">{{ e.to }}</span></div>
+              <div v-if="e.p === '#owner' || e.p === '#share'" class="sh-diff"><span class="from">{{ e.from }}</span><span class="arr">→</span><span class="to">{{ e.to }}</span></div>
               <div v-else-if="!e.note || e.note === 'откат'" class="sh-diff">
                 <img v-if="isImageFile(e.from)" :src="sheetImg(e.from)" alt="было" class="sh-img from" />
                 <span v-else class="from">{{ shortValue(e.from) }}</span>
@@ -58,7 +58,7 @@ async function load() {
 }
 onMounted(load)
 watch(() => [remoteTick.value, sheet.rev], () => setTimeout(load, 300))
-const label = e => (e.p === '' ? 'Весь лист' : e.p.startsWith('#') ? (e.p === '#owner' ? 'Владелец' : 'Корзина') : pathLabel(e.p, sheet.data))
+const label = e => (e.p === '' ? 'Весь лист' : e.p.startsWith('#') ? ({ '#owner': 'Владелец', '#share': 'Кто видит лист' }[e.p] || 'Корзина') : pathLabel(e.p, sheet.data))
 const authors = computed(() => [...new Set(list.value.map(e => e.by.name))])
 const shown = computed(() => {
   const s = q.value.trim().toLowerCase()

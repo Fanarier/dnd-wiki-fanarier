@@ -51,7 +51,7 @@
           </div>
 
           <section v-for="g in groups" :key="g.key" class="sp-group">
-            <h2 v-if="isMaster && view === 'shelf'">{{ g.title }} <small>{{ g.items.length }}</small></h2>
+            <h2 v-if="g.title && view === 'shelf'">{{ g.title }} <small>{{ g.items.length }}</small></h2>
             <div class="sp-shelf">
               <article v-for="(s, i) in g.items" :key="s.id" class="sp-book" :style="{ '--acc': s.accent || '#C9A24F', '--i': i }" @pointermove="tilt($event)" @pointerleave="untilt($event)">
                 <button type="button" class="sp-cover" :aria-label="`Открыть лист: ${s.name}`" @click="openBook($event, s)">
@@ -71,7 +71,7 @@
                   <template v-else>
                     <button type="button" title="Выгрузить .json" @click="exportSheet(s.id, s.name).catch(e => toast(e.message, 'error'))">⇩</button>
                     <button v-if="isMaster" type="button" title="Владелец и карточка героя" @click="metaFor = s">👤</button>
-                    <button type="button" class="danger" title="В корзину" @click="trashIt(s)">🗑</button>
+                    <button v-if="s.canEdit !== false" type="button" class="danger" title="В корзину" @click="trashIt(s)">🗑</button>
                   </template>
                 </div>
               </article>
@@ -112,7 +112,12 @@ const groups = computed(() => {
     .filter(x => !s || `${x.name} ${x.cls} ${x.sub} ${x.race} ${x.ownerName} ${x.heroName}`.toLowerCase().includes(s))
     .filter(x => !ownerFilter.value || (ownerFilter.value === 'none' ? !x.ownerName : x.ownerId === ownerFilter.value))
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-  if (!isMaster.value || view.value === 'trash') return src.length ? [{ key: 'all', title: '', items: src }] : []
+  // игрок: свои листы, ниже — те, что ему открыли посмотреть
+  if (!isMaster.value) {
+    const mine = src.filter(x => x.canEdit !== false), seen = src.filter(x => x.canEdit === false)
+    return [mine.length && { key: 'mine', title: '', items: mine }, seen.length && { key: 'seen', title: 'Открыли тебе посмотреть', items: seen }].filter(Boolean)
+  }
+  if (view.value === 'trash') return src.length ? [{ key: 'all', title: '', items: src }] : []
   const by = new Map()
   for (const x of src) {
     const k = x.ownerName ? x.ownerId : 'none'

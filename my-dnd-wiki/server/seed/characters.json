@@ -1,0 +1,3242 @@
+{
+ "Белатор Светозаров": {
+  "CharacterName": "Белатор Светозаров",
+  "Stats": {
+   "StrBase": 30,
+   "ConBase": 30,
+   "IntBase": 10,
+   "ChaBase": 15,
+   "DexBase": 10,
+   "WisBase": 11,
+   "ChaSaveProf": true,
+   "WisSaveProf": true,
+   "AthP": 3,
+   "AthT": 4,
+   "EndP": 1,
+   "AnaP": 0,
+   "HisP": 0,
+   "MagP": 0,
+   "NatP": 0,
+   "RelP": 1,
+   "TecP": 0,
+   "PrfP": 1,
+   "ItmP": 1,
+   "DecP": 0,
+   "ChrP": 0,
+   "PrsP": 1,
+   "AcrP": 0,
+   "SlhP": 0,
+   "StlP": 0,
+   "AttP": 0,
+   "SurP": 0,
+   "MedP": 0,
+   "InsP": 1,
+   "AniP": 0,
+   "MenP": 0
+  },
+  "HpData": {
+   "Current": 460,
+   "Max": 460
+  },
+  "Trait4": {
+   "Name": "Дикий атакующий",
+   "Description": "Дикий атакующий",
+   "IsAcquired": true
+  },
+  "Trait9": {
+   "Name": "Перфекционист",
+   "Description": "Перфекционист",
+   "IsAcquired": true
+  },
+  "Trait18": {
+   "Name": "",
+   "Description": "",
+   "IsAcquired": false
+  },
+  "Skills": [
+   {
+    "SkillName": "Спасение",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Очищение\nПерезарядка: Короткий отдых\nЗатраты: 1 Молитва",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Святой удар",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Одна цель\nЭффект: Усиленная АА\nПерезарядка: 2 Хода\nЗатраты: 25 Маны",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Святое касание",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Один союзник\nЭффект: Исцеление\nПерезарядка: 3 Хода\nЗатраты: 1-20 Молитв",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Божественная кара",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Усиление\nПерезарядка: Без перезарядки\nЗатраты: Без затрат",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Праведное восстановление",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Конвертация\nПерезарядка: 2 Хода\nЗатраты: 2 Молитвы",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Праведная месть",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Усиление\nПерезарядка: 5 Ходов\nЗатраты: 2 Молитвы",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Аура защиты",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Область\nЭффект: Усиление\nПерезарядка: 6 Ходов\nЗатраты: 3 Молитвы",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Аура отваги",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Область\nЭффект: Усиление\nПерезарядка: 6 Ходов\nЗатраты: 3 Молитвы",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Святое поле",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Несколько целей\nЭффект: Ослабление\nПерезарядка: 6 Ходов\nЗатраты: 3 Молитвы",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Мужество",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Усиление\nПерезарядка: 3 Хода\nЗатраты: Без затрат",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Прибытие героя",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Область\nЭффект: Взаимодействие\nПерезарядка: 5 Ходов\nЗатраты: 3 Молитвы",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Великий раскол",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Одна цель\nЭффект: Усиление\nПерезарядка: 5 Ходов\nЗатраты: 5 Молитв",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Крушитель строя",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Несколько целей\nЭффект: Взаимодействие\nПерезарядка: 6 Ходов\nЗатраты: 7 Молитв",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Могучий клич",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Несколько союзников\nЭффект: Усиление\nПерезарядка: 6 Ходов\nЗатраты: 10 Молитв",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Я приму эту ношу!",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: Один союзник\nЭффект: Защита\nПерезарядка: Длительный отдых\nЗатраты: Без затрат",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Быстрая адаптация",
+    "CategoryIndex": 1,
+    "Description": "Досягаемость: На себя\nЭффект: Защита\nПерезарядка: Длительный отдых\nЗатраты: Без затрат",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Покажи на что способен",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 4 уровня (дополнительный).\nДосягаемость: Один союзник\nЭффект: Усиление\nПерезарядка: Короткий отдых\nЗатраты: Без затрат",
+    "IsActiveSymbol": false
+   }
+  ],
+  "PassiveSkills": [
+   {
+    "SkillName": "Отдохнул и готов",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 2 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Физподготовка",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 2 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Крепкое здоровье",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 2 уровня (бонусный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Синергия",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 4 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Красивая речь",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 4 уровня (бонусный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Разносторонний I",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 6 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Отточить навыки",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 6 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Незаурядный созидателсь",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 8 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Начало отступничества",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 8 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Толерантность к тоникам",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 8 уровня (бонусный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Разносторонний II",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 10 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Предусмотрительность",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 10 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Сплоченность",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 12 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Дипломат",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 12 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Наставник",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 12 уровня (бонусный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Лучший приключенец",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 14 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Альтруист",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 14 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Романтик",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 14 уровня (бонусный).",
+    "IsActiveSymbol": false
+   }
+  ],
+  "Attacks": [
+   {
+    "AttackType": "Кулак",
+    "Description": "1к8 + 17 + 0 Физический, Удар",
+    "IsActive": false
+   },
+   {
+    "AttackType": "Марга-Рита",
+    "Description": "3к12 + 24 + 8 Физический/Магический, Разрез, Огонь, Свет",
+    "IsActive": true
+   }
+  ],
+  "Proficiencies": [
+   {
+    "TypeIndex": 0,
+    "Description": "Легкая броня (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Средняя броня (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Тяжелая броня (Эксперт)",
+    "Rating": 2
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Секиры (Эксперт)",
+    "Rating": 2
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Боевые топоры (Эксперт)",
+    "Rating": 2
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Молоты (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Древковое оружие (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Монашеское оружие (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Кузнечное дело (Эксперт)",
+    "Rating": 2
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Горное дело (Эксперт)",
+    "Rating": 2
+   },
+   {
+    "TypeIndex": 1,
+    "Description": "Общий (Полное)",
+    "Rating": 3
+   },
+   {
+    "TypeIndex": 1,
+    "Description": "Дварфийский (Носитель)",
+    "Rating": 3
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Магия школы Огня (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Алкоголь (МИФИЧЕСКОЕ)",
+    "Rating": 3
+   }
+  ],
+  "Inventory": [
+   {
+    "Name": "Карта с отметками Пирамидок",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Статуэтка \"Тянущийся к солнцу\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Зашифрованные данные о навершии",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "2 клешни",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "2 больших зелья лечения (2к20)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Хитин 15 фрагментов",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Когти пустынного ящера",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Одноручный меч+",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Двуручный меч+",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Боевой топор+",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Одноручный меч+",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Боевой топор+",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Клеймор+",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "2 батона бородинского, 1 багет французкий и пирог",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Синяя Кирка(Шёлковое, прочность, лёгкость)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мифрил 106 единиц",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Сундук с рунами (Закрытый)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Руна \"Свет\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Пояс олимп. игр(3 место)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "50 железа",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "15 белых заготовок для рун",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "4 реликвии",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Легендарные парные кинжалы \"Свето-тень\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Доспех Асимара",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Щит синий",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Кирка",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Баночки глины",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Инструменты(низкое качество)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Кошель",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мифриловый сундук (пустой) (на лом)",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Большой мешок обсидиановых осколков",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "3 Мифриловых сустава для автоматонов",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Рунный молоток для големов",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "60 фут мифриловых наконечников",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "36 обработаных обсидиановых пластин",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   }
+  ],
+  "Resources": [
+   {
+    "Id": "r1",
+    "Name": "Молитвы",
+    "Current": 11,
+    "Max": 14,
+    "Color": "#E6C25A",
+    "ResetOn": "long",
+    "Style": "pips",
+    "Notes": "",
+    "Icon": "✦"
+   },
+   {
+    "Id": "r2",
+    "Name": "Заряды величия",
+    "Current": 10,
+    "Max": 14,
+    "Color": "#C48BFF",
+    "ResetOn": "long",
+    "Style": "pips",
+    "Notes": "",
+    "Icon": "✦"
+   },
+   {
+    "Id": "r3",
+    "Name": "Божественная каПА",
+    "Current": 6,
+    "Max": 15,
+    "Color": "#5FD3FF",
+    "ResetOn": "long",
+    "Style": "pips",
+    "Notes": "",
+    "Icon": "✦"
+   }
+  ],
+  "HumanoidTraits": [
+   {
+    "Name": "Перфекционист (Гуманоид)",
+    "Description": "",
+    "IsAcquired": true
+   },
+   {
+    "Name": "Толстая кожа",
+    "Description": "",
+    "IsAcquired": true
+   },
+   {
+    "Name": "Живучий",
+    "Description": "",
+    "IsAcquired": true
+   }
+  ],
+  "JournalEntries": [],
+  "Class": "Паладин",
+  "Subclass": "ГИГАЧАД(Клятва короны)",
+  "Race": "Человек",
+  "Level": 14,
+  "Experience": 149330,
+  "Hits": "460",
+  "Defense": 22,
+  "Evasion": 6,
+  "Mastery": "7",
+  "Mana": "700",
+  "Vision": 1,
+  "Hearing": 1,
+  "Aura": 3,
+  "Initiative": 0,
+  "Speed": 30,
+  "BodyDev": 8,
+  "MindDev": 5,
+  "SpiritDev": 6,
+  "BeltItem": {
+   "Name": "Пояс паладина",
+   "Stats": "Слоты 0/4"
+  },
+  "GoldCoins": 300,
+  "Ornament1Item": {
+   "Name": "Одежда Белатора"
+  },
+  "HeadItem": {
+   "Name": "Мифриловый шлем"
+  },
+  "BodyItem": {
+   "Name": "Мифриловый нагрудник"
+  },
+  "HandsItem": {
+   "Name": "Мифриловые наручи"
+  },
+  "LegsItem": {
+   "Name": "Мифриловые поножи"
+  },
+  "Weapon1Item": {
+   "Name": "Марга-Рита"
+  }
+ },
+ "Джилл": {
+  "CharacterName": "Джилл",
+  "Stats": {
+   "StrBase": 8,
+   "ConBase": 12,
+   "IntBase": 26,
+   "ChaBase": 10,
+   "DexBase": 12,
+   "WisBase": 12,
+   "ChaSaveProf": true,
+   "ConSaveProf": true,
+   "AthP": 0,
+   "EndP": 0,
+   "AnaP": 1,
+   "HisP": 1,
+   "MagP": 3,
+   "NatP": 0,
+   "RelP": 0,
+   "TecP": 0,
+   "PrfP": 0,
+   "ItmP": 0,
+   "DecP": 2,
+   "ChrP": 0,
+   "PrsP": 0,
+   "AcrP": 0,
+   "SlhP": 0,
+   "StlP": 0,
+   "AttP": 0,
+   "SurP": 0,
+   "MedP": 0,
+   "InsP": 0,
+   "AniP": 0,
+   "MenP": 0
+  },
+  "HpData": {
+   "Current": 81,
+   "Max": 81
+  },
+  "Trait4": {
+   "Name": "Мастер маны(Есть вода)",
+   "Description": "Мастер маны(Есть вода)",
+   "IsAcquired": true
+  },
+  "Trait9": {
+   "Name": "Книжный червь(Есть вода)",
+   "Description": "Книжный червь(Есть вода)",
+   "IsAcquired": true
+  },
+  "Trait18": {
+   "Name": "",
+   "Description": "",
+   "IsAcquired": false
+  },
+  "Skills": [
+   {
+    "SkillName": "Рожденный с магией",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Магическое метаформирование",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "*Усиленное заклинание",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Активный\nПерезарядка: Нет\nЗатраты: .+.100% маны",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "*Аккуратное заклинание",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Активный\nПерезарядка: Нет\nЗатраты: на 25% слабее",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "*Плотное заклинание",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Активный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Водная Аура: Рождение",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Дополнительные мана сосуды",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Медитация",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Источник магии",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Волшебная рука",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: 30фт от меня\nЭффект: Активный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Экран из маны",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Перегрузка Ауры",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Активный\nПерезарядка: 5 ходов",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Густая сеть манасосудов",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Морское охлаждение",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Активный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Водная Аура: Слияние",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Магическое преобразование",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Активный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Призма из льда",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя/Цель\nЭффект: Активный\nПерезарядка: 10 ходов",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Чародейское восстановление",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Ледяной покров",
+    "CategoryIndex": 0,
+    "Description": "Досягаемость: На себя\nЭффект: Пассивный\nПерезарядка: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Уникальная пасивка: Дар смерти",
+    "CategoryIndex": 1,
+    "Description": "",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Медитация вместо сна",
+    "CategoryIndex": 1,
+    "Description": "Досягаемость: На себя\nЭффект: Медитация\nПерезарядка: Нет\nЗатраты: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Темная медиция",
+    "CategoryIndex": 1,
+    "Description": "Досягаемость: На себя\nЭффект: Медитация\nПерезарядка: Нет\nЗатраты: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Рьяность теней",
+    "CategoryIndex": 1,
+    "Description": "Досягаемость: На себя\nЭффект: Медитация\nПерезарядка: Нет\nЗатраты: Нет",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Маг. стрела(Скилл)",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: 0-30фт\nЭффект: Атака\nПерезарядка: Нет\nЗатраты: 25",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Водная дуга(Скилл)",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 40фт\nЭффект: Атака\nПерезарядка: 3 хода\nЗатраты: 100",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Ледяные пули(Скилл)",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Атака\nПерезарядка: 3 ходов\nЗатраты: 100",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Обморожение",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Атака\nПерезарядка: 4 хода\nЗатраты: 150",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Шипы",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Атака\nПерезарядка: 8 ходов\nЗатраты: 250",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Аватар воды",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Бафф\nПерезарядка: 7 ходов\nЗатраты: 300",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Водяные змеи",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Атака\nПерезарядка: 3 хода\nЗатраты: 100",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Ледяная стена",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Атака\nПерезарядка: 4 хода\nЗатраты: 250",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Хрустализация",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Дебафф\nПерезарядка: 7 хода\nЗатраты: 150",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Гармония шторма",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Дебафф/Бафф\nПерезарядка: 6 хода\nЗатраты: 150",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Поступь хлада",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: На себя\nЭффект: Бафф\nПерезарядка: 6 хода\nЗатраты: 75/ход",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Ледяной гвоздь",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 45 фт\nЭффект: Атака\nПерезарядка: 7 хода\nЗатраты: 300",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Созидание из льда",
+    "CategoryIndex": 0,
+    "Description": "Заклинание.\nДосягаемость: до 60 фт\nЭффект: Заклинание\nПерезарядка: 2 хода\nЗатраты: 100",
+    "IsActiveSymbol": false
+   }
+  ],
+  "PassiveSkills": [
+   {
+    "SkillName": "Темная медитация",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 2 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Боеготовность",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 2 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Темный хлыст",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 4 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Лассо тьмы",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 4 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Взор теней",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 6 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Знание теней",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 6 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Эльфийская Аура темной воды",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 8 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Обтекаемая Аура",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 8 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Улучшенный Темный хлыст",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 10 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Приказ тени",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 10 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Близость к Демонам",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 12 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Узы Демонов",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 12 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   }
+  ],
+  "Attacks": [
+   {
+    "AttackType": "Кулак",
+    "Description": "1к4+5 Физический, Удар",
+    "IsActive": false
+   },
+   {
+    "AttackType": "Темный хлыст",
+    "Description": "3к8+5+8",
+    "IsActive": true
+   }
+  ],
+  "Proficiencies": [
+   {
+    "TypeIndex": 0,
+    "Description": "Тканая броня (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Лёгкая броня (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Волшебная палочка (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Магический шар (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Кинжалы (Базовое)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Хлысты (Эксперт)",
+    "Rating": 2
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Магия тьмы (Предрасположеность)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 0,
+    "Description": "Магия воды (Предрасположеность)",
+    "Rating": 1
+   },
+   {
+    "TypeIndex": 1,
+    "Description": "Общий (Полное)",
+    "Rating": 3
+   },
+   {
+    "TypeIndex": 1,
+    "Description": "Дроу (Носитель)",
+    "Rating": 3
+   },
+   {
+    "TypeIndex": 1,
+    "Description": "Демонический (Полное)",
+    "Rating": 3
+   }
+  ],
+  "Inventory": [
+   {
+    "Name": "Кошель",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Малые зелья лечения(1к12)",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Спальный мешок",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Набор походной посуды",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Плащ",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Сухпаёк",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Огниво",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Фляжка",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Карта анкарии",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Фиолетовый жезл",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Неизвестные карты",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Синяя палочка",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Синий магический шар",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Набор для вырезания по дереву",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Бестиарий \"Эдолана\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Карта до 20го этажа \"Эдолана\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Обветшалая книга1(Осторожнее с ней)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Дневник драконида2(Осторожнее с ней)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Книга с магией 1",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Книга с хз каким текстом про древнюю магию",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Указательный палец Зимы",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Заряженное маной кольцо (Белое)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Инциклопедия о ордине Алеснии",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Всё об Алеснии книга",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Спизженная книга \"Всё о магии льда и воды Алеснии\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "АПНУТЬ 15 ЛВЛ ДЛЯ АЛЕНСИИ, ХОЧУ БЛЯ В ОРДЕН! ёпта",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Напоминалка",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Свиток воздушная стрела",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Продано",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Свиток удар молнии",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Продано",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Палочка из попки дракона(Оранжевый)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Продано",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Вздыбливание 1 шт",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Кам. кулак 1 шт",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Фаеробол 1 шт",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Волна огня 1 шт",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "2 зелья(ХЗ ЧТО ТАКОЕ)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "4 Старых учебника магии (к20 по разу для тренировки) 3 Старых энциклопедии магии (к20 по два для тренировки) 1 Старый учебник История (к20 по разу для тренировки) 2 Старый учебник Дрессировка (к20 по разу для тренировки) 1 Старый учебник Кулинария (к20 по разу для тренировки) 1 Старый учебник Картография (к20 по разу для тренировки) 2 Старых энциклопедии Универсальны (к20 по два для тренировки)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "35 клыков Табакси",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   }
+  ],
+  "Resources": [],
+  "HumanoidTraits": [
+   {
+    "Name": "Перфекционист (Гуманоид)",
+    "Description": "",
+    "IsAcquired": true
+   },
+   {
+    "Name": "Быстрое мышление",
+    "Description": "",
+    "IsAcquired": true
+   }
+  ],
+  "JournalEntries": [],
+  "Class": "Чародей",
+  "Subclass": "Знак моря",
+  "Race": "Дроу",
+  "Level": 13,
+  "Experience": 120000,
+  "Hits": "81",
+  "Defense": 20,
+  "Evasion": 0,
+  "Mastery": "5",
+  "Mana": "6800",
+  "Vision": 1,
+  "Hearing": 1,
+  "Aura": 7,
+  "Initiative": 1,
+  "Speed": 30,
+  "HeightWeight": "Вес 58кг, Рост 196См",
+  "BodyDev": 3,
+  "MindDev": 4,
+  "SpiritDev": 5,
+  "BeltItem": {
+   "Name": "Пояс",
+   "Stats": "Слоты 0/3"
+  },
+  "Ornament1Item": {
+   "Name": "Утеплённая одежда"
+  },
+  "HeadItem": {
+   "Name": "Тканый копюшон"
+  },
+  "BodyItem": {
+   "Name": "Тканая туника"
+  },
+  "HandsItem": {
+   "Name": "Меховые перчатки"
+  },
+  "LegsItem": {
+   "Name": "Кожанные сапоги"
+  },
+  "Ring1Item": {
+   "Name": "Кольцо с резным сапфиром"
+  },
+  "Ring2Item": {
+   "Name": "Перстень глубинной ведьмы (Фиолетовый)"
+  },
+  "AmuletItem": {
+   "Name": "Ожерелье с сапфиром и руной (Синее)"
+  },
+  "Weapon1Item": {
+   "Name": "Темный хлыст"
+  }
+ },
+ "Орвилл Солес": {
+  "CharacterName": "Орвилл Солес",
+  "Stats": {
+   "StrBase": 12,
+   "ConBase": 12,
+   "IntBase": 30,
+   "ChaBase": 16,
+   "DexBase": 12,
+   "WisBase": 12,
+   "WisSaveProf": true,
+   "IntSaveProf": true,
+   "AthP": 0,
+   "EndP": 1,
+   "AnaP": 1,
+   "HisP": 1,
+   "MagP": 0,
+   "NatP": 0,
+   "RelP": 0,
+   "TecP": 1,
+   "PrfP": 0,
+   "ItmP": 0,
+   "DecP": 1,
+   "ChrP": 0,
+   "PrsP": 0,
+   "AcrP": 0,
+   "SlhP": 1,
+   "StlP": 0,
+   "AttP": 0,
+   "SurP": 1,
+   "MedP": 2,
+   "InsP": 1,
+   "AniP": 0,
+   "MenP": 0
+  },
+  "HpData": {
+   "Current": 112,
+   "Max": 112
+  },
+  "Trait4": {
+   "Name": "Отличная память",
+   "Description": "Отличная память",
+   "IsAcquired": true
+  },
+  "Trait9": {
+   "Name": "Железное спокойствие",
+   "Description": "Железное спокойствие",
+   "IsAcquired": true
+  },
+  "Trait18": {
+   "Name": "",
+   "Description": "",
+   "IsAcquired": false
+  },
+  "Skills": [
+   {
+    "SkillName": "Мрачный шаг",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 4 уровня (дополнительный).\nДосягаемость: На себя",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Превращение в Нетопыря",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 6 уровня (дополнительный).\nДосягаемость: На себя",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Кровавый взрыв",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 8 уровня (дополнительный).\nДосягаемость: Одна цель",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Кровавая концентрация",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 10 уровня (дополнительный).\nДосягаемость: На себя",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Кровавые иглы",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 12 уровня (дополнительный).\nДосягаемость: Одна цель",
+    "IsActiveSymbol": false
+   }
+  ],
+  "PassiveSkills": [
+   {
+    "SkillName": "Гибкое тело",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 2 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Мастер крови",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 2 уровня (дополнительный).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Острый взгляд",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 4 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Мастерский укус",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 6 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Вампирский метаболизм",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 8 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Пробуждение древней крови",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 10 уровня (основной).",
+    "IsActiveSymbol": false
+   },
+   {
+    "SkillName": "Малые крылья ночи",
+    "CategoryIndex": 1,
+    "Description": "Расовый навык 12 уровня (основной).",
+    "IsActiveSymbol": false
+   }
+  ],
+  "Attacks": [
+   {
+    "AttackType": "полуноч шип",
+    "Description": "4к8 + БМ + Лов",
+    "IsActive": true
+   },
+   {
+    "AttackType": "Удар крови 5 патрона",
+    "Description": "",
+    "IsActive": true
+   }
+  ],
+  "Proficiencies": [],
+  "Inventory": [
+   {
+    "Name": "Блокнот",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Кольцо матери (из платины): -хранилище маны 500/500",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Кольцо послушника Аасимара",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Механическое перо",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Пустая фляга",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "1 ампула с сывороткой правды",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "8 кровавых фруктов (150 мл)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мед перчатки",
+    "Quantity": 15,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мед набор 8,0/10 (бинт тратит 0,5)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Набор Простых Инструментов:",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Набор Исследователя",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "книга \"не читай ослепнешь\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "книга \"не читай оглохнешь\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Перо пустынного павлина",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Зонтик",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Рапира \"Жадный выпивоха\"",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Документ внж страны Кицунэ",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Свиток защиты",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Короткий меч (Обычный)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Маска лисы из папьемаше",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Слиток меди",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Зеленое перо",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Компас обычный",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "2 бутылки с кровью Йети",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Карты с отметками Пирамидок",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Аптечка 1\\4",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Аптечка",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Ключ от неизвестной усадьбы",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Зелья Средние зелья здоровья",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Духи с резким запахом Цветочный но не глициния!!!!!",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Свиток огенный шар 1 круг ( 1 золота)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "газета",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Сфера бессмертия( от Гальбы)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Кольцо гальбаторикса (с заклинания)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Монокль множества знаний(настроен)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Руна острота(+2 к пробитию)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Иньектор рун",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Полуночный шип(настроен)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Удар крови(пистолет)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Ботинки тайной тропы +2 броне обнаруживают скрытые пути",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мантия звезд(настроен)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Письма от Бьянки",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Карта с отметками убийств и предпологаемых убийтсв детей",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Фиол набор инструментов",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Магический дефибриллятор",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "микроскоп",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "\"Жесткокрылка\"- лутбаг",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Шар магического восприятия со склада",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Ожерелье Марии",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "15 печатная машинка (и полный набор к ней(салем))",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Чернильный аппарат",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "2 полных мешка лечебных трав:",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Чабрец",
+    "Quantity": 5,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мандрагора",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Ромашка",
+    "Quantity": 10,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Гриб Спун(Сон)",
+    "Quantity": 22,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Гриб Герезд",
+    "Quantity": 13,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Ноготок",
+    "Quantity": 8,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Пробоск",
+    "Quantity": 6,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Алоэ х20 (Лечение)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Синяя роза",
+    "Quantity": 26,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Шипастый лелейник",
+    "Quantity": 13,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Горчишка х13((эпик)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Белый кактус",
+    "Quantity": 23,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Блестящая ромашка х12(эпик)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Шкура саламанды 2 метр (фиол)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Пробирка с неизвестным веществом изо рта женщины Землянки",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Оселок для заточки (Обычный)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Ядовитая железа",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Пустой чертеж",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Половина набора редкой Тяжелой Брони сделанной на заказ (Низ) Мифриловая",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Часть шкуры Виверны на плащ",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Копия досье на отца Орвилла(из лотоса)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "7 сушенных гуманоидов голов",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Скелет магверя льва",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мышечные волокна",
+    "Quantity": 18,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Биомасса",
+    "Quantity": 28,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Ключ от дома(пещеры)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "Хранение",
+    "Equipped": false,
+    "Stored": true,
+    "ImageFile": ""
+   }
+  ],
+  "Resources": [
+   {
+    "Id": "r1",
+    "Name": "Кровь",
+    "Current": 800,
+    "Max": 800,
+    "Color": "#E6C25A",
+    "ResetOn": "long",
+    "Style": "number",
+    "Notes": "",
+    "Icon": "✦"
+   }
+  ],
+  "HumanoidTraits": [],
+  "JournalEntries": [],
+  "Class": "Савант",
+  "Subclass": "Медик",
+  "Race": "Вампир",
+  "Level": 12,
+  "Experience": 122960,
+  "Hits": "112",
+  "Defense": 8,
+  "Evasion": 22,
+  "Mastery": "5",
+  "Mana": "800",
+  "Vision": 3,
+  "Hearing": 1,
+  "Aura": 2,
+  "Initiative": 10,
+  "BeltItem": {
+   "Name": "Пояс исследователя",
+   "Stats": "Слоты 0/4"
+  },
+  "HeadItem": {
+   "Name": "Монокль Множества знаний (+1 к УКЛ)"
+  },
+  "BodyItem": {
+   "Name": "Мантия Звезд (+1 к УКЛ)"
+  },
+  "HandsItem": {
+   "Name": "кожаные браслеты (+1 к ЗАЩ)"
+  },
+  "LegsItem": {
+   "Name": "ботинки тайной тропы (+2 к ЗАЩ)"
+  },
+  "Ring1Item": {
+   "Name": "Кольцо Матери"
+  },
+  "Ring2Item": {
+   "Name": "Кольцо с маной 600/600"
+  },
+  "Weapon1Item": {
+   "Name": "полуноч шип"
+  },
+  "Weapon2Item": {
+   "Name": "Удар крови 5 патрона"
+  }
+ },
+ "Азиэль Астарот": {
+  "CharacterName": "Азиэль Астарот",
+  "Stats": {},
+  "HpData": {
+   "Current": 133,
+   "Max": 133
+  },
+  "Trait4": {},
+  "Trait9": {},
+  "Trait18": {},
+  "Inventory": [
+   {
+    "Name": "Сфера ночи",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Маска Лионеля",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Коробочка с адскими сушёными пьявками",
+    "Quantity": 100,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Жезл хранителя договора",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Сертификат на любую бесплатную декоративную одежду",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Цветочек",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Записка от работорговца",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Плеть для скота 1к6 + болевой шок до конца хода",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Обычный плащ",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Швейный набор (5 зарядов)",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Огниво",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Веревка (30 футов)",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Походный паёк",
+    "Quantity": 12,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Сливовица (Водка на сливах 40%)",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Полнолуние (Ром на шишках 23%)",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Листолюбское особое пиво (отрезвляющее)",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Технический спирт",
+    "Quantity": 10,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Палёная водка",
+    "Quantity": 7,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Гриб-спун порошок",
+    "Quantity": 25,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Медицинский шприц",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Автограф от Эльвиры Якирай (Глава Везгаксура)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Автограф от Хироши",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Автограф от Асдата Баксура (генерал фенрисов)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Алхмический стол (ветхий)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Поддельный знак демоноборца",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Серебрянный длинный меч",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Поддельный значок демоноборца (надето)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": true,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Учебник по монстрам (№39)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Учебник по хлыстам (№12)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Лопата",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Нож",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Спальник",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Набор походной посуды",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Бурдюк",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Пачка хорошей бумаги (200 листов)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Письменные принадлежности",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Утеплённый плащ",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Молотый перец",
+    "Quantity": 50,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Молотый перец (стыренный, 1 перечница)",
+    "Quantity": 10,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Толчённый чеснок",
+    "Quantity": 49,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Карты с отметками Пирамидок",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Половина брони от драконего всадника из мифрила",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Печать Риары Асмодей на листе + на платье",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Автограф Вудди Гросс (бывший президент зайцегонов)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Автограф Ясака Мунаакира",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Учебник по Выступлению №92 (0\\3)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Учебник по вязанию 69. Как связать свитер",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Учебник по Выступлению №44 (0\\3)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Автограф Роджера Мура (новый правитель зайцегонов)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Зелья здоровья",
+    "Quantity": 3,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Манокамни (250 маны)",
+    "Quantity": 25,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Чеснокодавилка (посмотреть стоимость)",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Флейта времени",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Волшебная палочка",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Сфера наблюдения",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Когти Астарот",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мясо (20 идеальных)",
+    "Quantity": 20,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Мясо (8 нормальных (с преимущ)",
+    "Quantity": 2,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   },
+   {
+    "Name": "Автограф Шиихи Клабситис",
+    "Quantity": 1,
+    "Rarity": "Обычный",
+    "Description": "",
+    "Notes": "",
+    "Equipped": false,
+    "Stored": false,
+    "ImageFile": ""
+   }
+  ],
+  "JournalEntries": [
+   {
+    "Id": "xls-info",
+    "Title": "Из таблицы персонажей",
+    "Content": "<p>Статус: Стабилен</p><p>Расходы: 4.5 золота</p><p>Локация: Город \"Ровен\"</p><p>Отношения: Джекс Цучикаро (29/200)</p><p>Очки генома: 11</p>",
+    "Tags": "таблица",
+    "Date": ""
+   }
+  ],
+  "Level": 12,
+  "Hits": "133",
+  "Mana": "1540",
+  "Stamina": "10",
+  "GoldCoins": 2745,
+  "SilverCoins": 41
+ }
+}

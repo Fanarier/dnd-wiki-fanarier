@@ -118,7 +118,8 @@ const main = {
   Trait4: TRAIT, Trait9: TRAIT, Trait18: TRAIT,
   HumanoidTraits: A(TRAIT, 5),
   Proficiencies: A(O({ TypeIndex: I(0, 1), Description: S(400), Rating: I(0, 3) }), 120),
-  Inventory: A(O({ ImageFile: IMG, Name: S(160), Description: S(8000), Rarity: S(40), Quantity: I(0, 1e6), Notes: S(4000), Equipped: B }), 400),
+  // Stored — лежит на личном складе (поле сайта), а не при себе
+  Inventory: A(O({ ImageFile: IMG, Name: S(160), Description: S(8000), Rarity: S(40), Quantity: I(0, 1e6), Notes: S(4000), Equipped: B, Stored: B }), 600),
   GoldCoins: I(0, 2e9), SilverCoins: I(0, 2e9), CopperCoins: I(0, 2e9),
   FieldColors: M(COLOR, 400),
   Accent: COLOR,
@@ -273,7 +274,7 @@ const LABELS = {
   Trait18: 'Черта 18 ур.', HumanoidTraits: 'Черты гуманоидов', Proficiencies: 'Владения', Inventory: 'Инвентарь',
   GoldCoins: 'Золото', SilverCoins: 'Серебро', CopperCoins: 'Медь', FieldColors: 'Цвет поля', Accent: 'Цвет листа', SlotLocks: 'Замок слота',
   Current: 'текущие', Max: 'максимум', Temp: 'временные', Name: 'название', Description: 'описание', SkillName: 'название',
-  IsAcquired: 'получена', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
+  IsAcquired: 'получена', Stored: 'на складе', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
   Stats_: 'статы', Effects: 'эффекты', AttackType: 'тип', Title: 'заголовок', Content: 'текст', Tags: 'теги', ImageFile: 'картинка',
   Style: 'вид', Color: 'цвет', Icon: 'значок', ResetOn: 'восстановление', CategoryIndex: 'категория', IsActiveSymbol: 'отметка ●',
   IsActive: 'отметка ●', TypeIndex: 'тип', Cells: 'ячейки', Columns: 'колонки', Rows: 'строки', Header: 'название колонки',

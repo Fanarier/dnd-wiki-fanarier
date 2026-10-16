@@ -34,7 +34,12 @@
         </div>
         <dl class="ns-info">
           <template v-for="(r, ri) in npc.info" :key="r.k">
-            <dt :style="{ '--i': ri }">{{ r.k }}</dt><dd :class="{ unk: unknown(r.v) }" :style="{ '--i': ri }">{{ r.v || '—' }}</dd>
+            <dt :style="{ '--i': ri }">{{ r.k }}</dt>
+            <dd :class="{ unk: unknown(r.v) }" :style="{ '--i': ri }">
+              <!-- хозяин компаньона — ссылка на его карточку героя (а с неё — на лист) -->
+              <router-link v-if="/^хозяин/i.test(r.k) && ownerHero(r.v)" class="ns-owner" :to="{ path: '/wiki', query: { hero: ownerHero(r.v).id } }" :title="`Карточка «${ownerHero(r.v).name}»`">⚑ {{ r.v }}</router-link>
+              <template v-else>{{ r.v || '—' }}</template>
+            </dd>
           </template>
         </dl>
         <div v-if="master" class="ns-acts">
@@ -182,7 +187,8 @@ import FxText from './FxText.vue'
 import RichText from '../../components/RichText.vue'
 import HeroGalleryViewer from '../HeroGalleryViewer.vue'
 import { store, heroPortraitUrl } from '../../map/store.js'
-import { groupOf, SPEC_LEVELS, WEAK_LEVELS, levelColor, STATS, COMBAT, mod, signed, hasSpecs, unknown, npcLevel, skillKey, findPlace, placeLink } from '../../shared/npc.js'
+import { groupOf, SPEC_LEVELS, WEAK_LEVELS, levelColor, STATS, COMBAT, mod, signed, hasSpecs, unknown, npcLevel, skillKey, findPlace, placeLink, sameOwner } from '../../shared/npc.js'
+const ownerHero = v => (store.data.heroes || []).find(h => h.kind === 'character' && sameOwner(v, h.name))
 
 const props = defineProps({
   npc: { type: Object, required: true },
@@ -282,6 +288,8 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-info dt { color: #a8936c; font-size: 12.5px; font-weight: 700; }
 .ns-info dt, .ns-info dd { animation: ns-rise .45s ease backwards; animation-delay: calc(.15s + var(--i, 0) * 35ms); }
 .ns-info dd { margin: 0; font-size: 13.5px; font-weight: 600; overflow-wrap: anywhere; }
+.ns-owner { color: #f3d99a; text-decoration: none; border-bottom: 1px dashed rgba(243, 217, 154, .5); }
+.ns-owner:hover { color: #fff3d6; border-bottom-style: solid; }
 .ns-acts { margin-top: 12px; display: flex; gap: 8px; }
 .ns-btn { border: 1px solid rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .05); color: #ece6da; border-radius: 10px; padding: 8px 14px; font: 700 13px 'Manrope', sans-serif; cursor: pointer; }
 .ns-btn.primary { background: linear-gradient(180deg, #f0cf83, #c99a45); color: #1b140c; border-color: #e6c27a; }
