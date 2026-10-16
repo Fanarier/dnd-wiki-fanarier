@@ -63,7 +63,7 @@
     <div v-else class="sb-stage" :class="{ single }">
       <!-- пылинки в свете свечи -->
       <i v-for="m in motes" :key="m.k" class="sb-mote" :style="m.style" aria-hidden="true" />
-      <div ref="bookRef" class="sb-book" :class="{ opening, downed, 'marks-tight': marksTight }">
+      <div ref="bookRef" class="sb-book" :class="{ opening, downed }">
         <!-- кожаный переплёт с тиснёными уголками (под страницами) -->
         <div v-if="!single" ref="boardLRef" class="sb-boards l" aria-hidden="true"><i class="cn tl" /><i class="cn bl" /></div>
         <div class="sb-boards r" aria-hidden="true"><i class="cn tr" /><i class="cn br" /><template v-if="single"><i class="cn tl" /><i class="cn bl" /></template></div>
@@ -90,8 +90,8 @@
 
         <!-- закладки: шёлковые ленты, торчат из-за верхнего края страниц -->
         <nav v-for="g in markGroups" :key="g.side" class="sb-marks" :class="g.side" aria-label="Разделы листа">
-          <button v-for="s in g.items" :key="s.key" type="button" class="sb-mark" :class="{ on: shown(s.key) }" :style="{ '--silk': SILK[s.n % SILK.length] }" :title="s.name" @click="goto(s.key)">
-            <SheetIcon :name="s.key" class="ic" /><span class="nm">{{ s.tab || s.name }}</span>
+          <button v-for="s in g.items" :key="s.key" type="button" class="sb-mark" :class="{ on: shown(s.key) }" :data-k="s.key" :style="{ '--silk': SILK[s.n % SILK.length] }" :title="s.name" @click="goto(s.key)">
+            <SheetIcon :name="s.key" class="ic" /><span class="nm">{{ (marksMini.has(s.key) && s.mini) || s.tab || s.name }}</span>
           </button>
         </nav>
         <!-- ляссе — ленточка из корешка -->
@@ -168,18 +168,18 @@ import PCustom from './pages/PCustom.vue'
 
 const SECTIONS = [
   { key: 'main', name: 'Главная', icon: '👤', comp: PMain },
-  { key: 'stats', name: 'Характеристики', icon: '📊', comp: PStats },
-  { key: 'details', name: 'Предыстория', icon: '📜', comp: PDetails },
+  { key: 'stats', name: 'Характеристики', icon: '📊', comp: PStats, mini: 'Характ.' },
+  { key: 'details', name: 'Предыстория', icon: '📜', comp: PDetails, mini: 'История' },
   { key: 'active', name: 'Активные навыки', tab: 'Активные', icon: '⚡', comp: PSkills, props: { list: 'Skills' } },
-  { key: 'passive', name: 'Пассивные навыки', tab: 'Пассивные', icon: '🌀', comp: PSkills, props: { list: 'PassiveSkills' } },
+  { key: 'passive', name: 'Пассивные навыки', tab: 'Пассивные', icon: '🌀', comp: PSkills, props: { list: 'PassiveSkills' }, mini: 'Пассивн.' },
   { key: 'attacks', name: 'Атаки', icon: '⚔', comp: PAttacks },
   { key: 'traits', name: 'Владения', icon: '🎓', comp: PTraits },
-  { key: 'train', name: 'Тренировки и обучение', tab: 'Тренировки', icon: '🏋', comp: PTraining },
-  { key: 'equip', name: 'Снаряжение', icon: '🛡', comp: PEquip },
-  { key: 'inv', name: 'Инвентарь', icon: '🎒', comp: PInventory },
+  { key: 'train', name: 'Тренировки и обучение', tab: 'Тренировки', icon: '🏋', comp: PTraining, mini: 'Обучение' },
+  { key: 'equip', name: 'Снаряжение', icon: '🛡', comp: PEquip, mini: 'Снаряж.' },
+  { key: 'inv', name: 'Инвентарь', icon: '🎒', comp: PInventory, mini: 'Сумка' },
   { key: 'res', name: 'Ресурсы', icon: '❤', comp: PResources },
   { key: 'journal', name: 'Журнал', icon: '📝', comp: PJournal },
-  { key: 'custom', name: 'Свои листы', icon: '📋', comp: PCustom }
+  { key: 'custom', name: 'Свои листы', icon: '📋', comp: PCustom, mini: 'Свои' }
 ]
 // цвета шёлковых закладок
 const SILK = ['#8e2f3a', '#2f5a8e', '#6d3f9a', '#2f7a64', '#a0662a', '#8a2f68', '#4f6e2a', '#7a5a9e', '#a0822a', '#b2433a', '#3f528a', '#6a4632', '#2f6a7a']
@@ -213,18 +213,25 @@ const isPhone = () => innerWidth < 640 || innerHeight < 480
 const phone = ref(isPhone())
 const single = ref(innerWidth < 980 || phone.value)
 const onResize = () => { phone.value = isPhone(); single.value = innerWidth < 980 || phone.value; fitMarks() }
-// закладки с подписями должны помещаться над своей страницей; не влезают — подпись только у открытых (и под мышкой).
-// Меряем по-настоящему: ширина экрана, масштаб браузера и шрифты бывают любые
-const marksTight = ref(false)
+// закладки на развороте: значок сверху, полное название снизу. Каждая занимает свою долю ширины страницы,
+// а размер подписи подбираем так, чтобы все названия влезли целиком (экран и масштаб бывают любые).
+// Название, которое не влезает и при 10px, заменяется коротким («Характ.», «Сумка») — только оно, остальные полные
+const marksMini = reactive(new Set())
+const BASE_FS = 10
 async function fitMarks() {
-  marksTight.value = false
+  const book = bookRef.value
+  if (!book || single.value) return
+  const names = () => [...book.querySelectorAll('.sb-marks.l .nm, .sb-marks.r .nm')]
+  const room = nm => nm.parentElement.clientWidth - 18 // поля закладки и запас на округление
+  marksMini.clear()
+  book.style.setProperty('--mk-fs', BASE_FS + 'px')
   await nextTick()
-  const navs = bookRef.value?.querySelectorAll('.sb-marks') || []
-  for (const nav of navs) {
-    const marks = [...nav.children]
-    const need = marks.reduce((w, m) => w + m.offsetWidth, 0) + 4 * Math.max(0, marks.length - 1)
-    if (need > nav.clientWidth) { marksTight.value = true; return }
-  }
+  for (const nm of names()) if (nm.scrollWidth > room(nm)) marksMini.add(nm.parentElement.dataset.k)
+  await nextTick()
+  // сколько ещё можно увеличить (или придётся уменьшить), чтобы влезло самое тесное
+  let k = 11.5 / BASE_FS
+  for (const nm of names()) if (nm.scrollWidth > 0 && room(nm) > 0) k = Math.min(k, room(nm) / nm.scrollWidth)
+  book.style.setProperty('--mk-fs', Math.max(8, BASE_FS * k * 0.97).toFixed(2) + 'px')
 }
 const visibleSections = computed(() => SECTIONS)
 // закладки: на развороте — половина над левой страницей, половина над правой (корешок свободен)
@@ -828,7 +835,9 @@ async function load(id) {
   document.title = `${sheet.data.CharacterName} — лист персонажа`
   playOpen()
   fitMarks()
-  document.fonts?.ready.then(fitMarks)
+  // шрифт подписей мог ещё не загрузиться — перемеряем, когда загрузится
+  document.fonts?.load("800 12px Manrope").then(() => fitMarks()).catch(() => {})
+  setTimeout(fitMarks, 2500)
 }
 watch(() => route.params.id, id => { if (id) load(id) })
 // сменили вход (мастер ↔ игра персонажем) — права на лист другие, перечитываем
@@ -974,8 +983,8 @@ onBeforeUnmount(() => {
 
 /* закладки: шёлковые ленты из-за верхнего края */
 .sb-marks { position: absolute; bottom: calc(100% - 22px); display: flex; align-items: flex-end; gap: 4px; z-index: 1; pointer-events: none; }
-.sb-marks.l { left: 3%; right: calc(50% + 26px); justify-content: flex-end; }
-.sb-marks.r { left: calc(50% + 26px); right: 3%; justify-content: flex-start; }
+.sb-marks.l { left: 3%; right: calc(50% + 26px); justify-content: space-evenly; gap: 5px; }
+.sb-marks.r { left: calc(50% + 26px); right: 3%; justify-content: space-evenly; gap: 5px; }
 .sb-mark { pointer-events: auto; position: relative; display: flex; align-items: center; gap: 6px; height: 54px; padding: 0 11px 18px; box-sizing: border-box; border: 0; border-radius: 8px 8px 0 0; cursor: pointer; color: #fff4dc; white-space: nowrap;
   background: linear-gradient(90deg, rgba(0, 0, 0, .28), rgba(255, 255, 255, .1) 35%, rgba(0, 0, 0, .05) 60%, rgba(0, 0, 0, .3)), var(--silk);
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 -2px 8px rgba(0, 0, 0, .35);
@@ -986,12 +995,12 @@ onBeforeUnmount(() => {
 .sb-mark:hover { transform: translateY(6px); filter: none; }
 .sb-mark.on { transform: translateY(0); filter: none; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 -4px 16px color-mix(in srgb, var(--silk) 70%, transparent), 0 0 0 1px color-mix(in srgb, var(--acc) 60%, #fff3d6); }
 .sb-mark.on::after { content: ''; position: absolute; left: 50%; top: 6px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #ffe7a8; box-shadow: 0 0 8px #ffd27a; }
-/* 13 закладок с подписями влезают только на очень широком экране — иначе подпись у открытой и под мышкой */
-.marks-tight .sb-mark:not(.on):not(:hover) .nm { display: none; }
-/* значки распределены по всей ширине страницы, а не жмутся к корешку */
-.marks-tight .sb-marks.l, .marks-tight .sb-marks.r { justify-content: space-evenly; }
-.marks-tight .sb-mark:not(.on) { padding: 0 13px 18px; }
-.marks-tight .sb-mark:not(.on) .ic { width: 18px; height: 18px; }
+/* разворот: каждая закладка — своя доля ширины, значок над полным названием */
+.sb-marks.l .sb-mark, .sb-marks.r .sb-mark { flex: 1 1 0; min-width: 0; max-width: 150px; height: 66px; flex-direction: column; justify-content: flex-start; gap: 3px; padding: 9px 7px 0; transform: translateY(10px); }
+.sb-marks.l .sb-mark .nm, .sb-marks.r .sb-mark .nm { max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: var(--mk-fs, 11.5px); letter-spacing: 0; }
+.sb-marks.l .sb-mark:hover, .sb-marks.r .sb-mark:hover { transform: translateY(4px); }
+.sb-marks.l .sb-mark.on, .sb-marks.r .sb-mark.on { transform: translateY(-4px); }
+.sb-marks.l .sb-mark.on::after, .sb-marks.r .sb-mark.on::after { display: none; }
 
 /* ляссе */
 .sb-ribbon-wrap { position: absolute; left: calc(50% - 4px); top: calc(100% - 16px); width: 46px; height: 100px; z-index: 3; overflow: visible; cursor: grab; filter: drop-shadow(1px 4px 3px rgba(0, 0, 0, .55)); }
