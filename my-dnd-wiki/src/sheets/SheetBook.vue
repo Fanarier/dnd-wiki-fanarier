@@ -988,6 +988,10 @@ onBeforeUnmount(() => {
 .sb-mark.on::after { content: ''; position: absolute; left: 50%; top: 6px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: #ffe7a8; box-shadow: 0 0 8px #ffd27a; }
 /* 13 закладок с подписями влезают только на очень широком экране — иначе подпись у открытой и под мышкой */
 .marks-tight .sb-mark:not(.on):not(:hover) .nm { display: none; }
+/* значки распределены по всей ширине страницы, а не жмутся к корешку */
+.marks-tight .sb-marks.l, .marks-tight .sb-marks.r { justify-content: space-evenly; }
+.marks-tight .sb-mark:not(.on) { padding: 0 13px 18px; }
+.marks-tight .sb-mark:not(.on) .ic { width: 18px; height: 18px; }
 
 /* ляссе */
 .sb-ribbon-wrap { position: absolute; left: calc(50% - 4px); top: calc(100% - 16px); width: 46px; height: 100px; z-index: 3; overflow: visible; cursor: grab; filter: drop-shadow(1px 4px 3px rgba(0, 0, 0, .55)); }
