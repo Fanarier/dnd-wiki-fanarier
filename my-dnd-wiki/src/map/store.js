@@ -630,18 +630,22 @@ export async function loadNpcs(force = false) {
     npcsAgain = false
   }
 }
-/* ---------- правила игры (расы, классы, механики): отдельный запрос, перезапрашиваем по rulesRev ---------- */
-export const rulesState = reactive({ rev: -1, role: '', articles: [], races: [], classes: [], loading: false, loaded: false })
+/* ---------- правила игры (расы, классы, статьи, магия, эффекты): отдельный запрос, перезапрашиваем по rulesRev ---------- */
+export const rulesState = reactive({ rev: -1, role: '', articles: [], races: [], classes: [], schools: [], spells: [], effects: [], loading: false, loaded: false })
+// кто смотрит: от роли и прав редактора зависит, видно ли скрытое
+const rulesViewer = () => store.role + JSON.stringify(store.me?.wiki || null)
+// права на правку вики для проверок в интерфейсе (src/shared/wikiPerms.js)
+export const wikiUser = () => ({ role: store.role, wiki: store.me?.wiki || null })
 let rulesAgain = false
 export async function loadRules(force = false) {
   if (rulesState.loading) { rulesAgain = true; return }
   const want = store.data.rulesRev ?? 0
-  if (!force && rulesState.loaded && rulesState.rev === want && rulesState.role === store.role) return
+  if (!force && rulesState.loaded && rulesState.rev === want && rulesState.role === rulesViewer()) return
   rulesState.loading = true
   let ok = false
   try {
     const j = await api('GET', '/api/rules')
-    Object.assign(rulesState, { rev: j.rev, role: store.role, articles: j.articles, races: j.races, classes: j.classes, loaded: true })
+    Object.assign(rulesState, { rev: j.rev, role: rulesViewer(), articles: j.articles, races: j.races, classes: j.classes, schools: j.schools || [], spells: j.spells || [], effects: j.effects || [], loaded: true })
     ok = true
   } catch (e) {
     toast(e.message, 'error')

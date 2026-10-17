@@ -30,6 +30,12 @@
       <span class="pm-hp-txt">❤ <b><Num :value="d.HpData.Current" /></b> / {{ maxHp }}<em v-if="d.HpData.Temp"> +{{ d.HpData.Temp }}</em></span>
     </button>
 
+    <!-- эффекты на персонаже (иконки из вики): видно и в сводке отряда у мастера -->
+    <div class="pm-fx sb-anim" data-find="ActiveEffects">
+      <span class="pm-fx-h">Эффекты</span>
+      <EffectChips :model-value="d.ActiveEffects" :editable="!ro" @update:model-value="edit('ActiveEffects', $event, { now: true })" />
+    </div>
+
     <div class="pm-pools sb-anim">
       <Fld path="Mana" label="Мана" center data-find="Mana" class="pool mana" />
       <Fld path="Stamina" label="Выносливость" center data-find="Stamina" class="pool sta" />
@@ -101,6 +107,7 @@ import Num from '../ui/Num.vue'
 import Bonus from '../ui/Bonus.vue'
 import IconRating from '../ui/IconRating.vue'
 import Radar from '../ui/Radar.vue'
+import EffectChips from '../ui/EffectChips.vue'
 import { sheet, sheetImg, pickImage, edit } from '../sheetState.js'
 import { toast, npcState, loadNpcs, heroPortraitUrl } from '../../map/store.js'
 import { companionsOf } from '../../shared/npc.js'
@@ -157,6 +164,8 @@ async function setPhoto() {
 </script>
 
 <style scoped>
+.pm-fx { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 6px; }
+.pm-fx-h { color: var(--muted); font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .1em; text-transform: uppercase; }
 .pm { display: grid; gap: 4px; }
 .pm-head { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; align-items: start; }
 .pm-photo { transform: perspective(700px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transition: transform .35s ease-out, box-shadow .35s; will-change: transform; }

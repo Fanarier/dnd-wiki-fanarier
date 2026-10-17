@@ -1,17 +1,26 @@
-// Правила «Heroes & Adventures»: расы, классы и статьи (механики, рабочие места, деятельности).
-// Перенесены из Google Docs (server/seed/rules.json), дальше их правит мастер на сайте.
+// Правила «Heroes & Adventures»: расы, классы, статьи (механики, рабочие места, деятельности, магия),
+// школы магии с заклинаниями и эффекты. Перенесены из Google Docs (server/seed/rules.json, rules-part2.json),
+// дальше их правят на сайте мастер и редакторы, которым он дал права (src/shared/wikiPerms.js).
+// Каждая правка пишется в журнал (data/rules-history.json) — мастер может её откатить.
 // Хранятся отдельно от мира — data/rules.json (полтора мегабайта не нужно рассылать с каждым обновлением карты);
 // в общем состоянии только rulesRev, клиент перезапрашивает /api/rules, когда он меняется.
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRules } from './richtext.js'
+import { canEditRule, canManageRule, RULE_LISTS } from '../src/shared/wikiPerms.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'rules.json')
 const SEED = path.resolve(import.meta.dirname, 'seed', 'rules.json')
+const SEED2 = path.resolve(import.meta.dirname, 'seed', 'rules-part2.json')
+const HISTORY = path.join(DATA_DIR, 'rules-history.json')
+export const RULES_IMG_DIR = path.join(DATA_DIR, 'rules-img')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
-export const RULE_GROUPS = ['mechanics', 'workplaces', 'activities', 'classes', 'races']
+export const RULE_GROUPS = ['mechanics', 'workplaces', 'activities', 'classes', 'races', 'magic']
+// страницы вики со школами магии (у каждой школы — своя)
+export const MAGIC_PAGES = ['utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
+const EFFECT_KINDS = ['buff', 'debuff', 'special']
 
 let store = null
 let timer = null
@@ -26,6 +35,9 @@ function load() {
   store.articles ||= []
   store.races ||= []
   store.classes ||= []
+  store.schools ||= []
+  store.spells ||= []
+  store.effects ||= []
   store.rev ||= 1
   applyFixes()
 }
@@ -70,6 +82,25 @@ const FIXES = {
     if (!h) return 0
     for (const l of h.levels) if (l.options.length > 2) l.pick = 2
     return h.levels.length
+  },
+  // «Разносторонний» (6) и «Разносторонний II» (10): один вариант, а вместо второго — владение навыком по выбору
+  'human-versatile': () => {
+    const h = store.races.find(x => x.name === 'Человек')
+    if (!h) return 0
+    let n = 0
+    for (const l of h.levels) if (/^Разносторонний/.test(l.auto?.name || '')) { l.pick = 1; l.prof = 1; n++ }
+    return n
+  },
+  // вторая часть вики: магия (была страницами сайта), статья «НПС», эффекты с иконками
+  part2: () => {
+    let seed = {}
+    try { seed = JSON.parse(fs.readFileSync(SEED2, 'utf8')) } catch { return 0 }
+    const next = list => Math.max(0, ...store[list].map(x => x.order || 0)) + 1
+    for (const a of seed.articles || []) store.articles.push({ id: 'a-' + crypto.randomBytes(4).toString('hex'), order: next('articles'), ...cleanArticle(a) })
+    for (const x of seed.schools || []) if (!store.schools.some(y => y.id === x.id)) store.schools.push({ id: x.id, order: next('schools'), ...cleanSchool(x) })
+    for (const x of seed.spells || []) if (!store.spells.some(y => y.id === x.id)) store.spells.push({ id: x.id, order: next('spells'), ...cleanSpell(x) })
+    for (const x of seed.effects || []) if (!store.effects.some(y => y.id === x.id)) store.effects.push({ id: x.id, order: next('effects'), ...cleanEffect(x) })
+    return (seed.articles?.length || 0) + (seed.spells?.length || 0) + (seed.effects?.length || 0)
   }
 }
 function applyFixes() {
@@ -91,7 +122,10 @@ function writeNow() {
   fs.renameSync(FILE + '.tmp', FILE)
 }
 const save = () => { store.rev++; timer ||= setTimeout(writeNow, 400) }
-export function flushRules() { if (timer) { clearTimeout(timer); writeNow() } }
+export function flushRules() {
+  if (timer) { clearTimeout(timer); writeNow() }
+  if (historyTimer) { clearTimeout(historyTimer); writeHistory() }
+}
 function backup() {
   if (!fs.existsSync(FILE)) return
   fs.mkdirSync(BACKUP_DIR, { recursive: true })
@@ -119,6 +153,7 @@ function cleanRace(b = {}, old = {}) {
     levels: arr(b.levels ?? old.levels, 30, l => ({
       lv: N(l?.lv, 1, 40),
       pick: N(l?.pick || 1, 1, 6), // сколько вариантов выбирают на этом уровне
+      prof: N(l?.prof, 0, 6), // и сколько навыков (Атлетика, Внимание…) получают во владение по выбору
       auto: l?.auto && S(l.auto.name, 120) ? skillOf(l.auto) : null,
       options: arr(l?.options, 10, s => (S(s?.name, 120) ? skillOf(s) : null))
     })).sort((a, b) => a.lv - b.lv),
@@ -145,49 +180,178 @@ const cleanArticle = (b = {}, old = {}) => ({
   html: H(b.html ?? old.html)
 })
 
-export function registerRulesRoutes(app, { requireMaster, userOf, broadcast }) {
+const cleanSchool = (b = {}, old = {}) => ({
+  ...old,
+  name: S(b.name ?? old.name, 80) || 'Школа',
+  page: MAGIC_PAGES.includes(b.page) ? b.page : old.page || 'utility',
+  hidden: !!b.hidden,
+  about: H(b.about ?? old.about)
+})
+const cleanSpell = (b = {}, old = {}) => ({
+  ...old,
+  school: S(b.school ?? old.school, 40),
+  circle: S(b.circle ?? old.circle, 12).toUpperCase(),
+  name: S(b.name ?? old.name, 120) || 'Заклинание',
+  hidden: !!b.hidden,
+  html: H(b.html ?? old.html),
+  cost: S(b.cost ?? old.cost, 160),
+  cd: S(b.cd ?? old.cd, 160)
+})
+// иконка — из комплекта (assets/effects) или загруженная на сайт (rules-img)
+const ICON_RE = /^\/(assets\/effects|rules-img)\/[\w.-]{1,80}$/
+const cleanEffect = (b = {}, old = {}) => ({
+  ...old,
+  kind: EFFECT_KINDS.includes(b.kind) ? b.kind : old.kind || 'buff',
+  name: S(b.name ?? old.name, 80) || 'Эффект',
+  tag: S(b.tag ?? old.tag, 60),
+  icon: ICON_RE.test(String(b.icon ?? old.icon ?? '')) ? String(b.icon ?? old.icon) : '',
+  hidden: !!b.hidden,
+  html: H(b.html ?? old.html)
+})
+
+/* ---------- журнал правок: кто, что, было → стало; мастер откатывает ---------- */
+let history = null
+let historyTimer = null
+const HISTORY_MAX = 400
+function loadHistory() {
+  if (history) return history
+  try { history = JSON.parse(fs.readFileSync(HISTORY, 'utf8')) } catch { history = [] }
+  return history
+}
+function writeHistory() {
+  historyTimer = null
+  fs.mkdirSync(DATA_DIR, { recursive: true })
+  fs.writeFileSync(HISTORY + '.tmp', JSON.stringify(history))
+  fs.renameSync(HISTORY + '.tmp', HISTORY)
+}
+const titleOf = x => x?.title || x?.name || ''
+function record(u, list, action, before, after, note = '') {
+  const h = loadHistory()
+  const last = h.at(-1)
+  const itemId = (after || before)?.id
+  // правки одной записи одним человеком подряд в течение 10 минут — одна строка журнала («было» — самое первое)
+  if (action === 'update' && !note && last?.action === 'update' && !last.note && last.list === list && last.itemId === itemId &&
+      last.byId === u.id && Date.now() - last.at < 600000 && !last.reverted) {
+    Object.assign(last, { at: Date.now(), after, title: titleOf(after) })
+  } else {
+    h.push({ hid: 'h' + crypto.randomBytes(5).toString('hex'), at: Date.now(), byId: u.id, by: u.name || u.login || '', role: u.role, list, itemId, title: titleOf(after || before), action, before, after, note })
+    if (h.length > HISTORY_MAX) h.splice(0, h.length - HISTORY_MAX)
+  }
+  historyTimer ||= setTimeout(writeHistory, 800)
+}
+
+export function registerRulesRoutes(app, { express, requireMaster, requireUser, userOf, broadcast, imageExt }) {
   load()
   backup()
   setInterval(backup, 6 * 3600 * 1000)
-  const LISTS = { articles: [cleanArticle, 'a-'], races: [cleanRace, 'r-'], classes: [cleanClass, 'k-'] }
+  const CLEAN = { articles: [cleanArticle, 'a-'], races: [cleanRace, 'r-'], classes: [cleanClass, 'k-'], schools: [cleanSchool, 'm-'], spells: [cleanSpell, 's-'], effects: [cleanEffect, 'fx-'] }
   const changed = () => { save(); broadcast() }
+  const deny = res => res.status(403).json({ error: 'Эту страницу вики тебе править нельзя — права даёт мастер' })
+  const copy = x => (x ? JSON.parse(JSON.stringify(x)) : null)
+  const noSchool = (list, x) => list === 'spells' && !store.schools.some(s => s.id === x.school)
 
-  // всё сразу (скрытое — только мастеру)
+  // всё сразу; скрытое видят мастер и редакторы этой страницы
   app.get('/api/rules', (req, res) => {
-    const master = userOf(req)?.role === 'master'
-    const vis = x => master || !x.hidden
-    res.json({ rev: store.rev, articles: store.articles.filter(vis), races: store.races.filter(vis), classes: store.classes.filter(vis) })
+    const u = userOf(req)
+    const out = { rev: store.rev }
+    for (const list of RULE_LISTS) out[list] = store[list].filter(x => !x.hidden || canEditRule(u, list, x))
+    res.json(out)
   })
 
-  for (const [list, [clean, prefix]] of Object.entries(LISTS)) {
-    app.post(`/api/rules/${list}`, requireMaster, (req, res) => {
+  for (const [list, [clean, prefix]] of Object.entries(CLEAN)) {
+    app.post(`/api/rules/${list}`, requireUser, (req, res) => {
+      const body = clean(req.body || {})
+      if (noSchool(list, body)) return res.status(400).json({ error: 'Нет такой школы' })
+      if (!canManageRule(req.user, list, body)) return deny(res)
       const items = store[list]
-      const item = { id: prefix + crypto.randomBytes(4).toString('hex'), order: Math.max(0, ...items.map(x => x.order || 0)) + 1, ...clean(req.body || {}) }
+      const item = { id: prefix + crypto.randomBytes(4).toString('hex'), order: Math.max(0, ...items.map(x => x.order || 0)) + 1, ...body }
       items.push(item)
+      record(req.user, list, 'create', null, copy(item))
       changed()
       res.json(item)
     })
-    app.put(`/api/rules/${list}/:id`, requireMaster, (req, res) => {
+    app.put(`/api/rules/${list}/:id`, requireUser, (req, res) => {
       const i = store[list].findIndex(x => x.id === req.params.id)
       if (i < 0) return res.status(404).json({ error: 'Не найдено' })
-      store[list][i] = clean(req.body || {}, store[list][i])
+      const old = store[list][i]
+      const next = clean(req.body || {}, old)
+      // перенести запись в чужой раздел (статью в другую группу, заклинание в другую школу) — только с правом и там
+      if (!canEditRule(req.user, list, old) || !canEditRule(req.user, list, next)) return deny(res)
+      if (noSchool(list, next)) return res.status(400).json({ error: 'Нет такой школы' })
+      if (JSON.stringify(next) === JSON.stringify(old)) return res.json(old)
+      store[list][i] = next
+      record(req.user, list, 'update', copy(old), copy(next))
       changed()
-      res.json(store[list][i])
+      res.json(next)
     })
-    app.delete(`/api/rules/${list}/:id`, requireMaster, (req, res) => {
-      const before = store[list].length
-      store[list] = store[list].filter(x => x.id !== req.params.id)
-      if (store[list].length === before) return res.status(404).json({ error: 'Не найдено' })
+    app.delete(`/api/rules/${list}/:id`, requireUser, (req, res) => {
+      const old = store[list].find(x => x.id === req.params.id)
+      if (!old) return res.status(404).json({ error: 'Не найдено' })
+      if (!canManageRule(req.user, list, old)) return deny(res)
+      if (list === 'schools' && store.spells.some(x => x.school === old.id)) return res.status(400).json({ error: 'В школе есть заклинания — сначала убери или перенеси их' })
+      store[list] = store[list].filter(x => x.id !== old.id)
+      record(req.user, list, 'delete', copy(old), null)
       changed()
       res.json({ ok: true })
     })
     // порядок: ids по порядку → order 1, 2, 3…
-    app.post(`/api/rules/${list}-order`, requireMaster, (req, res) => {
+    app.post(`/api/rules/${list}-order`, requireUser, (req, res) => {
       const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : []
-      ids.forEach((id, i) => { const x = store[list].find(y => y.id === id); if (x) x.order = i + 1 })
+      const items = ids.map(id => store[list].find(y => y.id === id)).filter(Boolean)
+      if (items.some(x => !canManageRule(req.user, list, x))) return deny(res)
+      items.forEach((x, i) => { x.order = i + 1 })
       changed()
       res.json({ ok: true })
     })
   }
+
+  // своя иконка эффекта вместо иконки из комплекта
+  app.post('/api/rules/icon', requireUser, express.raw({ type: () => true, limit: '2mb' }), (req, res) => {
+    const pages = req.user.wiki?.pages || []
+    if (!canManageRule(req.user, 'effects', {}) && !pages.some(p => p.startsWith('effects:'))) return deny(res)
+    const ext = imageExt(req.body)
+    if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+    const name = crypto.createHash('sha256').update(req.body).digest('hex').slice(0, 24) + '.' + ext
+    fs.mkdirSync(RULES_IMG_DIR, { recursive: true })
+    const f = path.join(RULES_IMG_DIR, name)
+    if (!fs.existsSync(f)) fs.writeFileSync(f, req.body)
+    res.json({ icon: '/rules-img/' + name })
+  })
+
+  /* ---------- журнал правок (мастер) ---------- */
+  app.get('/api/rules/history', requireMaster, (req, res) => {
+    const { list, id } = req.query
+    const rows = loadHistory().filter(x => (!list || x.list === list) && (!id || x.itemId === id)).slice(-200).reverse()
+    // без снимков «было/стало» — они большие; их отдаёт запрос одной строки
+    res.json(rows.map(({ before, after, ...x }) => x))
+  })
+  app.get('/api/rules/history/:hid', requireMaster, (req, res) => {
+    const row = loadHistory().find(x => x.hid === req.params.hid)
+    if (!row) return res.status(404).json({ error: 'Нет такой правки' })
+    res.json(row)
+  })
+  // откат: создание → убрать, удаление → вернуть, правка → вернуть как было
+  app.post('/api/rules/history/:hid/revert', requireMaster, (req, res) => {
+    const row = loadHistory().find(x => x.hid === req.params.hid)
+    if (!row || !CLEAN[row.list]) return res.status(404).json({ error: 'Нет такой правки' })
+    const items = store[row.list]
+    const i = items.findIndex(x => x.id === row.itemId)
+    const cur = i >= 0 ? copy(items[i]) : null
+    let action
+    if (row.action === 'create') {
+      if (i < 0) return res.status(400).json({ error: 'Этого уже нет' })
+      items.splice(i, 1)
+      action = 'delete'
+    } else if (row.before) {
+      if (row.list === 'spells' && !store.schools.some(s => s.id === row.before.school)) return res.status(400).json({ error: 'Школы этого заклинания уже нет' })
+      if (i >= 0) items[i] = copy(row.before)
+      else items.push(copy(row.before))
+      action = i >= 0 ? 'update' : 'create'
+    } else return res.status(400).json({ error: 'Эту правку не откатить' })
+    row.reverted = Date.now()
+    record(req.user, row.list, action, cur, action === 'delete' ? null : copy(row.before), 'откат')
+    changed()
+    res.json({ ok: true })
+  })
   return { rev: () => store.rev }
 }

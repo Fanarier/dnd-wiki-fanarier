@@ -87,9 +87,11 @@
             </select>
             <button v-if="p.status === 'rejected'" class="mini" @click="call(`/api/players/${p.id}`, 'PATCH', 'Восстановлен', { status: 'active' })">Восстановить</button>
             <button v-if="!p.linked" class="mini" title="Игрок забыл пароль — выдать новый, старые входы сбросятся" @click="resetPlayer(p)">Новый пароль</button>
+            <button v-if="p.status === 'active' && !p.linked" class="mini" :class="{ ok: p.wiki }" :title="p.wiki ? 'Редактор вики — изменить права' : 'Сделать редактором вики: разделы или отдельные страницы'" @click="wikiFor = p">📖 {{ p.wiki ? 'Редактор' : 'Вики' }}</button>
           </template>
           <button class="mini no" title="Удалить аккаунт" @click="removePlayer(p)">✕</button>
         </div>
+        <WikiPermsDialog v-if="wikiFor" :player="store.data.players.find(x => x.id === wikiFor.id) || wikiFor" @close="wikiFor = null" />
         <div v-if="issuedPlayer" class="ms-issued">
           Передай игроку — логин <b>{{ issuedPlayer.login }}</b>, пароль <b>{{ issuedPlayer.password }}</b>
           <button class="mini" @click="copyIssuedPlayer">Скопировать</button>
@@ -161,6 +163,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import UserMenu from './UserMenu.vue'
 import SteamLoader from './SteamLoader.vue'
+import WikiPermsDialog from './WikiPermsDialog.vue'
 import { store, init, api, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound, heroPortraitUrl, heroCover } from '../map/store.js'
 import { RANKS } from '../shared/catalog.js'
 
@@ -168,6 +171,7 @@ const router = useRouter()
 onMounted(init)
 
 const isMaster = computed(() => store.role === 'master')
+const wikiFor = ref(null) // игрок, которому мастер выдаёт права редактора вики
 const STATUS = { pending: 'ждёт одобрения', active: 'в игре', rejected: 'отклонён' }
 const rank = computed(() => RANKS.find(r => r.key === store.me?.rank) || RANKS[0])
 

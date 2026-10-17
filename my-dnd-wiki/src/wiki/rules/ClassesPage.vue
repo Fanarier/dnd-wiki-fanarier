@@ -12,10 +12,10 @@
           <p>{{ cls.skills.filter(s => s.html).length }} навыков класса · {{ cls.archetypes.length }} архетип{{ cls.archetypes.length === 1 ? '' : cls.archetypes.length < 5 ? 'а' : 'ов' }}</p>
         </div>
         <span class="grow" />
-        <button v-if="master && !edit" type="button" class="kc-btn" @click="startEdit">✎ Править</button>
+        <button v-if="canEdit && !edit" type="button" class="kc-btn" @click="startEdit">✎ Править</button>
       </header>
 
-      <ClassEditor v-if="edit" v-model="edit" :busy="busy" @save="save" @cancel="edit = null" @remove="remove" />
+      <ClassEditor v-if="edit" v-model="edit" :busy="busy" :can-remove="canManage" @save="save" @cancel="edit = null" @remove="remove" />
       <template v-else>
         <div v-if="cls.empty && !cls.skills.length" class="kc-load">Класс ещё в разработке.</div>
         <nav class="kc-tabs">
@@ -41,9 +41,16 @@
       </header>
       <nav class="kc-tabs">
         <button type="button" :class="{ on: !info }" @click="info = null">Все классы <small>{{ classes.length }}</small></button>
-        <button v-for="a in infos" :key="a.id" type="button" :class="{ on: info === a.id }" @click="info = a.id">{{ a.title }}</button>
+        <button v-for="a in infos" :key="a.id" type="button" :class="{ on: info === a.id, hid: a.hidden }" @click="info = a.id; art.edit.value = null">{{ a.title }}</button>
+        <button v-if="art.canManage.value" type="button" class="add" @click="addInfo">＋ Вкладка</button>
       </nav>
-      <article v-if="info" class="kc-art"><RulesHtml :html="infos.find(a => a.id === info)?.html || ''" /></article>
+      <article v-if="infoArt" class="kc-art">
+        <ArticleEdit v-if="art.edit.value?.id === infoArt.id" v-model="art.edit.value" :busy="art.busy.value" :can-remove="art.canManage.value" @save="art.save" @cancel="art.edit.value = null" @remove="delInfo" />
+        <template v-else>
+          <button v-if="art.canEdit(infoArt)" type="button" class="kc-btn kc-art-edit" @click="art.startEdit(infoArt)">✎ Править</button>
+          <RulesHtml :html="infoArt.html" />
+        </template>
+      </article>
       <div v-else class="kc-cards">
         <button v-for="(k, i) in classes" :key="k.id" type="button" class="kc-cl" :class="{ empty: k.empty && !k.skills.length, hid: k.hidden }" :style="{ '--i': i }" @click="go(k.id)">
           <span class="kc-sig">{{ k.name[0] }}</span>
@@ -52,7 +59,7 @@
           <small v-else>{{ k.archetypes.map(a => a.name).join(' · ') }}</small>
           <em v-if="k.hidden">скрыт</em>
         </button>
-        <button v-if="master" type="button" class="kc-cl add" @click="create">＋<b>Новый класс</b></button>
+        <button v-if="canManage" type="button" class="kc-cl add" @click="create">＋<b>Новый класс</b></button>
       </div>
     </template>
   </div>
@@ -61,17 +68,27 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { store, rulesState, loadRules, api, toast } from '../../map/store.js'
+import { store, rulesState, loadRules, api, toast, wikiUser } from '../../map/store.js'
+import { canEditRule, canManageRule } from '../../shared/wikiPerms.js'
 import RulesHtml from './RulesHtml.vue'
+import ArticleEdit from './ArticleEdit.vue'
+import { useArticleOps } from './articleOps.js'
 import ClassSkills from './ClassSkills.vue'
 import ClassEditor from './ClassEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
-const master = computed(() => store.role === 'master')
 const classes = computed(() => rulesState.classes.slice().sort((a, b) => a.order - b.order))
-const infos = computed(() => rulesState.articles.filter(a => a.group === 'classes').sort((a, b) => a.order - b.order))
 const cls = computed(() => rulesState.classes.find(k => k.id === route.query.cls) || null)
+// править класс — мастер и редакторы раздела «Классы» или этого класса; новые и удаление — с правом на раздел
+const canEdit = computed(() => canEditRule(wikiUser(), 'classes', cls.value))
+const canManage = computed(() => canManageRule(wikiUser(), 'classes', {}))
+// справка о классах (вкладки рядом со списком) — статьи группы «classes»
+const art = useArticleOps('classes')
+const infos = art.list
+const infoArt = computed(() => infos.value.find(a => a.id === info.value) || null)
+async function addInfo() { const a = await art.create('Новая вкладка'); if (a) info.value = a.id }
+async function delInfo() { if (await art.remove()) info.value = null }
 const tab = ref('base')
 // ссылка на архетип: ?cls=…&arch=Путь меча
 watch(cls, k => { const a = route.query.arch; const i = k ? k.archetypes.findIndex(x => x.name === a) : -1; tab.value = i >= 0 ? i : 'base' }, { immediate: true })
@@ -115,6 +132,9 @@ async function remove() {
 .kc-tabs button { padding: 6px 12px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .18); background: none; color: #cdbf9f; font: 700 13px 'Manrope', sans-serif; cursor: pointer; }
 .kc-tabs button.on { background: rgba(231, 197, 111, .16); color: #f3dc9e; border-color: rgba(231, 197, 111, .45); }
 .kc-tabs small { opacity: .7; }
+.kc-tabs button.hid { border-style: dashed; opacity: .7; }
+.kc-tabs button.add { border-style: dashed; color: #e7c56f; }
+.kc-art-edit { float: right; margin: 0 0 8px 10px; }
 .kc-art { padding: 18px 22px; border-radius: 16px; background: rgba(20, 16, 11, .7); border: 1px solid rgba(231, 197, 111, .18); }
 .kc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .kc-cl { position: relative; display: grid; justify-items: center; gap: 4px; padding: 16px 10px 14px; border-radius: 16px; border: 1px solid rgba(231, 197, 111, .2); background: radial-gradient(circle at 50% 0%, rgba(194, 123, 255, .1), transparent 70%), linear-gradient(180deg, #221b13, #15110c); color: #efe3c8; cursor: pointer; transition: transform .2s, border-color .2s, box-shadow .2s; animation: kc-up .4s ease backwards; animation-delay: calc(var(--i, 0) * 25ms); }

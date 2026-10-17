@@ -232,6 +232,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       ds: ['S1', 'S2', 'S3', 'F1', 'F2', 'F3'].map(k => d.HpData['DS_' + k]),
       mana: d.Mana, stamina: d.Stamina, defense: d.Defense, evasion: d.Evasion, superHits: d.SuperHits, exhaustion: d.Exhaustion,
       res: d.Resources.map(r => ({ id: r.Id, name: r.Name, icon: r.Icon, cur: r.Current, max: r.Max, color: r.Color, style: r.Style })),
+      fx: d.ActiveEffects || [], // эффекты на персонаже — значки в сводке отряда
       // для сводки отряда: что сейчас тренирует (ближе всего к завершению — первым)
       train: (d.Trainings || []).filter(t => trainStatus(t) === 'active')
         .map(t => ({ name: t.Name, note: t.Note, cur: t.Cur, max: t.Max, stage: t.Stage }))

@@ -107,14 +107,14 @@ import NpcSheet from './NpcSheet.vue'
 import NpcEditor from './NpcEditor.vue'
 import NpcSkillDialog from './NpcSkillDialog.vue'
 import NpcGlossary from './NpcGlossary.vue'
-import { store, npcState, loadNpcs, heroPortraitUrl, act, api, toast } from '../../map/store.js'
+import { store, npcState, loadNpcs, loadRules, heroPortraitUrl, act, api, toast } from '../../map/store.js'
 import { NPC_GROUPS, groupOf, npcSubtitle, npcLevel, infoOf, skillIndex, findPlace, placeLink } from '../../shared/npc.js'
 
 const route = useRoute(), router = useRouter()
 const master = computed(() => store.role === 'master')
 
 // подгружаем при открытии и каждый раз, когда на сервере поменялись НПС (npcsRev) или роль
-onMounted(() => loadNpcs())
+onMounted(() => { loadNpcs(); loadRules() }) // правила — ради иконок эффектов в подсказках
 watch(() => [store.data.npcsRev, store.role], () => loadNpcs())
 // место жительства → город на карте или поселение (если совпало по названию)
 const placeOf = n => findPlace(n.home, store.data.cities, store.data.settlements)

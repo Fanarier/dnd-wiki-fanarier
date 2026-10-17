@@ -5,6 +5,7 @@
       <label class="pb-chk"><input v-model="withNpc" type="checkbox" /> Показывать листы без игрока</label>
       <span class="grow" />
       <small>Меняется вживую, когда игроки правят листы</small>
+      <button type="button" class="pb-turn" :disabled="!timed" title="У всех эффектов с отсчётом — минус один ход; закончившиеся снимаются" @click="endTurn">⏭ Конец хода<small v-if="timed"> · {{ timed }}</small></button>
     </div>
     <div v-if="!list.length" class="pb-empty">Пока нет листов, привязанных к игрокам.</div>
     <div class="pb-grid">
@@ -29,6 +30,8 @@
             <button type="button" class="dmg" title="Урон (сначала временные хиты)" :disabled="!amt[s.id]" @click="hit(s, -1)">⚔</button>
           </div>
         </div>
+
+        <EffectChips class="pb-fx" compact :editable="s.canEdit" :model-value="s.fx" @update:model-value="setFx(s, $event)" />
 
         <div class="pb-pools">
           <span v-if="s.mana" class="mana">✦ Мана {{ s.mana }}</span>
@@ -68,6 +71,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { sfx } from '../sound/sound.js'
 import { api, toast } from '../map/store.js'
 import { sheets, loadSheets, sheetImg } from './sheetState.js'
+import EffectChips from './ui/EffectChips.vue'
 
 const withNpc = ref(false)
 // подсказка: все тренировки «в процессе» построчно
@@ -105,6 +109,27 @@ function hit(s, sign) {
   amt[s.id] = null
   patch(s, ops)
 }
+// эффекты: наложить, снять, стаки — прямо из сводки (в бою)
+function setFx(s, fx) {
+  s.fx = fx
+  patch(s, [{ p: 'ActiveEffects', v: fx }])
+}
+// конец хода: у эффектов с отсчётом ходов минус один, дошедшие до нуля снимаются
+const timed = computed(() => list.value.reduce((n, s) => n + (s.fx || []).filter(f => f.Turns > 0).length, 0))
+function endTurn() {
+  let gone = 0
+  for (const s of list.value) {
+    if (!(s.fx || []).some(f => f.Turns > 0)) continue
+    const next = []
+    for (const f of s.fx) {
+      if (f.Turns === 1) gone++
+      else next.push(f.Turns > 0 ? { ...f, Turns: f.Turns - 1 } : f)
+    }
+    setFx(s, next)
+  }
+  sfx('pageFlip', 0.4)
+  toast(gone ? `Ход завершён — снято эффектов: ${gone}` : 'Ход завершён')
+}
 function setRes(s, ri, v) {
   const r = s.res[ri]
   r.cur = Math.max(0, r.style === 'number' ? v : Math.min(r.max, v))
@@ -115,6 +140,10 @@ function setRes(s, ri, v) {
 <style scoped>
 .pb-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; color: #a8936c; font: 600 12.5px 'Manrope', sans-serif; }
 .pb-chk { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.pb-turn { padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .45); background: rgba(231, 197, 111, .1); color: #f3d99a; font: 800 12.5px 'Manrope', sans-serif; cursor: pointer; }
+.pb-turn:disabled { opacity: .45; cursor: default; }
+.pb-turn small { color: #a8936c; }
+.pb-fx { margin: -2px 0; }
 .grow { flex: 1; }
 .pb-empty { padding: 40px; text-align: center; color: #a8936c; border: 1px dashed rgba(231, 197, 111, .2); border-radius: 16px; }
 .pb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 14px; }

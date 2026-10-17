@@ -12,26 +12,14 @@
         <button v-for="a in shown" :key="a.id" type="button" :class="{ on: cur?.id === a.id, hid: a.hidden }" @click="open(a)">
           <span>{{ a.title }}</span><small v-if="a.hidden">скрыто</small>
         </button>
-        <button v-if="master" type="button" class="ra-add" @click="create">＋ Статья</button>
+        <button v-if="canManage" type="button" class="ra-add" @click="add">＋ Статья</button>
       </nav>
       <article v-if="cur" :key="cur.id" class="ra-art">
         <div class="ra-art-h">
           <h2>{{ cur.title }}</h2>
-          <template v-if="master && !edit">
-            <button type="button" class="ra-btn" @click="startEdit">✎ Править</button>
-          </template>
+          <button v-if="canEdit(cur) && edit?.id !== cur.id" type="button" class="ra-btn" @click="startEdit(cur)">✎ Править</button>
         </div>
-        <template v-if="edit">
-          <input v-model="edit.title" class="ra-title" placeholder="Название" />
-          <RulesEditor v-model="edit.html" :min-height="320" />
-          <div class="ra-acts">
-            <label class="ra-chk"><input v-model="edit.hidden" type="checkbox" /> Скрыть от игроков</label>
-            <span class="grow" />
-            <button type="button" class="ra-btn danger" @click="remove">Удалить</button>
-            <button type="button" class="ra-btn" @click="edit = null">Отмена</button>
-            <button type="button" class="ra-btn primary" :disabled="busy" @click="save">Сохранить</button>
-          </div>
-        </template>
+        <ArticleEdit v-if="edit?.id === cur.id" v-model="edit" :busy="busy" :can-remove="canManage" @save="save" @cancel="edit = null" @remove="del" />
         <RulesHtml v-else :html="mark(cur.html)" />
       </article>
       <div v-else class="ra-load">В этом разделе пока пусто.</div>
@@ -42,15 +30,16 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { store, rulesState, loadRules, api, toast } from '../../map/store.js'
+import { store, rulesState, loadRules } from '../../map/store.js'
 import RulesHtml from './RulesHtml.vue'
-import RulesEditor from './RulesEditor.vue'
+import ArticleEdit from './ArticleEdit.vue'
+import { useArticleOps } from './articleOps.js'
 
 const props = defineProps({ content: { type: Object, default: () => ({}) } })
 const route = useRoute()
 const router = useRouter()
-const master = computed(() => store.role === 'master')
-const list = computed(() => rulesState.articles.filter(a => a.group === props.content.group).sort((a, b) => a.order - b.order))
+// править могут мастер и редакторы этого раздела или статьи (src/shared/wikiPerms.js)
+const { edit, busy, canEdit, canManage, list, startEdit, save, create, remove } = useArticleOps(() => props.content.group)
 const q = ref('')
 const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е')
 const shown = computed(() => {
@@ -70,35 +59,12 @@ const mark = html => {
 onMounted(() => loadRules())
 watch(() => store.data.rulesRev, () => loadRules())
 
-/* ---------- правка мастером ---------- */
-const edit = ref(null)
-const busy = ref(false)
-const startEdit = () => { edit.value = { title: cur.value.title, html: cur.value.html, hidden: !!cur.value.hidden } }
-async function save() {
-  busy.value = true
-  try {
-    await api('PUT', `/api/rules/articles/${cur.value.id}`, { ...edit.value, group: props.content.group })
-    edit.value = null
-    await loadRules(true)
-    toast('Статья сохранена')
-  } catch (e) { toast(e.message, 'error') } finally { busy.value = false }
+async function add() {
+  const a = await create()
+  if (a) router.replace({ query: { ...route.query, a: a.id } })
 }
-async function create() {
-  try {
-    const a = await api('POST', '/api/rules/articles', { group: props.content.group, title: 'Новая статья', html: '<p></p>' })
-    await loadRules(true)
-    open(a)
-    startEdit()
-  } catch (e) { toast(e.message, 'error') }
-}
-async function remove() {
-  if (!confirm(`Удалить статью «${cur.value.title}»? Вернуть можно будет только из бэкапа.`)) return
-  try {
-    await api('DELETE', `/api/rules/articles/${cur.value.id}`)
-    edit.value = null
-    await loadRules(true)
-    router.replace({ query: { ...route.query, a: undefined } })
-  } catch (e) { toast(e.message, 'error') }
+async function del() {
+  if (await remove()) router.replace({ query: { ...route.query, a: undefined } })
 }
 </script>
 
@@ -120,13 +86,7 @@ async function remove() {
 @keyframes ra-in { from { opacity: 0; transform: translateY(6px); } }
 .ra-art-h { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .ra-art-h h2 { flex: 1; margin: 0; font: 700 28px 'Cormorant Garamond', serif; color: #f3dc9e; }
-.ra-title { width: 100%; box-sizing: border-box; margin-bottom: 8px; padding: 8px 10px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .25); background: rgba(0, 0, 0, .3); color: #f3dc9e; font: 700 20px 'Cormorant Garamond', serif; }
-.ra-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
-.ra-chk { display: flex; align-items: center; gap: 6px; color: #cdbf9f; font: 600 13px 'Manrope', sans-serif; }
-.grow { flex: 1; }
 .ra-btn { padding: 6px 12px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(231, 197, 111, .08); color: #f3d99a; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
-.ra-btn.primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border-color: #c9a24f; }
-.ra-btn.danger { border-color: rgba(255, 122, 107, .45); color: #ff9b8f; background: none; }
 @media (max-width: 760px) {
   .ra-body { grid-template-columns: 1fr; }
   .ra-toc { position: static; max-height: none; display: flex; flex-wrap: wrap; gap: 4px; }

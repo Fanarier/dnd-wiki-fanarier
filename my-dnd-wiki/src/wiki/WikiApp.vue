@@ -63,7 +63,7 @@ import NpcsPage from './npc/NpcsPage.vue'
 import RacesPage from './rules/RacesPage.vue'
 import ClassesPage from './rules/ClassesPage.vue'
 import RulesArticles from './rules/RulesArticles.vue'
-import { init, store } from '../map/store.js'
+import { init, store, rulesState, loadRules } from '../map/store.js'
 import UserMenu from '../components/UserMenu.vue'
 import SteamLoader from '../components/SteamLoader.vue'
 import MagicBackdrop from './MagicBackdrop.vue'
@@ -73,20 +73,15 @@ const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 
 import Sidebar from '../components/Sidebar.vue'
 import WikiSearch from './WikiSearch.vue'
-import WikiGeneral from '../pages/WikiGeneral.vue'
-import UtilityMagic from '../pages/UtilityMagic.vue'
-import SchoolFire from '../pages/SchoolFire.vue'
-import SchoolWater from '../pages/SchoolWater.vue'
-import SchoolAir from '../pages/SchoolAir.vue'
-import SchoolEarth from '../pages/SchoolEarth.vue'
-
-// тексты статей для поиска берёт WikiSearch.vue (src/data/articles.js)
+import SpellsPage from './rules/SpellsPage.vue'
+import EffectsPage from './rules/EffectsPage.vue'
+import RulesHistory from './rules/RulesHistory.vue'
 
 /*
-  Категории: id должен соответствовать id статьи в src/data/articles.js
-  Чтобы добавить страницу — добавь запись в articles.js и сюда в categories.
+  Разделы вики. Правила (расы, классы, статьи, магия, эффекты) лежат на сервере и правятся на сайте —
+  мастером и редакторами, которым он дал права (src/shared/wikiPerms.js). master: true — раздел только для мастера.
 */
-const categories = ref([
+const ALL_CATEGORIES = [
   { id: 'quests', title: 'Заказы гильдий', description: 'Доска объявлений, хроника, репутация', component: QuestBoard },
   { id: 'campaign', title: 'Квесты', description: 'Квесты героев и хроника сюжета', component: CampaignPage },
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
@@ -98,13 +93,18 @@ const categories = ref([
   { id: 'mechanics', title: 'Механики', description: 'Формулы, характеристики, бой, черты', component: RulesArticles, group: 'mechanics' },
   { id: 'workplaces', title: 'Рабочие места', description: 'Столы и мастерские для крафта', component: RulesArticles, group: 'workplaces' },
   { id: 'activities', title: 'Деятельности', description: 'Чем заняться между приключениями', component: RulesArticles, group: 'activities' },
-  { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: WikiGeneral },
-  { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: UtilityMagic },
-  { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SchoolFire },
-  { id: 'school-water', title: 'Школа Воды (Льда)', description: 'Заклинания школ Воды и Льда', component: SchoolWater },
-  { id: 'school-air', title: 'Школа Воздуха (Молний)', description: 'Заклинания школ Воздуха и Молний', component: SchoolAir },
-  { id: 'school-earth', title: 'Школа Земли (Природы)', description: 'Заклинания школ Земли и Природы', component: SchoolEarth }
-])
+  { id: 'effects', title: 'Эффекты', description: 'Положительные, отрицательные и особые — с иконками', component: EffectsPage },
+  { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: RulesArticles, group: 'magic' },
+  { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: SpellsPage },
+  { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SpellsPage },
+  { id: 'school-water', title: 'Школа Воды (Льда)', description: 'Заклинания школ Воды и Льда', component: SpellsPage },
+  { id: 'school-air', title: 'Школа Воздуха (Молний)', description: 'Заклинания школ Воздуха и Молний', component: SpellsPage },
+  { id: 'school-earth', title: 'Школа Земли (Природы)', description: 'Заклинания школ Земли и Природы', component: SpellsPage },
+  { id: 'wiki-log', title: 'Журнал правок вики', description: 'Кто что менял в правилах; любую правку можно откатить', component: RulesHistory, master: true }
+]
+const categories = computed(() => ALL_CATEGORIES.filter(c => !c.master || store.role === 'master'))
+// права редактора поменялись — перезапросить правила (скрытое видно только тем, кто может править)
+watch(() => [store.data.rulesRev, JSON.stringify(store.me?.wiki || null)], () => { if (rulesState.loaded) loadRules() })
 
 const drawer = ref(false)
 const currentCategory = ref('quests')

@@ -114,6 +114,8 @@ const main = {
   // статус — пустой = сам (дошёл до максимума — завершено, иначе в процессе), или задан вручную
   Trainings: A(O({ Id: S(40), Name: S(160), Note: S(4000), Cur: I(0, 1e7), Max: I(0, 1e7), Stage: S(40), ProgNote: S(8000), Status: E('', 'planned', 'active', 'done') }), 300),
   HpData: O({ Current: I(), Max: I(), Temp: I(0, 1e9), DS_S1: B, DS_S2: B, DS_S3: B, DS_F1: B, DS_F2: B, DS_F3: B }),
+  // эффекты на персонаже (поле сайта): из вики (Id, иконка и описание берутся оттуда) или свои; стаки и сколько ходов осталось
+  ActiveEffects: A(O({ Id: S(40), Name: S(80), Kind: E('buff', 'debuff', 'special'), Stacks: I(0, 99), Turns: I(0, 999), Note: S(400) }), 40),
   Resources: A(O({ Id: S(60), Name: S(80), Current: I(), Max: I(0, 1e7), Color: COLOR, ResetOn: E('long', 'short', 'never'), Style: E('pips', 'ammo', 'boxes', 'number'), Notes: S(1000), Icon: S(16) }), 40),
   Trait4: TRAIT, Trait9: TRAIT, Trait18: TRAIT,
   HumanoidTraits: A(TRAIT, 5),
@@ -125,6 +127,7 @@ const main = {
   // выбранные расовые навыки по уровням и какие навыки из вики уже добавлялись (удалённый вручную не вернётся)
   RulesRace: S(80), RulesClass: S(80), RulesArch: S(80),
   RaceChoices: M(S(400), 40), // уровень → выбранные варианты через « | » (у людей по два)
+  RaceProf: M(S(200), 40), // уровень → навыки (ключи Ath, Att…), взятые во владение за расу, через запятую
   WikiAdded: M(B, 800),
   FieldColors: M(COLOR, 400),
   Accent: COLOR,
@@ -280,7 +283,8 @@ const LABELS = {
   GoldCoins: 'Золото', SilverCoins: 'Серебро', CopperCoins: 'Медь', FieldColors: 'Цвет поля', Accent: 'Цвет листа', SlotLocks: 'Замок слота',
   Current: 'текущие', Max: 'максимум', Temp: 'временные', Name: 'название', Description: 'описание', SkillName: 'название',
   IsAcquired: 'получена', Stored: 'на складе', RulesRace: 'Раса из вики', RulesClass: 'Класс из вики', RulesArch: 'Архетип из вики',
-  RaceChoices: 'Выбор расового навыка', WikiAdded: 'Навыки из вики', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
+  RaceChoices: 'Выбор расового навыка', RaceProf: 'Владение за расу', WikiAdded: 'Навыки из вики', ActiveEffects: 'Эффекты на персонаже',
+  Stacks: 'стаки', Turns: 'ходов осталось', Kind: 'вид', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
   Stats_: 'статы', Effects: 'эффекты', AttackType: 'тип', Title: 'заголовок', Content: 'текст', Tags: 'теги', ImageFile: 'картинка',
   Style: 'вид', Color: 'цвет', Icon: 'значок', ResetOn: 'восстановление', CategoryIndex: 'категория', IsActiveSymbol: 'отметка ●',
   IsActive: 'отметка ●', TypeIndex: 'тип', Cells: 'ячейки', Columns: 'колонки', Rows: 'строки', Header: 'название колонки',

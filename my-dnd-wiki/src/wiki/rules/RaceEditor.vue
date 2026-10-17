@@ -26,7 +26,8 @@
       <div class="re2-sub">Получаешь сразу</div>
       <SkillEdit v-if="l.auto" v-model="l.auto" placeholder="Навык уровня" @remove="l.auto = null" />
       <button v-else type="button" class="re2-add" @click="l.auto = { name: '', html: '' }">＋ Навык «сразу»</button>
-      <div class="re2-sub">На выбор — сколько выбрать: <input v-model.number="l.pick" type="number" min="1" max="6" class="re2-pk" placeholder="1" /></div>
+      <div class="re2-sub">На выбор — сколько выбрать: <input v-model.number="l.pick" type="number" min="1" max="6" class="re2-pk" placeholder="1" />
+        · владение навыками по выбору: <input v-model.number="l.prof" type="number" min="0" max="6" class="re2-pk" placeholder="0" title="Сколько навыков (Атлетика, Внимание…) персонаж берёт во владение на этом уровне — одна точка" /></div>
       <div class="re2-list">
         <SkillEdit v-for="(o, oi) in l.options" :key="oi" v-model="l.options[oi]" :placeholder="`Вариант ${oi + 1}`" @remove="l.options.splice(oi, 1)" />
         <button type="button" class="re2-add" @click="l.options.push({ name: '', html: '' })">＋ Вариант</button>
@@ -40,7 +41,7 @@
     </details>
 
     <div class="re2-acts">
-      <button type="button" class="re2-btn danger" @click="$emit('remove')">Удалить расу</button>
+      <button v-if="canRemove" type="button" class="re2-btn danger" @click="$emit('remove')">Удалить расу</button>
       <span class="grow" />
       <button type="button" class="re2-btn" @click="$emit('cancel')">Отмена</button>
       <button type="button" class="re2-btn primary" :disabled="busy" @click="$emit('save')">Сохранить</button>
@@ -53,7 +54,7 @@ import RulesEditor from './RulesEditor.vue'
 import SkillEdit from './SkillEdit.vue'
 
 const m = defineModel({ type: Object, required: true })
-defineProps({ busy: Boolean })
+defineProps({ busy: Boolean, canRemove: { type: Boolean, default: true } })
 defineEmits(['save', 'cancel', 'remove'])
 </script>
 

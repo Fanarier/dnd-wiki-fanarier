@@ -41,6 +41,18 @@
         </button>
       </div>
     </div>
+
+    <!-- владение навыком по выбору за уровень расы («Разносторонний»): одна точка в навыке -->
+    <div v-for="l in profs" :key="'p' + l.lv" class="rb-prof" :class="{ todo: profsAt(d, l.lv).length < profOf(l) }">
+      <b class="rb-pick-h">{{ profsAt(d, l.lv).length < profOf(l) ? '✦ ' : '✓ ' }}Владение {{ profOf(l) > 1 ? profOf(l) + ' навыками' : 'навыком' }} по выбору
+        <small>{{ l.lv }} ур.{{ l.auto ? ` · «${l.auto.name}»` : '' }}</small></b>
+      <select v-for="k in profOf(l)" :key="k" :value="profsAt(d, l.lv)[k - 1] || ''" :disabled="ro" @change="setProf(l, k - 1, $event.target.value)">
+        <option value="">— выбрать навык —</option>
+        <option v-for="s in SKILLS" :key="s.key" :value="s.key" :disabled="s.key !== profsAt(d, l.lv)[k - 1] && (taken(s.key) || profP(s.key) > 0)">
+          {{ s.name }}{{ profP(s.key) > 0 && s.key !== profsAt(d, l.lv)[k - 1] ? ' · уже есть' : '' }}
+        </option>
+      </select>
+    </div>
   </div>
 </template>
 
@@ -48,7 +60,8 @@
 import { computed, inject, ref } from 'vue'
 import { rulesState } from '../../map/store.js'
 import { sheet, edit } from '../sheetState.js'
-import { findRace, findClass, findArch, pendingChoices, htmlToText, choicesAt, joinChoices, pickOf, normName } from '../../shared/rules.js'
+import { findRace, findClass, findArch, pendingChoices, htmlToText, choicesAt, joinChoices, pickOf, normName, profOf, profsAt, profLevels } from '../../shared/rules.js'
+import { SKILLS } from '../../shared/sheet.js'
 import { sfx } from '../../sound/sound.js'
 
 const ro = inject('sheetReadOnly', ref(false))
@@ -67,6 +80,24 @@ function choose(l, o) {
   const next = isChosen(l, o) ? cur.filter(c => normName(c) !== normName(o.name)) : [...cur, o.name].slice(-pickOf(l))
   edit('RaceChoices', { ...(d.value.RaceChoices || {}), [l.lv]: joinChoices(next) }, { now: true })
   if (!isChosen(l, o)) sfx('crit', 0.35)
+}
+
+// владение за расу: выбранный навык получает одну точку (базовое владение); передумал — точка снимается,
+// если выше её никто не поднимал
+const profs = computed(() => profLevels(rulesState, d.value))
+const profP = key => Number(d.value.Stats?.[key + 'P']) || 0
+const taken = key => Object.values(d.value.RaceProf || {}).some(v => String(v).split(',').includes(key))
+function setProf(l, i, key) {
+  if (ro.value) return
+  const cur = profsAt(d.value, l.lv)
+  const old = cur[i]
+  if (old === key) return
+  if (old && profP(old) === 1) edit(`Stats.${old}P`, 0, { now: true })
+  if (key && profP(key) < 1) edit(`Stats.${key}P`, 1, { now: true })
+  const next = [...cur]
+  next[i] = key
+  edit('RaceProf', { ...(d.value.RaceProf || {}), [l.lv]: next.filter(Boolean).join(',') }, { now: true })
+  if (key) sfx('crit', 0.35)
 }
 </script>
 
@@ -91,5 +122,9 @@ function choose(l, o) {
 .rb-opt.on { border-color: var(--acc); background: color-mix(in srgb, var(--acc) 18%, rgba(0, 0, 0, .25)); }
 .rb-pick-h small { margin-left: 6px; color: var(--muted); font-weight: 700; }
 .rb-opt small { color: var(--muted); font: 500 11.5px/1.4 'Manrope', sans-serif; }
-@media (prefers-reduced-motion: reduce) { .rb-pick { animation: none; } }
+.rb-prof { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); }
+.rb-prof.todo { border-style: dashed; border-color: color-mix(in srgb, var(--acc) 60%, transparent); background: color-mix(in srgb, var(--acc) 8%, transparent); animation: rb-glow 2.4s ease-in-out infinite; }
+.rb-prof small { margin-left: 4px; color: var(--muted); font-weight: 700; }
+.rb-prof select { padding: 3px 6px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, .3); color: var(--ink); font: 700 12px 'Manrope', sans-serif; color-scheme: dark; }
+@media (prefers-reduced-motion: reduce) { .rb-pick, .rb-prof { animation: none; } }
 </style>

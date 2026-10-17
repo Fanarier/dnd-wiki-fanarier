@@ -26,9 +26,9 @@
 <script setup>
 import { computed, reactive, watch } from 'vue'
 import Fuse from 'fuse.js'
-import articles from '../data/articles.js'
 import { store, npcState, loadNpcs, rulesState, loadRules, heroPortraitUrl, heroCover } from '../map/store.js'
 import { groupOf, npcSubtitle, skillKey } from '../shared/npc.js'
+import { EFFECT_KINDS } from '../shared/rules.js'
 
 const props = defineProps({ query: { type: String, default: '' } })
 const emit = defineEmits(['article', 'done'])
@@ -69,7 +69,6 @@ const npcUsers = computed(() => {
 // всё, что можно найти, — одним списком: группа, заголовок, подпись, текст для поиска и куда вести
 const docs = computed(() => {
   const d = []
-  for (const a of articles) d.push({ g: 'articles', key: 'a' + a.id, title: a.title, sub: a.description, text: a.content, articleId: a.id })
   for (const n of npcState.npcs) {
     const a = n.arts?.[0]
     d.push({ g: 'npcs', key: 'n' + n.id, title: n.name, sub: [groupOf(n.group).one, npcSubtitle(n), n.home].filter(Boolean).join(' · '),
@@ -92,7 +91,8 @@ const docs = computed(() => {
   for (const c of store.data.campaign?.chapters || []) d.push({ g: 'campaign', key: 'ch' + c.id, title: c.title, sub: ['сюжет', c.act, c.dateWorld].filter(Boolean).join(' · '), text: c.result, to: { path: '/wiki', query: { section: 'campaign' } } })
   for (const q of store.data.quests || []) d.push({ g: 'quests', key: 'q' + q.id, title: q.type, sub: [q.guild, q.rank, q.status === 'open' ? 'открыт' : ''].filter(Boolean).join(' · '), text: [strip(q.description), q.reward, ...(q.tasks || []).map(t => t.text || t)].join(' '), to: { path: '/wiki', query: { quest: q.id } } })
   // правила: расы, классы, их навыки и статьи (механики, рабочие места, деятельности)
-  const GROUP_SEC = { mechanics: 'Механики', workplaces: 'Рабочие места', activities: 'Деятельности', races: 'Расы', classes: 'Классы' }
+  const GROUP_SEC = { mechanics: 'Механики', workplaces: 'Рабочие места', activities: 'Деятельности', races: 'Расы', classes: 'Классы', magic: 'Магия' }
+  const SECTION_OF = { magic: 'general' } // статьи магии — в разделе «Общее»
   for (const r of rulesState.races) {
     d.push({ g: 'rules', key: 'rr' + r.id, title: r.name, sub: 'раса', text: strip(r.intro), to: { path: '/wiki', query: { race: r.id } } })
     const sk = (x, sub) => d.push({ g: 'rskills', key: 'rs' + r.id + x.name + sub, title: x.name, sub: `${r.name} · ${sub}`, text: strip(x.html), to: { path: '/wiki', query: { race: r.id } } })
@@ -104,7 +104,14 @@ const docs = computed(() => {
     for (const x of k.skills) if (x.html) d.push({ g: 'rskills', key: 'ks' + k.id + x.name + x.lv, title: x.name, sub: `${k.name} · ${x.lv} ур. · ${x.kind}`, text: strip(x.html), to: { path: '/wiki', query: { cls: k.id } } })
     for (const a of k.archetypes) for (const x of a.skills) if (x.html) d.push({ g: 'rskills', key: 'ka' + k.id + a.name + x.name + x.lv, title: x.name, sub: `${k.name}: ${a.name} · ${x.lv} ур.`, text: strip(x.html), to: { path: '/wiki', query: { cls: k.id, arch: a.name } } })
   }
-  for (const a of rulesState.articles) d.push({ g: 'rules', key: 'ra' + a.id, title: a.title, sub: GROUP_SEC[a.group] || 'правила', text: strip(a.html), to: { path: '/wiki', query: { section: a.group === 'races' || a.group === 'classes' ? a.group : a.group, a: a.id } } })
+  for (const a of rulesState.articles) d.push({ g: 'rules', key: 'ra' + a.id, title: a.title, sub: GROUP_SEC[a.group] || 'правила', text: strip(a.html), to: { path: '/wiki', query: { section: SECTION_OF[a.group] || a.group, a: a.id } } })
+  // заклинания школ магии и эффекты вики (с иконками)
+  const schools = new Map(rulesState.schools.map(x => [x.id, x]))
+  for (const x of rulesState.spells) {
+    const sc = schools.get(x.school)
+    d.push({ g: 'spells', key: 'sp' + x.id, title: x.name, sub: [sc?.name, x.circle === 'Б' ? 'базовое' : x.circle ? x.circle + ' круг' : '', x.cost, x.cd].filter(Boolean).join(' · '), text: strip(x.html), to: { path: '/wiki', query: { section: sc?.page || 'utility' } } })
+  }
+  for (const e of rulesState.effects) d.push({ g: 'effects', key: 'fx' + e.id, title: e.name, sub: [EFFECT_KINDS.find(k => k.id === e.kind)?.one + ' эффект', e.tag].filter(Boolean).join(' · '), text: strip(e.html), img: e.icon, to: { path: '/wiki', query: { section: 'effects' } } })
   for (const s of store.data.settlements || []) d.push({ g: 'places', key: 'st' + s.id, title: s.name, sub: 'поселение', text: '', to: { path: '/settlement/' + s.id } })
   for (const c of store.data.cities || []) d.push({ g: 'places', key: 'c' + c.id, title: c.name, sub: 'на карте мира', text: strip(c.description), to: { path: '/', query: { focus: 'cities:' + c.id } } })
   return d
@@ -123,7 +130,7 @@ const GROUPS = [
   { key: 'npcs', label: 'НПС', icon: '🜲' }, { key: 'heroes', label: 'Герои Анкарии', icon: '⚔' }, { key: 'places', label: 'Места', icon: '📍' },
   { key: 'quests', label: 'Заказы гильдий', icon: '📜' }, { key: 'campaign', label: 'Квесты и сюжет', icon: '🗺' }, { key: 'skills', label: 'Навыки', icon: '✦' }, { key: 'effects', label: 'Эффекты', icon: '◈' },
   { key: 'rules', label: 'Правила: расы, классы, механики', icon: '⚜' }, { key: 'rskills', label: 'Навыки рас и классов', icon: '✧' },
-  { key: 'articles', label: 'Статьи', icon: '📖' }
+  { key: 'spells', label: 'Заклинания', icon: '✺' }
 ]
 const open = reactive({})
 watch(() => props.query, () => { for (const k in open) delete open[k] })
@@ -150,7 +157,7 @@ const groups = computed(() => {
 function pick(it) {
   if (it.articleId) emit('article', it.articleId)
   else if (it.npc) emit('done', { path: '/wiki', query: { npc: it.npc.id } })
-  else if (it.g === 'effects') emit('done', { path: '/wiki', query: { section: 'npcs' } })
+  else if (it.g === 'effects' && !it.to) emit('done', { path: '/wiki', query: { section: 'npcs' } })
   else emit('done', null)
 }
 </script>

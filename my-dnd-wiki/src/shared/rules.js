@@ -54,6 +54,14 @@ const ACTIVE_RE = /(действием|бонусным действием|ре�
 export const choicesAt = (d, lv) => String(d?.RaceChoices?.[lv] || '').split('|').map(x => x.trim()).filter(Boolean)
 export const joinChoices = list => list.join(' | ')
 export const pickOf = l => Math.max(1, Number(l?.pick) || 1)
+// владение навыками по выбору за уровень расы («Разносторонний» у людей): сколько положено и что уже взято
+export const profOf = l => Math.max(0, Number(l?.prof) || 0)
+export const profsAt = (d, lv) => String(d?.RaceProf?.[lv] || '').split(',').map(s => s.trim()).filter(Boolean)
+export function profLevels(rules, d) {
+  const race = findRace(rules.races, d)
+  const lv = Number(d.Level) || 0
+  return race ? race.levels.filter(l => l.lv <= lv && profOf(l)) : []
+}
 
 // что положено персонажу: [{ key, name, text, active, cat: 0 класс | 1 раса, src }]
 export function expectedSkills(rules, d) {
@@ -94,4 +102,15 @@ export function pendingChoices(rules, d) {
   if (!race) return []
   const valid = l => choicesAt(d, l.lv).filter(c => l.options.some(o => normName(o.name) === normName(c))).length
   return race.levels.filter(l => l.lv <= lv && l.options.length && valid(l) < Math.min(pickOf(l), l.options.length))
+}
+
+// эффекты вики: виды и поиск эффекта, висящего на персонаже (по id из вики, иначе по названию)
+export const EFFECT_KINDS = [
+  { id: 'buff', name: 'Положительные', one: 'положительный', icon: '▲' },
+  { id: 'debuff', name: 'Отрицательные', one: 'отрицательный', icon: '▼' },
+  { id: 'special', name: 'Особые', one: 'особый', icon: '✦' }
+]
+export function findEffect(effects, fx) {
+  if (!fx) return null
+  return (fx.Id && effects.find(e => e.id === fx.Id)) || effects.find(e => normName(e.name) === normName(fx.Name)) || null
 }

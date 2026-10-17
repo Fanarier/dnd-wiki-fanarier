@@ -40,7 +40,7 @@
     </details>
 
     <div class="ce-acts">
-      <button type="button" class="ce-btn danger" @click="$emit('remove')">Удалить класс</button>
+      <button v-if="canRemove" type="button" class="ce-btn danger" @click="$emit('remove')">Удалить класс</button>
       <span class="grow" />
       <button type="button" class="ce-btn" @click="$emit('cancel')">Отмена</button>
       <button type="button" class="ce-btn primary" :disabled="busy" @click="$emit('save')">Сохранить</button>
@@ -53,7 +53,7 @@ import RulesEditor from './RulesEditor.vue'
 import SkillEdit from './SkillEdit.vue'
 
 const m = defineModel({ type: Object, required: true })
-defineProps({ busy: Boolean })
+defineProps({ busy: Boolean, canRemove: { type: Boolean, default: true } })
 defineEmits(['save', 'cancel', 'remove'])
 const confirmDrop = i => { if (confirm(`Удалить архетип «${m.value.archetypes[i].name}» со всеми навыками?`)) m.value.archetypes.splice(i, 1) }
 </script>

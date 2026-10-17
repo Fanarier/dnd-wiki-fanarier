@@ -11,7 +11,8 @@ import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR
 import { registerNpcRoutes, npcLinks, npcPins } from './npcs.js'
 import { registerSheetRoutes, flushSheets, SHEET_IMG_DIR } from './sheets.js'
 import { registerCampaignRoutes, campaignFor } from './campaign.js'
-import { registerRulesRoutes, flushRules } from './rules.js'
+import { registerRulesRoutes, flushRules, RULES_IMG_DIR } from './rules.js'
+import { cleanWikiPerms, WIKI_SECTIONS } from '../src/shared/wikiPerms.js'
 import { cleanRich } from './richtext.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
 import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMasters, loginAllowed, recordFailure, changeMasterPassword, isOwner, listMasters, setMasterPassword, removeMaster, isMasterLogin } from './auth.js'
@@ -332,7 +333,7 @@ function identify(token, viewAs) {
   if (d.role === 'player') {
     const p = getPlayer(d.sub)
     if (!p || p.status !== 'active' || p.v !== d.v) return null
-    return { role: 'player', id: p.id, login: p.login, name: p.character, avatar: p.avatar, color: p.color, rank: p.rank, notifyArts: p.notifyArts !== false }
+    return { role: 'player', id: p.id, login: p.login, name: p.character, avatar: p.avatar, color: p.color, rank: p.rank, notifyArts: p.notifyArts !== false, wiki: p.wiki || null }
   }
   return null
 }
@@ -450,7 +451,8 @@ function viewFor(user, now = Date.now()) {
     role, id: uid, login: user.login, name: user.name, avatar: user.avatar, color: user.color, rank: user.rank,
     // мастер с персонажем может переключаться «мастер ⇄ персонаж»
     canPlay: !!(user.playerId || user.asMaster), asMaster: !!user.asMaster, character: user.character || null,
-    notifyArts: user.notifyArts !== false, owner: role === 'master' && isOwner(user.login)
+    notifyArts: user.notifyArts !== false, owner: role === 'master' && isOwner(user.login),
+    wiki: user.wiki || null // права редактора вики (src/shared/wikiPerms.js)
   } : null
   // заметки: свои + общие для отряда, в котором состоит игрок
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
@@ -460,7 +462,7 @@ function viewFor(user, now = Date.now()) {
     return {
       ...rest, role, me, serverTime: now, notes, roster: roster(), rulesRev: rulesApi?.rev() || 0, arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true), sheetLinks: sheetApi?.linksFor(user) || [],
       notifications: notificationsFor(user),
-      players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked, tech: !!p.linked && isOwner(p.login) }))
+      players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked, tech: !!p.linked && isOwner(p.login), wiki: p.wiki || null }))
     }
   }
   const fogOn = db.settings.fogEnabled
@@ -800,6 +802,16 @@ app.patch('/api/players/:id', requireMaster, (req, res) => {
   const patch = {}
   if (req.body?.rank) patch.rank = T.oneOf(RANK_ORDER)(req.body.rank)
   if (req.body?.status) patch.status = T.oneOf(['active', 'rejected', 'pending'])(req.body.status)
+  // редактор вики: какие разделы и страницы правил ему можно править
+  if ('wiki' in (req.body || {})) {
+    patch.wiki = cleanWikiPerms(req.body.wiki)
+    if (patch.wiki && JSON.stringify(patch.wiki) !== JSON.stringify(p.wiki || null)) {
+      const names = patch.wiki.sections.map(id => WIKI_SECTIONS.find(x => x.id === id)?.name).filter(Boolean)
+      const more = patch.wiki.pages.length ? `${names.length ? ' и ' : ''}${patch.wiki.pages.length} отдельн${patch.wiki.pages.length === 1 ? 'ую страницу' : 'ых страниц'}` : ''
+      notify(p.id, 'wiki', `Мастер дал тебе править вики: ${names.join(', ')}${more}. Кнопка «✎ Править» — прямо на странице.`)
+      saveDb()
+    }
+  }
   updatePlayer(p.id, patch)
   broadcast()
   res.json({ ok: true })
@@ -1187,7 +1199,8 @@ sheetApi = registerSheetRoutes(app, { express, requireUser, requireMaster, image
 app.use('/sheet-img', express.static(SHEET_IMG_DIR, STATIC_IMG))
 registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })
 // правила: расы, классы, механики (отдельный файл, в состоянии — только номер версии)
-rulesApi = registerRulesRoutes(app, { requireMaster, userOf, broadcast })
+rulesApi = registerRulesRoutes(app, { express, requireMaster, requireUser, userOf, broadcast, imageExt })
+app.use('/rules-img', express.static(RULES_IMG_DIR, STATIC_IMG))
 
 /* ---------- Новые арты: не часть мира, мастер выкладывает и чистит ---------- */
 app.post('/api/arts', requireMaster, express.raw({ type: () => true, limit: '40mb' }), (req, res) => {

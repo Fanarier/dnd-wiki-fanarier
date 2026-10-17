@@ -13,10 +13,10 @@
           <p>{{ race.base.length }} базовых навыка · уровни {{ race.levels.map(l => l.lv).join(', ') || '—' }}</p>
         </div>
         <span class="grow" />
-        <button v-if="master && !edit" type="button" class="rc-btn" @click="startEdit">✎ Править</button>
+        <button v-if="canEdit && !edit" type="button" class="rc-btn" @click="startEdit">✎ Править</button>
       </header>
 
-      <RaceEditor v-if="edit" v-model="edit" :busy="busy" @save="save" @cancel="edit = null" @remove="remove" />
+      <RaceEditor v-if="edit" v-model="edit" :busy="busy" :can-remove="canManage" @save="save" @cancel="edit = null" @remove="remove" />
       <template v-else>
         <div v-if="race.empty && !race.levels.length" class="rc-load">Раса ещё в разработке.</div>
         <RulesHtml v-if="race.intro" class="rc-intro" :html="race.intro" />
@@ -38,7 +38,7 @@
               <RulesHtml :html="l.auto.html" />
             </article>
             <div v-if="l.options.length" class="rc-opts">
-              <span class="rc-tag pick">{{ PICK_WORD[l.pick || 1] || `выбери ${l.pick}` }}</span>
+              <span class="rc-tag pick">{{ PICK_WORD[l.pick || 1] || `выбери ${l.pick}` }}<template v-if="l.prof"> + владение {{ l.prof > 1 ? l.prof + ' навыками' : 'навыком' }} по выбору</template></span>
               <div class="rc-grid">
                 <article v-for="(o, i) in l.options" :key="i" class="rc-card opt" :style="{ '--i': i }">
                   <h3><i>{{ i + 1 }}</i>{{ o.name }}</h3>
@@ -60,9 +60,16 @@
       </header>
       <nav class="rc-tabs">
         <button type="button" :class="{ on: !info }" @click="info = null">Все расы <small>{{ races.length }}</small></button>
-        <button v-for="a in infos" :key="a.id" type="button" :class="{ on: info === a.id }" @click="info = a.id">{{ a.title }}</button>
+        <button v-for="a in infos" :key="a.id" type="button" :class="{ on: info === a.id, hid: a.hidden }" @click="info = a.id; art.edit.value = null">{{ a.title }}</button>
+        <button v-if="art.canManage.value" type="button" class="add" @click="addInfo">＋ Вкладка</button>
       </nav>
-      <article v-if="info" class="rc-art"><RulesHtml :html="infos.find(a => a.id === info)?.html || ''" /></article>
+      <article v-if="infoArt" class="rc-art">
+        <ArticleEdit v-if="art.edit.value?.id === infoArt.id" v-model="art.edit.value" :busy="art.busy.value" :can-remove="art.canManage.value" @save="art.save" @cancel="art.edit.value = null" @remove="delInfo" />
+        <template v-else>
+          <button v-if="art.canEdit(infoArt)" type="button" class="rc-btn rc-art-edit" @click="art.startEdit(infoArt)">✎ Править</button>
+          <RulesHtml :html="infoArt.html" />
+        </template>
+      </article>
       <div v-else class="rc-cards">
         <button v-for="(r, i) in races" :key="r.id" type="button" class="rc-race" :class="{ empty: r.empty && !r.levels.length, hid: r.hidden }" :style="{ '--i': i }" @click="go(r.id)">
           <span class="rc-sig">{{ r.name[0] }}</span>
@@ -71,7 +78,7 @@
           <small v-else>{{ r.levels.length }} уровней · {{ r.levels.reduce((n, l) => n + l.options.length, 0) }} выборов</small>
           <em v-if="r.hidden">скрыта</em>
         </button>
-        <button v-if="master" type="button" class="rc-race add" @click="create">＋<b>Новая раса</b></button>
+        <button v-if="canManage" type="button" class="rc-race add" @click="create">＋<b>Новая раса</b></button>
       </div>
     </template>
   </div>
@@ -80,17 +87,27 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { store, rulesState, loadRules, api, toast } from '../../map/store.js'
+import { store, rulesState, loadRules, api, toast, wikiUser } from '../../map/store.js'
+import { canEditRule, canManageRule } from '../../shared/wikiPerms.js'
 import RulesHtml from './RulesHtml.vue'
 import RaceEditor from './RaceEditor.vue'
+import ArticleEdit from './ArticleEdit.vue'
+import { useArticleOps } from './articleOps.js'
 
 const route = useRoute()
 const router = useRouter()
-const master = computed(() => store.role === 'master')
 const races = computed(() => rulesState.races.slice().sort((a, b) => a.order - b.order))
-const infos = computed(() => rulesState.articles.filter(a => a.group === 'races').sort((a, b) => a.order - b.order))
 const race = computed(() => rulesState.races.find(r => r.id === route.query.race) || null)
+// править расу — мастер и редакторы раздела «Расы» или этой расы; новые и удаление — с правом на раздел
+const canEdit = computed(() => canEditRule(wikiUser(), 'races', race.value))
+const canManage = computed(() => canManageRule(wikiUser(), 'races', {}))
+// справка о расах (вкладки рядом со списком) — статьи группы «races»
+const art = useArticleOps('races')
+const infos = art.list
 const info = ref(null)
+const infoArt = computed(() => infos.value.find(a => a.id === info.value) || null)
+async function addInfo() { const a = await art.create('Новая вкладка'); if (a) info.value = a.id }
+async function delInfo() { if (await art.remove()) info.value = null }
 const PICK_WORD = { 1: 'выбери один', 2: 'выбери два', 3: 'выбери три' }
 const go = id => { edit.value = null; router.push({ query: { ...route.query, race: id || undefined } }); scrollTo({ top: 0 }) }
 onMounted(() => loadRules())
@@ -130,6 +147,9 @@ async function remove() {
 .rc-tabs button { padding: 6px 12px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .18); background: none; color: #cdbf9f; font: 700 13px 'Manrope', sans-serif; cursor: pointer; }
 .rc-tabs button.on { background: rgba(231, 197, 111, .16); color: #f3dc9e; border-color: rgba(231, 197, 111, .45); }
 .rc-tabs small { opacity: .7; }
+.rc-tabs button.hid { border-style: dashed; opacity: .7; }
+.rc-tabs button.add { border-style: dashed; color: #e7c56f; }
+.rc-art-edit { float: right; margin: 0 0 8px 10px; }
 .rc-art { padding: 18px 22px; border-radius: 16px; background: rgba(20, 16, 11, .7); border: 1px solid rgba(231, 197, 111, .18); }
 .rc-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .rc-race { position: relative; display: grid; justify-items: center; gap: 4px; padding: 16px 10px 14px; border-radius: 16px; border: 1px solid rgba(231, 197, 111, .2); background: radial-gradient(circle at 50% 0%, rgba(231, 197, 111, .12), transparent 70%), linear-gradient(180deg, #221b13, #15110c); color: #efe3c8; cursor: pointer; transition: transform .2s, border-color .2s, box-shadow .2s; animation: rc-up .4s ease backwards; animation-delay: calc(var(--i, 0) * 25ms); }
