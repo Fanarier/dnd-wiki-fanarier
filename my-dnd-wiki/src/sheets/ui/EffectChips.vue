@@ -121,8 +121,10 @@ const exact = computed(() => rulesState.effects.some(e => normName(e.name) === n
 function close() { openIdx.value = null; picker.value = false; unlisten() }
 const outside = e => { if (!pop.value?.contains(e.target) && !e.target.closest?.('.ec')) close() }
 const esc = e => { if (e.key === 'Escape') close() }
-function listen() { setTimeout(() => { addEventListener('pointerdown', outside); addEventListener('keydown', esc); addEventListener('scroll', close, { once: true, capture: true }) }) }
-function unlisten() { removeEventListener('pointerdown', outside); removeEventListener('keydown', esc); removeEventListener('scroll', close, { capture: true }) }
+// прокрутили страницу — окошко уезжает от значка, закрываем; прокрутка внутри самого окошка (список эффектов) — нет
+const onScroll = e => { if (!(e.target instanceof Node && pop.value?.contains(e.target))) close() }
+function listen() { setTimeout(() => { addEventListener('pointerdown', outside); addEventListener('keydown', esc); addEventListener('scroll', onScroll, { capture: true }) }) }
+function unlisten() { removeEventListener('pointerdown', outside); removeEventListener('keydown', esc); removeEventListener('scroll', onScroll, { capture: true }) }
 onBeforeUnmount(unlisten)
 
 /* ---------- правка ---------- */
