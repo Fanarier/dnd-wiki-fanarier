@@ -38,7 +38,7 @@
               <RulesHtml :html="l.auto.html" />
             </article>
             <div v-if="l.options.length" class="rc-opts">
-              <span class="rc-tag pick">выбери один</span>
+              <span class="rc-tag pick">{{ PICK_WORD[l.pick || 1] || `выбери ${l.pick}` }}</span>
               <div class="rc-grid">
                 <article v-for="(o, i) in l.options" :key="i" class="rc-card opt" :style="{ '--i': i }">
                   <h3><i>{{ i + 1 }}</i>{{ o.name }}</h3>
@@ -91,6 +91,7 @@ const races = computed(() => rulesState.races.slice().sort((a, b) => a.order - b
 const infos = computed(() => rulesState.articles.filter(a => a.group === 'races').sort((a, b) => a.order - b.order))
 const race = computed(() => rulesState.races.find(r => r.id === route.query.race) || null)
 const info = ref(null)
+const PICK_WORD = { 1: 'выбери один', 2: 'выбери два', 3: 'выбери три' }
 const go = id => { edit.value = null; router.push({ query: { ...route.query, race: id || undefined } }); scrollTo({ top: 0 }) }
 onMounted(() => loadRules())
 watch(() => store.data.rulesRev, () => loadRules())

@@ -3,7 +3,7 @@
 // поэтому удалённый вручную навык не вернётся. Выбор расового навыка — карточкой в разделах навыков.
 import { sheet, edit } from './sheetState.js'
 import { rulesState } from '../map/store.js'
-import { expectedSkills, findRace, normName } from '../shared/rules.js'
+import { expectedSkills, findRace, normName, choicesAt, joinChoices, pickOf } from '../shared/rules.js'
 
 // заготовка описания из переноса Excel или пустое — можно дописать
 const thin = s => { const t = String(s || '').trim(); return t.length < 60 || /^(Расовый навык \d+ уровня|Досягаемость:|Заклинание\.)/.test(t) }
@@ -21,9 +21,10 @@ export function syncWikiSkills() {
   let chosenNow = false
   if (race) {
     for (const l of race.levels) {
-      if (!l.options.length || choices[l.lv]) continue
-      const o = l.options.find(x => have.has(normName(x.name)))
-      if (o) { choices[l.lv] = o.name; chosenNow = true }
+      const cur = choicesAt({ RaceChoices: choices }, l.lv)
+      if (!l.options.length || cur.length >= pickOf(l)) continue
+      const more = l.options.filter(x => have.has(normName(x.name)) && !cur.some(c => normName(c) === normName(x.name))).slice(0, pickOf(l) - cur.length)
+      if (more.length) { choices[l.lv] = joinChoices([...cur, ...more.map(x => x.name)]); chosenNow = true }
     }
   }
   if (chosenNow) edit('RaceChoices', choices, { now: true })

@@ -27,6 +27,62 @@ function load() {
   store.races ||= []
   store.classes ||= []
   store.rev ||= 1
+  applyFixes()
+}
+
+// исправления перенесённых данных — каждое применяется один раз (правки мастера после него не трогаются)
+const esc = c => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+// «<p><strong>Крепкое здоровье</strong>: Вы имеете…» → «<p>Вы имеете…»: название уже в заголовке навыка
+// (между буквами названия в документе бывают пробелы и теги: «Обозреваемост ь:»)
+function stripNamePrefix(s) {
+  if (!s?.name || !s.html) return false
+  const letters = [...s.name.replace(/\s+/g, '')].map(esc).join('(?:\\s|&nbsp;|<[^>]+>)*')
+  const re = new RegExp('^(<p>)((?:\\s|&nbsp;|<[^>]+>)*)' + letters + '(?:\\s|&nbsp;|<[^>]+>)*[:.]\\s*', 'i')
+  // текст названия убираем, а все теги из этого куска оставляем — разметка остаётся парной
+  const out = s.html.replace(re, m => '<p>' + (m.slice(3).match(/<[^>]+>/g) || []).join(''))
+  if (out === s.html) return false
+  s.html = out
+  return true
+}
+// разметка после переноса местами непарная («<p></em>…») — пропускаем через очистку, она её выравнивает
+const tidy = it => { if (it?.html) it.html = cleanRules(it.html).replace(/<(strong|em|u)><\/\1>/g, '').replace(/<(strong|em|u)><\/\1>/g, '') }
+const FIXES = {
+  // повтор названия в начале описания расовых навыков
+  'strip-name-prefix': () => {
+    let n = 0
+    for (const race of store.races) {
+      for (const it of [...race.base, ...race.levels.flatMap(l => [l.auto, ...l.options])]) {
+        if (stripNamePrefix(it)) n++
+        tidy(it)
+      }
+    }
+    return n
+  },
+  // опечатка в документе: вариант 12 уровня у Человека «Шипон» — это «Шпион»
+  'typo-shpion': () => {
+    let n = 0
+    for (const race of store.races) for (const l of race.levels) for (const o of l.options) if (o.name === 'Шипон') { o.name = 'Шпион'; n++ }
+    return n
+  },
+  // у людей на каждом уровне выбирают два варианта
+  'human-pick-2': () => {
+    const h = store.races.find(x => x.name === 'Человек')
+    if (!h) return 0
+    for (const l of h.levels) if (l.options.length > 2) l.pick = 2
+    return h.levels.length
+  }
+}
+function applyFixes() {
+  const done = (store.fixes ||= [])
+  let changed = false
+  for (const [id, fn] of Object.entries(FIXES)) {
+    if (done.includes(id)) continue
+    const n = fn()
+    done.push(id)
+    changed = true
+    console.log(`[rules] исправление «${id}»: ${n}`)
+  }
+  if (changed) { store.rev++; writeNow() }
 }
 function writeNow() {
   timer = null
@@ -62,6 +118,7 @@ function cleanRace(b = {}, old = {}) {
     base: arr(b.base ?? old.base, 20, s => (S(s?.name, 120) ? skillOf(s) : null)),
     levels: arr(b.levels ?? old.levels, 30, l => ({
       lv: N(l?.lv, 1, 40),
+      pick: N(l?.pick || 1, 1, 6), // сколько вариантов выбирают на этом уровне
       auto: l?.auto && S(l.auto.name, 120) ? skillOf(l.auto) : null,
       options: arr(l?.options, 10, s => (S(s?.name, 120) ? skillOf(s) : null))
     })).sort((a, b) => a.lv - b.lv),

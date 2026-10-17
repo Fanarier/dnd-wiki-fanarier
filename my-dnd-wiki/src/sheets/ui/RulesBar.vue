@@ -32,10 +32,11 @@
 
     <!-- пора выбрать расовый навык -->
     <div v-for="l in pending" :key="l.lv" class="rb-pick">
-      <b class="rb-pick-h">✦ Выбери расовый навык {{ l.lv }} уровня</b>
+      <b class="rb-pick-h">✦ {{ pickOf(l) > 1 ? `Выбери ${pickOf(l)} расовых навыка ${l.lv} уровня` : `Выбери расовый навык ${l.lv} уровня` }}
+        <small v-if="pickOf(l) > 1">выбрано {{ chosen(l).length }} из {{ pickOf(l) }}</small></b>
       <div class="rb-opts">
-        <button v-for="o in l.options" :key="o.name" type="button" class="rb-opt" :disabled="ro" :title="text(o.html)" @click="choose(l.lv, o.name)">
-          <b>{{ o.name }}</b>
+        <button v-for="o in l.options" :key="o.name" type="button" class="rb-opt" :class="{ on: isChosen(l, o) }" :disabled="ro" :title="text(o.html)" @click="choose(l, o)">
+          <b>{{ isChosen(l, o) ? '✓ ' : '' }}{{ o.name }}</b>
           <small>{{ text(o.html).slice(0, 180) }}{{ text(o.html).length > 180 ? '…' : '' }}</small>
         </button>
       </div>
@@ -47,7 +48,7 @@
 import { computed, inject, ref } from 'vue'
 import { rulesState } from '../../map/store.js'
 import { sheet, edit } from '../sheetState.js'
-import { findRace, findClass, findArch, pendingChoices, htmlToText } from '../../shared/rules.js'
+import { findRace, findClass, findArch, pendingChoices, htmlToText, choicesAt, joinChoices, pickOf, normName } from '../../shared/rules.js'
 import { sfx } from '../../sound/sound.js'
 
 const ro = inject('sheetReadOnly', ref(false))
@@ -57,10 +58,15 @@ const cls = computed(() => findClass(rulesState.classes, d.value))
 const arch = computed(() => findArch(cls.value, d.value))
 const pending = computed(() => pendingChoices(rulesState, d.value))
 const text = h => htmlToText(h).replace(/\s+/g, ' ')
-function choose(lv, name) {
+const chosen = l => choicesAt(d.value, l.lv)
+const isChosen = (l, o) => chosen(l).some(c => normName(c) === normName(o.name))
+// щелчок — выбрать вариант (у людей набирается два), повторный — передумать
+function choose(l, o) {
   if (ro.value) return
-  edit('RaceChoices', { ...(d.value.RaceChoices || {}), [lv]: name }, { now: true })
-  sfx('crit', 0.35)
+  const cur = chosen(l)
+  const next = isChosen(l, o) ? cur.filter(c => normName(c) !== normName(o.name)) : [...cur, o.name].slice(-pickOf(l))
+  edit('RaceChoices', { ...(d.value.RaceChoices || {}), [l.lv]: joinChoices(next) }, { now: true })
+  if (!isChosen(l, o)) sfx('crit', 0.35)
 }
 </script>
 
@@ -82,6 +88,8 @@ function choose(lv, name) {
 .rb-opt { display: grid; gap: 3px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .2s, transform .2s; }
 .rb-opt:hover:not(:disabled) { border-color: var(--acc); transform: translateY(-2px); }
 .rb-opt b { font: 700 15px 'Cormorant Garamond', serif; }
+.rb-opt.on { border-color: var(--acc); background: color-mix(in srgb, var(--acc) 18%, rgba(0, 0, 0, .25)); }
+.rb-pick-h small { margin-left: 6px; color: var(--muted); font-weight: 700; }
 .rb-opt small { color: var(--muted); font: 500 11.5px/1.4 'Manrope', sans-serif; }
 @media (prefers-reduced-motion: reduce) { .rb-pick { animation: none; } }
 </style>

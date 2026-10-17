@@ -50,6 +50,11 @@ export function htmlToText(html) {
 // расовый навык — активный, если его применяют действием, реакцией или у него есть перезарядка
 const ACTIVE_RE = /(действием|бонусным действием|реакци|перезарядк|активир|использует \()/i
 
+// выбранные на уровне варианты (в листе — через « | »)
+export const choicesAt = (d, lv) => String(d?.RaceChoices?.[lv] || '').split('|').map(x => x.trim()).filter(Boolean)
+export const joinChoices = list => list.join(' | ')
+export const pickOf = l => Math.max(1, Number(l?.pick) || 1)
+
 // что положено персонажу: [{ key, name, text, active, cat: 0 класс | 1 раса, src }]
 export function expectedSkills(rules, d) {
   const lv = Number(d.Level) || 0
@@ -60,9 +65,10 @@ export function expectedSkills(rules, d) {
     for (const l of race.levels) {
       if (l.lv > lv) continue
       if (l.auto) out.push({ key: 'r:' + normName(l.auto.name), name: l.auto.name, text: htmlToText(l.auto.html), active: ACTIVE_RE.test(l.auto.html), cat: 1, src: `${race.name}, ${l.lv} уровень` })
-      const pick = d.RaceChoices?.[l.lv]
-      const o = pick && l.options.find(x => normName(x.name) === normName(pick))
-      if (o) out.push({ key: 'r:' + normName(o.name), name: o.name, text: htmlToText(o.html), active: ACTIVE_RE.test(o.html), cat: 1, src: `${race.name}, ${l.lv} уровень (выбор)` })
+      for (const pick of choicesAt(d, l.lv)) {
+        const o = l.options.find(x => normName(x.name) === normName(pick))
+        if (o) out.push({ key: 'r:' + normName(o.name), name: o.name, text: htmlToText(o.html), active: ACTIVE_RE.test(o.html), cat: 1, src: `${race.name}, ${l.lv} уровень (выбор)` })
+      }
     }
   }
   const k = findClass(rules.classes, d)
@@ -86,5 +92,6 @@ export function pendingChoices(rules, d) {
   const race = findRace(rules.races, d)
   const lv = Number(d.Level) || 0
   if (!race) return []
-  return race.levels.filter(l => l.lv <= lv && l.options.length && !(d.RaceChoices?.[l.lv] && l.options.some(o => normName(o.name) === normName(d.RaceChoices[l.lv]))))
+  const valid = l => choicesAt(d, l.lv).filter(c => l.options.some(o => normName(o.name) === normName(c))).length
+  return race.levels.filter(l => l.lv <= lv && l.options.length && valid(l) < Math.min(pickOf(l), l.options.length))
 }

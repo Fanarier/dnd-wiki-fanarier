@@ -26,7 +26,7 @@
       <div class="re2-sub">Получаешь сразу</div>
       <SkillEdit v-if="l.auto" v-model="l.auto" placeholder="Навык уровня" @remove="l.auto = null" />
       <button v-else type="button" class="re2-add" @click="l.auto = { name: '', html: '' }">＋ Навык «сразу»</button>
-      <div class="re2-sub">На выбор (один из)</div>
+      <div class="re2-sub">На выбор — сколько выбрать: <input v-model.number="l.pick" type="number" min="1" max="6" class="re2-pk" placeholder="1" /></div>
       <div class="re2-list">
         <SkillEdit v-for="(o, oi) in l.options" :key="oi" v-model="l.options[oi]" :placeholder="`Вариант ${oi + 1}`" @remove="l.options.splice(oi, 1)" />
         <button type="button" class="re2-add" @click="l.options.push({ name: '', html: '' })">＋ Вариант</button>
@@ -69,6 +69,7 @@ defineEmits(['save', 'cancel', 'remove'])
 .re2-lv { display: grid; gap: 6px; padding: 10px; border-radius: 12px; border: 1px solid rgba(231, 197, 111, .2); background: rgba(0, 0, 0, .15); }
 .re2-lvh { display: flex; align-items: center; gap: 6px; color: #f3dc9e; font: 700 15px 'Manrope', sans-serif; }
 .re2-lvn { width: 56px; padding: 4px 6px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .3); background: rgba(0, 0, 0, .3); color: #f3dc9e; font: 800 15px 'Manrope', sans-serif; text-align: center; }
+.re2-pk { width: 46px; margin-left: 4px; padding: 2px 4px; border-radius: 6px; border: 1px solid rgba(231, 197, 111, .3); background: rgba(0, 0, 0, .3); color: #f3dc9e; font: 800 12px 'Manrope', sans-serif; text-align: center; }
 .re2-sub { color: #a8936c; font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .1em; text-transform: uppercase; }
 .re2-add { justify-self: start; padding: 5px 12px; border-radius: 9px; border: 1px dashed rgba(231, 197, 111, .4); background: none; color: #e7c56f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
 .re2-x { width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255, 122, 107, .35); background: none; color: #ff9b8f; cursor: pointer; }
