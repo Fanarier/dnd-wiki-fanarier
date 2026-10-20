@@ -18,6 +18,7 @@
       <label class="w-search" :class="{ filled: search }" title="Поиск по всему сайту">
         <v-icon size="18">mdi-magnify</v-icon>
         <input v-model="search" placeholder="Поиск: НПС, навыки, города, заказы…" aria-label="Поиск по всему сайту" />
+        <button type="button" class="w-cmd" title="Быстрый переход — Ctrl+K" @click.prevent="openPalette">⌘K</button>
         <button v-if="search" class="w-clear" aria-label="Очистить" @click="search = ''">×</button>
       </label>
       <UserMenu />
@@ -124,6 +125,7 @@ const search = ref('')
 const hasQuery = computed(() => (search.value || '').toString().trim().length > 0)
 
 // выбрали результат поиска: закрываем поиск и, если нужно, переходим
+const openPalette = () => dispatchEvent(new Event('anacaria:palette'))
 function searchDone(to) {
   search.value = ''
   drawer.value = false
@@ -206,6 +208,8 @@ watch(currentCategory, (c, old) => {
 })
 </script>
 <style scoped>
+.w-cmd { flex: none; padding: 2px 7px; border-radius: 7px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(231, 197, 111, .08); color: #e7c56f; font: 800 11px 'Manrope', sans-serif; cursor: pointer; }
+.w-cmd:hover { background: rgba(231, 197, 111, .2); }
 .w-top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 18px; height: 64px; padding: 0 22px; background: rgba(13, 16, 23, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--a-line); }
 .w-brand { display: flex; align-items: center; gap: 10px; color: var(--a-gold-2); text-decoration: none; font: 700 24px var(--a-serif); }
 .sigil { width: 28px; height: 28px; color: var(--a-gold); }

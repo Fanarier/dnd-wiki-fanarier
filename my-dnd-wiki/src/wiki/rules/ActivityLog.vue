@@ -293,6 +293,10 @@ async function coin(hid, r) {
   const rec = await call(() => api('POST', `/api/activities/${hid}/${r.id}/coin`))
   if (rec?.coin) { toast(rec.coin.win ? '🍀 Повезло — выносливость на это не потрачена!' : '🍀 Не повезло — выносливость тратится'); if (rec.coin.win) { celebrate(null); sfx('coins', 0.5) } }
 }
+// «Записать деятельность» из быстрого перехода (?new=1) — сразу форма
+watch(() => [route.query.new, hero.value?.canWrite], ([n, can]) => {
+  if (n && can) { startNew(); router.replace({ query: { ...route.query, new: undefined } }) }
+}, { immediate: true })
 </script>
 
 <style scoped>

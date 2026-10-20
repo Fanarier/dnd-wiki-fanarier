@@ -4,6 +4,9 @@
   <ImageCropper />
   <!-- кубики: кнопка в углу, 3D-бросок, результаты бросков у всех -->
   <DiceTray />
+  <!-- превью при наведении на @упоминания и названия из вики; быстрый переход по Ctrl+K -->
+  <HoverCard />
+  <CommandPalette />
   <!-- экран входа поверх всего: мастер / игрок / заявка / гость -->
   <GateScreen v-if="store.gate && !store.offline" :key="store.gate" />
   <!-- нет связи с сервером дольше 5 секунд -->
@@ -28,6 +31,8 @@ import GateScreen from './components/GateScreen.vue'
 import OfflineScreen from './components/OfflineScreen.vue'
 import ImageCropper from './components/ImageCropper.vue'
 import DiceTray from './components/DiceTray.vue'
+import HoverCard from './components/preview/HoverCard.vue'
+import CommandPalette from './components/CommandPalette.vue'
 import { watch } from 'vue'
 import { store, init, unread } from './map/store.js'
 import { sfx } from './sound/sound.js'

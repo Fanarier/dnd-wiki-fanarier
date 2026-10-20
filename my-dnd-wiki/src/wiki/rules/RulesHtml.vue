@@ -1,10 +1,14 @@
 <template>
   <!-- текст правил (HTML очищен сервером): абзацы, таблицы, цвета пометок из документа -->
-  <div class="rh" v-html="html" />
+  <div class="rh" v-html="marked" />
 </template>
 
 <script setup>
-defineProps({ html: { type: String, default: '' } })
+import { computed } from 'vue'
+import { markTerms } from '../../components/preview/previewData.js'
+const props = defineProps({ html: { type: String, default: '' } })
+// названия эффектов, заклинаний, рас и классов в скобках — с превью при наведении
+const marked = computed(() => markTerms(props.html))
 </script>
 
 <style scoped>

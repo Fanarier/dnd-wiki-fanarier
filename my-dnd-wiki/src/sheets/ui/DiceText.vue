@@ -1,7 +1,7 @@
 <template>
   <!-- текст, где «1к8 + 11», «3к12» — кнопки броска. Текст с оформлением (HTML, очищен сервером) — тоже:
        кнопки вставляются в текстовые куски между тегами -->
-  <span v-if="isHtml" class="dt-txt dt-html" @click="onClick" v-html="decorated" />
+  <span v-if="source" class="dt-txt dt-html" :class="{ pre: !isHtml }" @click="onClick" v-html="decorated" />
   <span v-else class="dt-txt"><template v-for="(part, i) in parts" :key="i"><button v-if="part.f" type="button" class="dt-roll" :title="`Бросить ${part.f}`" @click.stop="roll(part.f, label, $event.currentTarget)">🎲 {{ part.t }}</button><template v-else>{{ part.t }}</template></template></span>
 </template>
 
@@ -9,6 +9,7 @@
 import { computed } from 'vue'
 import { DICE_RE, diceToFormula } from '../../shared/sheet.js'
 import { roll } from '../sheetState.js'
+import { markTerms } from '../../components/preview/previewData.js'
 
 const props = defineProps({ text: { type: String, default: '' }, label: { type: String, default: '' } })
 const isHtml = computed(() => /<[a-z][^>]*>/i.test(props.text || ''))
@@ -31,7 +32,14 @@ function split(s) {
 const parts = computed(() => split(props.text || ''))
 const escAttr = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 // HTML: формулы ищем только в тексте между тегами
-const decorated = computed(() => String(props.text || '').split(/(<[^>]+>)/).map(seg => (seg.startsWith('<') ? seg
+// с оформлением — как есть; простой текст — тоже HTML, если в нём нашлись названия из вики (превью при наведении)
+const escText = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const source = computed(() => {
+  if (isHtml.value) return markTerms(props.text)
+  const m = markTerms(escText(props.text || ''))
+  return m.includes('pv-term') ? m : null
+})
+const decorated = computed(() => String(source.value || '').split(/(<[^>]+>)/).map(seg => (seg.startsWith('<') ? seg
   : split(seg).map(p => (p.f ? `<button type="button" class="dt-roll" data-f="${escAttr(p.f)}" title="Бросить ${escAttr(p.f)}">🎲 ${p.t}</button>` : p.t)).join(''))).join(''))
 function onClick(e) {
   const b = e.target.closest?.('.dt-roll')
@@ -44,6 +52,7 @@ function onClick(e) {
 <style scoped>
 .dt-txt { white-space: pre-wrap; overflow-wrap: anywhere; }
 .dt-html { display: block; white-space: normal; }
+.dt-html.pre { display: inline; white-space: pre-wrap; }
 .dt-html :deep(p) { margin: 0 0 .35em; }
 .dt-html :deep(p:last-child) { margin-bottom: 0; }
 .dt-html :deep(h3), .dt-html :deep(h4) { margin: .4em 0 .25em; font-family: 'Cormorant Garamond', serif; color: color-mix(in srgb, var(--acc, #e7c56f) 70%, #fff); }

@@ -1,6 +1,6 @@
 <template>
   <!-- текст с оформлением (HTML уже очищен сервером) или обычный текст с переносами; @-упоминания — ссылки -->
-  <div v-if="isHtml" class="rt" @click="onClick" v-html="text" />
+  <div v-if="isHtml" class="rt" @click="onClick" v-html="marked" />
   <div v-else class="rt plain">{{ text }}</div>
 </template>
 
@@ -8,10 +8,12 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { mentionLink } from './mentions.js'
+import { markTerms } from './preview/previewData.js'
 
 const props = defineProps({ text: { type: String, default: '' } })
 const router = useRouter()
 const isHtml = computed(() => /<[a-z][^>]*>/i.test(props.text || ''))
+const marked = computed(() => markTerms(props.text))
 // щелчок по @Луна — к её листу (или к герою, городу, поселению)
 function onClick(e) {
   const m = e.target.closest?.('span[data-type="mention"]')
