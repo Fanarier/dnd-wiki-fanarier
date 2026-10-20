@@ -31,10 +31,10 @@
     <span class="ar-num" title="Часы">{{ rec.hours || '—' }}<small v-if="rec.hours && /^[\d.,]+$/.test(rec.hours)"> ч</small></span>
     <span class="ar-num st" :class="{ free: rec.coin?.win }" title="Выносливость">{{ rec.stamina || '—' }}</span>
     <div class="ar-st">
-      <select v-if="master && !mirror" :value="rec.status" class="ar-sel" title="Статус" @change="$emit('status', $event.target.value)">
+      <select v-if="master && !mirror" :value="rec.status" class="ar-sel" :class="{ hit }" title="Статус" @change="$emit('status', $event.target.value)">
         <option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option>
       </select>
-      <span v-else class="ar-badge">{{ ST.name }}</span>
+      <span v-else class="ar-badge" :class="{ hit }">{{ ST.name }}</span>
       <span v-if="master && !mirror && rec.status === 'pending'" class="ar-quick">
         <button type="button" class="ok" title="Учесть" @click="$emit('status', 'done')">✓</button>
         <button type="button" class="no" title="Провал" @click="$emit('status', 'fail')">✗</button>
@@ -82,8 +82,11 @@ const dieText = r => (r.groups || []).map(g => `d${g.sides}: ${g.values.join(', 
 
 // проверка мастером — печать на запись, искры к тренировке, звук; провал и отмена — встряска
 const seal = ref(null)
+const hit = ref(false) // статус вспыхивает, когда на запись падает печать
 watch(() => props.rec.status, (now, was) => {
   if (!was || now === was || props.mirror) return
+  hit.value = false
+  setTimeout(() => { hit.value = true; setTimeout(() => { hit.value = false }, 800) }, 200)
   if (now === 'done') {
     seal.value = { key: Date.now(), data: stamp('done') }
     sfx('bookPlace', 0.5)
@@ -142,7 +145,9 @@ watch(() => props.rec.status, (now, was) => {
 .ar-acts { display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; }
 .ar-acts button:hover { border-color: #e7c56f; color: #f3dc9e; }
 .ar-acts .del:hover { border-color: #ff7a6b; color: #ff7a6b; }
-.ar-seal { position: absolute; right: 150px; top: 50%; margin-top: -42px; z-index: 3; }
+.ar-seal { position: absolute; right: 230px; top: 50%; margin-top: -42px; z-index: 3; } /* над часами и выносливостью — статус не закрывает */
+.ar-badge.hit, .ar-sel.hit { animation: ar-hit .7s ease; }
+@keyframes ar-hit { 0% { transform: scale(1); } 30% { transform: scale(1.25); box-shadow: 0 0 18px var(--sc); } 100% { transform: scale(1); } }
 @media (max-width: 760px) {
   .ar { grid-template-columns: 22px minmax(0, 1fr) auto auto; grid-template-areas: 't m m m' '. h s st' '. a a a'; row-gap: 4px; }
   .ar-type { grid-area: t; }
@@ -152,6 +157,6 @@ watch(() => props.rec.status, (now, was) => {
   .ar-st { grid-area: st; }
   .ar-acts { grid-area: a; justify-content: flex-start; }
   .ar-acts:empty { display: none; }
-  .ar-seal { right: 20px; }
+  .ar-seal { right: auto; left: 40%; }
 }
 </style>
