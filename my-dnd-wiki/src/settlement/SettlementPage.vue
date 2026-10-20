@@ -9,7 +9,7 @@
         </svg>
         <span>Анкария</span>
       </router-link>
-      <nav class="sp-tabs">
+      <nav v-tabslide class="sp-tabs">
         <router-link to="/" class="sp-tab">Карта</router-link>
         <router-link to="/wiki" class="sp-tab">Вики</router-link>
         <router-link v-if="store.me" to="/sheets" class="sp-tab">Листы</router-link>

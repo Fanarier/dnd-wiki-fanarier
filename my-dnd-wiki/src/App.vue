@@ -9,6 +9,8 @@
   <CommandPalette />
   <!-- заставки событий героев: новый уровень, закрытая тренировка, расовый навык, смерть -->
   <HeroEventFx />
+  <!-- переходы между Картой, Вики и Листами: туман, книга, веер листов -->
+  <RouteFx />
   <!-- экран входа поверх всего: мастер / игрок / заявка / гость -->
   <GateScreen v-if="store.gate && !store.offline" :key="store.gate" />
   <!-- нет связи с сервером дольше 5 секунд -->
@@ -36,6 +38,7 @@ import DiceTray from './components/DiceTray.vue'
 import HoverCard from './components/preview/HoverCard.vue'
 import CommandPalette from './components/CommandPalette.vue'
 import HeroEventFx from './components/fx/HeroEventFx.vue'
+import RouteFx from './components/fx/RouteFx.vue'
 import { watch } from 'vue'
 import { store, init, unread } from './map/store.js'
 import { sfx } from './sound/sound.js'

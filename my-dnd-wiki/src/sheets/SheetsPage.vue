@@ -6,7 +6,7 @@
         <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><path d="M16 3 L19 16 L16 29 L13 16 Z" fill="currentColor" /><path d="M3 16 L16 13.5 L29 16 L16 18.5 Z" fill="currentColor" opacity=".55" /></svg>
         <span>Анкария</span>
       </router-link>
-      <nav class="sp-tabs">
+      <nav v-tabslide class="sp-tabs">
         <router-link to="/" class="sp-tab">Карта</router-link>
         <router-link to="/wiki" class="sp-tab">Вики</router-link>
         <router-link to="/sheets" class="sp-tab active">Листы</router-link>

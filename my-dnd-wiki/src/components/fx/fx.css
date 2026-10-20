@@ -11,6 +11,12 @@
 .fx-tilt { transform-style: preserve-3d; transition: transform .25s ease, box-shadow .25s ease; will-change: transform; }
 .fx-tilt.tilting { transition: transform .06s linear, box-shadow .25s ease; }
 
+/* вкладки Карта / Вики / Листы: подсветка перетекает от прошлой вкладки (v-tabslide) */
+[data-tabslide] > a { position: relative; z-index: 1; }
+.fx-tabpill { position: absolute; z-index: 0; border-radius: 8px; pointer-events: none; background: linear-gradient(180deg, rgba(240, 208, 131, .3), rgba(201, 162, 79, .18)); box-shadow: 0 0 16px rgba(231, 197, 111, .45), inset 0 0 0 1px rgba(231, 197, 111, .45); transition: left .6s cubic-bezier(.3, 1.35, .5, 1), width .6s cubic-bezier(.3, 1.35, .5, 1); }
+.fx-tabpill.done { opacity: 0; transition: opacity .3s; }
+.fx-tab-wait { background: transparent !important; }
+
 /* главные (золотые) кнопки: по наведению пробегает блик */
 button.primary:not(:disabled), .primary:is(button, a):not(:disabled) { position: relative; overflow: hidden; }
 button.primary:not(:disabled)::after, .primary:is(button, a):not(:disabled)::after {

@@ -10,7 +10,7 @@
         </svg>
         <span>Анкария</span>
       </router-link>
-      <nav class="w-tabs">
+      <nav v-tabslide class="w-tabs">
         <router-link to="/" class="w-tab">Карта</router-link>
         <router-link to="/wiki" class="w-tab active">Вики</router-link>
         <router-link v-if="store.me" to="/sheets" class="w-tab">Листы</router-link>
@@ -113,7 +113,10 @@ const categories = computed(() => ALL_CATEGORIES.filter(c => !c.master || store.
 watch(() => [store.data.rulesRev, JSON.stringify(store.me?.wiki || null)], () => { if (rulesState.loaded) loadRules() })
 
 const drawer = ref(false)
-const currentCategory = ref('quests')
+// без раздела в адресе (пришли с карты, из листов) — тот раздел, где был в прошлый раз в этой вкладке
+const LAST_KEY = 'anacaria-wiki-section'
+const lastSection = (() => { try { return sessionStorage.getItem(LAST_KEY) || 'quests' } catch { return 'quests' } })()
+const currentCategory = ref(lastSection)
 const currentPage = computed(() => categories.value.find(x => x.id === currentCategory.value)?.component ?? QuestBoard)
 const currentContent = computed(() => categories.value.find(x => x.id === currentCategory.value) ?? {})
 function onCategorySelect(id) {
@@ -149,6 +152,7 @@ const DETAILS = { quests: ['quest'], heroes: ['hero', 'heroes'], npcs: ['npc', '
 const DETAIL_KEYS = [...new Set(Object.values(DETAILS).flat())]
 watch(currentCategory, c => {
   search.value = ''
+  try { sessionStorage.setItem(LAST_KEY, c) } catch { /* приватный режим */ }
   if (route.query.section === c) return // пришли по ссылке — адрес уже верный
   const q = { ...route.query, section: c }
   for (const k of DETAIL_KEYS) if (!(DETAILS[c] || []).includes(k) || route.query.section) delete q[k]
