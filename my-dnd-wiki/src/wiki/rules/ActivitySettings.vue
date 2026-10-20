@@ -5,9 +5,13 @@
     <section class="st-box">
       <h3>🙋 {{ hero.name }}</h3>
       <div class="st-row">
-        <label class="st-f">Сон в день, ч
+        <label class="st-f">Отдых в день
+          <input v-model="c.rest" class="st-in" :list="'rest-kinds'" maxlength="30" :disabled="!hero.canWrite" placeholder="Сон" />
+          <datalist id="rest-kinds"><option v-for="k in REST_KINDS" :key="k" :value="k" /></datalist>
+        </label>
+        <label class="st-f">Сколько часов
           <select v-model.number="c.sleep" class="st-in" :disabled="!hero.canWrite">
-            <option v-for="h in [0, 4, 6, 8, 10, 12]" :key="h" :value="h">{{ h ? h + ' ч' : 'не спит (Кованый, нежить…)' }}</option>
+            <option v-for="h in [0, 2, 4, 6, 8, 10, 12]" :key="h" :value="h">{{ h ? h + ' ч' : 'не нужен (Кованый, нежить…)' }}</option>
           </select>
         </label>
         <label v-if="master" class="st-f">Свой лимит часов<input v-model.number="c.limit" type="number" min="0" class="st-in" placeholder="как у всех" title="0 — как у всех" /></label>
@@ -59,7 +63,9 @@ import { reactive, ref, watch } from 'vue'
 import { actState, api, toast, loadActivities } from '../../map/store.js'
 
 const props = defineProps({ hero: { type: Object, required: true }, master: Boolean })
-const blank = () => ({ limit: 0, sleep: 8, note: '', favs: [], banned: [] })
+const blank = () => ({ limit: 0, sleep: 8, rest: 'Сон', note: '', favs: [], banned: [] })
+// эльфы и дроу уходят в транс, монахи медитируют, Кованые подзаряжаются
+const REST_KINDS = ['Сон', 'Транс', 'Медитация', 'Подзарядка']
 const c = reactive(blank())
 const g = reactive({ limit: 336, until: '', blocked: false, reason: '' })
 function fill() {

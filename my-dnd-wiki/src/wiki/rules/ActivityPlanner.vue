@@ -10,7 +10,7 @@
       </label>
       <label class="pl-f">или новая<input type="date" class="pl-in" @change="$event.target.value && $emit('date', $event.target.value)" /></label>
       <span class="pl-sum" :class="{ over: total > limit }">⏱ {{ round(total, 1) }} / {{ limit }} ч</span>
-      <span v-if="sleep" class="pl-sum">🌙 сон {{ sleep }} ч в день</span>
+      <span v-if="sleep" class="pl-sum">🌙 {{ rest.toLowerCase() }} {{ sleep }} ч в день</span>
       <span class="grow" />
       <button v-if="canWrite && plans.length" type="button" class="pl-btn primary" @click="$emit('send', plans)">📨 Отправить мастеру ({{ plans.length }})</button>
     </div>
@@ -22,7 +22,7 @@
           <small v-if="d">{{ round(dayHours(d) + sleep, 1) }}/24 ч</small>
           <button v-if="canWrite" type="button" class="pl-add" :title="d ? `Добавить в день ${d}` : 'Добавить без дня'" @click="$emit('add', d)">＋</button>
         </header>
-        <div v-if="d && sleep" class="pl-sleep" :style="{ height: px(sleep) }">🌙 сон {{ sleep }} ч</div>
+        <div v-if="d && sleep" class="pl-sleep" :style="{ height: px(sleep) }">🌙 {{ rest.toLowerCase() }} {{ sleep }} ч</div>
         <VueDraggable :model-value="cols[d]" group="plan" :animation="180" :disabled="!canWrite" class="pl-list" ghost-class="pl-ghost" @update:model-value="moved(d, $event)">
           <article v-for="r in cols[d]" :key="r.id" class="pl-card" :class="'st-' + r.status" :style="{ '--cc': ACT_CATS[categoryOf(r.name)].color, '--sc': ACT_STATUS[r.status]?.color, minHeight: px(num(r.hours)) }"
                    :title="`${r.name}\n${r.hours || '?'} ч · ${ACT_STATUS[r.status]?.name}`" @click="$emit('edit', r)">
@@ -33,7 +33,7 @@
         </VueDraggable>
       </section>
     </div>
-    <p class="pl-hint">Перетаскивай карточки между днями. Черновики (пунктир) мастер не видит в очереди, пока не нажмёшь «Отправить мастеру».</p>
+    <p class="pl-hint">{{ rest }} {{ sleep }} ч в день отложен в каждом дне (меняется в «⚙ Настройки»). Перетаскивай карточки между днями. Черновики (пунктир) мастер не видит в очереди, пока не нажмёшь «Отправить мастеру».</p>
   </div>
 </template>
 
@@ -43,7 +43,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 import { ACT_CATS, ACT_STATUS, categoryOf, num, round } from '../../shared/activities.js'
 import SessionBar from './SessionBar.vue'
 
-const props = defineProps({ rows: { type: Array, default: () => [] }, dates: { type: Array, default: () => [] }, date: { type: String, default: '' }, limit: { type: Number, default: 336 }, sleep: { type: Number, default: 0 }, canWrite: Boolean })
+const props = defineProps({ rows: { type: Array, default: () => [] }, dates: { type: Array, default: () => [] }, date: { type: String, default: '' }, limit: { type: Number, default: 336 }, sleep: { type: Number, default: 0 }, rest: { type: String, default: 'Сон' }, canWrite: Boolean })
 const emit = defineEmits(['move', 'add', 'edit', 'send', 'date'])
 const nDays = computed(() => Math.max(1, Math.ceil(props.limit / 24)))
 const days = computed(() => [0, ...Array.from({ length: Math.max(nDays.value, ...props.rows.map(r => r.day || 0)) }, (_, i) => i + 1)])

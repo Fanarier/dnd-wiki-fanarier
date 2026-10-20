@@ -88,7 +88,22 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
   const canWrite = (u, h) => !!u && !!h && (u.role === 'master' || h.ownerId === u.id || sheets.ownerOfHero(h.id) === u.id)
   const changed = () => { save(); broadcast() }
   const by = u => ({ id: u.id, name: u.name, role: u.role })
-  const cfgOf = id => (store.cfg[id] ||= { limit: 0, sleep: 8, note: '', favs: [], banned: [] })
+  // отдых героя по умолчанию: эльфы и дроу не спят, а уходят в транс на 4 часа; остальные — сон 8 часов
+  const TRANCE = /эльф|дроу|drow|elf/i
+  const raceOf = h => sheets.trainingsOfHero(h.id)?.race || h.race || ''
+  const defaultCfg = h => ({ limit: 0, ...(h && TRANCE.test(raceOf(h)) ? { sleep: 4, rest: 'Транс' } : { sleep: 8, rest: 'Сон' }), note: '', favs: [], banned: [] })
+  const cfgOf = id => (store.cfg[id] ||= defaultCfg(heroOf(id)))
+  // один раз: уже сохранённые настройки без вида отдыха — по расе (Джилл — дроу: транс 4 ч)
+  if (!store.restFix) {
+    for (const h of heroes()) {
+      const c = store.cfg[h.id]
+      if (!c || c.rest) continue
+      if (TRANCE.test(raceOf(h)) && c.sleep === 8) Object.assign(c, { sleep: 4, rest: 'Транс' })
+      else c.rest = 'Сон'
+    }
+    store.restFix = true
+    save()
+  }
   const fail = (res, code, error) => res.status(code).json({ error })
 
   // что игроку сейчас нельзя: закрытый мастером период, блокировка, запрет деятельности этому герою
@@ -135,7 +150,8 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
   app.get('/api/activities', requireUser, (req, res) => {
     const u = req.user
     res.json({
-      rev: store.rev, limit: store.limit, lock: store.lock, cfg: store.cfg,
+      rev: store.rev, limit: store.limit, lock: store.lock,
+      cfg: Object.fromEntries(heroes().map(h => [h.id, store.cfg[h.id] || defaultCfg(h)])),
       heroes: heroes().map(h => {
         const w = canWrite(u, h)
         const sh = sheets.trainingsOfHero(h.id)
@@ -234,6 +250,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (!canWrite(req.user, h)) return fail(res, 403, 'Это не твой герой')
     const c = cfgOf(h.id), b = req.body || {}
     if ('sleep' in b) c.sleep = I(b.sleep, 0, 24)
+    if ('rest' in b) c.rest = S(b.rest, 30) || 'Сон' // сон, транс, медитация, подзарядка…
     if ('note' in b) c.note = S(b.note, 2000)
     if ('favs' in b) c.favs = (Array.isArray(b.favs) ? b.favs.slice(0, 40) : []).map(cleanFav).filter(f => f.name)
     if (req.user.role === 'master') {

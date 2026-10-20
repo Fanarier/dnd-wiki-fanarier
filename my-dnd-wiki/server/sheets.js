@@ -518,7 +518,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       const sh = heroSheet(heroId)
       if (!sh) return null
       const st = parseFloat(String(sh.data.Stamina || '').replace(',', '.'))
-      return { stamina: Number.isFinite(st) ? st : null, trainings: (sh.data.Trainings || []).map(t => ({ Id: t.Id, Name: t.Name, Cur: t.Cur, Max: t.Max, Stage: t.Stage, Status: t.Status })) }
+      return { race: sh.data.Race || '', stamina: Number.isFinite(st) ? st : null, trainings: (sh.data.Trainings || []).map(t => ({ Id: t.Id, Name: t.Name, Cur: t.Cur, Max: t.Max, Stage: t.Stage, Status: t.Status })) }
     },
     addTraining,
     linksFor: u => (u ? store.sheets.filter(sh => sh.heroId && canView(u, sh) && !sh.deletedAt).map(sh => ({ heroId: sh.heroId, sheetId: sh.id })) : []),

@@ -44,7 +44,7 @@
         <div class="al-tools">
           <h2>{{ hero.name }}</h2>
           <span v-if="hero.stamina != null" class="al-chip" title="Выносливость в листе">⚡ {{ hero.stamina }}</span>
-          <span v-if="cfg.sleep != null && cfg.sleep !== 8" class="al-chip" title="Сон в день по настройкам героя">🌙 {{ cfg.sleep }} ч</span>
+          <span v-if="cfg.sleep != null && (cfg.sleep !== 8 || (cfg.rest && cfg.rest !== 'Сон'))" class="al-chip" title="Отдых в день по настройкам героя">🌙 {{ (cfg.rest || 'Сон').toLowerCase() }} {{ cfg.sleep }} ч</span>
           <span class="grow" />
           <nav class="al-views">
             <button v-for="v in views" :key="v.id" type="button" :class="{ on: view === v.id }" @click="view = v.id">{{ v.icon }} {{ v.name }}</button>
@@ -90,7 +90,7 @@
           <button v-if="sessions.length > shownSessions.length" type="button" class="al-btn al-more" @click="more += 6">Ещё сессии: {{ sessions.length - shownSessions.length }}</button>
         </template>
 
-        <ActivityPlanner v-else-if="view === 'plan'" :rows="planRows" :dates="planDateList" :date="planDate" :limit="limit" :sleep="cfg.sleep ?? 8" :can-write="hero.canWrite"
+        <ActivityPlanner v-else-if="view === 'plan'" :rows="planRows" :dates="planDateList" :date="planDate" :limit="limit" :sleep="cfg.sleep ?? 8" :rest="cfg.rest || 'Сон'" :can-write="hero.canWrite"
                          @date="pickPlanDate" @move="moveDay" @add="startNew({ day: $event, date: planDate })" @edit="editFromPlan" @send="sendPlans" />
         <ActivityStats v-else-if="view === 'stats'" :hero-id="heroId" :limit="limit" />
         <ActivitySettings v-else-if="view === 'cfg'" :hero="hero" :master="master" />
