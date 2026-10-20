@@ -50,6 +50,10 @@
             <button v-for="v in views" :key="v.id" type="button" :class="{ on: view === v.id }" @click="view = v.id">{{ v.icon }} {{ v.name }}</button>
           </nav>
         </div>
+        <p class="al-budget" :title="`Записанный ${budget.rest.toLowerCase()} сначала покрывает обязательный отдых, в счёт идёт только сверх нормы`">
+          ⏱ Свободно <b>{{ budget.free }} ч</b> = {{ budget.period }} ч между сессиями − {{ budget.rest.toLowerCase() }} {{ budget.days }} × {{ budget.perDay }} ч.
+          <span>Записанный {{ budget.rest.toLowerCase() }} сверх нормы — в счёт.</span>
+        </p>
         <p v-if="cfg.note" class="al-note">🙋 {{ cfg.note }}</p>
         <p v-if="cfg.banned?.length" class="al-note ban">⛔ Нельзя: {{ cfg.banned.map(b => b.name + (b.reason ? ` (${b.reason})` : '')).join('; ') }}</p>
 
@@ -72,7 +76,7 @@
           <section v-for="s in shownSessions" :key="s.date" class="al-sess">
             <header class="al-sh">
               <b>{{ fmtDate(s.date) }}</b>
-              <span class="al-sum" :class="{ over: s.hours > limit }" :title="s.hours > limit ? `Больше ${limit} ч между сессиями` : 'Часы за сессию'">⏱ {{ round(s.hours, 2) }}<small> / {{ limit }} ч</small></span>
+              <span class="al-sum" :class="{ over: s.hours > budget.free }" :title="`${s.hours > budget.free ? 'Больше свободных часов! ' : ''}Свободно ${budget.free} ч (${budget.period} − ${budget.norm} ч отдыха); записанный ${budget.rest.toLowerCase()} покрыл норму на ${round(s.covered, 1)} ч`">⏱ {{ round(s.hours, 2) }}<small> / {{ budget.free }} ч</small></span>
               <span class="al-sum" :class="{ over: hero.stamina != null && s.stamina > hero.stamina }" :title="hero.stamina != null && s.stamina > hero.stamina ? `Потрачено больше выносливости, чем есть в листе — по правилам 1 изнурение за каждые −2 (≈ ${Math.ceil((s.stamina - hero.stamina) / 2)})` : 'Выносливость за сессию (отдых — со знаком минус)'">⚡ {{ round(s.stamina, 2) }}</span>
               <span class="al-sum">{{ s.rows.length }} {{ plural(s.rows.length) }}</span>
               <span v-if="s.pending" class="al-sum pend">⏳ {{ s.pending }}</span>
@@ -81,7 +85,7 @@
               <button v-if="hero.canWrite && s.plans" type="button" class="al-btn" @click="sendPlans(s.rows.filter(r => r.status === 'plan' && !r.mirror))">📨 Отправить черновики</button>
               <button v-if="master && s.pending" type="button" class="al-btn ok" @click="setAll(hero, s.rows.filter(r => r.status === 'pending' && !r.mirror), 'done', $event)">✓ Учесть все</button>
             </header>
-            <SessionBar :rows="s.own" :limit="limit" />
+            <SessionBar :rows="s.free" :limit="budget.free" />
             <div v-auto-animate class="al-rows">
               <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)"
                            @status="setStatus(hero, r, $event)" @edit="startEdit(heroId, r)" @remove="remove(heroId, r)" @repeat="repeat(heroId, r)" @roll="rollRec(hero, r)" @coin="coin(heroId, r)" />
@@ -90,9 +94,9 @@
           <button v-if="sessions.length > shownSessions.length" type="button" class="al-btn al-more" @click="more += 6">Ещё сессии: {{ sessions.length - shownSessions.length }}</button>
         </template>
 
-        <ActivityPlanner v-else-if="view === 'plan'" :rows="planRows" :dates="planDateList" :date="planDate" :limit="limit" :sleep="cfg.sleep ?? 8" :rest="cfg.rest || 'Сон'" :can-write="hero.canWrite"
+        <ActivityPlanner v-else-if="view === 'plan'" :rows="planRows" :dates="planDateList" :date="planDate" :limit="limit" :budget="budget" :sleep="cfg.sleep ?? 8" :rest="cfg.rest || 'Сон'" :can-write="hero.canWrite"
                          @date="pickPlanDate" @move="moveDay" @add="startNew({ day: $event, date: planDate })" @edit="editFromPlan" @send="sendPlans" />
-        <ActivityStats v-else-if="view === 'stats'" :hero-id="heroId" :limit="limit" />
+        <ActivityStats v-else-if="view === 'stats'" :hero-id="heroId" :budget="budget" />
         <ActivitySettings v-else-if="view === 'cfg'" :hero="hero" :master="master" />
       </template>
     </template>
@@ -105,7 +109,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll } from '../../map/store.js'
-import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollFormula } from '../../shared/activities.js'
+import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollFormula, restBudget, freeRows } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
 import ActivityForm from './ActivityForm.vue'
 import ActivityPlanner from './ActivityPlanner.vue'
@@ -142,7 +146,9 @@ const queue = computed(() => master.value && route.query.log === 'queue')
 const heroId = computed(() => (route.query.log && route.query.log !== 'queue' ? String(route.query.log) : heroList.value[0]?.heroId) || '')
 const hero = computed(() => actState.heroes.find(h => h.heroId === heroId.value) || null)
 const cfg = computed(() => actState.cfg[heroId.value] || {})
-const limit = computed(() => cfg.value.limit || actState.limit)
+const limit = computed(() => cfg.value.limit || actState.limit) // весь период между сессиями
+// отдых вычитается сразу: свободно 336 − 14 × 8 = 224 ч (транс 4 ч — 280)
+const budget = computed(() => restBudget(limit.value, cfg.value))
 const pick = id => { form.value = null; more.value = 4; router.replace({ query: { ...route.query, log: id } }) }
 const pickQueue = () => { form.value = null; router.replace({ query: { ...route.query, log: 'queue' } }) }
 const view = ref('log')
@@ -170,9 +176,10 @@ const sessions = computed(() => {
   for (const r of rows) { if (!by.has(r.date)) by.set(r.date, []); by.get(r.date).push(r) }
   return [...by.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([date, rs]) => {
     const own = rs.filter(r => !r.mirror && r.status !== 'cancel') // провал тоже тратит время, отменённое — нет
+    const fr = freeRows(own, budget.value) // сон в пределах нормы уже вычтен из периода
     return {
-      date, rows: rs, own,
-      hours: own.reduce((n, r) => n + num(r.hours), 0),
+      date, rows: rs, own, free: fr.rows, covered: fr.covered,
+      hours: fr.rows.reduce((n, r) => n + num(r.hours), 0),
       stamina: own.reduce((n, r) => n + (r.coin?.win ? 0 : num(r.stamina)), 0),
       pending: rs.filter(r => r.status === 'pending' && !r.mirror).length, plans: rs.filter(r => r.status === 'plan' && !r.mirror).length
     }
@@ -305,6 +312,9 @@ async function coin(hid, r) {
 .al-views { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 12px; background: rgba(0, 0, 0, .25); }
 .al-views button { padding: 5px 11px; border-radius: 9px; border: 0; background: none; color: #cdbf9f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
 .al-views button.on { background: linear-gradient(180deg, rgba(240, 208, 131, .3), rgba(201, 162, 79, .2)); color: #f3dc9e; box-shadow: inset 0 0 0 1px rgba(231, 197, 111, .5); }
+.al-budget { margin: -4px 0 0; color: #a8936c; font: 600 12.5px 'Manrope', sans-serif; }
+.al-budget b { color: #f3dc9e; }
+.al-budget span { opacity: .8; }
 .al-note { margin: -4px 0 0; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, .03); color: #cdbf9f; font: 600 12.5px 'Manrope', sans-serif; }
 .al-note.ban { background: rgba(255, 122, 107, .08); color: #ffb3aa; }
 .al-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -14,7 +14,7 @@
             <option v-for="h in [0, 2, 4, 6, 8, 10, 12]" :key="h" :value="h">{{ h ? h + ' ч' : 'не нужен (Кованый, нежить…)' }}</option>
           </select>
         </label>
-        <label v-if="master" class="st-f">Свой лимит часов<input v-model.number="c.limit" type="number" min="0" class="st-in" placeholder="как у всех" title="0 — как у всех" /></label>
+        <label v-if="master" class="st-f">Свой период между сессиями, ч<input v-model.number="c.limit" type="number" min="0" class="st-in" placeholder="как у всех" title="Весь период (0 — как у всех); отдых вычтется сам" /></label>
       </div>
       <label class="st-f">Особенности героя (видно в журнале)
         <textarea v-model="c.note" rows="2" maxlength="2000" class="st-in" :disabled="!hero.canWrite" placeholder="Например: Кованый — не спит, восстанавливается подзарядкой 4 ч; Нэко — +1 к броскам отдыха" />
@@ -47,7 +47,7 @@
     <section v-if="master" class="st-box master">
       <h3>⌛ Таймскип и блокировка <small>для всех героев</small></h3>
       <div class="st-row">
-        <label class="st-f">Часов между сессиями<input v-model.number="g.limit" type="number" min="1" class="st-in" /></label>
+        <label class="st-f">Часов между сессиями (весь период)<input v-model.number="g.limit" type="number" min="1" class="st-in" /></label>
         <label class="st-f">Закрыть период до (включительно)<input v-model="g.until" type="date" class="st-in" /></label>
       </div>
       <p class="st-hint">Закрытый период игроки больше не правят — всё учтено. Мастер правит как прежде.</p>

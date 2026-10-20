@@ -127,3 +127,32 @@ export function rewardOf(text) {
 export function rollFormula(base, mod, rep) {
   return [base || '1d20', mod?.formula, rep ? String(rep) : ''].filter(Boolean).join('+').replace(/\+-/g, '-')
 }
+
+// Обязательный отдых вычитается из периода сразу: 336 ч − 14 дней × 8 ч сна = 224 ч свободно (дроу в трансе 4 ч — 280).
+// Записанный в журнале сон (транс, подзарядка…) сначала покрывает эту норму, в счёт свободных часов идёт только сверх неё.
+const SLEEP_WORDS = /(^|[^а-яё])(сон|сна|спал|спит|транс|подзарядк)/i
+export function isSleepRec(name, rest = '') {
+  const n = String(name || '').toLowerCase().replace(/ё/g, 'е')
+  const kind = String(rest || '').toLowerCase().replace(/ё/g, 'е').slice(0, 5)
+  return SLEEP_WORDS.test(n) || (kind.length >= 4 && n.includes(kind))
+}
+export function restBudget(period, cfg = {}) {
+  const days = Math.max(1, Math.ceil(period / 24))
+  const perDay = cfg.sleep ?? 8
+  const norm = days * perDay
+  return { period, days, perDay, rest: cfg.rest || 'Сон', norm, free: Math.max(0, period - norm) }
+}
+// записи сессии с поправкой: часы сна, покрытые нормой, обнулены (в копиях) — их и складывают в «свободные»
+export function freeRows(rows, budget) {
+  let left = budget.norm
+  let covered = 0
+  const out = rows.map(r => {
+    if (!left || !isSleepRec(r.name, budget.rest)) return r
+    const h = Math.max(0, num(r.hours))
+    const take = Math.min(left, h)
+    left -= take
+    covered += take
+    return take ? { ...r, hours: String(round(h - take, 2)), inNorm: take } : r
+  })
+  return { rows: out, covered }
+}

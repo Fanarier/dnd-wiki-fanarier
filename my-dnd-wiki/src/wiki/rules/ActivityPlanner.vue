@@ -9,17 +9,17 @@
         </select>
       </label>
       <label class="pl-f">или новая<input type="date" class="pl-in" @change="$event.target.value && $emit('date', $event.target.value)" /></label>
-      <span class="pl-sum" :class="{ over: total > limit }">⏱ {{ round(total, 1) }} / {{ limit }} ч</span>
+      <span class="pl-sum" :class="{ over: total > free }" :title="`${limit} ч между сессиями − отдых ${budget.norm} ч`">⏱ {{ round(total, 1) }} / {{ free }} ч свободно</span>
       <span v-if="sleep" class="pl-sum">🌙 {{ rest.toLowerCase() }} {{ sleep }} ч в день</span>
       <span class="grow" />
       <button v-if="canWrite && plans.length" type="button" class="pl-btn primary" @click="$emit('send', plans)">📨 Отправить мастеру ({{ plans.length }})</button>
     </div>
-    <SessionBar :rows="rows" :limit="limit" legend />
+    <SessionBar :rows="freeList" :limit="free" legend />
     <div class="pl-days">
-      <section v-for="d in days" :key="d" class="pl-day" :class="{ nod: d === 0, over: dayHours(d) + (d ? sleep : 0) > 24 }">
+      <section v-for="d in days" :key="d" class="pl-day" :class="{ nod: d === 0, over: d && dayTotal(d) > 24 }">
         <header>
           <b>{{ d ? `День ${d}` : 'Без дня' }}</b>
-          <small v-if="d">{{ round(dayHours(d) + sleep, 1) }}/24 ч</small>
+          <small v-if="d">{{ round(dayTotal(d), 1) }}/24 ч</small>
           <button v-if="canWrite" type="button" class="pl-add" :title="d ? `Добавить в день ${d}` : 'Добавить без дня'" @click="$emit('add', d)">＋</button>
         </header>
         <div v-if="d && sleep" class="pl-sleep" :style="{ height: px(sleep) }">🌙 {{ rest.toLowerCase() }} {{ sleep }} ч</div>
@@ -40,16 +40,27 @@
 <script setup>
 import { computed } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
-import { ACT_CATS, ACT_STATUS, categoryOf, num, round } from '../../shared/activities.js'
+import { ACT_CATS, ACT_STATUS, categoryOf, num, round, freeRows, isSleepRec } from '../../shared/activities.js'
 import SessionBar from './SessionBar.vue'
 
-const props = defineProps({ rows: { type: Array, default: () => [] }, dates: { type: Array, default: () => [] }, date: { type: String, default: '' }, limit: { type: Number, default: 336 }, sleep: { type: Number, default: 0 }, rest: { type: String, default: 'Сон' }, canWrite: Boolean })
+const props = defineProps({ rows: { type: Array, default: () => [] }, dates: { type: Array, default: () => [] }, date: { type: String, default: '' }, limit: { type: Number, default: 336 }, budget: { type: Object, default: () => ({ norm: 0, free: 336, rest: 'Сон' }) }, sleep: { type: Number, default: 0 }, rest: { type: String, default: 'Сон' }, canWrite: Boolean })
 const emit = defineEmits(['move', 'add', 'edit', 'send', 'date'])
 const nDays = computed(() => Math.max(1, Math.ceil(props.limit / 24)))
 const days = computed(() => [0, ...Array.from({ length: Math.max(nDays.value, ...props.rows.map(r => r.day || 0)) }, (_, i) => i + 1)])
 const cols = computed(() => Object.fromEntries(days.value.map(d => [d, props.rows.filter(r => (r.day || 0) === d)])))
-const dayHours = d => cols.value[d].reduce((n, r) => n + Math.min(24, num(r.hours)), 0)
-const total = computed(() => props.rows.reduce((n, r) => n + num(r.hours), 0))
+// день: отложенный отдых + дела; записанный в этот день сон занимает место отложенного, сверх — добавляется
+function dayTotal(d) {
+  let rest = 0, other = 0
+  for (const r of cols.value[d]) {
+    if (isSleepRec(r.name, props.rest)) rest += num(r.hours)
+    else other += Math.min(24, num(r.hours))
+  }
+  return Math.max(props.sleep, rest) + other
+}
+// свободные часы: период минус отдых; записанный сон в пределах нормы не считается
+const free = computed(() => props.budget.free)
+const freeList = computed(() => freeRows(props.rows.filter(r => r.status !== 'cancel'), props.budget).rows)
+const total = computed(() => freeList.value.reduce((n, r) => n + num(r.hours), 0))
 const plans = computed(() => props.rows.filter(r => r.status === 'plan'))
 // карточка выше, чем дольше дело (час — 5 px, но не меньше строки и не больше суток)
 const px = h => Math.max(30, Math.min(24, h) * 5) + 'px'

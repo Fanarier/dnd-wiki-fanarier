@@ -27,7 +27,7 @@
         </ol>
       </section>
       <section class="as-box wide">
-        <h3>Часы по сессиям <small>линия — лимит {{ limit }} ч</small></h3>
+        <h3>Часы по сессиям <small>линия — свободно {{ limit }} ч (сон в пределах нормы не в счёт)</small></h3>
         <div class="as-ch"><canvas ref="barEl" /></div>
       </section>
       <section class="as-box wide">
@@ -41,9 +41,10 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { actState } from '../../map/store.js'
-import { ACT_CATS, categoryOf, num, round } from '../../shared/activities.js'
+import { ACT_CATS, categoryOf, num, round, freeRows } from '../../shared/activities.js'
 
-const props = defineProps({ heroId: { type: String, required: true }, limit: { type: Number, default: 336 } })
+const props = defineProps({ heroId: { type: String, required: true }, budget: { type: Object, required: true } })
+const limit = computed(() => props.budget.free)
 const fmt = n => round(n, 1).toLocaleString('ru-RU')
 const live = r => r.status !== 'cancel' && r.status !== 'plan'
 
@@ -60,9 +61,15 @@ function statsOf(rows) {
     const t = byName.get(key) || { name: key, hours: 0, n: 0, cat: c }
     t.hours += h; t.n++
     byName.set(key, t)
-    if (!bySess.has(r.date)) bySess.set(r.date, new Map())
-    bySess.get(r.date).set(c, (bySess.get(r.date).get(c) || 0) + h)
     if (r.status === 'done') { pts += r.applied ? r.pts : 0; gold += r.gold || 0; exp += r.exp || 0 }
+  }
+  // часы по сессиям — свободные: сон в пределах нормы уже вычтен из периода
+  const byDate = new Map()
+  for (const r of rows) { if (!byDate.has(r.date)) byDate.set(r.date, []); byDate.get(r.date).push(r) }
+  for (const [d, rs] of byDate) {
+    const m = new Map()
+    for (const r of freeRows(rs, props.budget).rows) { const c = categoryOf(r.name); m.set(c, (m.get(c) || 0) + Math.max(0, num(r.hours))) }
+    bySess.set(d, m)
   }
   const dates = [...bySess.keys()].sort()
   let streak = 0
@@ -103,7 +110,7 @@ function draw() {
         labels: dates.map(d => d.slice(5).split('-').reverse().join('.')),
         datasets: [
           ...cats.filter(c => dates.some(d => s.value.bySess.get(d).get(c))).map(c => ({ label: ACT_CATS[c].name, data: dates.map(d => round(s.value.bySess.get(d).get(c) || 0, 1)), backgroundColor: ACT_CATS[c].color, stack: 'h', borderRadius: 3 })),
-          { type: 'line', label: 'Лимит', data: dates.map(() => props.limit), borderColor: '#ff7a6b', borderDash: [5, 4], pointRadius: 0, borderWidth: 1.5 }
+          { type: 'line', label: 'Свободно', data: dates.map(() => limit.value), borderColor: '#ff7a6b', borderDash: [5, 4], pointRadius: 0, borderWidth: 1.5 }
         ]
       },
       options: { maintainAspectRatio: false, scales: { x: { stacked: true, ticks: css, grid }, y: { stacked: true, ticks: css, grid } }, plugins: { legend: { display: false }, tooltip: { ...tooltip, mode: 'index', filter: i => i.raw > 0 } } }
@@ -128,7 +135,7 @@ onMounted(async () => {
   await nextTick()
   draw()
 })
-watch([s, () => props.limit], () => nextTick(draw))
+watch([s, limit], () => nextTick(draw))
 onBeforeUnmount(() => charts.splice(0).forEach(c => c.destroy()))
 </script>
 
