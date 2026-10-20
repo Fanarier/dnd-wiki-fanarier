@@ -1,11 +1,9 @@
 <template>
   <!-- текст с оформлением (Tiptap): кнопки сверху, «@» — упомянуть НПС, героя, поселение или город -->
   <div class="re" :class="{ focus: focused }">
-    <div v-if="editor" class="re-bar" @mousedown.prevent>
-      <button v-for="b in BUTTONS" :key="b.key" type="button" :class="{ on: b.on?.() }" :title="b.title" @click="b.run()"><span :class="b.cls">{{ b.label }}</span></button>
-      <span class="re-sep" />
+    <FormatBar :editor="editor" :tables="tables" :headings="[3, 4]">
       <button type="button" title="Упомянуть: НПС, героя, поселение, город" @click="editor.chain().focus().insertContent('@').run()">@</button>
-    </div>
+    </FormatBar>
     <EditorContent :editor="editor" class="re-body" :style="{ minHeight: minHeight + 'px' }" />
 
     <!-- подсказка после «@» -->
@@ -24,8 +22,10 @@ import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import { loadNpcs } from '../map/store.js'
 import { mentionItems } from './mentions.js'
+import FormatBar from './rich/FormatBar.vue'
+import { formatExtensions } from './rich/formatKit.js'
 
-const props = defineProps({ modelValue: { type: String, default: '' }, placeholder: { type: String, default: '' }, minHeight: { type: Number, default: 110 } })
+const props = defineProps({ modelValue: { type: String, default: '' }, placeholder: { type: String, default: '' }, minHeight: { type: Number, default: 110 }, tables: Boolean })
 const emit = defineEmits(['update:modelValue'])
 
 // старый простой текст → абзацы
@@ -62,7 +62,8 @@ const editor = useEditor({
   content: toHtml(props.modelValue),
   extensions: [
     StarterKit.configure({ heading: { levels: [3, 4] }, code: false, codeBlock: false, horizontalRule: false, link: { openOnClick: false } }),
-    Mention.configure({ HTMLAttributes: { class: 'mention' }, renderText: ({ node }) => '@' + (node.attrs.label ?? node.attrs.id), suggestion })
+    Mention.configure({ HTMLAttributes: { class: 'mention' }, renderText: ({ node }) => '@' + (node.attrs.label ?? node.attrs.id), suggestion }),
+    ...formatExtensions({ tables: props.tables })
   ],
   editorProps: { attributes: { 'data-placeholder': props.placeholder } },
   onUpdate: ({ editor: e }) => emit('update:modelValue', e.isEmpty ? '' : e.getHTML()),
@@ -78,38 +79,20 @@ watch(() => props.modelValue, v => {
 onMounted(() => loadNpcs()) // НПС нужны для подсказки «@»
 onBeforeUnmount(() => editor.value?.destroy())
 
-const c = () => editor.value.chain().focus()
-const act = name => editor.value?.isActive(name)
-const BUTTONS = [
-  { key: 'b', label: 'Ж', cls: 'b', title: 'Жирный', run: () => c().toggleBold().run(), on: () => act('bold') },
-  { key: 'i', label: 'К', cls: 'i', title: 'Курсив', run: () => c().toggleItalic().run(), on: () => act('italic') },
-  { key: 'u', label: 'Ч', cls: 'u', title: 'Подчёркнутый', run: () => c().toggleUnderline().run(), on: () => act('underline') },
-  { key: 's', label: 'З', cls: 's', title: 'Зачёркнутый', run: () => c().toggleStrike().run(), on: () => act('strike') },
-  { key: 'h3', label: 'H1', title: 'Заголовок', run: () => c().toggleHeading({ level: 3 }).run(), on: () => editor.value?.isActive('heading', { level: 3 }) },
-  { key: 'h4', label: 'H2', title: 'Подзаголовок', run: () => c().toggleHeading({ level: 4 }).run(), on: () => editor.value?.isActive('heading', { level: 4 }) },
-  { key: 'ul', label: '•', title: 'Список', run: () => c().toggleBulletList().run(), on: () => act('bulletList') },
-  { key: 'ol', label: '1.', title: 'Нумерованный список', run: () => c().toggleOrderedList().run(), on: () => act('orderedList') },
-  { key: 'q', label: '❝', title: 'Цитата', run: () => c().toggleBlockquote().run(), on: () => act('blockquote') },
-  { key: 'undo', label: '↶', title: 'Отменить', run: () => c().undo().run() },
-  { key: 'redo', label: '↷', title: 'Повторить', run: () => c().redo().run() }
-]
 </script>
 
 <style scoped>
 .re { min-width: 0; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .25); background: #0f0c08; color: #efe3c8; transition: border-color .15s; }
 .re.focus { border-color: rgba(231, 197, 111, .6); }
-.re-bar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; border-bottom: 1px solid rgba(231, 197, 111, .15); }
-.re-bar button { min-width: 28px; height: 26px; padding: 0 6px; border: 0; border-radius: 6px; background: none; color: #cdbf9f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
-.re-bar button:hover { background: rgba(231, 197, 111, .1); color: #f3d99a; }
-.re-bar button.on { background: rgba(231, 197, 111, .22); color: #f3dc9e; }
-.re-bar .b { font-weight: 900; } .re-bar .i { font-style: italic; } .re-bar .u { text-decoration: underline; } .re-bar .s { text-decoration: line-through; }
-.re-sep { flex: 1; }
 .re-body { padding: 8px 10px; font: 500 13.5px/1.55 'Manrope', sans-serif; cursor: text; }
 .re-body :deep(.ProseMirror) { outline: none; min-height: inherit; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
 .re-body :deep(.ProseMirror p) { margin: 0 0 .5em; }
 .re-body :deep(.ProseMirror h3), .re-body :deep(.ProseMirror h4) { margin: .5em 0 .3em; font-family: 'Cormorant Garamond', serif; color: #e6c27a; }
 .re-body :deep(.ProseMirror ul), .re-body :deep(.ProseMirror ol) { padding-left: 1.3em; margin: .2em 0 .5em; }
 .re-body :deep(.ProseMirror blockquote) { margin: .4em 0; padding: .2em .8em; border-left: 3px solid rgba(231, 197, 111, .5); color: #cdbf9f; font-style: italic; }
+.re-body :deep(.ProseMirror table) { border-collapse: collapse; margin: .5em 0; width: 100%; table-layout: fixed; }
+.re-body :deep(.ProseMirror td), .re-body :deep(.ProseMirror th) { border: 1px solid rgba(231, 197, 111, .25); padding: 4px 6px; vertical-align: top; position: relative; }
+.re-body :deep(.ProseMirror mark) { background: rgba(0, 220, 230, .18); color: #9ff3f7; }
 .re-body :deep(.mention) { padding: 0 4px; border-radius: 6px; background: rgba(231, 197, 111, .16); color: #f3d99a; font-weight: 700; }
 .re-body :deep(.ProseMirror p.is-editor-empty:first-child::before), .re-body :deep(.ProseMirror:has(> p:only-child:empty)::before) { content: attr(data-placeholder); float: left; height: 0; color: #6f6656; pointer-events: none; }
 .re-sug { position: fixed; z-index: 600; display: grid; width: 240px; padding: 4px; border-radius: 10px; background: #1b1610; border: 1px solid #8a6630; box-shadow: 0 12px 30px rgba(0, 0, 0, .55); }

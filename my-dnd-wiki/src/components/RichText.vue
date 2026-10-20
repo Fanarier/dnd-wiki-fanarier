@@ -32,6 +32,10 @@ function onClick(e) {
 .rt :deep(ul), .rt :deep(ol) { margin: .3em 0 .55em; padding-left: 1.3em; }
 .rt :deep(blockquote) { margin: .5em 0; padding: .3em .8em; border-left: 3px solid rgba(231, 197, 111, .5); color: #cdbf9f; font-style: italic; }
 .rt :deep(a) { color: #8fc7ff; }
+.rt :deep(mark) { background: rgba(0, 220, 230, .18); color: #9ff3f7; border-radius: 3px; padding: 0 2px; }
+.rt :deep(table) { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; margin: .5em 0; }
+.rt :deep(td), .rt :deep(th) { padding: 5px 8px; border: 1px solid rgba(231, 197, 111, .2); vertical-align: top; }
+.rt :deep(td p) { margin: 0; }
 .rt :deep(.mention) { padding: 0 4px; border-radius: 6px; background: rgba(231, 197, 111, .14); color: #f3d99a; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .rt :deep(.mention:hover) { background: rgba(231, 197, 111, .28); }
 </style>

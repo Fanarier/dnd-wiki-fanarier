@@ -47,7 +47,7 @@ export function num(v) {
 }
 // очки тренировки из результата: «42» или «42+1» → 43; словами — не угадываем
 export function ptsOf(result) {
-  const s = String(result ?? '').trim()
+  const s = String(result ?? '').replace(/<[^>]+>/g, '').trim()
   return /^\d+(\s*\+\s*\d+)*$/.test(s) ? s.split('+').reduce((n, x) => n + Number(x), 0) : 0
 }
 export const round = (n, d = 3) => Math.round(n * 10 ** d) / 10 ** d

@@ -2,7 +2,8 @@
   <!-- поле листа: пишет прямо в лист по пути; правый щелчок — покрасить текст (как в приложении) -->
   <label class="fld" :class="[`t-${type}`, { big, center, hasLabel: !!label }]" @contextmenu.prevent="openColor">
     <span v-if="label" class="fld-l">{{ label }}</span>
-    <textarea v-if="type === 'area'" ref="el" :value="shown" :placeholder="placeholder" :rows="rows" :style="colorStyle" :readonly="ro" spellcheck="true" @input="onInput" @blur="onBlur" />
+    <RichInput v-if="type === 'rich'" :model-value="shown" :placeholder="placeholder" :readonly="ro" :min-height="rows > 1 ? rows * 20 : 30" :style="colorStyle" @update:model-value="v => !ro && edit(path, v)" />
+    <textarea v-else-if="type === 'area'" ref="el" :value="shown" :placeholder="placeholder" :rows="rows" :style="colorStyle" :readonly="ro" spellcheck="true" @input="onInput" @blur="onBlur" />
     <input v-else ref="el" :value="shown" :placeholder="placeholder" :style="colorStyle" :readonly="ro" :inputmode="type === 'num' ? 'numeric' : 'text'" :maxlength="max" spellcheck="false" @input="onInput" @blur="onBlur" @keydown.enter="type !== 'area' && $event.target.blur()" />
     <span v-if="suffix" class="fld-s">{{ suffix }}</span>
   </label>
@@ -12,10 +13,11 @@
 import { computed, inject, nextTick, ref, watch } from 'vue'
 import { val, edit } from '../sheetState.js'
 import { openColorMenu } from './colorMenu.js'
+import RichInput from '../../components/rich/RichInput.vue'
 
 const props = defineProps({
   path: { type: String, required: true },
-  type: { type: String, default: 'text' }, // text | num | area
+  type: { type: String, default: 'text' }, // text | num | area | rich (с оформлением: цвет, свечение, шрифт…)
   label: { type: String, default: '' },
   placeholder: { type: String, default: '' },
   suffix: { type: String, default: '' },

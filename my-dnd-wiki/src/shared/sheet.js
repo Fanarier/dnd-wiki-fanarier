@@ -151,10 +151,16 @@ const blankOf = s => {
   }
   return null
 }
+// текст с оформлением (HTML из редактора) — сервер подставляет свою очистку (server/richtext.js), в браузере не нужна
+let richClean = null
+export const setRichCleaner = f => { richClean = f }
 export function cleanBy(s, v) {
   if (v == null) return blankOf(s)
   switch (s.t) {
-    case 's': return String(v).replace(/\r\n/g, '\n').slice(0, s.n)
+    case 's': {
+      const t = String(v).replace(/\r\n/g, '\n')
+      return richClean && /<[a-z][^>]*>/i.test(t) ? richClean(t, s.n) : t.slice(0, s.n)
+    }
     case 'img': { const f = String(v); return /^[a-f0-9]{16,64}\.(png|jpe?g|gif|webp)$/i.test(f) ? f : '' }
     case 'color': return /^#[0-9a-f]{6}$/i.test(String(v)) ? String(v).toUpperCase() : ''
     case 'i': {

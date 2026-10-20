@@ -39,7 +39,7 @@
           <b>{{ it.Name || 'Без названия' }}</b>
           <small>
             <em v-if="it.Rarity" class="pi-rar">{{ it.Rarity }}</em>
-            <span v-if="it.Description" class="pi-desc">{{ it.Description }}</span>
+            <span v-if="it.Description" class="pi-desc">{{ plain(it.Description) }}</span>
           </small>
         </div>
         <div class="pi-qty" title="Количество">
@@ -58,6 +58,8 @@
 </template>
 
 <script setup>
+// описания бывают с оформлением — в коротком списке и поиске только текст
+const plain = s => String(s || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
 import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, reactive, ref, watch } from 'vue'
 import { sfx } from '../../sound/sound.js'
@@ -113,7 +115,7 @@ watch(tab, () => { onlyEq.value = false })
 const filtered = computed(() => !!q.value.trim() || !!rar.value || onlyEq.value)
 const visible = it => {
   const s = q.value.trim().toLowerCase()
-  return (!s || `${it.Name} ${it.Description} ${it.Notes}`.toLowerCase().includes(s)) && (!rar.value || rarityOf(it.Rarity)?.name === rar.value) && (!onlyEq.value || it.Equipped)
+  return (!s || plain(`${it.Name} ${it.Description} ${it.Notes}`).toLowerCase().includes(s)) && (!rar.value || rarityOf(it.Rarity)?.name === rar.value) && (!onlyEq.value || it.Equipped)
 }
 const shown = computed(() => model.value.filter(visible))
 const set = (i, k, v) => { if (!ro.value && i >= 0) edit(`Inventory.${i}.${k}`, v) }

@@ -1,0 +1,27 @@
+/* «Живой» текст из редакторов (formatKit.js → span.tx-*). Работает везде, где показывается текст с оформлением.
+   При «меньше анимаций» в системе — без движения, только цвет. */
+.tx-gold, .tx-magic, .tx-rainbow, .tx-fire, .tx-ice, .tx-shimmer {
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent;
+  background-size: 250% 100%; background-position: 0% 50%; animation: tx-slide 4s ease-in-out infinite alternate;
+}
+.tx-gold { background-image: linear-gradient(100deg, #b8862e 0%, #f3dc9e 25%, #fff6d6 35%, #e7c56f 50%, #b8862e 75%, #f3dc9e 100%); filter: drop-shadow(0 0 4px rgba(231, 197, 111, .35)); }
+.tx-magic { background-image: linear-gradient(100deg, #8d6cff, #4fd8ff, #c27bff, #8d6cff); filter: drop-shadow(0 0 5px rgba(141, 108, 255, .5)); }
+.tx-rainbow { background-image: linear-gradient(90deg, #ff6b5e, #f0a24f, #f1c232, #7ed07a, #4fc1c1, #6fa8ff, #c27bff, #ff6b5e); animation-duration: 2.4s; }
+.tx-fire { background-image: linear-gradient(0deg, #ff3d1f, #ff8a1f, #ffd36b, #ff8a1f, #ff3d1f); background-size: 100% 300%; animation: tx-rise 1.6s ease-in-out infinite alternate; filter: drop-shadow(0 0 6px rgba(255, 110, 40, .6)); }
+.tx-ice { background-image: linear-gradient(100deg, #9fe3ff, #ffffff, #6fb8ff, #dff6ff, #9fe3ff); filter: drop-shadow(0 0 5px rgba(140, 210, 255, .55)); animation-duration: 6s; }
+.tx-shimmer { background-image: linear-gradient(100deg, currentColor 0%, currentColor 42%, #ffffff 50%, currentColor 58%, currentColor 100%); color: #efe3c8; background-size: 300% 100%; animation-duration: 1.8s; }
+.tx-blood { color: #c0182b; text-shadow: 0 0 6px rgba(192, 24, 43, .6); animation: tx-pulse 2.6s ease-in-out infinite; }
+.tx-pulse { animation: tx-pulse 1.8s ease-in-out infinite; }
+.tx-shake { display: inline-block; animation: tx-shake .35s linear infinite; }
+.tx-spoiler { border-radius: 4px; background: rgba(231, 197, 111, .18); color: transparent !important; -webkit-text-fill-color: transparent; text-shadow: none !important; filter: blur(4px); cursor: help; transition: filter .25s, color .25s, background .25s; }
+.tx-spoiler:hover, .tx-spoiler:focus, .tx-spoiler:active { color: inherit !important; -webkit-text-fill-color: currentColor; background: rgba(231, 197, 111, .08); filter: none; }
+/* фон шире текста и ходит туда-обратно в его пределах — текст всегда закрыт градиентом */
+@keyframes tx-slide { to { background-position: 100% 50%; } }
+@keyframes tx-rise { from { background-position: 0 100%; } to { background-position: 0 0; } }
+@keyframes tx-pulse { 50% { opacity: .55; filter: brightness(1.5) drop-shadow(0 0 6px currentColor); } }
+@keyframes tx-shake { 25% { transform: translate(.5px, -.5px) rotate(-.5deg); } 50% { transform: translate(-.5px, .5px); } 75% { transform: translate(.5px, .5px) rotate(.5deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .tx-gold, .tx-magic, .tx-rainbow, .tx-fire, .tx-ice, .tx-shimmer, .tx-blood, .tx-pulse, .tx-shake { animation: none; }
+}
+/* над/подстрочный — одинаково в редакторе и при показе */
+sub, sup { font-size: .72em; line-height: 0; }

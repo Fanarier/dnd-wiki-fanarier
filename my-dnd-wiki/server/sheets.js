@@ -5,8 +5,20 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS, hpMax, trainStatus } from '../src/shared/sheet.js'
+import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS, hpMax, trainStatus, setRichCleaner } from '../src/shared/sheet.js'
 import { cleanRich } from './richtext.js'
+import { htmlToText } from '../src/shared/rules.js'
+
+// текст с оформлением в любом поле листа — через очистку сервера
+setRichCleaner(cleanRich)
+// приложение оформления не знает: в файл для него — простой текст (журнал листа оставляем как есть)
+function plainForApp(v, key = '') {
+  if (key === 'JournalEntries') return v
+  if (typeof v === 'string') return /<[a-z][^>]*>/i.test(v) ? htmlToText(v) : v
+  if (Array.isArray(v)) return v.map(x => plainForApp(x))
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, plainForApp(x, k)]))
+  return v
+}
 import { isOwner } from './auth.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
@@ -118,7 +130,7 @@ function fromAppFile(raw, imageExt) {
 }
 // данные листа → файл как у приложения (картинки внутри) — его можно открыть и в CharacterApp
 function toAppFile(d) {
-  const out = structuredClone(d)
+  const out = plainForApp(structuredClone(d))
   out.PhotoBase64 = fileB64(d.PhotoFile)
   out.PhotoPath = ''
   for (const s of EQUIP_SLOTS) if (out[s.key]) { out[s.key].ImageBase64 = fileB64(out[s.key].ImageFile); out[s.key].ImagePath = '' }

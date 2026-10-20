@@ -73,7 +73,7 @@
             <span class="grow" />
             <button type="button" class="sb-btn danger" @click="delRes(i)">🗑 Удалить</button>
           </div>
-          <Fld :path="`Resources.${i}.Notes`" type="area" :rows="1" label="Заметки" />
+          <Fld :path="`Resources.${i}.Notes`" type="rich" :rows="1" label="Заметки" />
         </div>
       </article>
     </div>

@@ -25,16 +25,16 @@
               </div>
             </label>
             <template v-if="kind === 'equip'">
-              <Fld :path="`${path}.Stats`" type="area" :rows="2" label="Статы" placeholder="Например: 3к12 Физический урон. Модификатор — Ловкость." />
-              <Fld :path="`${path}.Effects`" type="area" :rows="3" label="Эффекты" />
+              <Fld :path="`${path}.Stats`" type="rich" :rows="2" label="Статы" placeholder="Например: 3к12 Физический урон. Модификатор — Ловкость." />
+              <Fld :path="`${path}.Effects`" type="rich" :rows="3" label="Эффекты" />
             </template>
             <template v-else>
               <div class="ie-row">
                 <Fld :path="`${path}.Quantity`" type="num" label="Количество" />
                 <label class="ie-eq"><input type="checkbox" :checked="item?.Equipped" @change="edit(`${path}.Equipped`, $event.target.checked, { now: true })" /> Надет / экипирован</label>
               </div>
-              <Fld :path="`${path}.Description`" type="area" :rows="3" label="Описание" />
-              <Fld :path="`${path}.Notes`" type="area" :rows="2" label="Заметки" />
+              <Fld :path="`${path}.Description`" type="rich" :rows="3" label="Описание" />
+              <Fld :path="`${path}.Notes`" type="rich" :rows="2" label="Заметки" />
             </template>
           </div>
         </div>

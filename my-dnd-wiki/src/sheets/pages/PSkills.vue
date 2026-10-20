@@ -23,7 +23,7 @@
           <button v-if="!ro" type="button" class="sb-x" :title="editing.has(keyOf(it)) ? 'Готово' : 'Править описание'" @click="toggle(it)">{{ editing.has(keyOf(it)) ? '✓' : '✎' }}</button>
           <button v-if="!ro" type="button" class="sb-x" title="Удалить навык" @click="del(it)">✕</button>
         </header>
-        <Fld v-if="editing.has(keyOf(it))" :path="`${list}.${model.indexOf(it)}.Description`" type="area" :rows="4" placeholder="Описание: что делает, стоимость, перезарядка… Кубы вроде 2к6+3 станут кнопками броска" />
+        <Fld v-if="editing.has(keyOf(it))" :path="`${list}.${model.indexOf(it)}.Description`" type="rich" :rows="4" placeholder="Описание: что делает, стоимость, перезарядка… Кубы вроде 2к6+3 станут кнопками броска" />
         <p v-else-if="it.Description" class="pk-desc" :class="{ clamp: !expanded.has(keyOf(it)) && it.Description.length > 320 }" @dblclick="!ro && toggle(it)">
           <DiceText :text="it.Description" :label="it.SkillName" />
         </p>

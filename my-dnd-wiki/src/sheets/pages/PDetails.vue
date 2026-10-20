@@ -18,8 +18,8 @@
 
     <h3 class="sb-h2 sb-anim">Состояния</h3>
     <div class="sb-grid2 sb-anim">
-      <Fld path="Buff" type="area" :rows="2" label="✨ Бафф" data-find="Buff" class="buff" />
-      <Fld path="Debuff" type="area" :rows="2" label="☠ Дебафф" data-find="Debuff" class="debuff" />
+      <Fld path="Buff" type="rich" :rows="2" label="✨ Бафф" data-find="Buff" class="buff" />
+      <Fld path="Debuff" type="rich" :rows="2" label="☠ Дебафф" data-find="Debuff" class="debuff" />
     </div>
 
     <h3 class="sb-h2 sb-anim">Стартовые бонусы</h3>
@@ -28,10 +28,10 @@
     </div>
 
     <h3 class="sb-h2 sb-anim">Внешность</h3>
-    <Fld path="Appearance" type="area" :rows="3" placeholder="Как выглядит персонаж…" class="sb-anim" data-find="Appearance" />
+    <Fld path="Appearance" type="rich" :rows="3" placeholder="Как выглядит персонаж…" class="sb-anim" data-find="Appearance" />
 
     <h3 class="sb-h2 sb-anim">История персонажа</h3>
-    <Fld path="Backstory" type="area" :rows="8" placeholder="Откуда он, что с ним было…" class="sb-anim story" data-find="Backstory" />
+    <Fld path="Backstory" type="rich" :rows="8" placeholder="Откуда он, что с ним было…" class="sb-anim story" data-find="Backstory" />
   </div>
 </template>
 

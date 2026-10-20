@@ -11,6 +11,7 @@ import * as directives from 'vuetify/directives'
 import '@mdi/font/css/materialdesignicons.css'
 
 import './styles.css'
+import './components/rich/richfx.css' // «живой» текст из редакторов — нужен везде, где показывается оформленный текст
 
 const vuetify = createVuetify({
   components,

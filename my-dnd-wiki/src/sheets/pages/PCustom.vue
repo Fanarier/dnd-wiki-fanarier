@@ -33,7 +33,10 @@
             <tr v-for="(r, ri) in tab.Rows" :key="ri">
               <td v-for="(c, ci) in tab.Columns" :key="ci" :class="c.ColumnType">
                 <input v-if="c.ColumnType === 'toggle'" type="checkbox" :checked="isTrue(r.Cells[ci])" :disabled="ro" @change="setCell(ri, ci, $event.target.checked ? 'True' : 'False')" />
-                <input v-else :value="r.Cells[ci] ?? ''" :readonly="ro" :inputmode="c.ColumnType === 'number' ? 'numeric' : 'text'" @input="setCell(ri, ci, $event.target.value)" />
+                <input v-else-if="c.ColumnType === 'number'" :value="r.Cells[ci] ?? ''" :readonly="ro" inputmode="numeric" @input="setCell(ri, ci, $event.target.value)" />
+                <!-- текст: щелчок — правка с оформлением (цвет, свечение, шрифт…), иначе — как есть, кубы — кнопки броска -->
+                <RichInput v-else-if="cellEdit === `${ri}:${ci}`" class="pc-rich" :model-value="r.Cells[ci] ?? ''" autofocus @update:model-value="v => setCell(ri, ci, v)" @blur="cellEdit = ''" />
+                <div v-else class="pc-view" :class="{ empty: !r.Cells[ci] }" :tabindex="ro ? -1 : 0" @click="!ro && (cellEdit = `${ri}:${ci}`)" @keydown.enter.prevent="!ro && (cellEdit = `${ri}:${ci}`)"><DiceText v-if="r.Cells[ci]" :text="r.Cells[ci]" :label="tab.Name" /></div>
               </td>
               <td v-if="!ro" class="pc-add"><button type="button" title="Удалить строку" @click="delRow(ri)">✕</button></td>
             </tr>
@@ -49,12 +52,15 @@
 import SheetIcon from '../ui/SheetIcon.vue'
 import { computed, inject, ref } from 'vue'
 import Fld from '../ui/Fld.vue'
+import DiceText from '../ui/DiceText.vue'
+import RichInput from '../../components/rich/RichInput.vue'
 import { sheet, edit, keyOf, listOps } from '../sheetState.js'
 
 const ro = inject('sheetReadOnly', ref(false))
 const tables = computed(() => sheet.data.CustomSheets)
 const ops = listOps('CustomSheets')
 const ti = ref(0)
+const cellEdit = ref('') // «строка:колонка» ячейки, которую сейчас правят
 const tab = computed(() => tables.value[ti.value] || null)
 const base = () => `CustomSheets.${ti.value}`
 const isTrue = v => /^(true|1|да)$/i.test(String(v || ''))
@@ -93,6 +99,9 @@ const delRow = ri => { const rows = [...tab.value.Rows]; rows.splice(ri, 1); edi
 </script>
 
 <style scoped>
+.pc-view { min-height: 28px; padding: 4px 6px; border-radius: 6px; cursor: text; font: 600 13.5px/1.45 'Manrope', sans-serif; color: var(--ink, #efe3c8); }
+.pc-view:hover, .pc-view:focus { outline: none; background: color-mix(in srgb, var(--acc, #e7c56f) 8%, transparent); }
+.pc-rich { min-width: 300px; }
 .pc-tabs { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
 .pc-tab { display: grid; gap: 10px; }
 .pc-head { display: flex; align-items: center; gap: 8px; }

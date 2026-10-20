@@ -8,7 +8,7 @@
         <router-link v-if="wiki" class="ar-wiki" :to="{ path: '/wiki', query: { section: 'activities', a: wiki.articleId } }" :title="`В вики: ${wiki.name} — ${wiki.dur}, ${wiki.rate} выносливости в час${wiki.cost ? ', ' + wiki.cost : ''}`">{{ rec.name }}<sup>📖</sup></router-link>
         <template v-else>{{ rec.name }}</template>
       </b>
-      <p v-if="rec.result" class="ar-res">{{ rec.result }}</p>
+      <RichText v-if="rec.result" class="ar-res" :text="rec.result" />
       <div class="ar-meta">
         <span v-if="mirror" class="ar-tag mir" title="Совместная деятельность — запись в журнале другого героя, в суммы этого не входит">↔ из журнала {{ mirror }}</span>
         <span v-if="showDate" class="ar-tag">{{ rec.date.split('-').reverse().join('.') }}</span>
@@ -58,6 +58,7 @@ import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
 import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf } from '../../shared/activities.js'
 import LottieFx from './LottieFx.vue'
+import RichText from '../../components/RichText.vue'
 import { stamp } from './lottie.js'
 import { sparks, shake } from './actFx.js'
 import { sfx } from '../../sound/sound.js'

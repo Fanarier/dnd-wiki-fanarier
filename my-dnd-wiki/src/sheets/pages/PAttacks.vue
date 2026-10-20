@@ -17,7 +17,7 @@
           <button v-if="!ro" type="button" class="sb-x" :title="editing.has(keyOf(it)) ? 'Готово' : 'Править'" @click="toggle(it)">{{ editing.has(keyOf(it)) ? '✓' : '✎' }}</button>
           <button v-if="!ro" type="button" class="sb-x" title="Удалить" @click="del(i)">✕</button>
         </header>
-        <Fld v-if="editing.has(keyOf(it))" :path="`Attacks.${i}.Description`" type="area" :rows="2" placeholder="Например: 1к8 + 11 колющего урона" />
+        <Fld v-if="editing.has(keyOf(it))" :path="`Attacks.${i}.Description`" type="rich" :rows="2" placeholder="Например: 1к8 + 11 колющего урона" />
         <p v-else class="pa-desc" @dblclick="!ro && toggle(it)"><DiceText :text="it.Description || '—'" :label="it.AttackType" /></p>
       </article>
     </VueDraggable>

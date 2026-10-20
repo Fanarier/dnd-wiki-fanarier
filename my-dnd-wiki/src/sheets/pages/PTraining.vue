@@ -61,8 +61,8 @@
           </div>
           <!-- примечания (из комментариев таблицы): какая черта, какое оружие, до какого уровня -->
           <div v-if="open.has(t.Id)" class="ptr-notes">
-            <Fld :path="`Trainings.${idx(t)}.Note`" type="area" :rows="1" :max="4000" placeholder="Примечание: какая черта, оружие, школа…" />
-            <Fld :path="`Trainings.${idx(t)}.ProgNote`" type="area" :rows="1" :max="8000" placeholder="К прогрессу: «до экспертного владения», журнал бросков…" />
+            <Fld :path="`Trainings.${idx(t)}.Note`" type="rich" :rows="1" :max="4000" placeholder="Примечание: какая черта, оружие, школа…" />
+            <Fld :path="`Trainings.${idx(t)}.ProgNote`" type="rich" :rows="1" :max="8000" placeholder="К прогрессу: «до экспертного владения», журнал бросков…" />
             <button type="button" class="ptr-note" @click="toggleOpen(t)">свернуть</button>
           </div>
           <button v-else-if="t.Note || t.ProgNote || !ro" type="button" class="ptr-note" :class="{ clamp: t.Note || t.ProgNote }" :title="[t.Note, t.ProgNote].filter(Boolean).join(' · ')" @click="toggleOpen(t)">

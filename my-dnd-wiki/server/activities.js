@@ -8,6 +8,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { cleanRich } from './richtext.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -65,7 +66,7 @@ function clean(b = {}, old = {}, heroIds = []) {
     hours: S(pick('hours'), 30),
     stamina: S(pick('stamina'), 30),
     type: TYPES.includes(pick('type')) ? pick('type') : '',
-    result: S(pick('result'), 2000),
+    result: cleanRich(S(pick('result'), 4000), 4000), // с оформлением — через очистку
     trainId: S(pick('trainId'), 40),
     pts: I(pick('pts'), -1e6, 1e6),
     place: S(pick('place'), 40), // город на карте

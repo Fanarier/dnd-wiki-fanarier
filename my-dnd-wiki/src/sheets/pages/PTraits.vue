@@ -5,7 +5,7 @@
     <div class="pt-traits sb-anim">
       <div v-for="t in LEVEL_TRAITS" :key="t.p" class="pt-trait" :class="{ got: d[t.p].IsAcquired }" :data-find="t.p">
         <span class="pt-lv">{{ t.lv }}<small>ур.</small></span>
-        <Fld :path="`${t.p}.Description`" type="area" :rows="1" :placeholder="`Черта ${t.lv} уровня`" />
+        <Fld :path="`${t.p}.Description`" type="rich" :rows="1" :placeholder="`Черта ${t.lv} уровня`" />
         <button type="button" class="pt-got" :class="{ on: d[t.p].IsAcquired }" :title="d[t.p].IsAcquired ? 'Получена' : 'Ещё не получена'" @click="set(`${t.p}.IsAcquired`, !d[t.p].IsAcquired)">✓</button>
       </div>
     </div>
@@ -14,7 +14,7 @@
     <div class="pt-hum sb-anim">
       <div v-for="(t, i) in d.HumanoidTraits" :key="keyOf(t)" class="pt-trait hum" :class="{ got: t.IsAcquired }" :data-find="`HumanoidTraits-${i}`">
         <Fld :path="`HumanoidTraits.${i}.Name`" placeholder="Название" class="nm" />
-        <Fld :path="`HumanoidTraits.${i}.Description`" type="area" :rows="1" placeholder="Описание" />
+        <Fld :path="`HumanoidTraits.${i}.Description`" type="rich" :rows="1" placeholder="Описание" />
         <button type="button" class="pt-got" :class="{ on: t.IsAcquired }" title="Получена" @click="set(`HumanoidTraits.${i}.IsAcquired`, !t.IsAcquired)">✓</button>
         <button v-if="!ro" type="button" class="sb-x" title="Удалить" @click="hum.remove(i)">✕</button>
       </div>

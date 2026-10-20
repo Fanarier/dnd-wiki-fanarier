@@ -36,7 +36,7 @@
       <template v-if="repeatNo > 1">↻ Повтор №{{ repeatNo }} в этой сессии — <b>+{{ repBonus }}</b> к броску. </template>
       <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b> — кнопкой 🎲 у записи.</template>
     </p>
-    <label class="af-f">Результат<textarea v-model="m.result" rows="2" maxlength="2000" class="af-in" placeholder="Броски, очки, что получилось…" /></label>
+    <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" placeholder="Броски, очки, что получилось… (можно с цветом и свечением)" :min-height="44" /></div>
 
     <button type="button" class="af-more" @click="more = !more">{{ more ? '▴ Меньше' : '▾ Подробнее: с кем, где, тренировка, монеты, вещи' }}<small v-if="!more && extras"> · заполнено: {{ extras }}</small></button>
     <div v-if="more" class="af-extra">
@@ -97,6 +97,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
+import RichInput from '../../components/rich/RichInput.vue'
 import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollFormula } from '../../shared/activities.js'
 
 const m = defineModel({ type: Object, required: true })
@@ -188,6 +189,7 @@ function submit(status) {
 .af-f.xs { flex: 1 1 70px; max-width: 110px; }
 .af-in { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .25); background: rgba(0, 0, 0, .35); color: #efe3c8; font: 600 13px 'Manrope', sans-serif; letter-spacing: 0; text-transform: none; color-scheme: dark; resize: vertical; }
 .af-in:focus { outline: none; border-color: #e7c56f; }
+.af-rich { background: rgba(0, 0, 0, .35); letter-spacing: 0; text-transform: none; font-weight: 500; }
 .af-hint { margin: 0; color: #a8936c; font: 600 12px/1.5 'Manrope', sans-serif; }
 .af-hint b, .af-hint a { color: #f3dc9e; }
 .af-more { justify-self: start; padding: 4px 0; border: 0; background: none; color: #e7c56f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
