@@ -1,4 +1,4 @@
-/* Общие анимации сайта: смена раздела вики (мягкое проявление), карточки с наклоном и светом под курсором (v-tilt),
+/* Общие анимации сайта: смена раздела вики (мягкое проявление), карточки с наклоном за курсором (v-tilt),
    золотой отблеск главных кнопок, руна-загрузчик. При «меньше анимаций» — без движения. */
 
 /* смена раздела вики: старый быстро гаснет, новый мягко проявляется и чуть поднимается */
@@ -7,14 +7,9 @@
 @keyframes wpage-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @keyframes wpage-out { to { opacity: 0; } }
 
-/* карточки с наклоном за курсором (v-tilt) и мягким светом под курсором */
+/* карточки с наклоном за курсором (v-tilt) */
 .fx-tilt { transform-style: preserve-3d; transition: transform .25s ease, box-shadow .25s ease; will-change: transform; }
 .fx-tilt.tilting { transition: transform .06s linear, box-shadow .25s ease; }
-.fx-tilt::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .35s;
-  background: radial-gradient(circle at var(--mx, 50%) var(--my, 30%), rgba(255, 236, 180, .16), transparent 50%);
-}
-.fx-tilt:hover::after { opacity: 1; }
 
 /* главные (золотые) кнопки: по наведению пробегает блик */
 button.primary:not(:disabled), .primary:is(button, a):not(:disabled) { position: relative; overflow: hidden; }

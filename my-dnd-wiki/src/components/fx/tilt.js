@@ -1,4 +1,4 @@
-// v-tilt: карточка слегка наклоняется за курсором, под курсором — мягкий свет (стили — fx.css).
+// v-tilt: карточка слегка наклоняется за курсором (стили — fx.css).
 // v-tilt="6" — сила наклона в градусах. На телефоне и при «меньше анимаций» — ничего не делает.
 const still = () => matchMedia('(hover: none), (prefers-reduced-motion: reduce)').matches
 export const vTilt = {
@@ -15,8 +15,6 @@ export const vTilt = {
         const x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height
         el.classList.add('tilting')
         el.style.transform = `perspective(700px) rotateX(${(0.5 - y) * max}deg) rotateY(${(x - 0.5) * max}deg) translateY(-3px)`
-        el.style.setProperty('--mx', x * 100 + '%')
-        el.style.setProperty('--my', y * 100 + '%')
       })
     }
     el._tiltLeave = () => { cancelAnimationFrame(frame); el.classList.remove('tilting'); el.style.transform = '' }
