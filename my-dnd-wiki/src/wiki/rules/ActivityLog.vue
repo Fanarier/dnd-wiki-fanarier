@@ -76,7 +76,7 @@
           <section v-for="s in shownSessions" :key="s.date" class="al-sess">
             <header class="al-sh">
               <b>{{ fmtDate(s.date) }}</b>
-              <span class="al-sum" :class="{ over: s.hours > budget.free }" :title="`${s.hours > budget.free ? 'Больше свободных часов! ' : ''}Свободно ${budget.free} ч (${budget.period} − ${budget.norm} ч отдыха)${s.covered ? `; старый сон из таблицы покрыл норму на ${round(s.covered, 1)} ч` : ''}`">⏱ {{ round(s.hours, 2) }}<small> / {{ budget.free }} ч</small></span>
+              <span class="al-sum" :class="{ over: s.hours > budget.free }" :title="leftText(s)">⏱ {{ round(s.hours, 2) }}<small> / {{ budget.free }} ч</small></span>
               <span class="al-sum" :class="{ over: hero.stamina != null && s.stamina > hero.stamina }" :title="hero.stamina != null && s.stamina > hero.stamina ? `Потрачено больше выносливости, чем есть в листе — по правилам 1 изнурение за каждые −2 (≈ ${Math.ceil((s.stamina - hero.stamina) / 2)})` : 'Выносливость за сессию (отдых — со знаком минус)'">⚡ {{ round(s.stamina, 2) }}</span>
               <span class="al-sum">{{ s.rows.length }} {{ plural(s.rows.length) }}</span>
               <span v-if="s.pending" class="al-sum pend">⏳ {{ s.pending }}</span>
@@ -189,6 +189,13 @@ const shownSessions = computed(() => (q.value || stFilter.value ? sessions.value
 const queueGroups = computed(() => actState.heroes.map(h => ({ hero: h, rows: logOf(h.heroId).filter(r => r.status === 'pending') })).filter(g => g.rows.length))
 const fmtDate = d => { const t = new Date(d + 'T12:00').toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'short' }); return t.charAt(0).toUpperCase() + t.slice(1) }
 const fmtShort = d => d.split('-').reverse().join('.')
+// подсказка к часам сессии: сколько свободных часов осталось из скольких
+function leftText(s) {
+  const left = round(budget.value.free - s.hours, 1)
+  const head = left >= 0 ? `Осталось ${left} из ${budget.value.free} свободных ч` : `Перебор: на ${-left} ч больше, чем ${budget.value.free} свободных`
+  const why = `\n${budget.value.period} ч между сессиями − ${budget.value.norm} ч отдыха (${budget.value.rest.toLowerCase()} ${budget.value.days} × ${budget.value.perDay} ч)`
+  return head + why + (s.covered ? `\nСтарый сон из таблицы покрыл норму на ${round(s.covered, 1)} ч` : '')
+}
 const plural = n => (n % 10 === 1 && n % 100 !== 11 ? 'запись' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'записи' : 'записей')
 const EMPTY = ['Герой смотрел в стену. Стена смотрела в ответ.', 'Тишина. Даже сверчки отдыхают.', 'Пусто — то ли отпуск, то ли всё ещё впереди.', 'Свиток чист, перо ждёт.']
 const emptyLine = EMPTY[Math.floor(Math.random() * EMPTY.length)]

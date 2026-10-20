@@ -113,10 +113,8 @@ const currentCategory = ref('quests')
 const currentPage = computed(() => categories.value.find(x => x.id === currentCategory.value)?.component ?? QuestBoard)
 const currentContent = computed(() => categories.value.find(x => x.id === currentCategory.value) ?? {})
 function onCategorySelect(id) {
-  // уходя из «НПС», убираем из адреса открытый лист и вкладку группы
-  if (id !== 'npcs' && (route.query.npc || route.query.g)) router.replace({ query: { ...route.query, npc: undefined, g: undefined } })
-  // и открытую расу, класс, статью правил
-  if (route.query.race || route.query.cls || route.query.arch || route.query.a || route.query.log) router.replace({ query: { ...route.query, race: undefined, cls: undefined, arch: undefined, a: undefined, log: undefined } })
+  // тот же раздел ещё раз — к его началу (список рас, первая статья…); другой — адрес поправит watch ниже
+  if (id === currentCategory.value) router.replace({ query: { section: id } })
   currentCategory.value = id
   drawer.value = false
 }
@@ -140,7 +138,17 @@ function openArticle(id) {
   }
 }
 
-watch(currentCategory, () => { search.value = '' })
+// раздел — в адресе: обновил страницу или поделился ссылкой — открылось то же место.
+// Подробности чужих разделов (открытая раса, НПС, заказ, статья, журнал) при переходе убираем
+const DETAILS = { quests: ['quest'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'] }
+const DETAIL_KEYS = [...new Set(Object.values(DETAILS).flat())]
+watch(currentCategory, c => {
+  search.value = ''
+  if (route.query.section === c) return // пришли по ссылке — адрес уже верный
+  const q = { ...route.query, section: c }
+  for (const k of DETAIL_KEYS) if (!(DETAILS[c] || []).includes(k) || route.query.section) delete q[k]
+  router.replace({ query: q })
+})
 
 /* -------------------- Общий вход и ссылки с карты -------------------- */
 const route = useRoute()
