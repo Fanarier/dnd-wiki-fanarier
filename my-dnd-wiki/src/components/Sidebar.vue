@@ -9,7 +9,7 @@
       :aria-current="cat.id === activeId ? 'page' : undefined"
       @click="select(cat.id)"
     >
-      <span class="side-title">{{ cat.title }}</span>
+      <span class="side-title">{{ cat.title }}<em v-if="cat.badge" class="side-badge" :title="cat.badgeTitle">{{ cat.badge }}</em></span>
       <span v-if="cat.description" class="side-desc">{{ cat.description }}</span>
     </button>
     <div class="side-foot">Статей: {{ categories.length }}</div>
@@ -37,6 +37,7 @@ function select(id) {
 </script>
 
 <style scoped>
+.side-badge { margin-left: 6px; padding: 0 6px; border-radius: 99px; background: #f0b54f; color: #1b1408; font: 900 11px/17px 'Manrope', sans-serif; font-style: normal; vertical-align: 1px; }
 .side { display: flex; flex-direction: column; gap: 4px; }
 .side-kicker { font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--a-muted); margin: 0 0 8px 10px; }
 .side-item { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; background: none; color: var(--a-text); cursor: pointer; transition: background .15s, border-color .15s; font-family: var(--a-sans); }

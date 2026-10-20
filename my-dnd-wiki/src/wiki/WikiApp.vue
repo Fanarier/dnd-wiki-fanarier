@@ -102,7 +102,9 @@ const ALL_CATEGORIES = [
   { id: 'school-earth', title: 'Школа Земли (Природы)', description: 'Заклинания школ Земли и Природы', component: SpellsPage },
   { id: 'wiki-log', title: 'Журнал правок вики', description: 'Кто что менял в правилах; любую правку можно откатить', component: RulesHistory, master: true }
 ]
-const categories = computed(() => ALL_CATEGORIES.filter(c => !c.master || store.role === 'master'))
+const categories = computed(() => ALL_CATEGORIES.filter(c => !c.master || store.role === 'master').map(c =>
+  // мастеру — сколько деятельностей ждут проверки
+  c.id === 'activities' && store.role === 'master' && store.data.activitiesPending ? { ...c, badge: store.data.activitiesPending, badgeTitle: 'Деятельности ждут проверки' } : c))
 // права редактора поменялись — перезапросить правила (скрытое видно только тем, кто может править)
 watch(() => [store.data.rulesRev, JSON.stringify(store.me?.wiki || null)], () => { if (rulesState.loaded) loadRules() })
 
@@ -114,7 +116,7 @@ function onCategorySelect(id) {
   // уходя из «НПС», убираем из адреса открытый лист и вкладку группы
   if (id !== 'npcs' && (route.query.npc || route.query.g)) router.replace({ query: { ...route.query, npc: undefined, g: undefined } })
   // и открытую расу, класс, статью правил
-  if (route.query.race || route.query.cls || route.query.arch || route.query.a) router.replace({ query: { ...route.query, race: undefined, cls: undefined, arch: undefined, a: undefined } })
+  if (route.query.race || route.query.cls || route.query.arch || route.query.a || route.query.log) router.replace({ query: { ...route.query, race: undefined, cls: undefined, arch: undefined, a: undefined, log: undefined } })
   currentCategory.value = id
   drawer.value = false
 }

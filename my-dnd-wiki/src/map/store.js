@@ -656,6 +656,29 @@ export async function loadRules(force = false) {
   }
 }
 
+/* ---------- журналы деятельностей героев: отдельный запрос, перезапрашиваем по activitiesRev ---------- */
+export const actState = reactive({ rev: -1, limit: 336, heroes: [], logs: {}, loading: false, loaded: false })
+let actAgain = false
+export async function loadActivities(force = false) {
+  if (!store.me) return
+  if (actState.loading) { actAgain = true; return }
+  const want = store.data.activitiesRev ?? 0
+  if (!force && actState.loaded && actState.rev === want) return
+  actState.loading = true
+  let ok = false
+  try {
+    const j = await api('GET', '/api/activities')
+    Object.assign(actState, { rev: j.rev, limit: j.limit, heroes: j.heroes, logs: j.logs, loaded: true })
+    ok = true
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    actState.loading = false
+    if (ok && (actAgain || (store.data.activitiesRev ?? 0) > actState.rev)) { actAgain = false; loadActivities(true) }
+    actAgain = false
+  }
+}
+
 // миниатюра НПС для карты (уже обрезанный квадрат из окна обрезки)
 export const uploadNpcAvatar = (npcId, blob) => postBlob(`/api/npcs/${npcId}/avatar`, blob)
 // арт НПС: целиком до 2400px + лёгкий 720px для карточки

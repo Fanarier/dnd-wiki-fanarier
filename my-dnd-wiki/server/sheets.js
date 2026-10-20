@@ -458,7 +458,27 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   })
 
   // видимые пользователю связи «карточка героя → лист» (кнопка «Лист персонажа» на карточке)
+  // журнал деятельностей (server/activities.js): лист героя, его тренировки и очки за учтённую деятельность
+  const heroSheet = heroId => store.sheets.find(sh => sh.heroId === heroId && !sh.deletedAt) || null
+  function addTraining(sheetId, trainId, delta, who, note) {
+    const sh = find(sheetId)
+    const i = sh && !sh.deletedAt ? (sh.data.Trainings || []).findIndex(t => t.Id === trainId) : -1
+    if (i < 0 || !delta) return null
+    const t = sh.data.Trainings[i]
+    const done = applyOp(sh, { p: `Trainings.${i}.Cur`, v: Math.max(0, (Number(t.Cur) || 0) + delta) }, who, note)
+    if (done) { touch(sh); notify(sh, [done], null) }
+    return sh.id
+  }
   return {
+    ownerOfHero: heroId => heroSheet(heroId)?.ownerId || null,
+    sheetOfHero: heroId => heroSheet(heroId)?.id || null,
+    trainingsOfHero(heroId) {
+      const sh = heroSheet(heroId)
+      if (!sh) return null
+      const st = parseFloat(String(sh.data.Stamina || '').replace(',', '.'))
+      return { stamina: Number.isFinite(st) ? st : null, trainings: (sh.data.Trainings || []).map(t => ({ Id: t.Id, Name: t.Name, Cur: t.Cur, Max: t.Max, Stage: t.Stage, Status: t.Status })) }
+    },
+    addTraining,
     linksFor: u => (u ? store.sheets.filter(sh => sh.heroId && canView(u, sh) && !sh.deletedAt).map(sh => ({ heroId: sh.heroId, sheetId: sh.id })) : []),
     // подписка подключения на открытый лист — только если его можно видеть
     subscribe(client, id) { client.sheetSub = id && canView(client.user, find(id)) ? id : null }

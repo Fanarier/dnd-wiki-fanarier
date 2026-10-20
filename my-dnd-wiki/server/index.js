@@ -12,6 +12,7 @@ import { registerNpcRoutes, npcLinks, npcPins } from './npcs.js'
 import { registerSheetRoutes, flushSheets, SHEET_IMG_DIR } from './sheets.js'
 import { registerCampaignRoutes, campaignFor } from './campaign.js'
 import { registerRulesRoutes, flushRules, RULES_IMG_DIR } from './rules.js'
+import { registerActivityRoutes, flushActivities } from './activities.js'
 import { cleanWikiPerms, WIKI_SECTIONS } from '../src/shared/wikiPerms.js'
 import { cleanRich } from './richtext.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
@@ -460,7 +461,7 @@ function viewFor(user, now = Date.now()) {
   if (role === 'master') {
     const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, campaignSeeded, npcs: _np, npcSkills: _ns, npcEffects: _ne, ...rest } = db
     return {
-      ...rest, role, me, serverTime: now, notes, roster: roster(), rulesRev: rulesApi?.rev() || 0, arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true), sheetLinks: sheetApi?.linksFor(user) || [],
+      ...rest, role, me, serverTime: now, notes, roster: roster(), rulesRev: rulesApi?.rev() || 0, activitiesRev: actApi?.rev() || 0, activitiesPending: actApi?.pending() || 0, arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true), sheetLinks: sheetApi?.linksFor(user) || [],
       notifications: notificationsFor(user),
       players: allPlayers().map(p => ({ ...publicPlayer(p), login: p.login, status: p.status, createdAt: p.createdAt, linked: !!p.linked, tech: !!p.linked && isOwner(p.login), wiki: p.wiki || null }))
     }
@@ -504,7 +505,7 @@ function viewFor(user, now = Date.now()) {
       ? { ...s, army: { ...s.army, squads: s.army.squads.map(q => (q.taskSecret ? { ...q, task: '' } : q)) } }
       : s)),
     hud: db.hud?.visible ? db.hud : null,
-    npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false), rulesRev: rulesApi?.rev() || 0,
+    npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false), rulesRev: rulesApi?.rev() || 0, activitiesRev: actApi?.rev() || 0,
     sheetLinks: sheetApi?.linksFor(user) || [],
     campaign: campaignFor(db, false),
     roster: roster(),
@@ -518,6 +519,7 @@ function viewFor(user, now = Date.now()) {
 
 const clients = new Set() // { ws, user, role }
 let rulesApi = null // правила игры: в состоянии только rulesRev
+let actApi = null // журналы деятельностей: в состоянии только activitiesRev (и сколько ждут проверки — мастеру)
 let sheetApi = null // листы персонажей: связи с карточками героев и подписка на открытый лист
 let lastGuestView = ''
 
@@ -1201,6 +1203,7 @@ registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })
 // правила: расы, классы, механики (отдельный файл, в состоянии — только номер версии)
 rulesApi = registerRulesRoutes(app, { express, requireMaster, requireUser, userOf, broadcast, imageExt })
 app.use('/rules-img', express.static(RULES_IMG_DIR, STATIC_IMG))
+actApi = registerActivityRoutes(app, { requireUser, requireMaster, getDb, broadcast, sheets: sheetApi, notify: (...a) => { notify(...a); saveDb() } })
 
 /* ---------- Новые арты: не часть мира, мастер выкладывает и чистит ---------- */
 app.post('/api/arts', requireMaster, express.raw({ type: () => true, limit: '40mb' }), (req, res) => {
@@ -2280,4 +2283,4 @@ wss.on('connection', ws => {
 
 server.listen(PORT, HOST, () => console.log(`Анкария: http://${HOST || 'localhost'}:${PORT}`))
 
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); flushSheets(); flushRules(); process.exit(0) })
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); flushSheets(); flushRules(); flushActivities(); process.exit(0) })
