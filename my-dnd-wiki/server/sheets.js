@@ -469,7 +469,49 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     if (done) { touch(sh); notify(sh, [done], null) }
     return sh.id
   }
+  // учтённая деятельность меняет лист: монеты, опыт, изнурение, вещи (с минусом — обратно). Возвращает то,
+  // что изменилось на самом деле (монеты не уходят в минус, изнурение — от 0 до 5), — ровно это потом и откатывается
+  function applyDelta(sheetId, d, who, note) {
+    const sh = find(sheetId)
+    if (!sh || sh.deletedAt || !d) return null
+    const done = {}, ops = []
+    const NUM = { gold: ['GoldCoins', 0, 2e9], silver: ['SilverCoins', 0, 2e9], copper: ['CopperCoins', 0, 2e9], exp: ['Experience', 0, 2e9], exh: ['Exhaustion', 0, 5] }
+    for (const [k, [p, min, max]] of Object.entries(NUM)) {
+      if (!d[k]) continue
+      const cur = Number(sh.data[p]) || 0
+      const next = Math.max(min, Math.min(max, cur + d[k]))
+      if (next === cur) continue
+      ops.push({ p, v: next })
+      done[k] = next - cur
+    }
+    if (d.items?.length) {
+      const inv = (sh.data.Inventory || []).map(x => ({ ...x }))
+      const moved = []
+      for (const it of d.items) {
+        const same = x => x.Name.trim().toLowerCase() === it.name.trim().toLowerCase()
+        if (it.qty > 0) {
+          const ex = inv.find(x => same(x) && !!x.Stored === !!it.stored)
+          if (ex) ex.Quantity = (Number(ex.Quantity) || 0) + it.qty
+          else if (inv.length < 600) inv.push({ Name: it.name, Quantity: it.qty, Stored: !!it.stored, Description: note ? `Из журнала: ${note}` : '' })
+          else continue
+          moved.push(it)
+        } else if (it.qty < 0) {
+          const ex = inv.find(x => same(x) && !!x.Stored === !!it.stored) || inv.find(same)
+          if (!ex) continue
+          const take = Math.min(-it.qty, Number(ex.Quantity) || 0)
+          ex.Quantity = (Number(ex.Quantity) || 0) - take
+          if (ex.Quantity <= 0) inv.splice(inv.indexOf(ex), 1)
+          if (take) moved.push({ ...it, qty: -take, stored: !!ex.Stored })
+        }
+      }
+      if (moved.length) { ops.push({ p: 'Inventory', v: inv }); done.items = moved }
+    }
+    const applied = ops.map(o => applyOp(sh, o, who, note)).filter(Boolean)
+    if (applied.length) { touch(sh); notify(sh, applied, null) }
+    return Object.keys(done).length ? done : null
+  }
   return {
+    applyDelta,
     ownerOfHero: heroId => heroSheet(heroId)?.ownerId || null,
     sheetOfHero: heroId => heroSheet(heroId)?.id || null,
     trainingsOfHero(heroId) {

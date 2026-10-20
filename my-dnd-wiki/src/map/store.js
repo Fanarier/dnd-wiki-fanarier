@@ -657,7 +657,7 @@ export async function loadRules(force = false) {
 }
 
 /* ---------- журналы деятельностей героев: отдельный запрос, перезапрашиваем по activitiesRev ---------- */
-export const actState = reactive({ rev: -1, limit: 336, heroes: [], logs: {}, loading: false, loaded: false })
+export const actState = reactive({ rev: -1, limit: 336, lock: { until: '', blocked: false, reason: '' }, cfg: {}, heroes: [], logs: {}, loading: false, loaded: false })
 let actAgain = false
 export async function loadActivities(force = false) {
   if (!store.me) return
@@ -668,7 +668,7 @@ export async function loadActivities(force = false) {
   let ok = false
   try {
     const j = await api('GET', '/api/activities')
-    Object.assign(actState, { rev: j.rev, limit: j.limit, heroes: j.heroes, logs: j.logs, loaded: true })
+    Object.assign(actState, { rev: j.rev, limit: j.limit, lock: j.lock, cfg: j.cfg || {}, heroes: j.heroes, logs: j.logs, loaded: true })
     ok = true
   } catch (e) {
     toast(e.message, 'error')

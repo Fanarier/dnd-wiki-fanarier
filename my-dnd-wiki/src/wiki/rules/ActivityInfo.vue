@@ -1,0 +1,205 @@
+<template>
+  <!-- «ⓘ Как это работает»: правила журнала деятельностей с живыми примерами (печать мастера, песочные часы,
+       бросок, искры в тренировку) — всё на выдуманных записях, в настоящий журнал ничего не пишется -->
+  <div class="ai-back" @click.self="$emit('close')">
+    <div class="ai" role="dialog" aria-label="Как работает журнал деятельностей">
+      <header class="ai-head">
+        <LottieFx :data="glass" :size="54" loop />
+        <div>
+          <span class="ai-kick">Журнал деятельностей</span>
+          <h2>Как это работает</h2>
+        </div>
+        <button type="button" class="ai-x" aria-label="Закрыть" @click="$emit('close')">✕</button>
+      </header>
+      <nav class="ai-tabs">
+        <button v-for="t in TABS" :key="t.id" type="button" :class="{ on: tab === t.id }" @click="tab = t.id">{{ t.icon }} {{ t.name }}</button>
+      </nav>
+
+      <div class="ai-body">
+        <!-- записать -->
+        <section v-if="tab === 'write'">
+          <p>Между сессиями герой чем-то занят: тренируется, спит, ходит в подземелье, на свидания. Всё это — <b>деятельности</b>.
+            Между сессиями в «Gate» проходит <b>{{ limit }} ч</b> (14 дней) — их и раскладываешь.</p>
+          <ol>
+            <li>Выбери героя сверху и нажми <b>«＋ Деятельность»</b>.</li>
+            <li>Начни писать название — сайт подскажет деятельности из вики и твои прошлые записи. Нашлась в вики — <b>тип и выносливость посчитаются сами</b> (часы × выносливость в час; отдых — с минусом).</li>
+            <li>«В черновик» — для себя (планируешь), «На проверку» — мастеру.</li>
+          </ol>
+          <div class="ai-demo">
+            <small>Пример: так заполняются песочные часы сессии — цвет показывает вид дела</small>
+            <SessionBar :rows="demoRows.slice(0, grow)" :limit="limit" legend />
+          </div>
+          <p class="ai-tip">💡 Под каждой датой — сумма часов и выносливости. Красный хвост с песком — часов больше, чем есть между сессиями.</p>
+        </section>
+
+        <!-- проверка -->
+        <section v-else-if="tab === 'check'">
+          <p>Запись игрока приходит мастеру <b>«на проверке»</b> (ему — уведомление и счётчик в меню). Мастер ставит
+            <b style="color: #7ed07a">учтено</b>, <b style="color: #ff7a6b">провал</b>, <b style="color: #7fb4ff">условие</b> или <b style="color: #8f8574">отменено</b> — на запись падает печать.
+            Пока запись не проверена — её можно править и удалить; проверенную правит только мастер.</p>
+          <div class="ai-demo">
+            <small>Пример: мастер проверяет запись (сама меняется каждые 3 секунды)</small>
+            <ActivityRow :rec="demoRec" :hero="{ canWrite: false, trainings: [{ Id: 't', Name: 'Телосложение' }] }" />
+          </div>
+          <p class="ai-tip">💡 У мастера есть вкладка «⏳ На проверке» — все записи всех героев сразу и кнопка «✓ Учесть все».</p>
+        </section>
+
+        <!-- лист -->
+        <section v-else-if="tab === 'sheet'">
+          <p>Записи связаны с листом героя. В «Подробнее» можно указать:</p>
+          <ul>
+            <li><b>🏋 Тренировку</b> из листа — очки берутся из результата сами («42+1» → 43).</li>
+            <li><b>💰 Монеты и ✦ опыт</b> — плюс получено, минус потрачено. «📜 Из заказа гильдии» подставит часы и награду заказа.</li>
+            <li><b>🎒 Вещи</b> — попадут в инвентарь или на склад.</li>
+            <li><b>😵 Изнурение</b> — длительная тренировка по правилам даёт 2, ставится само.</li>
+          </ul>
+          <p>Всё это уходит в лист, <b>когда мастер ставит «учтено»</b>. Поставил «провал» или удалил — возвращается обратно. Видно в истории листа.</p>
+          <div class="ai-demo center">
+            <div ref="trainDemo" class="ai-train"><span>🏋 Телосложение</span><i><b :style="{ width: trainPct + '%' }" /></i><small>{{ trainCur }}/200</small></div>
+            <button ref="sparkBtn" type="button" class="ai-btn" @click="demoTrain">Учесть «+43» к тренировке</button>
+          </div>
+        </section>
+
+        <!-- броски -->
+        <section v-else-if="tab === 'dice'">
+          <p>Кнопка <b>🎲</b> у записи бросает общие кубики сайта (их видит весь отряд) и записывает результат с пометкой <b>«брошено на сайте»</b> — его уже не переписать. Можно и вписать свои броски руками, как раньше.</p>
+          <ul>
+            <li><b>↻ Повторяемая</b> деятельность: каждое повторение в сессии даёт +1 к броску (до +10) — сайт считает сам.</li>
+            <li><b>🏛 Место</b> из «Модификаторов» (библиотека 1к10, спорткомплекс 1к20…) — кость добавится в формулу.</li>
+            <li><b>🍀 Монетка</b>: первая уникальная деятельность сессии — 50% не потратить выносливость. Бросает сервер, один раз за сессию.</li>
+          </ul>
+          <div class="ai-demo center">
+            <div class="ai-die" :class="{ spin: rolling }">{{ die }}</div>
+            <button type="button" class="ai-btn" :disabled="rolling" @click="demoRoll">Пример: 1d20 + 1к10 (библиотека) + 4 (5-й повтор)</button>
+            <small v-if="dieNote">{{ dieNote }}</small>
+          </div>
+        </section>
+
+        <!-- связи -->
+        <section v-else-if="tab === 'links'">
+          <ul>
+            <li><b>📖 Название</b>, найденное в вики, — ссылка на правило: наведи, увидишь длительность и выносливость.</li>
+            <li><b>С кем</b> — отметь других героев: запись появится и в их журналах (↔ «из журнала …», в их суммы не входит).</li>
+            <li><b>📍 Где</b> — город на карте, по щелчку карта покажет его.</li>
+            <li><b>⧉ Ещё раз</b> — повторить запись (для 12 одинаковых тренировок).</li>
+            <li><b>★ Избранное</b> — свои заготовки: «Долгая тренировка (Тело) · 16 ч → тренировка «Тело»» — потом одной кнопкой.</li>
+          </ul>
+        </section>
+
+        <!-- план -->
+        <section v-else-if="tab === 'plan'">
+          <p>Вкладка <b>🗓 План</b> раскладывает сессию по 14 дням. Сон из настроек героя отложен в каждом дне. Карточки перетаскиваются между днями,
+            день, где больше 24 часов, подсвечивается. Набросал черновики — <b>«📨 Отправить мастеру»</b> отправит их на проверку разом.</p>
+          <p><b>⚙ Настройки героя</b>: сон в день (Кованому — 0), особенности, избранное. Мастер задаёт герою свой лимит часов и <b>запреты</b> («нельзя в подземелье — ранен»).</p>
+          <p><b>⌛ Таймскип</b> (мастер): закрыть прошедший период — его больше не правят; заблокировать следующий — игроки могут только планировать черновики.</p>
+        </section>
+
+        <!-- статистика -->
+        <section v-else>
+          <p>Вкладка <b>📊 Статистика</b>: на что уходит время героя, самые частые дела, сколько попыток удачны, сколько очков ушло в тренировки,
+            серия сессий с тренировками, часы по сессиям — и весь отряд рядом.</p>
+        </section>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import gsap from 'gsap'
+import LottieFx from './LottieFx.vue'
+import SessionBar from './SessionBar.vue'
+import ActivityRow from './ActivityRow.vue'
+import { hourglass } from './lottie.js'
+import { celebrate, sparks } from './actFx.js'
+import { sfx } from '../../sound/sound.js'
+
+defineProps({ limit: { type: Number, default: 336 } })
+defineEmits(['close'])
+const TABS = [
+  { id: 'write', icon: '✍', name: 'Записать' }, { id: 'check', icon: '🔏', name: 'Проверка' }, { id: 'sheet', icon: '📜', name: 'Лист' },
+  { id: 'dice', icon: '🎲', name: 'Броски' }, { id: 'links', icon: '🔗', name: 'Связи' }, { id: 'plan', icon: '🗓', name: 'План и настройки' }, { id: 'stats', icon: '📊', name: 'Статистика' }
+]
+const tab = ref('write')
+const glass = hourglass()
+
+// песочные часы заполняются по одной записи
+const demoRows = [
+  { name: 'Отдых (Сон)', hours: '96' }, { name: 'Долгая тренировка (Тело)', hours: '64' }, { name: 'Заказ гильдии: «Зачистка»', hours: '48' },
+  { name: 'Изучение базовой магии', hours: '32' }, { name: 'Свидание (Парк)', hours: '6' }, { name: 'Поход за покупками', hours: '4' },
+  { name: 'Телепорт в Ширатори', hours: '1' }, { name: 'Крафт: обычный предмет', hours: '30' }, { name: 'Долгая тренировка (Тело)', hours: '80' }
+]
+const grow = ref(0)
+// запись, которую «проверяет мастер»
+const STEPS = ['pending', 'done', 'pending', 'fail', 'pending', 'cancel']
+const demoRec = ref({ id: 'demo', date: '2026-05-08', name: 'Долгая тренировка (Характеристика: Телосложение)', hours: '16', stamina: '3,2', type: 'repeat', status: 'pending', result: '42+1', trainId: 't', pts: 43 })
+let step = 0, timer = 0
+onMounted(() => {
+  timer = setInterval(() => {
+    grow.value = grow.value >= demoRows.length ? 1 : grow.value + 1
+    if (tab.value === 'check') { step = (step + 1) % STEPS.length; demoRec.value = { ...demoRec.value, status: STEPS[step], applied: STEPS[step] === 'done' } }
+  }, 1500)
+})
+watch(tab, () => { grow.value = 0 })
+onBeforeUnmount(() => clearInterval(timer))
+
+// очки в тренировку
+const trainCur = ref(170)
+const trainPct = ref(85)
+const trainDemo = ref(null), sparkBtn = ref(null)
+function demoTrain() {
+  sparks(sparkBtn.value, trainDemo.value, '#7ed07a')
+  sfx('bookPlace', 0.4)
+  setTimeout(() => {
+    const v = { n: trainCur.value }
+    gsap.to(v, { n: Math.min(200, trainCur.value + 43), duration: 0.8, onUpdate: () => { trainCur.value = Math.round(v.n); trainPct.value = (v.n / 200) * 100 } })
+    if (trainCur.value + 43 >= 200) setTimeout(() => { celebrate(trainDemo.value, true); sfx('crit', 0.5); trainCur.value = 200 }, 800)
+  }, 700)
+  setTimeout(() => { trainCur.value = 170; trainPct.value = 85 }, 4000)
+}
+// бросок для примера — не настоящими кубиками, чтобы не сыпать в ленту отряда
+const die = ref('20')
+const rolling = ref(false)
+const dieNote = ref('')
+function demoRoll() {
+  rolling.value = true
+  dieNote.value = ''
+  sfx('diceShake')
+  const d20 = 1 + Math.floor(Math.random() * 20), d10 = 1 + Math.floor(Math.random() * 10)
+  let n = 0
+  const t = setInterval(() => { die.value = String(1 + Math.floor(Math.random() * 20)); if (++n > 12) { clearInterval(t); die.value = String(d20 + d10 + 4); rolling.value = false; dieNote.value = `d20: ${d20} · d10: ${d10} · +4 повторения = ${d20 + d10 + 4}`; if (d20 === 20) celebrate(null) } }, 70)
+}
+</script>
+
+<style scoped>
+.ai-back { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center; padding: 16px; background: rgba(5, 7, 11, .72); }
+.ai { display: grid; grid-template-rows: auto auto minmax(0, 1fr); width: min(760px, 100%); max-height: min(760px, calc(100vh - 32px)); border-radius: 20px; background: linear-gradient(180deg, #1d1710, #14100b); border: 1px solid rgba(231, 197, 111, .35); box-shadow: 0 30px 70px rgba(0, 0, 0, .6); color: #efe3c8; overflow: hidden; animation: ai-in .25s ease; }
+@keyframes ai-in { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+.ai-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px 6px; }
+.ai-head > div { flex: 1; }
+.ai-kick { color: #a8936c; font: 800 11px 'Manrope', sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.ai-head h2 { margin: 0; font: 700 28px 'Cormorant Garamond', serif; color: #f3dc9e; }
+.ai-x { width: 34px; height: 34px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .25); background: none; color: #cdbf9f; cursor: pointer; }
+.ai-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 6px 16px 10px; border-bottom: 1px solid rgba(231, 197, 111, .12); }
+.ai-tabs button { flex: none; padding: 6px 11px; border-radius: 99px; border: 1px solid rgba(231, 197, 111, .18); background: none; color: #cdbf9f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
+.ai-tabs button.on { background: rgba(231, 197, 111, .16); border-color: #e7c56f; color: #f3dc9e; }
+.ai-body { overflow-y: auto; padding: 14px 18px 18px; font: 500 14px/1.6 'Manrope', sans-serif; }
+.ai-body p { margin: 0 0 10px; }
+.ai-body ul, .ai-body ol { margin: 0 0 10px; padding-left: 20px; }
+.ai-body li { margin-bottom: 4px; }
+.ai-body b { color: #f3dc9e; }
+.ai-tip { padding: 8px 12px; border-radius: 10px; background: rgba(231, 197, 111, .07); color: #cdbf9f; }
+.ai-demo { display: grid; gap: 8px; margin: 10px 0; padding: 12px; border-radius: 14px; border: 1px dashed rgba(231, 197, 111, .3); background: rgba(0, 0, 0, .2); }
+.ai-demo > small { color: #a8936c; font: 700 11.5px 'Manrope', sans-serif; }
+.ai-demo.center { justify-items: center; text-align: center; }
+.ai-btn { padding: 8px 16px; border-radius: 10px; border: 1px solid #c9a24f; background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; font: 800 13px 'Manrope', sans-serif; cursor: pointer; }
+.ai-btn:disabled { opacity: .6; }
+.ai-train { display: grid; grid-template-columns: auto 200px auto; align-items: center; gap: 8px; font: 700 13px 'Manrope', sans-serif; }
+.ai-train i { height: 10px; border-radius: 99px; background: rgba(255, 255, 255, .06); overflow: hidden; }
+.ai-train i b { display: block; height: 100%; background: linear-gradient(90deg, #3fae5a, #7ee06a); }
+.ai-train small { color: #a8936c; }
+.ai-die { display: grid; place-items: center; width: 70px; height: 70px; border-radius: 16px; background: radial-gradient(circle at 35% 30%, #3a2c18, #15110c); border: 2px solid #c9a24f; color: #f3dc9e; font: 900 28px 'Manrope', sans-serif; box-shadow: 0 0 20px rgba(231, 197, 111, .25); }
+.ai-die.spin { animation: ai-spin .25s linear infinite; }
+@keyframes ai-spin { 50% { transform: rotate(18deg) scale(1.08); } }
+@media (max-width: 600px) { .ai-train { grid-template-columns: 1fr; } .ai-train i { width: 200px; } }
+</style>

@@ -167,11 +167,14 @@ function saveFav() {
 }
 function useFav(fv) { text.value = fv.formula; label.value = fv.label || ''; applyText(fv.formula) }
 function dropFav(i) { favs.value.splice(i, 1); keepFavs() }
-function quick(d) { clearPick(); pick[d] = 1; roll() }
+function quick(d) { waiting = null; clearPick(); pick[d] = 1; roll() }
 // бросок из листа персонажа: формула и подпись приходят снаружи, режим (преимущество/помеха) — тоже
+// кто ждёт результат броска (журнал деятельностей пишет его в запись)
+let waiting = null
 watch(() => dice.request?.key, () => {
   const r = dice.request
   if (!r) return
+  waiting = r.onDone || null
   if (!applyText(r.formula)) { toast(`Не понял формулу «${r.formula}»`, 'error'); return }
   text.value = r.formula
   label.value = r.label || ''
@@ -242,14 +245,22 @@ async function roll() {
       clearTimer = setTimeout(() => { b.clear(); rolling3d.value = false }, 2600)
     }
     sendRoll({ groups, ...meta })
+    done({ groups, ...meta })
   } catch (e) {
     console.warn('[dice] 3D не завелось, бросаю без анимации', e)
     rolling3d.value = false
-    sendRoll({ groups: randomRoll(), ...meta })
+    const groups = randomRoll()
+    sendRoll({ groups, ...meta })
+    done({ groups, ...meta })
     toast('3D-кубики не загрузились — бросил без анимации', 'error')
   } finally {
     busy.value = false
   }
+}
+function done(r) {
+  const cb = waiting
+  waiting = null
+  cb?.(r)
 }
 </script>
 

@@ -1203,7 +1203,7 @@ registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })
 // правила: расы, классы, механики (отдельный файл, в состоянии — только номер версии)
 rulesApi = registerRulesRoutes(app, { express, requireMaster, requireUser, userOf, broadcast, imageExt })
 app.use('/rules-img', express.static(RULES_IMG_DIR, STATIC_IMG))
-actApi = registerActivityRoutes(app, { requireUser, requireMaster, getDb, broadcast, sheets: sheetApi, notify: (...a) => { notify(...a); saveDb() } })
+actApi = registerActivityRoutes(app, { requireUser, requireMaster, getDb, broadcast, sheets: sheetApi, notify: (...a) => { notify(...a); saveDb() }, findRoll })
 
 /* ---------- Новые арты: не часть мира, мастер выкладывает и чистит ---------- */
 app.post('/api/arts', requireMaster, express.raw({ type: () => true, limit: '40mb' }), (req, res) => {
@@ -2173,6 +2173,16 @@ function cleanRoll(m) {
   return { groups, mod, adv, total, notation, label: String(m.label || '').slice(0, 60).trim() }
 }
 const rollsFor = role => recentRolls.filter(r => !r.secret || role === 'master')
+// бросок для журнала деятельностей: этот же человек только что (2 минуты) бросил его общими кубиками сайта;
+// один бросок — в одну запись
+function findRoll(user, m) {
+  const r = cleanRoll(m)
+  if (!r) return null
+  const key = JSON.stringify([r.groups, r.mod, r.adv])
+  const e = recentRolls.findLast(x => x.uid === user.id && !x.usedIn && Date.now() - x.at < 120000 && JSON.stringify([x.groups, x.mod, x.adv]) === key)
+  if (e) e.usedIn = true
+  return e || null
+}
 
 wss.on('connection', ws => {
   const id = nextClientId++
@@ -2221,7 +2231,7 @@ wss.on('connection', ws => {
         client.rollTimes.push(now)
         const r = cleanRoll(msg)
         if (!r) return
-        const entry = { ...r, secret: !!msg.secret && client.role === 'master', id: client.id, name: client.name, color: client.color, avatar: client.user?.avatar || '', at: now }
+        const entry = { ...r, secret: !!msg.secret && client.role === 'master', id: client.id, uid: client.user.id, name: client.name, color: client.color, avatar: client.user?.avatar || '', at: now }
         recentRolls.push(entry)
         if (recentRolls.length > 40) recentRolls.shift()
         const data = JSON.stringify({ type: 'roll', ...entry })
