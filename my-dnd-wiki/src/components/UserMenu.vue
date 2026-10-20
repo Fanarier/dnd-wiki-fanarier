@@ -14,6 +14,8 @@
           <div v-if="!list.length" class="empty">Тихо, как в мастерской ночью.</div>
           <ul>
             <li v-for="n in list" :key="n.id" :class="{ unread: !n.read, pending: actionable(n) }">
+              <!-- непрочитанное — под сургучной печатью; прочитал — печать раскалывается -->
+              <transition name="seal"><span v-if="!n.read" class="n-seal" aria-hidden="true">✦</span></transition>
               <div class="n-text">{{ n.text }}</div>
               <div class="n-meta">{{ ago(n.createdAt) }}</div>
               <div v-if="actionable(n)" class="n-actions">
@@ -118,6 +120,12 @@ function ago(ms) {
 ul { list-style: none; margin: 0; padding: 6px; display: grid; gap: 4px; }
 li { padding: 9px 10px; border-radius: 10px; border-left: 3px solid transparent; }
 li.unread { background: rgba(201, 162, 79, .09); border-color: #e6c27a; }
+li { position: relative; }
+.n-seal { position: absolute; top: -7px; right: -6px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #d8433a, #8c1a14 70%); box-shadow: 0 2px 6px rgba(0, 0, 0, .5), inset 0 0 0 2px rgba(255, 200, 180, .15); color: #f3d0c0; font-size: 10px; animation: n-stamp .45s cubic-bezier(.2, .9, .3, 1.4) backwards; }
+@keyframes n-stamp { from { transform: scale(2.2) rotate(-25deg); opacity: 0; } }
+.seal-leave-active { animation: n-break .5s ease-in forwards; }
+@keyframes n-break { 30% { transform: scale(1.15); } 100% { transform: scale(.4) rotate(40deg); opacity: 0; filter: blur(2px); } }
+@media (prefers-reduced-motion: reduce) { .n-seal, .seal-leave-active { animation: none; } }
 li.pending { background: rgba(224, 40, 30, .08); border-color: #e0604a; }
 .n-text { font-size: 13px; line-height: 1.4; }
 .n-meta { font-size: 11px; color: #a8936c; margin-top: 2px; }

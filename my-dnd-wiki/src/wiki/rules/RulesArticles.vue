@@ -5,7 +5,7 @@
       <h1>{{ content.title }}</h1>
       <p>{{ content.description }}</p>
     </header>
-    <div v-if="!rulesState.loaded" class="ra-load">Листаю свод правил…</div>
+    <RuneLoader v-if="!rulesState.loaded" text="Листаю свод правил…" />
     <div v-else class="ra-body">
       <nav class="ra-toc">
         <input v-model="q" class="ra-q" placeholder="Найти в разделе…" />
@@ -33,6 +33,7 @@
 </template>
 
 <script setup>
+import RuneLoader from '../../components/fx/RuneLoader.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { store, rulesState, loadRules } from '../../map/store.js'

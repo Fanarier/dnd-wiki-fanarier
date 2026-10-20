@@ -169,6 +169,34 @@ function record(sh, by, p, from, to, note) {
 }
 
 // одна правка: путь + значение. p = '' — лист целиком (замена из файла, откат замены)
+// события героев (новый уровень, закрытая тренировка, расовый навык, смерть и стабилизация) — сайт показывает
+// заставку всем, кто сейчас на сайте. Рассылку задаёт registerSheetRoutes
+let onHeroEvent = null
+function heroEvents(sh, p, from, now) {
+  const d = sh.data
+  const out = []
+  if (p === 'Level' && Number(now) > Number(from || 0)) out.push({ kind: 'level', title: `${now} уровень!`, text: 'Новый уровень' })
+  const tr = p.match(/^Trainings\.(\d+)\.Cur$/)
+  if (tr) {
+    const t = d.Trainings[Number(tr[1])]
+    if (t?.Max && Number(from || 0) < t.Max && Number(now) >= t.Max) out.push({ kind: 'train', title: t.Name || 'Тренировка', text: 'Тренировка завершена' + (t.Stage ? ` · ${t.Stage}` : '') })
+  }
+  if (p === 'Trainings' && Array.isArray(from)) {
+    for (const t of now || []) {
+      const was = from.find(x => x.Id && x.Id === t.Id)
+      if (was && t.Max && was.Cur < t.Max && t.Cur >= t.Max) out.push({ kind: 'train', title: t.Name || 'Тренировка', text: 'Тренировка завершена' })
+    }
+  }
+  if (p === 'RaceChoices') {
+    const had = new Set(Object.values(from || {}).flatMap(v => String(v).split(' | ')))
+    for (const v of Object.values(now || {}).flatMap(v => String(v).split(' | '))) if (v && !had.has(v)) out.push({ kind: 'race', title: v, text: 'Новый расовый навык' })
+  }
+  const hp = d.HpData || {}
+  if (/^HpData\.DS_F[123]$/.test(p) && now === true && hp.DS_F1 && hp.DS_F2 && hp.DS_F3) out.push({ kind: 'death', title: 'Пал', text: 'Три проваленных спасброска от смерти' })
+  if (/^HpData\.DS_S[123]$/.test(p) && now === true && hp.DS_S1 && hp.DS_S2 && hp.DS_S3) out.push({ kind: 'stable', title: 'Стабилизирован', text: 'Три успешных спасброска от смерти' })
+  for (const ev of out) onHeroEvent?.(sh, ev)
+}
+
 function applyOp(sh, op, by, note) {
   const p = String(op?.p ?? '')
   if (p === '') {
@@ -188,6 +216,7 @@ function applyOp(sh, op, by, note) {
   if (p.startsWith('JournalEntries')) cleanJournal(sh.data)
   const now = getAt(sh.data, p)
   record(sh, by, p, from === undefined ? null : from, now ?? null, note)
+  try { heroEvents(sh, p, from, now) } catch (e) { console.warn('[sheets] событие героя', e) }
   return { p, v: now ?? null }
 }
 
@@ -470,6 +499,17 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   })
 
   // видимые пользователю связи «карточка героя → лист» (кнопка «Лист персонажа» на карточке)
+  // заставка события героя — всем на сайте (только листы героев и игроков; одно и то же не чаще раза в 20 секунд)
+  const lastEvent = new Map()
+  onHeroEvent = (sh, ev) => {
+    if (sh.deletedAt || (!sh.heroId && !sh.ownerId)) return
+    const key = sh.id + ev.kind + ev.title
+    if (Date.now() - (lastEvent.get(key) || 0) < 20000) return
+    lastEvent.set(key, Date.now())
+    const msg = JSON.stringify({ type: 'heroEvent', ...ev, name: sh.data.CharacterName || 'Герой', photo: sh.data.PhotoFile || '', accent: sh.data.Accent || '', sheetId: sh.id, at: Date.now() })
+    for (const c of clients) if (c.user && c.ws.readyState === 1) c.ws.send(msg)
+  }
+
   // журнал деятельностей (server/activities.js): лист героя, его тренировки и очки за учтённую деятельность
   const heroSheet = heroId => store.sheets.find(sh => sh.heroId === heroId && !sh.deletedAt) || null
   function addTraining(sheetId, trainId, delta, who, note) {

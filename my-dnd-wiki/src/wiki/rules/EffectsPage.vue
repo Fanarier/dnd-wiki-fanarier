@@ -5,7 +5,7 @@
       <h1>{{ content.title || 'Эффекты' }}</h1>
       <p>{{ content.description }}</p>
     </header>
-    <div v-if="!rulesState.loaded" class="fx-load">Листаю свод правил…</div>
+    <RuneLoader v-if="!rulesState.loaded" text="Листаю свод правил…" />
     <template v-else>
       <div class="fx-tools">
         <nav class="fx-tabs">
@@ -41,7 +41,7 @@
               <button type="button" class="fx-btn primary" :disabled="busy" @click="save">Сохранить</button>
             </div>
           </article>
-          <article v-else class="fx-card" :class="[e.kind, { hid: e.hidden }]" :style="{ '--i': Math.min(i, 24) }">
+          <article v-else v-tilt="4" class="fx-card" :class="[e.kind, { hid: e.hidden }]" :style="{ '--i': Math.min(i, 24) }">
             <span class="fx-icon" :class="e.kind"><img v-if="e.icon" :src="e.icon" alt="" loading="lazy" /><span v-else>{{ e.name[0] }}</span></span>
             <div class="fx-body">
               <h3>{{ e.name }}<small v-if="e.tag">{{ e.tag }}</small><em v-if="e.hidden">скрыт</em></h3>
@@ -57,6 +57,7 @@
 </template>
 
 <script setup>
+import RuneLoader from '../../components/fx/RuneLoader.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { store, rulesState, loadRules, api, toast, wikiUser, postBlob } from '../../map/store.js'
 import { canEditRule, canManageRule } from '../../shared/wikiPerms.js'
@@ -141,6 +142,15 @@ async function upload(ev) {
 .fx-icon.debuff { --fc: #ff6b5e; }
 .fx-icon.special { --fc: #b9a6ff; }
 .fx-icon img { width: 100%; height: 100%; object-fit: cover; }
+.fx-card .fx-icon { animation: fx-breath 3.2s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -.27s); }
+.fx-card.debuff .fx-icon { animation: fx-twitch 4.2s ease-in-out infinite; animation-delay: calc(var(--i, 0) * -.33s); }
+.fx-card.special .fx-icon { position: relative; animation: fx-breath 4s ease-in-out infinite; }
+.fx-card.special .fx-icon::before { content: ''; position: absolute; inset: -3px; border-radius: 14px; background: conic-gradient(from 0deg, transparent, #b9a6ff, transparent 40%, #4fd8ff, transparent 75%); z-index: -1; animation: fx-halo 4s linear infinite; }
+.fx-card:hover .fx-icon { transform: scale(1.08); }
+@keyframes fx-breath { 50% { box-shadow: 0 0 22px color-mix(in srgb, var(--fc) 55%, transparent); filter: brightness(1.12); } }
+@keyframes fx-twitch { 0%, 86%, 100% { transform: none; } 88% { transform: translate(-1px, 1px) rotate(-2deg); } 90% { transform: translate(1px, -1px) rotate(2deg); } 92% { transform: translate(-1px, 0); } }
+@keyframes fx-halo { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .fx-card .fx-icon, .fx-card .fx-icon::before { animation: none !important; } }
 .fx-icon.pick { cursor: pointer; }
 .fx-body { flex: 1; min-width: 0; }
 .fx-body h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin: 0 0 4px; font: 700 19px 'Cormorant Garamond', serif; color: #f3dc9e; }

@@ -1,7 +1,7 @@
 <template>
   <!-- классы: сетка; класс — основы, навыки по уровням, архетипы со своими навыками -->
   <div class="kc">
-    <div v-if="!rulesState.loaded" class="kc-load">Листаю свод правил…</div>
+    <RuneLoader v-if="!rulesState.loaded" text="Листаю свод правил…" />
 
     <template v-else-if="cls">
       <button type="button" class="kc-back" @click="go(null)">← Все классы</button>
@@ -52,7 +52,7 @@
         </template>
       </article>
       <div v-else class="kc-cards">
-        <button v-for="(k, i) in classes" :key="k.id" type="button" class="kc-cl" :class="{ empty: k.empty && !k.skills.length, hid: k.hidden }" :style="{ '--i': i }" @click="go(k.id)">
+        <button v-for="(k, i) in classes" :key="k.id" v-tilt type="button" class="kc-cl" :class="{ empty: k.empty && !k.skills.length, hid: k.hidden }" :style="{ '--i': i }" @click="go(k.id)">
           <span class="kc-sig">{{ k.name[0] }}</span>
           <b>{{ k.name }}</b>
           <small v-if="k.empty && !k.skills.length">в разработке</small>
@@ -66,6 +66,7 @@
 </template>
 
 <script setup>
+import RuneLoader from '../../components/fx/RuneLoader.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { store, rulesState, loadRules, api, toast, wikiUser } from '../../map/store.js'

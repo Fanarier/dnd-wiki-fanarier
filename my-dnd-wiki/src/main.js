@@ -11,7 +11,9 @@ import * as directives from 'vuetify/directives'
 import '@mdi/font/css/materialdesignicons.css'
 
 import './styles.css'
-import './components/rich/richfx.css' // «живой» текст из редакторов — нужен везде, где показывается оформленный текст
+import './components/rich/richfx.css'
+import './components/fx/fx.css' // переходы, наклон карточек, блик кнопок, руна-загрузчик
+import { vTilt } from './components/fx/tilt.js' // «живой» текст из редакторов — нужен везде, где показывается оформленный текст
 
 const vuetify = createVuetify({
   components,
@@ -50,4 +52,5 @@ const router = createRouter({
 })
 router.afterEach(to => { document.title = to.meta.title || 'Анкария' })
 
-createApp(App).use(vuetify).use(router).mount('#app')
+// v-tilt: наклон карточек за курсором с рунным кругом (src/components/fx)
+createApp(App).use(vuetify).use(router).directive('tilt', vTilt).mount('#app')

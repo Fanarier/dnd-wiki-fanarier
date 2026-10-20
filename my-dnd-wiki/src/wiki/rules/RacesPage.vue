@@ -1,7 +1,7 @@
 <template>
   <!-- расы: сетка карточек; раса — базовые навыки и лента уровней («сразу» + «на выбор») -->
   <div class="rc">
-    <div v-if="!rulesState.loaded" class="rc-load">Листаю свод правил…</div>
+    <RuneLoader v-if="!rulesState.loaded" text="Листаю свод правил…" />
 
     <!-- одна раса -->
     <template v-else-if="race">
@@ -71,7 +71,7 @@
         </template>
       </article>
       <div v-else class="rc-cards">
-        <button v-for="(r, i) in races" :key="r.id" type="button" class="rc-race" :class="{ empty: r.empty && !r.levels.length, hid: r.hidden }" :style="{ '--i': i }" @click="go(r.id)">
+        <button v-for="(r, i) in races" :key="r.id" v-tilt type="button" class="rc-race" :class="{ empty: r.empty && !r.levels.length, hid: r.hidden }" :style="{ '--i': i }" @click="go(r.id)">
           <span class="rc-sig">{{ r.name[0] }}</span>
           <b>{{ r.name }}</b>
           <small v-if="r.empty && !r.levels.length">в разработке</small>
@@ -85,6 +85,7 @@
 </template>
 
 <script setup>
+import RuneLoader from '../../components/fx/RuneLoader.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { store, rulesState, loadRules, api, toast, wikiUser } from '../../map/store.js'

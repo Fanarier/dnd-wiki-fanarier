@@ -6,7 +6,7 @@
       <h1>{{ content.title }}</h1>
       <p>{{ content.description }}</p>
     </header>
-    <div v-if="!rulesState.loaded" class="sp-load">Листаю гримуар…</div>
+    <RuneLoader v-if="!rulesState.loaded" text="Листаю гримуар…" />
     <template v-else>
       <div class="sp-tools">
         <input v-model="q" class="sp-q" placeholder="Найти заклинание…" />
@@ -69,7 +69,9 @@
                 <button type="button" class="sp-btn primary" :disabled="busy" @click="saveSpell">Сохранить</button>
               </div>
             </article>
-            <article v-else class="sp-card" :class="{ hid: x.hidden }" :style="{ '--i': Math.min(i, 20) }">
+            <article v-else v-tilt="4" class="sp-card" :class="{ hid: x.hidden }" :style="{ '--i': Math.min(i, 20) }">
+              <!-- стихия школы при наведении: искры, пузырьки, снежинки, ветер, молнии, пыль, листья -->
+              <span class="sp-el" :class="'el-' + x.school" aria-hidden="true"><i v-for="k in 8" :key="k" :style="{ '--k': k }">{{ GLYPH[x.school] || '' }}</i></span>
               <header>
                 <span class="sp-c" :class="{ base: x.circle === 'Б', none: !x.circle }" :title="x.circle === 'Б' ? 'Базовая магия' : x.circle ? `${x.circle} круг` : 'Без круга'">{{ x.circle || '✧' }}</span>
                 <h3>{{ x.name }}</h3>
@@ -95,6 +97,7 @@
 </template>
 
 <script setup>
+import RuneLoader from '../../components/fx/RuneLoader.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { store, rulesState, loadRules, api, toast, wikiUser } from '../../map/store.js'
 import { canEditRule, canManageRule } from '../../shared/wikiPerms.js'
@@ -109,6 +112,8 @@ watch(() => store.data.rulesRev, () => loadRules())
 // цвет школы — по стихии
 const TONES = { fire: '#ff8a4c', magma: '#ff5a36', water: '#4fb3ff', ice: '#9fe3ff', air: '#cfe8ff', lightning: '#ffe35a', earth: '#c9a066', nature: '#7ed07a', utility: '#b9a6ff' }
 const tone = id => TONES[id] || '#b9a6ff'
+// значки частиц стихии (огонь, магма, вода, земля, воздух — просто точки и черты, их рисует CSS)
+const GLYPH = { ice: '❄', nature: '🍃', lightning: 'ϟ', utility: '✦' }
 const plural = n => (n % 10 === 1 && n % 100 !== 11 ? 'заклинание' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'заклинания' : 'заклинаний')
 
 const schools = computed(() => rulesState.schools.filter(s => s.page === props.content.id).sort((a, b) => a.order - b.order))
@@ -195,6 +200,42 @@ async function removeSchool(s) {
 .sp-card.hid { border-style: dashed; opacity: .75; }
 .sp-card.editing { grid-column: 1 / -1; gap: 8px; animation: none; transform: none; }
 @keyframes sp-in { from { opacity: 0; transform: translateY(6px); } }
+/* стихия на карточке: слой частиц, видимый только при наведении (иначе анимации на паузе) */
+.sp-el { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity .3s; z-index: 0; }
+.sp-card > :not(.sp-el) { position: relative; z-index: 1; }
+.sp-card:hover .sp-el { opacity: 1; }
+.sp-el i { position: absolute; left: calc(var(--k) * 11.5% - 6%); bottom: -10px; font-style: normal; animation: el-rise 2.4s linear infinite; animation-delay: calc(var(--k) * -.31s); animation-play-state: paused; }
+.sp-card:hover .sp-el i { animation-play-state: running; }
+/* огонь и магма — угольки снизу вверх */
+.el-fire i, .el-magma i { width: 4px; height: 4px; border-radius: 50%; background: #ffb347; box-shadow: 0 0 8px #ff6a1f, 0 0 2px #fff; }
+.el-magma i { width: 6px; height: 6px; background: #ff5a36; box-shadow: 0 0 12px #c41e00; animation-duration: 3.4s; }
+.el-fire { background: radial-gradient(ellipse at 50% 120%, rgba(255, 110, 30, .22), transparent 60%); }
+.el-magma { background: radial-gradient(ellipse at 50% 120%, rgba(200, 40, 0, .3), transparent 65%); }
+/* вода — пузырьки */
+.el-water i { width: 7px; height: 7px; border-radius: 50%; border: 1px solid rgba(160, 215, 255, .8); background: rgba(79, 179, 255, .12); animation-duration: 3s; }
+.el-water { background: radial-gradient(ellipse at 50% 120%, rgba(79, 179, 255, .18), transparent 60%); }
+/* лёд — снежинки сверху и иней по краю */
+.el-ice { box-shadow: inset 0 0 18px rgba(170, 225, 255, .35); }
+.el-ice i { top: -14px; bottom: auto; color: #dff6ff; font-size: 11px; text-shadow: 0 0 6px #9fe3ff; animation-name: el-fall; animation-duration: 3.6s; }
+/* воздух — потоки ветра слева направо */
+.el-air i { left: -40%; bottom: auto; top: calc(var(--k) * 11% ); width: 36%; height: 1.5px; border-radius: 2px; background: linear-gradient(90deg, transparent, rgba(220, 240, 255, .7), transparent); animation-name: el-wind; animation-duration: 1.6s; }
+/* молнии — вспышки */
+.el-lightning { animation: el-flash 1.8s steps(1) infinite; animation-play-state: paused; }
+.sp-card:hover .el-lightning { animation-play-state: running; }
+.el-lightning i { bottom: auto; top: calc(var(--k) * 9%); color: #fff7a8; font-size: 16px; text-shadow: 0 0 8px #ffe35a, 0 0 2px #fff; opacity: 0; animation-name: el-zap; animation-duration: 1.2s; }
+/* земля — пыль и камешки сверху */
+.el-earth i { top: -8px; bottom: auto; width: 4px; height: 4px; border-radius: 1px; background: #b8925a; animation-name: el-fall; animation-duration: 2.2s; }
+/* природа — листья кружатся */
+.el-nature i { top: -16px; bottom: auto; font-size: 12px; animation-name: el-leaf; animation-duration: 4s; }
+/* утилитарная — искорки мерцают */
+.el-utility i { bottom: auto; top: calc(var(--k) * 10%); color: #e6deff; font-size: 10px; text-shadow: 0 0 6px #b9a6ff; animation-name: el-twinkle; animation-duration: 1.8s; }
+@keyframes el-rise { 0% { transform: translateY(0) scale(1); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(10px, -170px) scale(.3); opacity: 0; } }
+@keyframes el-fall { 0% { transform: translateY(0) rotate(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(12px, 190px) rotate(200deg); opacity: 0; } }
+@keyframes el-leaf { 0% { transform: translate(0, 0) rotate(0); opacity: 0; } 15% { opacity: 1; } 50% { transform: translate(18px, 90px) rotate(160deg); } 100% { transform: translate(-6px, 190px) rotate(320deg); opacity: 0; } }
+@keyframes el-wind { from { transform: translateX(0); opacity: 0; } 30% { opacity: 1; } to { transform: translateX(380%); opacity: 0; } }
+@keyframes el-zap { 0%, 70% { opacity: 0; } 72% { opacity: 1; } 78% { opacity: .2; } 82% { opacity: 1; } 90%, 100% { opacity: 0; } }
+@keyframes el-flash { 0%, 90% { background: transparent; } 92% { background: rgba(255, 243, 160, .14); } 95% { background: transparent; } 97% { background: rgba(255, 243, 160, .1); } }
+@keyframes el-twinkle { 0%, 100% { opacity: 0; transform: scale(.4); } 50% { opacity: 1; transform: scale(1.1) rotate(45deg); } }
 .sp-card header { display: flex; align-items: center; gap: 10px; }
 .sp .sp-card h3 { flex: 1; margin: 0; font: 700 19px 'Cormorant Garamond', serif; color: #f1ecff !important; }
 .sp-card header em { color: #ff9b8f; font: 800 10px 'Manrope', sans-serif; font-style: normal; }

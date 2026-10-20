@@ -31,6 +31,8 @@
       <div v-if="drawer" class="w-scrim" @click="drawer = false" />
 
       <main class="w-main" :class="{ 'theme-magic': isMagic }">
+        <!-- живой фон: лучи, пылинки, свечи (у магии — своя стихия) -->
+        <WikiAmbience v-if="!isMagic" />
         <!-- живая стихия школы магии за текстом -->
         <MagicBackdrop v-if="isMagic && !magicLoading && element" :key="element" :kind="element" />
         <!-- звук стихии: по умолчанию выключен, включается кнопкой (браузеры не дают играть звук без нажатия) -->
@@ -40,7 +42,7 @@
         </div>
         <MagicSparkles v-else-if="isMagic && !magicLoading" :key="currentCategory" />
         <div v-if="magicLoading" class="w-loader"><SteamLoader kind="magic" /></div>
-        <transition v-else name="fade" mode="out-in">
+        <transition v-else name="wpage" mode="out-in">
           <div v-if="hasQuery" key="search-results">
             <h2 class="w-h">Результаты поиска: «{{ search }}»</h2>
             <WikiSearch :query="search" @article="openArticle" @done="searchDone" />
@@ -75,6 +77,7 @@ const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 import Sidebar from '../components/Sidebar.vue'
 import WikiSearch from './WikiSearch.vue'
 import SpellsPage from './rules/SpellsPage.vue'
+import WikiAmbience from '../components/fx/WikiAmbience.vue'
 import EffectsPage from './rules/EffectsPage.vue'
 import RulesHistory from './rules/RulesHistory.vue'
 
@@ -228,6 +231,7 @@ watch(currentCategory, (c, old) => {
 .w-amb input[type=range] { width: 96px; accent-color: #b9a6ff; }
 .w-amb.on { border-color: #b9a6ff; box-shadow: 0 8px 22px rgba(0, 0, 0, .45), 0 0 18px rgba(155, 125, 255, .45); }
 /* магия: звёздное небо, светящиеся заголовки, мистические рамки */
+.w-main { position: relative; isolation: isolate; } /* свой слой: живой фон за текстом, но над фоном приложения */
 .theme-magic { position: relative; isolation: isolate; } /* свой слой: фон и стихия за текстом, но над фоном приложения */
 .theme-magic::before { content: ''; position: fixed; inset: 64px 0 0; z-index: -1; pointer-events: none;
   background:

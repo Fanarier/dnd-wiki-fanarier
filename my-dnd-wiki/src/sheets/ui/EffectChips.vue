@@ -2,7 +2,7 @@
   <!-- эффекты на персонаже: иконки из вики со стаками и оставшимися ходами; щелчок — что делает (и правка),
        «＋» — выбрать эффект из вики или вписать свой. Общий для книги персонажа и сводки отряда -->
   <div class="ec" :class="{ compact }">
-    <button v-for="(fx, i) in list" :key="i" ref="chips" type="button" class="ec-chip" :class="[kindOf(fx), { on: openIdx === i }]"
+    <button v-for="(fx, i) in list" :key="i" ref="chips" type="button" class="ec-chip" :class="[kindOf(fx), { on: openIdx === i, fresh: fresh === (fx.Id || fx.Name) }]"
             :title="tip(fx)" @click="openAt(i, $event)">
       <img v-if="wiki(fx)?.icon" :src="wiki(fx).icon" alt="" />
       <span v-else class="ec-ini">{{ (fx.Name || '?')[0] }}</span>
@@ -137,7 +137,11 @@ function bump(i, key, d) {
 }
 function remove(i) { put(list.value.filter((_, j) => j !== i)); close() }
 // тот же эффект ещё раз — плюс стак, а не второй значок
+// только что наложенный эффект вспыхивает кольцом
+const fresh = ref('')
+function flash(key) { fresh.value = key; setTimeout(() => { if (fresh.value === key) fresh.value = '' }, 1200) }
 function add(e) {
+  flash(e.id)
   const i = list.value.findIndex(x => x.Id === e.id || normName(x.Name) === normName(e.name))
   if (i >= 0) bump(i, 'Stacks', 1)
   else put([...list.value, { Id: e.id, Name: e.name, Kind: e.kind, Stacks: 1, Turns: 0, Note: '' }])
@@ -157,6 +161,16 @@ const addFirst = () => (found.value.length && q.value.trim() ? add(found.value[0
 .ec { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .ec-chip { position: relative; width: 38px; height: 38px; padding: 0; flex: none; border-radius: 10px; border: 1.5px solid var(--fc); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--fc) 30%, #1a140c), #0e0b07); box-shadow: 0 0 10px color-mix(in srgb, var(--fc) 30%, transparent); cursor: pointer; transition: transform .15s; }
 .ec-chip:hover, .ec-chip.on { transform: translateY(-2px) scale(1.06); }
+/* значки дышат: положительные мягко светятся, отрицательные изредка вздрагивают */
+.ec-chip { animation: ec-breath 3.2s ease-in-out infinite; }
+.ec-chip.debuff { animation: ec-twitch 4.4s ease-in-out infinite; }
+.ec-chip.fresh { animation: ec-fresh 1.1s cubic-bezier(.2, .9, .3, 1.3); }
+.ec-chip.fresh::after { content: ''; position: absolute; inset: -4px; border-radius: 13px; border: 2px solid var(--fc); animation: ec-ring 1s ease-out forwards; pointer-events: none; }
+@keyframes ec-breath { 50% { box-shadow: 0 0 16px color-mix(in srgb, var(--fc) 55%, transparent); } }
+@keyframes ec-twitch { 0%, 88%, 100% { transform: none; } 90% { transform: translateX(-1px) rotate(-3deg); } 93% { transform: translateX(1px) rotate(3deg); } }
+@keyframes ec-fresh { 0% { transform: scale(.2) rotate(-30deg); opacity: 0; filter: brightness(2.5); } 60% { transform: scale(1.25); opacity: 1; } 100% { transform: none; filter: none; } }
+@keyframes ec-ring { from { transform: scale(.8); opacity: 1; } to { transform: scale(1.9); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ec-chip, .ec-chip.debuff, .ec-chip.fresh, .ec-chip.fresh::after { animation: none; } }
 .ec-chip img { width: 100%; height: 100%; border-radius: 8px; object-fit: cover; }
 .ec-chip, .ec-pop, .ec-grid button { --fc: #7ed07a; }
 .debuff { --fc: #ff6b5e; }
