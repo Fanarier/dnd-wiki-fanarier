@@ -50,9 +50,9 @@
             <button v-for="v in views" :key="v.id" type="button" :class="{ on: view === v.id }" @click="view = v.id">{{ v.icon }} {{ v.name }}</button>
           </nav>
         </div>
-        <p class="al-budget" :title="`Записанный ${budget.rest.toLowerCase()} сначала покрывает обязательный отдых, в счёт идёт только сверх нормы`">
-          ⏱ Свободно <b>{{ budget.free }} ч</b> = {{ budget.period }} ч между сессиями − {{ budget.rest.toLowerCase() }} {{ budget.days }} × {{ budget.perDay }} ч.
-          <span>Записанный {{ budget.rest.toLowerCase() }} сверх нормы — в счёт.</span>
+        <p class="al-budget" title="В старых сессиях из таблицы, где писали и ежедневный сон, он сначала покрывает норму — если иначе часов больше свободных">
+          ⏱ Свободно <b>{{ budget.free }} ч</b> = {{ budget.period }} ч между сессиями − {{ budget.rest.toLowerCase() }} {{ budget.days }} × {{ budget.perDay }} ч (уже вычтен).
+          <span>Записанный отдых — дополнительный, идёт в счёт.</span>
         </p>
         <p v-if="cfg.note" class="al-note">🙋 {{ cfg.note }}</p>
         <p v-if="cfg.banned?.length" class="al-note ban">⛔ Нельзя: {{ cfg.banned.map(b => b.name + (b.reason ? ` (${b.reason})` : '')).join('; ') }}</p>
@@ -76,7 +76,7 @@
           <section v-for="s in shownSessions" :key="s.date" class="al-sess">
             <header class="al-sh">
               <b>{{ fmtDate(s.date) }}</b>
-              <span class="al-sum" :class="{ over: s.hours > budget.free }" :title="`${s.hours > budget.free ? 'Больше свободных часов! ' : ''}Свободно ${budget.free} ч (${budget.period} − ${budget.norm} ч отдыха); записанный ${budget.rest.toLowerCase()} покрыл норму на ${round(s.covered, 1)} ч`">⏱ {{ round(s.hours, 2) }}<small> / {{ budget.free }} ч</small></span>
+              <span class="al-sum" :class="{ over: s.hours > budget.free }" :title="`${s.hours > budget.free ? 'Больше свободных часов! ' : ''}Свободно ${budget.free} ч (${budget.period} − ${budget.norm} ч отдыха)${s.covered ? `; старый сон из таблицы покрыл норму на ${round(s.covered, 1)} ч` : ''}`">⏱ {{ round(s.hours, 2) }}<small> / {{ budget.free }} ч</small></span>
               <span class="al-sum" :class="{ over: hero.stamina != null && s.stamina > hero.stamina }" :title="hero.stamina != null && s.stamina > hero.stamina ? `Потрачено больше выносливости, чем есть в листе — по правилам 1 изнурение за каждые −2 (≈ ${Math.ceil((s.stamina - hero.stamina) / 2)})` : 'Выносливость за сессию (отдых — со знаком минус)'">⚡ {{ round(s.stamina, 2) }}</span>
               <span class="al-sum">{{ s.rows.length }} {{ plural(s.rows.length) }}</span>
               <span v-if="s.pending" class="al-sum pend">⏳ {{ s.pending }}</span>

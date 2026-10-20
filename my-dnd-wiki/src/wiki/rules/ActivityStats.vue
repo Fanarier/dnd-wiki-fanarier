@@ -27,7 +27,7 @@
         </ol>
       </section>
       <section class="as-box wide">
-        <h3>Часы по сессиям <small>линия — свободно {{ limit }} ч (сон в пределах нормы не в счёт)</small></h3>
+        <h3>Часы по сессиям <small>линия — свободно {{ limit }} ч (обязательный отдых уже вычтен)</small></h3>
         <div class="as-ch"><canvas ref="barEl" /></div>
       </section>
       <section class="as-box wide">

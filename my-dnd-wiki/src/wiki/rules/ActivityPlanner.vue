@@ -48,14 +48,14 @@ const emit = defineEmits(['move', 'add', 'edit', 'send', 'date'])
 const nDays = computed(() => Math.max(1, Math.ceil(props.limit / 24)))
 const days = computed(() => [0, ...Array.from({ length: Math.max(nDays.value, ...props.rows.map(r => r.day || 0)) }, (_, i) => i + 1)])
 const cols = computed(() => Object.fromEntries(days.value.map(d => [d, props.rows.filter(r => (r.day || 0) === d)])))
-// день: отложенный отдых + дела; записанный в этот день сон занимает место отложенного, сверх — добавляется
+// день: отложенный отдых + дела (записанный отдых — дополнительный); старый сон из таблицы занимает место отложенного
 function dayTotal(d) {
-  let rest = 0, other = 0
+  let old = 0, other = 0
   for (const r of cols.value[d]) {
-    if (isSleepRec(r.name, props.rest)) rest += num(r.hours)
+    if (!r.at && isSleepRec(r.name, props.rest)) old += num(r.hours)
     else other += Math.min(24, num(r.hours))
   }
-  return Math.max(props.sleep, rest) + other
+  return Math.max(props.sleep, old) + other
 }
 // свободные часы: период минус отдых; записанный сон в пределах нормы не считается
 const free = computed(() => props.budget.free)
