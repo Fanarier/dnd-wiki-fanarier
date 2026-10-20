@@ -1,30 +1,20 @@
-/* Общие анимации сайта: смена раздела вики (разворот свитка, текст проявляется чернилами), карточки с наклоном
-   и руническим сиянием (v-tilt), золотой отблеск главных кнопок, руна-загрузчик. При «меньше анимаций» — без движения. */
+/* Общие анимации сайта: смена раздела вики (мягкое проявление), карточки с наклоном и светом под курсором (v-tilt),
+   золотой отблеск главных кнопок, руна-загрузчик. При «меньше анимаций» — без движения. */
 
-/* смена раздела вики: страница разворачивается слева направо, текст проявляется из размытия */
-.wpage-enter-active { animation: wpage-in .55s cubic-bezier(.2, .8, .25, 1) both; }
-.wpage-leave-active { animation: wpage-out .22s ease-in both; }
-@keyframes wpage-in {
-  0% { opacity: 0; clip-path: inset(0 100% 0 0 round 16px); filter: blur(4px) sepia(.6); transform: perspective(1400px) rotateY(-7deg) translateX(14px); }
-  55% { opacity: 1; filter: blur(1px) sepia(.2); }
-  100% { opacity: 1; clip-path: inset(0 0 0 0 round 0); filter: none; transform: none; }
-}
-@keyframes wpage-out { to { opacity: 0; transform: perspective(1400px) rotateY(5deg) translateX(-10px); filter: blur(2px); } }
+/* смена раздела вики: старый быстро гаснет, новый мягко проявляется и чуть поднимается */
+.wpage-enter-active { animation: wpage-in .38s cubic-bezier(.2, .8, .3, 1) both; }
+.wpage-leave-active { animation: wpage-out .14s ease-in both; }
+@keyframes wpage-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes wpage-out { to { opacity: 0; } }
 
-/* карточки с наклоном за курсором (v-tilt) и рунным кругом, который проступает при наведении */
+/* карточки с наклоном за курсором (v-tilt) и мягким светом под курсором */
 .fx-tilt { transform-style: preserve-3d; transition: transform .25s ease, box-shadow .25s ease; will-change: transform; }
 .fx-tilt.tilting { transition: transform .06s linear, box-shadow .25s ease; }
 .fx-tilt::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; opacity: 0; transition: opacity .35s;
-  background:
-    radial-gradient(circle at var(--mx, 50%) var(--my, 30%), rgba(255, 236, 180, .22), transparent 45%),
-    repeating-conic-gradient(from 0deg at var(--mx, 50%) var(--my, 30%), rgba(231, 197, 111, .0) 0deg 11deg, rgba(231, 197, 111, .13) 11deg 12deg);
-  -webkit-mask: radial-gradient(circle at var(--mx, 50%) var(--my, 30%), #000 0 38%, transparent 62%);
-  mask: radial-gradient(circle at var(--mx, 50%) var(--my, 30%), #000 0 38%, transparent 62%);
-  animation: fx-runes 14s linear infinite;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 30%), rgba(255, 236, 180, .16), transparent 50%);
 }
 .fx-tilt:hover::after { opacity: 1; }
-@keyframes fx-runes { to { filter: hue-rotate(25deg); } }
 
 /* главные (золотые) кнопки: по наведению пробегает блик */
 button.primary:not(:disabled), .primary:is(button, a):not(:disabled) { position: relative; overflow: hidden; }
@@ -46,6 +36,6 @@ button.primary:not(:disabled):hover::after, .primary:is(button, a):not(:disabled
 @media (prefers-reduced-motion: reduce) {
   .wpage-enter-active, .wpage-leave-active { animation: none; }
   .fx-tilt, .fx-tilt.tilting { transform: none !important; }
-  .fx-tilt::after, .fx-rune svg, .fx-rune .inner, .fx-rune .glyph { animation: none; }
+  .fx-rune svg, .fx-rune .inner, .fx-rune .glyph { animation: none; }
   button.primary:hover::after { animation: none; }
 }
