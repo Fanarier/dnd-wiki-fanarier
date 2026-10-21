@@ -74,10 +74,18 @@ const cellBg = {
 const Cell = TableCell.extend({ addAttributes() { return { ...this.parent?.(), ...cellBg } } })
 const Header = TableHeader.extend({ addAttributes() { return { ...this.parent?.(), ...cellBg } } })
 
+// обычный textStyle узнаёт только <span style>, а у «живого» текста бывает один класс tx-* —
+// без этого при повторном открытии эффект терялся и не сохранялся
+const Styled = TextStyle.extend({
+  parseHTML() {
+    return [{ tag: 'span', consuming: false, getAttrs: el => (el.hasAttribute('style') || [...el.classList].some(c => c.startsWith('tx-')) ? {} : false) }]
+  }
+})
+
 // набор расширений редактора; tables — ещё и таблицы
 export function formatExtensions({ tables = false } = {}) {
   return [
-    TextStyle, Color, BackgroundColor, FontSize, FontFamily, TextFx,
+    Styled, Color, BackgroundColor, FontSize, FontFamily, TextFx,
     Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Subscript, Superscript,

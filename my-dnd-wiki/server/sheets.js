@@ -499,10 +499,12 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   })
 
   // видимые пользователю связи «карточка героя → лист» (кнопка «Лист персонажа» на карточке)
-  // заставка события героя — всем на сайте (только листы героев и игроков; одно и то же не чаще раза в 20 секунд)
+  // заставка события героя — всем на сайте (только листы героев и игроков; одно и то же не чаще раза в 20 секунд).
+  // Каждый вид включает мастер в «Настройках мира» (settings.heroEvents), по умолчанию все выключены
   const lastEvent = new Map()
   onHeroEvent = (sh, ev) => {
     if (sh.deletedAt || (!sh.heroId && !sh.ownerId)) return
+    if (!getDb().settings.heroEvents?.[ev.kind]) return
     const key = sh.id + ev.kind + ev.title
     if (Date.now() - (lastEvent.get(key) || 0) < 20000) return
     lastEvent.set(key, Date.now())

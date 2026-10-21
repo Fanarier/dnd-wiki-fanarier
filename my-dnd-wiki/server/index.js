@@ -270,6 +270,8 @@ const SETTINGS = {
   worldName: T.str(60), worldDate: T.str(120), kmPerPx: T.num(0.001, 1000),
   paceKmPerDay: T.num(1, 2000), realHoursPerGameDay: T.num(0.01, 10000), fogEnabled: T.bool(),
   playerPings: T.bool(), playerCursors: T.bool(),
+  // заставки событий героев у всех на сайте — какие включены (src/components/fx/HeroEventFx.vue)
+  heroEvents: v => Object.fromEntries(['level', 'train', 'race', 'death', 'stable'].map(k => [k, !!v?.[k]])),
   grid: v => ({ cellKm: T.num(0.1, 5000)(v?.cellKm), type: T.oneOf(['square', 'hex'])(v?.type) })
 }
 

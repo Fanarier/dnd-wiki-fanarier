@@ -44,27 +44,36 @@ const CARDS = Array.from({ length: 7 }, (_, k) => {
   const t = k - 3
   return { k, style: { '--t': t, '--d': (Math.abs(t) * 0.035).toFixed(3) + 's', '--rot': (t * 11) + 'deg', '--in': (k % 2 ? -1 : 1) * (40 + k * 6) + 'vw' } }
 })
-const SOUND = { map: ['bookPlace', 0.3], wiki: ['bookOpen', 0.45], sheets: ['pageFlip', 0.45] }
+// карта: один порыв ветра на весь переход (звучит с начала, пока облака накатывают и расходятся)
+const SOUND = { map: null, wiki: ['bookOpen', 0.45], sheets: ['pageFlip', 0.45] }
+// номер текущего перехода: таймеры прошлого перехода (если успели переключиться дальше) ничего не трогают
+let seq = 0
 
 onMounted(() => {
   router.beforeEach((to, from) => {
     const a = sectionOf(from.path), b = sectionOf(to.path)
-    if (!from.matched.length || !a || !b || a === b || reducedMotion() || routeFx.phase) { routeFx.from = a || ''; return true }
+    // пока прошлая заставка раскрывается — новая всё равно играет; во время закрытия экрана ждём её конца
+    if (!from.matched.length || !a || !b || a === b || reducedMotion() || routeFx.phase === 'cover') { routeFx.from = a || ''; return true }
+    const my = ++seq
     routeFx.from = a
     routeFx.kind = b
-    routeFx.phase = 'cover'
+    routeFx.phase = ''
+    // кадр без заставки, чтобы анимации новой начались с начала
+    requestAnimationFrame(() => { if (my === seq) routeFx.phase = 'cover' })
+    setTimeout(() => { if (my === seq && !routeFx.phase) routeFx.phase = 'cover' }, 30)
     if (b === 'wiki') sfx('bookClose', 0.3)
+    if (b === 'map') sfx('cloudWhoosh', 0.5)
     return new Promise(res => setTimeout(() => res(true), COVER[b]))
   })
-  router.afterEach(() => {
-    if (routeFx.phase !== 'cover') return
-    const kind = routeFx.kind
+  router.afterEach((to, from, failure) => {
+    if (failure || routeFx.phase !== 'cover') return
+    const kind = routeFx.kind, my = seq
     // карте нужно чуть больше времени, чтобы нарисоваться под облаками
     setTimeout(() => {
+      if (my !== seq) return
       routeFx.phase = 'reveal'
-      const [s, v] = SOUND[kind]
-      sfx(s, v)
-      setTimeout(() => { if (routeFx.phase === 'reveal') routeFx.phase = '' }, REVEAL[kind])
+      if (SOUND[kind]) sfx(...SOUND[kind])
+      setTimeout(() => { if (my === seq && routeFx.phase === 'reveal') routeFx.phase = '' }, REVEAL[kind])
     }, kind === 'map' ? 320 : 90)
   })
   router.onError(() => { routeFx.phase = '' })

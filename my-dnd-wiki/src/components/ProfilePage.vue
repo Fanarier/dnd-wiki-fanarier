@@ -126,6 +126,12 @@
         </div>
       </section>
 
+      <!-- заставки событий героев у всех на сайте: какие включены (только владелец сайта) -->
+      <section v-if="isMaster && store.me.owner" class="p-card">
+        <h3>События героев <small>заставка у всех на сайте</small></h3>
+        <label v-for="e in HERO_EVENTS" :key="e.k" class="chk"><input type="checkbox" :checked="!!store.data.settings.heroEvents?.[e.k]" @change="setHeroEvent(e.k, $event.target.checked)" /> {{ e.t }}</label>
+      </section>
+
       <!-- заметки -->
       <section class="p-card">
         <h3>Мои заметки на карте <small>{{ myNotes.length }}</small></h3>
@@ -246,6 +252,19 @@ async function setNotifyArts(on) {
   } catch (e) { toast(e.message, 'error') }
 }
 const myNotes = computed(() => (store.data.notes || []).filter(n => n.ownerId === store.me?.id))
+
+// заставки событий героев (HeroEventFx): по умолчанию выключены, включает владелец сайта
+const HERO_EVENTS = [
+  { k: 'level', t: 'Новый уровень — с конфетти' }, { k: 'train', t: 'Завершённая тренировка (и через журнал деятельностей)' },
+  { k: 'race', t: 'Взятый расовый навык' }, { k: 'death', t: 'Три проваленных спасброска — тёмно-красная, с тряской' },
+  { k: 'stable', t: 'Три успешных спасброска — «Стабилизирован»' }
+]
+async function setHeroEvent(k, on) {
+  try {
+    await api('PATCH', '/api/settings', { heroEvents: { ...store.data.settings.heroEvents, [k]: on } })
+    toast(on ? 'Заставка включена' : 'Заставка выключена')
+  } catch (e) { toast(e.message, 'error') }
+}
 
 // мастера (только у владельца сайта): список, новый мастер, новый пароль, убрать
 const masters = ref([])
