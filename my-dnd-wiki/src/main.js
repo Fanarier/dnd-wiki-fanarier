@@ -15,6 +15,7 @@ import './components/rich/richfx.css'
 import './components/fx/fx.css' // переходы, наклон карточек, блик кнопок, руна-загрузчик
 import { vTilt } from './components/fx/tilt.js'
 import { vTabslide } from './components/fx/routeFx.js' // «живой» текст из редакторов — нужен везде, где показывается оформленный текст
+import './map/history.js' // журнал правок карты (Ctrl+Z / Ctrl+Y) — с первой загрузки, даже если зашли не с карты
 
 const vuetify = createVuetify({
   components,

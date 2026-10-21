@@ -120,7 +120,12 @@ export function toast(text, kind = 'info') {
 setInterval(() => { store.now = Date.now() + store.clockOffset }, 1000)
 
 /* ---------------- HTTP ---------------- */
+// журнал правок карты (history.js: Ctrl+Z / Ctrl+Y) смотрит каждую правку мастера и каждое новое состояние
+let apiRecorder = null, stateHook = null
+export function setHistoryHooks(rec, onState) { apiRecorder = rec; stateHook = onState }
+
 export async function api(method, url, body) {
+  const done = method !== 'GET' ? apiRecorder?.(method, url, body) : null
   const res = await fetch(url, {
     method,
     headers: {
@@ -141,6 +146,7 @@ export async function api(method, url, body) {
     err.status = res.status
     throw err
   }
+  done?.(json)
   return json
 }
 
@@ -169,6 +175,7 @@ function applyState(state) {
   store.me = state.me || null
   const { role, serverTime, me, ...data } = state
   store.data = data
+  stateHook?.(data)
 
   store.ready = true
   if (store.selection && !findSelected()) store.selection = null

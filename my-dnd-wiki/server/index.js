@@ -2084,7 +2084,10 @@ app.post('/api/:col', requireMaster, (req, res) => {
   if (!schema || schema.noCreate) return res.status(404).json({ error: 'Неизвестный тип объекта' })
   const data = sanitize(schema.fields, req.body || {}, false)
   for (const r of schema.required || []) if (!(r in data)) return res.status(400).json({ error: `Не заполнено поле «${r}»` })
-  const item = { id: newId(schema.prefix), ...JSON.parse(JSON.stringify(schema.defaults || {})), ...data, createdAt: Date.now() }
+  // отмена удаления на карте (Ctrl+Z) возвращает объект под прежним id — ссылки на него (НПС, заказы) не рвутся
+  const rid = String(req.body?.restoreId || '')
+  const id = rid.startsWith(schema.prefix) && /^[a-z][\w-]{0,30}$/.test(rid) && !getDb()[req.params.col].some(x => x.id === rid) ? rid : newId(schema.prefix)
+  const item = { id, ...JSON.parse(JSON.stringify(schema.defaults || {})), ...data, createdAt: Date.now() }
   if (req.params.col === 'quests') item.postedAt ||= item.createdAt
   getDb()[req.params.col].push(item)
   if (req.params.col === 'quests') notifyNewQuest(item)

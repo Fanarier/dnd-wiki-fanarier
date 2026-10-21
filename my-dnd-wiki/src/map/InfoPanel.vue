@@ -485,7 +485,7 @@ const FIELDS = {
 /* ---------------- Подписи: ползунки меняют карту сразу и сохраняются при отпускании ---------------- */
 const lab = ref(null)
 const LABEL_KEYS = ['size', 'angle', 'bend', 'wrap']
-watch(() => [store.selection?.type, store.selection?.id, master.value], () => {
+watch(() => [store.selection?.type, store.selection?.id, master.value, !!item.value], () => {
   const it = item.value
   if (!it || !master.value) { lab.value = null; return }
   if (type.value === 'states') lab.value = it.label ? { ...it.label } : null
@@ -527,7 +527,7 @@ function resetForm() {
   }
   form.value = f
 }
-watch(() => [store.selection?.type, store.selection?.id, master.value], resetForm, { immediate: true })
+watch(() => [store.selection?.type, store.selection?.id, master.value, !!item.value], resetForm, { immediate: true })
 
 async function save() {
   const body = {}
@@ -546,7 +546,7 @@ async function save() {
 }
 
 async function remove() {
-  if (!confirm(`Удалить «${item.value.name || 'объект'}»? Это нельзя отменить.`)) return
+  if (!confirm(`Удалить «${item.value.name || item.value.text || 'объект'}»? Вернуть можно через Ctrl+Z.`)) return
   const { type: t, id } = store.selection
   await act('DELETE', `/api/${t}/${id}`, undefined, 'Удалено').catch(() => {})
   store.selection = null

@@ -10,13 +10,18 @@
         <input v-model.number="store.brush" type="range" min="5" max="160" />
         <b>{{ fmtKm(store.brush) }}</b>
       </label>
-      <button class="ui-btn small" :disabled="!store.fogUndo.length" @click="undoFog" title="Отменить последний мазок (Ctrl+Z)"><Icon name="undo" :size="16" /> Отменить</button>
+      <button class="ui-btn small" :disabled="!store.fogUndo.length" @click="undoFog" title="Убрать последний мазок тумана"><Icon name="undo" :size="16" /> Отменить</button>
       <button class="ui-btn small" @click="fillFog" title="Закрыть туманом всю карту"><Icon name="fill" :size="16" /> Залить всё</button>
       <button class="ui-btn small danger" @click="clearFog" title="Убрать весь туман"><Icon name="fogOff" :size="16" /> Очистить</button>
       <label class="ui-check fog-on"><input type="checkbox" :checked="store.data.settings.fogEnabled" @change="toggleFog($event.target.checked)" /> Туман включён</label>
     </div>
 
     <div class="mt-bar ui-panel" role="toolbar" aria-label="Инструменты мастера">
+      <template v-if="master">
+        <button class="tool" :disabled="!history.undo.length || history.busy" title="Отменить (Ctrl+Z). Ещё: Ctrl+C / Ctrl+X / Ctrl+V — копировать, вырезать, вставить под курсор; Ctrl+D — дубликат; Delete — удалить; стрелки — сдвинуть" @click="undo"><Icon name="undo" :size="20" /><span>Отмена</span></button>
+        <button class="tool" :disabled="!history.redo.length || history.busy" title="Вернуть (Ctrl+Y или Ctrl+Shift+Z)" @click="redo"><Icon name="redo" :size="20" /><span>Вернуть</span></button>
+        <i class="sep" />
+      </template>
       <template v-for="(g, gi) in groups" :key="gi">
         <i v-if="gi" class="sep" />
         <button v-for="t in g" :key="t.id" class="tool" :class="{ active: store.tool === t.id }" :title="t.label + (t.key ? ` (${t.key})` : '')" @click="setTool(t.id)">
@@ -32,6 +37,7 @@
 import { computed, onMounted, onBeforeUnmount } from 'vue'
 import Icon from './Icon.vue'
 import { store, act, fmtKm, isMaster } from './store.js'
+import { history, undo, redo } from './history.js'
 
 const master = isMaster
 
@@ -123,7 +129,6 @@ const PLAYER_TOOLS = ['select', 'ruler', 'ping', 'note']
 function onKey(e) {
   // печатаешь (поле ввода или текст с оформлением) — буквы не переключают инструменты
   if (e.target.closest?.('input, textarea, select, [contenteditable]') || e.altKey || e.metaKey) return
-  if (e.ctrlKey && e.key.toLowerCase() === 'z' && master.value) { e.preventDefault(); undoFog(); return }
   if (e.ctrlKey) return
   const k = e.key.toLowerCase()
   const t = KEYS[k] || KEYS[RU[k]]
@@ -138,6 +143,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .mt-bar { display: flex; align-items: center; gap: 2px; padding: 5px; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
 .tool { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 56px; height: 52px; padding: 6px 6px 4px; border-radius: 10px; border: 1px solid transparent; background: none; color: var(--muted); font: 700 10.5px var(--sans); cursor: pointer; transition: all .15s; flex: none; }
 .tool:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+.tool:disabled { opacity: .35; cursor: default; background: none; }
 .tool.active { color: var(--gold-2); background: rgba(231, 197, 111, 0.15); border-color: rgba(231, 197, 111, 0.45); }
 .sep { width: 1px; height: 32px; background: var(--line-2); margin: 0 4px; flex: none; }
 .mt-hint { padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: var(--gold-2); text-align: center; }

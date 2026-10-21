@@ -313,6 +313,7 @@ import { fogTexture } from './fogTexture.js'
 import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm, markIcon } from './store.js'
 import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS, ROUTE_COLORS, GUILDS } from '../shared/catalog.js'
 import { useRouter } from 'vue-router'
+import { undo, redo, copySelected, paste, duplicateSelected, removeSelected, nudgeSelected } from './history.js'
 import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength, projectOnPath } from '../shared/geo.js'
 
 const router = useRouter()
@@ -960,8 +961,26 @@ async function finishFog(mode) {
   }
 }
 
+// мастер: Ctrl+Z / Ctrl+Y — отмена и возврат, Ctrl+C / X / V / D — копия, вырезать, вставить под курсор, дубликат,
+// Delete — удалить выбранное, стрелки — сдвинуть (с Shift — сильнее). Коды клавиш — чтобы работало и в русской раскладке
+function masterKey(e) {
+  const mod = e.ctrlKey || e.metaKey, k = e.code
+  if (mod && k === 'KeyZ') return (e.shiftKey ? redo() : undo()), true
+  if (mod && k === 'KeyY') return redo(), true
+  // выделен текст на странице — Ctrl+C копирует текст, как обычно
+  if (mod && (k === 'KeyC' || k === 'KeyX')) return !String(getSelection?.() || '') && copySelected(k === 'KeyX')
+  if (mod && k === 'KeyV') return paste(cursor.value), true
+  if (mod && k === 'KeyD') return duplicateSelected()
+  if (mod || e.altKey) return false
+  if (k === 'Delete') return !!store.selection && (removeSelected(), true)
+  const arrow = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[k]
+  if (arrow && store.tool === 'select') { const d = (e.shiftKey ? 20 : 2) / view.k; return nudgeSelected(arrow[0] * d, arrow[1] * d) }
+  return false
+}
+
 function onKey(e) {
   if (e.target.closest?.('input, textarea, select, [contenteditable]')) return
+  if (master.value && !store.draft && masterKey(e)) { e.preventDefault(); return }
   if (e.key === 'Escape') {
     if (store.ruler) { store.ruler = null; return }
     if (store.draft) store.draft = null
