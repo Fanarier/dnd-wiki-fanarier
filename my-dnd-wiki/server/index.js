@@ -81,6 +81,22 @@ const T = {
   }
 }
 
+// Движение метки по пути (src/shared/geo.js: moveState): точки, время хода, стоянки, что в конце, пауза, что видят игроки
+T.move = () => v => {
+  if (!v || typeof v !== 'object' || !Array.isArray(v.path) || v.path.length < 2) return null
+  const ms = x => (x === null || x === undefined || x === '' ? null : T.num(0, 1e14)(x))
+  const path = T.points(400)(v.path)
+  return {
+    path, smooth: !!v.smooth, face: ['right', 'left'].includes(v.face) ? v.face : 'none',
+    moveMs: T.num(1000, 1e12)(v.moveMs ?? 3600000),
+    stops: (Array.isArray(v.stops) ? v.stops : []).slice(0, path.length).map(w => T.num(0, 1e11)(w || 0)),
+    end: ['stop', 'vanish', 'pingpong', 'loop'].includes(v.end) ? v.end : 'stop',
+    show: ['none', 'trail', 'path', 'eta'].includes(v.show) ? v.show : 'none',
+    timing: v.timing === 'speed' ? 'speed' : 'time', speed: T.numOrNull(0.1, 1e5)(v.speed ?? null), total: ms(v.total),
+    startAt: ms(v.startAt), pausedAt: ms(v.pausedAt), arrived: !!v.arrived
+  }
+}
+
 // Подпись на карте: центр, наклон, размер шрифта, изгиб дуги, перенос на две строки
 T.label = () => v => {
   if (v === null) return null
@@ -195,7 +211,7 @@ const SCHEMAS = {
       kind: T.oneOf(['zone', 'point']),
       effect: T.mark(), size: T.num(0.3, 8),
       name: T.str(80), x: COORD, y: COORD, radius: T.num(2, 600),
-      toX: T.numOrNull(-500, 3000), toY: T.numOrNull(-500, 3000),
+      toX: T.numOrNull(-500, 3000), toY: T.numOrNull(-500, 3000), move: T.move(),
       activeFrom: T.numOrNull(0, 1e14), activeTo: T.numOrNull(0, 1e14),
       description: TEXT, secret: TEXT, hidden: T.bool(), revealTo: T.ids()
     }
@@ -580,6 +596,16 @@ setInterval(() => {
       changed = true
       if (p.squad && squadCameHome(p)) db.parties = db.parties.filter(x => x !== p)
     }
+  }
+  // метка дошла до конца пути — мастеру уведомление (один раз за отправку)
+  for (const a of db.anomalies) {
+    if (!a.move || a.move.arrived || a.move.startAt == null || a.move.pausedAt != null || a.move.end === 'loop') continue
+    const st = anomalyState(a, now).move
+    if (!st || now < st.arrivedAt) continue
+    a.move.arrived = true
+    changed = true
+    const where = a.move.end === 'vanish' ? 'дошла до конца пути и исчезла' : a.move.end === 'pingpong' ? 'дошла до конца пути и повернула обратно' : 'дошла до цели и остановилась'
+    notify('masters', 'arrived', `Метка «${a.name}» ${where}`, { anomalyId: a.id })
   }
   if (changed) {
     saveDb()

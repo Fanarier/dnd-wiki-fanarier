@@ -106,10 +106,23 @@
           <AnomalyZone v-for="z in zones" :key="z.id" :a="z" :x="z.st.x" :y="z.st.y"
                        :faded="!z.st.active || z.hidden" :selected="isSel('anomalies', z.id)"
                        :data-obj="'anomalies:' + z.id" />
-          <!-- траектория движущихся аномалий (мастер) -->
+          <!-- траектория движущихся аномалий (мастер) — старое движение по прямой -->
           <template v-if="master">
             <line v-for="z in movingZones" :key="'mv' + z.id" :x1="z.x" :y1="z.y" :x2="z.toX" :y2="z.toY" class="anomaly-track" vector-effect="non-scaling-stroke" />
           </template>
+          <!-- пути движущихся меток: мастеру — все, игрокам — что разрешил мастер (весь путь или след за меткой) -->
+          <g class="moves" pointer-events="none">
+            <template v-for="mv in movers" :key="'mp' + mv.id">
+              <path v-if="mv.full" :d="mv.full" class="move-path" :class="{ sel: mv.sel, master }" vector-effect="non-scaling-stroke" />
+              <path v-if="mv.trail" :d="mv.trail" class="move-trail" vector-effect="non-scaling-stroke" />
+              <template v-if="mv.sel">
+                <g v-for="v in mv.verts" :key="v.k" :transform="`translate(${v.x},${v.y}) scale(${1 / view.k})`" class="move-vtx" :class="{ stop: v.stop }">
+                  <circle :r="v.stop ? 6 : 3" />
+                  <text v-if="v.stop" y="-10">⏸ {{ v.stop }}</text>
+                </g>
+              </template>
+            </template>
+          </g>
         </g>
 
         <!-- Подписи: народы (из FMG) и свои подписи мастера — всё редактируется -->
@@ -168,10 +181,13 @@
           <g v-for="p in points" :key="p.id" :transform="`translate(${p.st.x},${p.st.y}) scale(${iconScale / view.k})`"
              :class="['poi', { faded: !p.st.active || p.hidden, selected: isSel('anomalies', p.id) }]"
              :style="{ color: p.fx.color }" :data-obj="'anomalies:' + p.id">
-            <circle v-if="!p.img.custom" r="20" fill="url(#pt-glow)" class="poi-glow" />
-            <image :href="p.img.src" :x="-p.dw / 2" :y="-p.dh / 2" :width="p.dw" :height="p.dh" />
+            <g class="poi-turn" :style="p.turn">
+              <circle v-if="!p.img.custom" r="20" fill="url(#pt-glow)" class="poi-glow" />
+              <image :href="p.img.src" :x="-p.dw / 2" :y="-p.dh / 2" :width="p.dw" :height="p.dh" />
+            </g>
             <circle v-if="isSel('anomalies', p.id)" :r="Math.max(p.dw, p.dh) / 2 + 6" class="sel-ring" />
             <text v-if="view.k > 1.3 || isSel('anomalies', p.id)" :y="p.dh / 2 + 15" class="lbl lbl-poi">{{ p.name }}</text>
+            <text v-if="p.eta" :y="p.dh / 2 + (view.k > 1.3 || isSel('anomalies', p.id) ? 29 : 15)" class="lbl lbl-eta">{{ p.eta }}</text>
           </g>
         </g>
 
@@ -244,7 +260,7 @@
             <text y="4" class="wp-n">{{ i + 1 }}</text>
           </g>
 
-          <template v-if="store.draft?.kind === 'road' || store.draft?.kind === 'route'">
+          <template v-if="store.draft?.kind === 'road' || store.draft?.kind === 'route' || store.draft?.kind === 'move'">
             <path :d="toPath(cursor ? [...store.draft.points, cursor] : store.draft.points)" class="draft-road" vector-effect="non-scaling-stroke" />
             <circle v-for="(pt, i) in store.draft.points" :key="'d' + i" :cx="pt[0]" :cy="pt[1]" :r="3 / view.k" class="draft-pt" />
           </template>
@@ -310,11 +326,12 @@ import AnomalyZone from './AnomalyZone.vue'
 import MapLabel from './MapLabel.vue'
 import { ICONS } from './icons.js'
 import { fogTexture } from './fogTexture.js'
-import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm, markIcon } from './store.js'
+import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm, fmtDuration, markIcon } from './store.js'
+import { setPath, here, simplify, addStopAt, moveStatus } from './movement.js'
 import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS, ROUTE_COLORS, GUILDS } from '../shared/catalog.js'
 import { useRouter } from 'vue-router'
 import { undo, redo, copySelected, paste, duplicateSelected, removeSelected, nudgeSelected } from './history.js'
-import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength, projectOnPath } from '../shared/geo.js'
+import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength, projectOnPath, subPath, moveGeometry, moveSlice } from '../shared/geo.js'
 
 const router = useRouter()
 const wrap = ref(null)
@@ -386,7 +403,37 @@ const points = computed(() => anomalies.value.filter(a => a.kind === 'point').ma
   const img = markIcon(a.effect)
   const base = 26 * (a.size || 1)
   const r = img.w / img.h
-  return { ...a, img, fx: POINT_EFFECTS[a.effect] || POINT_EFFECTS.unknown, dw: r >= 1 ? base : base * r, dh: r >= 1 ? base / r : base }
+  return { ...a, img, fx: POINT_EFFECTS[a.effect] || POINT_EFFECTS.unknown, dw: r >= 1 ? base : base * r, dh: r >= 1 ? base / r : base, turn: turnOf(a), eta: etaOf(a) }
+}))
+// поворот по ходу: иконку зеркалим в сторону движения и чуть наклоняем по курсу (не вверх ногами)
+function turnOf(a) {
+  const face = a.move?.face, s = a.st.move
+  if (!face || face === 'none' || !s || s.state === 'ready') return null
+  const right = Math.cos(s.angle) >= 0
+  const rel = right ? s.angle : s.angle - Math.PI
+  const tilt = Math.max(-0.6, Math.min(0.6, Math.atan2(Math.sin(rel), Math.cos(rel))))
+  const flip = face === 'right' ? !right : right
+  const deg = Math.round(tilt * 573) / 10
+  return { transform: `scaleX(${flip ? -1 : 1}) rotate(${flip ? -deg : deg}deg)` }
+}
+// «прибудет через…» под меткой: игрокам — если мастер разрешил, мастеру — у выбранной
+function etaOf(a) {
+  if (!a.move || !a.st.move) return ''
+  if (master.value ? !isSel('anomalies', a.id) : a.move.show !== 'eta') return ''
+  return moveStatus(a, now.value, fmtDuration)
+}
+// пути движущихся меток и след за ними
+const movers = computed(() => anomalies.value.filter(a => a.move?.path?.length >= 2 && (master.value || a.move.show !== 'none')).map(a => {
+  const g = moveGeometry(a.move), s = a.st.move, sel = isSel('anomalies', a.id)
+  const T = 70 / view.k
+  const going = s && !['ready', 'arrived', 'gone'].includes(s.state)
+  const trail = a.move.show === 'trail' && going ? (s.back ? moveSlice(g, s.d, s.d + T) : moveSlice(g, s.d - T, s.d)) : []
+  const verts = sel ? a.move.path.map((p, k) => ({ k, x: p[0], y: p[1], stop: a.move.stops?.[k] > 0 ? fmtDuration(a.move.stops[k]) : '' })).filter(v => v.stop || a.move.path.length <= 60) : []
+  return {
+    id: a.id, sel, verts,
+    full: master.value || ['path', 'eta'].includes(a.move.show) ? toPath(g.pts) : '',
+    trail: trail.length > 1 ? toPath(trail) : ''
+  }
 }))
 
 // маршрут: где на нём стоит отряд (текущая остановка подсвечивается)
@@ -708,7 +755,8 @@ function onDown(e) {
     }
     if (store.tool === 'select' && DRAGGABLE.includes(hit.type)) {
       const item = itemFor(hit)
-      const canDrag = item && !(hit.type === 'parties' && item.journey)
+      // отряд в походе и метка в пути двигаются сами — их путь меняют в панели
+      const canDrag = item && !(hit.type === 'parties' && item.journey) && !(hit.type === 'anomalies' && item.move)
       gesture.value = { ...base, mode: canDrag ? 'maybeDrag' : 'pan', item }
       return
     }
@@ -833,6 +881,7 @@ function onWheel(e) {
 
 function onDblClick() {
   if (store.draft?.kind === 'road' || store.draft?.kind === 'route') finishRoad()
+  if (store.draft?.kind === 'move') finishMove()
   if (store.tool === 'ruler' && store.ruler && !store.ruler.done) {
     // второй клик двойного клика добавил лишнюю точку — убираем её
     if (store.ruler.points.length > 2) store.ruler.points.pop()
@@ -849,6 +898,39 @@ function onRulerClick(w) {
 
 async function onClick(w, hit) {
   const r1 = p => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]
+  // Путь метки: точки кликами
+  if (store.draft?.kind === 'move') {
+    store.draft.points.push(r1(w))
+    return
+  }
+  // Путь метки по дороге или маршруту: сначала линия, потом — докуда идти по ней
+  if (store.pick?.purpose === 'moveRoad') {
+    const line = (hit.type === 'roads' || hit.type === 'routes') && store.data[hit.type].find(x => x.id === hit.id)
+    if (!line) return toast('Кликни по линии дороги или морского маршрута', 'error')
+    store.pick = { purpose: 'moveRoadEnd', id: store.pick.id, line: line.points }
+    toast(`${hit.type === 'routes' ? 'Маршрут' : 'Дорога'} выбрана — кликни, докуда идти по ней`)
+    return
+  }
+  if (store.pick?.purpose === 'moveRoadEnd') {
+    const { id, line } = store.pick
+    const a = store.data.anomalies.find(x => x.id === id)
+    store.pick = null
+    if (!a) return
+    const from = here(a)
+    const sub = subPath(line, projectOnPath(line, from).s, projectOnPath(line, w).s)
+    const pts = simplify(dist(from, sub[0]) > 1 ? [from, ...sub] : [from, ...sub.slice(1)]).map(r1)
+    if (pts.length < 2 || polyLength(pts) < 1) return toast('Слишком короткий путь — кликни дальше по линии', 'error')
+    await setPath(a, pts, { smooth: false })
+    return
+  }
+  // Стоянка на пути метки
+  if (store.pick?.purpose === 'moveStop') {
+    const a = store.data.anomalies.find(x => x.id === store.pick.id)
+    if (!a?.move) { store.pick = null; return }
+    if (addStopAt(a, w, 12 / view.k)) store.pick = null
+    else toast('Кликни ближе к пути метки', 'error')
+    return
+  }
   // Планирование пути отряда
   if (store.journeyPlan) {
     store.journeyPlan.waypoints.push(r1(w))
@@ -930,6 +1012,16 @@ async function onClick(w, hit) {
   } else store.selection = hit.type ? { type: hit.type, id: hit.id } : null
 }
 
+function finishMove() {
+  const d = store.draft
+  store.draft = null
+  const a = d && store.data.anomalies.find(x => x.id === d.id)
+  const pts = (d?.points || []).filter((p, i, arr) => i === 0 || dist(p, arr[i - 1]) > 0.5)
+  if (!a) return
+  if (pts.length < 2) return toast('Нужна хотя бы одна точка, кроме старта', 'error')
+  setPath(a, pts)
+}
+
 async function finishRoad() {
   const kind = store.draft.kind
   const pts = store.draft.points.filter((p, i, arr) => i === 0 || dist(p, arr[i - 1]) > 0.5)
@@ -990,6 +1082,10 @@ function onKey(e) {
     else store.selection = null
   } else if (e.key === 'Enter' && store.ruler && !store.ruler.done) {
     store.ruler.done = true
+  } else if (e.key === 'Enter' && store.draft?.kind === 'move') {
+    finishMove()
+  } else if (e.key === 'Backspace' && store.draft?.kind === 'move') {
+    if (store.draft.points.length > 1) store.draft.points.pop()
   } else if (e.key === 'Enter' && (store.draft?.kind === 'road' || store.draft?.kind === 'route')) {
     finishRoad()
   } else if (e.key === 'Backspace' && (store.draft?.kind === 'road' || store.draft?.kind === 'route')) {
@@ -1051,6 +1147,16 @@ watch(() => store.tool, t => {
 .road-sel { fill: none; stroke: #ffe08a; stroke-width: 5; stroke-opacity: 0.55; pointer-events: none; }
 .is-hidden { opacity: 0.45; }
 .anomaly-track { stroke: #fff; stroke-opacity: 0.6; stroke-width: 1.2; stroke-dasharray: 2 4; }
+.move-path { fill: none; stroke: #fff4d6; stroke-opacity: .55; stroke-width: 1.4; stroke-dasharray: 3 5; stroke-linecap: round; }
+.move-path.master { stroke-opacity: .3; }
+.move-path.sel { stroke: #ffd36b; stroke-opacity: .95; stroke-width: 2; animation: move-ants 1.2s linear infinite; }
+@keyframes move-ants { to { stroke-dashoffset: -16; } }
+.move-trail { fill: none; stroke: #fff; stroke-opacity: .55; stroke-width: 2.4; stroke-linecap: round; stroke-dasharray: 1 5; }
+.move-vtx circle { fill: #1d1710; stroke: #ffd36b; stroke-width: 1.5; }
+.move-vtx.stop circle { fill: #6fa8ff; stroke: #fff; }
+.move-vtx text { font: 800 10px var(--sans); fill: #cfe3ff; text-anchor: middle; paint-order: stroke; stroke: rgba(10, 12, 18, .85); stroke-width: 3px; }
+.poi-turn { transition: transform .8s ease; }
+.lbl-eta { font-size: 10px; font-weight: 700; text-anchor: middle; fill: #ffd36b; paint-order: stroke; stroke: rgba(10, 12, 18, .85); stroke-width: 3px; }
 
 .labels-img { pointer-events: none; }
 

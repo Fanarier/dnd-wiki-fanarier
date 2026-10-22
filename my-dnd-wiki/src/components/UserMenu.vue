@@ -32,6 +32,7 @@
               <router-link v-else-if="n.data?.logHero" class="n-link" :to="{ path: '/wiki', query: { section: 'activities', log: n.data.logHero } }" @click="open = false">к журналу →</router-link>
               <router-link v-else-if="n.data?.heroId" class="n-link" :to="{ path: '/wiki', query: { hero: n.data.heroId } }" @click="open = false">к карточке →</router-link>
               <router-link v-else-if="n.data?.arts" class="n-link" :to="{ path: '/wiki', query: { heroes: 'arts' } }" @click="open = false">смотреть арты →</router-link>
+              <router-link v-else-if="n.data?.anomalyId" class="n-link" :to="{ path: '/', query: { focus: 'anomalies:' + n.data.anomalyId } }" @click="open = false">на карте →</router-link>
               <router-link v-else-if="n.data?.settlementId" class="n-link" :to="{ path: '/settlement/' + n.data.settlementId, query: { tab: n.data.tab } }" @click="open = false">к поселению →</router-link>
             </li>
           </ul>

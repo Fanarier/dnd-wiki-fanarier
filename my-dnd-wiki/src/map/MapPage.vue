@@ -175,7 +175,8 @@ watch(() => [route.query.focus, route.query.pick, route.query.plan, store.ready]
     const o = store.data[type]?.find(x => x.id === id)
     if (o) {
       store.selection = { type, id }
-      const at = o.loc || (o.x != null ? { x: o.x, y: o.y } : null)
+      const l = type === 'anomalies' ? locate(type, o) : null // движущаяся метка — там, где она сейчас
+      const at = l ? { x: l[0], y: l[1] } : o.loc || (o.x != null ? { x: o.x, y: o.y } : null)
       if (at) setTimeout(() => canvas.value?.flyTo(at.x, at.y, 4), 300)
     }
   }

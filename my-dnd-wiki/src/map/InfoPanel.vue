@@ -201,10 +201,10 @@
         </div>
       </div>
 
-      <div v-if="type === 'anomalies' && (item.activeFrom || item.activeTo)" class="ui-muted small times">
+      <div v-if="type === 'anomalies' && (item.activeFrom || item.activeTo || moveLine)" class="ui-muted small times">
         <div v-if="item.activeFrom">Появляется: {{ fmtDateTime(item.activeFrom) }}</div>
         <div v-if="item.activeTo">Исчезает: {{ fmtDateTime(item.activeTo) }}</div>
-        <div v-if="item.toX != null">Движется по карте</div>
+        <div v-if="moveLine">{{ moveLine }}</div>
       </div>
 
       <RichText v-if="item.description && !master" class="ui-desc" :text="item.description" />
@@ -304,11 +304,8 @@
             <label class="ui-field"><span>Появится</span><input v-model="form.activeFromStr" type="datetime-local" class="ui-input" /></label>
             <label class="ui-field"><span>Исчезнет</span><input v-model="form.activeToStr" type="datetime-local" class="ui-input" /></label>
           </div>
-          <div class="ui-row move-row">
-            <button type="button" class="ui-btn small" @click="pickTarget"><Icon name="arrow" :size="15" /> {{ item.toX != null ? 'Изменить' : 'Задать' }} движение</button>
-            <button v-if="item.toX != null" type="button" class="ui-btn small" @click="clearMove">Убрать движение</button>
-          </div>
-          <div class="hint"><Icon name="help" :size="14" /> Движение идёт от точки «появится» к «исчезнет» — укажи обе даты.</div>
+          <div class="hint"><Icon name="help" :size="14" /> «Появится» и «исчезнет» — необязательно: метка видна только в это время.</div>
+          <MovePanel :a="item" />
         </template>
 
         <template v-if="type === 'parties'">
@@ -381,6 +378,8 @@ import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
 import { URGENCY, rewardText } from '../shared/quests.js'
 import { polyLength, journeyState, anomalyState } from '../shared/geo.js'
+import MovePanel from './MovePanel.vue'
+import { moveStatus } from './movement.js'
 import { squadUnits, power, cargoTotal, cargoOf } from '../shared/army.js'
 
 const master = isMaster
@@ -552,11 +551,14 @@ async function remove() {
   store.selection = null
 }
 
-function pickTarget() {
-  store.pick = { purpose: 'anomalyTarget', id: item.value.id }
-  toast('Кликни на карте, куда движется аномалия')
-}
-const clearMove = () => act('PATCH', `/api/anomalies/${item.value.id}`, { toX: null, toY: null }, 'Движение убрано').catch(() => {})
+// движение метки: игроки видят «прибудет через…», только если мастер так решил
+const moveLine = computed(() => {
+  const it = item.value
+  if (type.value !== 'anomalies' || !it?.move) return it?.toX != null ? 'Движется по карте' : ''
+  if (!master.value && it.move.show !== 'eta') return ''
+  const s = moveStatus(it, store.now, fmtDuration)
+  return s ? s[0].toUpperCase() + s.slice(1) : ''
+})
 
 // последний выбранный тип метки — им ставятся следующие
 watch(() => form.value?.effect, e => { if (e && type.value === 'anomalies' && form.value.kind === 'point') store.lastMark = e })

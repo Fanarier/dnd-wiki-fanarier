@@ -38,9 +38,10 @@ function recorder(method, url, body) {
   const was = id && (server[col]?.get(id) || (col === 'fog' ? store.data.fog?.find(f => f.id === id) : null))
   if (!was) return null
   if (method === 'PATCH') {
-    const keys = Object.keys(body || {}).filter(k => was[k] !== undefined)
+    const keys = Object.keys(body || {})
     if (!keys.length) return null
-    const before = Object.fromEntries(keys.map(k => [k, clone(was[k])]))
+    // поля, которого у объекта ещё не было (например, движение метки), отмена снимает — null
+    const before = Object.fromEntries(keys.map(k => [k, was[k] === undefined ? null : clone(was[k])]))
     const after = Object.fromEntries(keys.map(k => [k, clone(body[k])]))
     return () => { Object.assign(was, clone(after)); push({ t: 'edit', col, id, before, after, data: { name: was.name || was.text, kind: was.kind } }, true) }
   }

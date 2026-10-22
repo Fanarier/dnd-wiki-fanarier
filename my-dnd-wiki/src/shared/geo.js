@@ -156,10 +156,15 @@ export function partyPosition(party, now) {
   return j ? { x: j.x, y: j.y, journey: j } : { x: party.x, y: party.y, journey: null }
 }
 
-// Активность и положение аномалии (может появляться/исчезать по времени и двигаться)
+// Активность и положение аномалии (может появляться/исчезать по времени и двигаться).
+// Движение — a.move (moveState ниже); старые метки двигались по прямой toX/toY между «появится» и «исчезнет»
 export function anomalyState(a, now) {
   const upcoming = a.activeFrom != null && now < a.activeFrom
   const expired = a.activeTo != null && now > a.activeTo
+  if (a.move?.path?.length >= 2) {
+    const m = moveState(a.move, now)
+    return { active: !upcoming && !expired && !m.gone, upcoming, expired, x: m.x, y: m.y, move: m }
+  }
   let x = a.x, y = a.y
   if (a.toX != null && a.toY != null && a.activeFrom != null && a.activeTo != null && a.activeTo > a.activeFrom) {
     const t = Math.max(0, Math.min(1, (now - a.activeFrom) / (a.activeTo - a.activeFrom)))
@@ -167,6 +172,120 @@ export function anomalyState(a, now) {
     y = a.y + (a.toY - a.y) * t
   }
   return { active: !upcoming && !expired, upcoming, expired, x, y }
+}
+
+/* ---------- Движение меток (корабли, караваны, бури) ----------
+   move = {
+     path: [[x, y], …]      — точки пути, первая — откуда вышла
+     smooth                  — плавная кривая вместо ломаной
+     moveMs                  — сколько реального времени занимает сам ход по всему пути (без стоянок)
+     stops: [мс, …]          — стоянка в каждой точке пути (по номеру точки)
+     end: stop | vanish | pingpong | loop — в конце: стоит / исчезает / обратно и снова / по кругу
+     startAt, pausedAt       — когда вышла (null — ещё не отправлена) и с какого момента на паузе
+     timing, speed, total    — как задал мастер (время или скорость) — только для показа в панели
+     face, show              — поворот по ходу (none | right | left — куда смотрит иконка); что видят игроки: none | trail | path | eta
+   } */
+const geomCache = new WeakMap()
+// плавная кривая через все точки (Катмулл — Ром); vtx — где в плотном пути лежат исходные точки
+function smoothed(pts, closed) {
+  const out = [], vtx = []
+  const n = pts.length
+  const at = i => (closed ? pts[(i + n) % n] : pts[Math.max(0, Math.min(n - 1, i))])
+  const segs = closed ? n : n - 1
+  for (let i = 0; i < segs; i++) {
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2)
+    vtx.push(out.length)
+    const steps = Math.max(4, Math.min(24, Math.round(dist(p1, p2) / 6)))
+    for (let s = 0; s < steps; s++) {
+      const t = s / steps, t2 = t * t, t3 = t2 * t
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3)
+      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])])
+    }
+  }
+  vtx.push(out.length)
+  out.push(closed ? [...pts[0]] : [...pts[n - 1]])
+  return { pts: out, vtx }
+}
+export function moveGeometry(move) {
+  let g = geomCache.get(move)
+  if (g) return g
+  const loop = move.end === 'loop'
+  const raw = loop ? [...move.path, move.path[0]] : move.path
+  const base = move.smooth && move.path.length > 2 ? smoothed(move.path, loop) : { pts: raw, vtx: raw.map((_, i) => i) }
+  const cum = [0]
+  for (let i = 1; i < base.pts.length; i++) cum.push(cum[i - 1] + dist(base.pts[i - 1], base.pts[i]))
+  g = { pts: base.pts, vtx: base.vtx, cum, total: cum[cum.length - 1] || 0 }
+  geomCache.set(move, g)
+  return g
+}
+// точка и направление на расстоянии d от начала плотного пути
+function along(g, d) {
+  const { pts, cum } = g
+  if (d <= 0) return { x: pts[0][0], y: pts[0][1], angle: Math.atan2(pts[1][1] - pts[0][1], pts[1][0] - pts[0][0]), i: 1 }
+  let lo = 1, hi = cum.length - 1
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (cum[mid] < d) lo = mid + 1; else hi = mid }
+  const i = Math.min(lo, pts.length - 1)
+  const seg = cum[i] - cum[i - 1]
+  const t = seg ? Math.min(1, (d - cum[i - 1]) / seg) : 1
+  const [x0, y0] = pts[i - 1], [x1, y1] = pts[i]
+  return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t, angle: Math.atan2(y1 - y0, x1 - x0), i }
+}
+// кусок плотного пути между расстояниями d0 < d1 (для следа и оставшегося пути)
+export function moveSlice(g, d0, d1) {
+  d0 = Math.max(0, d0)
+  d1 = Math.min(g.total, d1)
+  if (d1 <= d0) return []
+  const a = along(g, d0), b = along(g, d1)
+  return [[a.x, a.y], ...g.pts.slice(a.i, b.i), [b.x, b.y]]
+}
+// один проход по пути: геометрия, стоянки в каждой точке, длительность и «мс на пиксель» хода
+// (у петли последняя точка — снова первая: её стоянка — это стоянка первой, в начале следующего круга)
+export function movePass(move) {
+  const g = moveGeometry(move)
+  const loop = move.end === 'loop'
+  const waits = g.vtx.map((_, k) => (loop && k === g.vtx.length - 1 ? 0 : Math.max(0, Number(move.stops?.[k]) || 0)))
+  const moveMs = Math.max(1000, Number(move.moveMs) || 0)
+  return { g, waits, passMs: moveMs + waits.reduce((s, w) => s + w, 0), rate: g.total ? moveMs / g.total : 0 }
+}
+function inPass(pass, tau) {
+  const { g, waits, rate } = pass
+  let t = 0
+  for (let k = 0; k < g.vtx.length; k++) {
+    const dk = g.cum[g.vtx[k]]
+    if (tau < t + waits[k]) return { ...along(g, dk), d: dk, waitLeft: t + waits[k] - tau, vertex: k }
+    t += waits[k]
+    if (k === g.vtx.length - 1) break
+    const leg = (g.cum[g.vtx[k + 1]] - dk) * rate
+    if (tau < t + leg) return { ...along(g, dk + (tau - t) / rate), d: dk + (tau - t) / rate, waitLeft: 0, next: k + 1, nextIn: t + leg - tau }
+    t += leg
+  }
+  return { ...along(g, g.total), d: g.total, waitLeft: 0, vertex: g.vtx.length - 1 }
+}
+// где метка сейчас: x, y, angle (куда смотрит), d — сколько пройдено по пути, back — идёт обратно,
+// state: ready (ещё не вышла) | waiting (стоянка) | moving | paused | arrived | gone; left — сколько до конца прохода
+export function moveState(move, now) {
+  const pass = movePass(move)
+  const { g, passMs } = pass
+  if (!g.total) return { x: move.path[0][0], y: move.path[0][1], angle: 0, d: 0, state: 'ready', passMs, left: passMs }
+  if (move.startAt == null) return { ...inPass(pass, 0), state: 'ready', passMs, left: passMs }
+  const e = (move.pausedAt ?? now) - move.startAt
+  if (e < 0) return { ...inPass(pass, 0), state: 'ready', passMs, startsIn: -e, left: passMs - e }
+  const loops = move.end === 'pingpong' || move.end === 'loop'
+  if (!loops && e >= passMs) {
+    const p = inPass(pass, passMs)
+    return { ...p, state: move.end === 'vanish' ? 'gone' : 'arrived', gone: move.end === 'vanish', passMs, left: 0, arrivedAt: move.startAt + passMs }
+  }
+  const lap = loops ? Math.floor(e / passMs) : 0
+  let tau = e - lap * passMs
+  const back = move.end === 'pingpong' && lap % 2 === 1
+  if (back) tau = passMs - tau
+  const p = inPass(pass, tau)
+  if (back) p.angle += Math.PI
+  return {
+    ...p, back, lap, passMs, left: passMs - (e - lap * passMs),
+    state: move.pausedAt != null ? 'paused' : p.waitLeft > 0 ? 'waiting' : 'moving',
+    arrivedAt: move.startAt + passMs
+  }
 }
 
 /* ---------- Дороги как граф: поиск маршрута по дорогам ---------- */
