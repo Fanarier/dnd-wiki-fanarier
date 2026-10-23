@@ -93,10 +93,13 @@
       <div class="ps-pick">
         <h3>{{ PICK_TITLE[pick] }}</h3>
         <input v-model="pickQ" class="ps-input" placeholder="Поиск по имени…" autofocus />
+        <div class="ps-pick-tabs">
+          <button v-for="t in PICK_TABS" :key="t.id" type="button" :class="{ on: pickTab === t.id }" @click="pickTab = t.id">{{ t.title }} <small>{{ pool(t.id).length }}</small></button>
+        </div>
         <div class="ps-pick-list">
           <button v-for="h in pickList" :key="h.id" type="button" class="ps-pick-row" @click="add(h.id)">
-            <img v-if="cover(h)" :src="cover(h)" alt="" /><span v-else class="ini">{{ h.name[0] }}</span>
-            <b>{{ h.name }}</b><small>{{ HERO_KINDS[h.kind]?.label }} · ур. {{ h.level }}{{ placeOf(h.id) ? ' · сейчас: ' + PLACE[placeOf(h.id)] : '' }}</small>
+            <img v-if="h.pic" :src="h.pic" alt="" /><span v-else class="ini">{{ h.name[0] }}</span>
+            <b>{{ h.name }}</b><small>{{ h.label }}{{ h.level ? ' · ур. ' + h.level : '' }}{{ h.sub ? ' · ' + h.sub : '' }}{{ placeOf(h.id) ? ' · сейчас: ' + PLACE[placeOf(h.id)] : '' }}</small>
           </button>
           <p v-if="!pickList.length" class="ps-empty">Никого не нашлось.</p>
         </div>
@@ -139,10 +142,10 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { VueDraggable } from 'vue-draggable-plus'
-import { store, isMaster, api, toast, heroCover, heroPortraitUrl, postBlob, rulesState, loadRules, init } from '../map/store.js'
-import { HERO_KINDS } from '../shared/catalog.js'
+import { store, isMaster, api, toast, postBlob, rulesState, loadRules, init, npcState, loadNpcs } from '../map/store.js'
+import { memberOf } from './members.js'
 import RichText from '../components/RichText.vue'
 import RichInput from '../components/rich/RichInput.vue'
 import HeroSlot from './HeroSlot.vue'
@@ -164,8 +167,9 @@ const TONES = [{ v: 'good', t: '▲ Полезный' }, { v: 'bad', t: '▼ В�
 const PICK_TITLE = { slots: 'Кого поставить в группу', camp: 'Кого отправить в лагерь', companions: 'Компаньон' }
 const PLACE = { slots: 'в группе', camp: 'в лагере', companions: 'компаньон' }
 
-const heroOf = id => (store.data.heroes || []).find(h => h.id === id) || { id, name: '???', unknown: true }
-const cover = h => { const c = heroCover(h); return c ? heroPortraitUrl(c.thumb || c.file) : '' }
+// в слотах — герои (карточки вики) и НПС-сайд-кики, личные сайд-кики, компаньоны (листы НПС)
+onMounted(() => loadNpcs())
+const heroOf = id => memberOf(id)
 const placeOf = id => ['slots', 'camp', 'companions'].find(k => party.value[k].includes(id))
 const quests = computed(() => (store.data.campaign?.quests || []).filter(q => !['Не актуален'].includes(q.status)))
 
@@ -198,19 +202,30 @@ function move(id, to) {
 }
 const remove = id => save(p => { for (const k of ['slots', 'camp', 'companions']) p[k] = p[k].filter(x => x !== id) })
 
-const pick = ref(null), pickQ = ref('')
+const pick = ref(null), pickQ = ref(''), pickTab = ref('character')
+const PICK_TABS = [
+  { id: 'character', title: 'Персонажи' }, { id: 'sidekick', title: 'Сайд-кики' }, { id: 'personal', title: 'Личные сайд-кики' },
+  { id: 'companion', title: 'Компаньоны' }, { id: 'all', title: 'Все' }
+]
 function openPick(where) {
   if (!master.value) return
   if (where === 'slots' && party.value.slots.length >= cap.value) return toast('В группе нет свободных мест', 'error')
   pick.value = where
   pickQ.value = ''
+  pickTab.value = where === 'companions' ? 'companion' : 'character'
 }
+// кого можно выбрать на вкладке: персонажи — карточки героев; сайд-кики и компаньоны — карточки героев и листы НПС
+const everyone = computed(() => [
+  ...(store.data.heroes || []).map(h => memberOf(h.id)),
+  // НПС, у которого есть карточка героя, уже есть в списке как герой
+  ...npcState.npcs.filter(n => ['sidekick', 'personal', 'companion'].includes(n.group) && !n.heroId).map(n => memberOf(n.id))
+])
+const pool = tab => everyone.value.filter(m => tab === 'all' || m.tab === tab)
 const pickList = computed(() => {
   const q = pickQ.value.trim().toLowerCase()
-  const order = { character: 0, sidekick: 1, companion: 2 }
-  return (store.data.heroes || [])
-    .filter(h => !party.value[pick.value]?.includes(h.id) && (!q || h.name.toLowerCase().includes(q)))
-    .sort((a, b) => (pick.value === 'companions' ? (b.kind === 'companion') - (a.kind === 'companion') : 0) || order[a.kind] - order[b.kind] || a.name.localeCompare(b.name, 'ru'))
+  return pool(pickTab.value)
+    .filter(m => !party.value[pick.value]?.includes(m.id) && (!q || m.name.toLowerCase().includes(q)))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 })
 function add(id) {
   const where = pick.value
@@ -335,11 +350,15 @@ function removeFx() {
 .ps-btn.primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
 .ps-btn.danger { color: #ff8f7f; border-color: rgba(255, 107, 94, .4); background: none; }
 .ps-modal { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 16px; background: rgba(5, 4, 3, .6); backdrop-filter: blur(3px); }
-.ps-pick { width: min(420px, 100%); max-height: min(640px, 90vh); display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 10px; padding: 16px; border-radius: 16px; background: #1a130c; border: 1px solid rgba(231, 197, 111, .35); box-shadow: 0 24px 60px rgba(0, 0, 0, .6); }
+.ps-pick { width: min(460px, 100%); max-height: min(680px, 90vh); display: grid; grid-template-rows: auto auto auto minmax(0, 1fr); gap: 10px; padding: 16px; border-radius: 16px; background: #1a130c; border: 1px solid rgba(231, 197, 111, .35); box-shadow: 0 24px 60px rgba(0, 0, 0, .6); }
 .ps-pick.wide { width: min(560px, 100%); grid-template-rows: none; overflow-y: auto; }
 .ps-pick h3 { margin: 0; font: 700 22px var(--a-serif, 'Cormorant Garamond', serif); color: #f3dc9e; }
 .ps-pick h3 small { font: 600 12px var(--a-sans, 'Manrope', sans-serif); color: var(--a-muted, #a8936c); }
 .ps-input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .3); background: rgba(0, 0, 0, .35); color: #efe3c8; font: 600 14px var(--a-sans, 'Manrope', sans-serif); outline: none; }
+.ps-pick-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.ps-pick-tabs button { padding: 4px 10px; border-radius: 99px; border: 1px solid rgba(231, 197, 111, .25); background: none; color: var(--a-muted, #a8936c); font: 700 12px var(--a-sans, 'Manrope', sans-serif); cursor: pointer; }
+.ps-pick-tabs button.on { background: rgba(231, 197, 111, .16); border-color: rgba(231, 197, 111, .6); color: #f3dc9e; }
+.ps-pick-tabs small { opacity: .7; }
 .ps-pick-list { overflow-y: auto; display: grid; gap: 4px; align-content: start; }
 .ps-pick-row { display: grid; grid-template-columns: 36px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left; padding: 6px 8px; border-radius: 10px; border: 0; background: none; color: #efe3c8; cursor: pointer; }
 .ps-pick-row:hover { background: rgba(231, 197, 111, .12); }

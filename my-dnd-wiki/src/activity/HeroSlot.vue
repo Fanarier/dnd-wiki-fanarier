@@ -1,13 +1,13 @@
 <template>
   <!-- герой в слоте группы / лагеря / компаньонов: портрет, имя, уровень, выносливость; мастеру — куда переставить -->
-  <div class="pc" :class="{ small, unknown: hero.unknown, [hero.kind]: true }">
-    <component :is="hero.unknown ? 'div' : 'router-link'" :to="hero.unknown ? undefined : { path: '/wiki', query: { hero: hero.id } }" class="pc-link" draggable="false">
+  <div class="pc" :class="{ small, unknown: hero.unknown, [hero.tab]: true }">
+    <component :is="hero.unknown ? 'div' : 'router-link'" :to="hero.unknown ? undefined : hero.to" class="pc-link" draggable="false">
       <span class="pc-pic">
-        <img v-if="pic" :src="pic" alt="" draggable="false" />
+        <img v-if="hero.pic" :src="hero.pic" alt="" draggable="false" />
         <template v-else>{{ hero.unknown ? '?' : hero.name[0] }}</template>
       </span>
       <b class="pc-name">{{ hero.unknown ? 'Неизвестный' : hero.name }}</b>
-      <small v-if="!hero.unknown" class="pc-sub">ур. {{ hero.level }}<template v-if="hero.kind !== 'character'"> · {{ HERO_KINDS[hero.kind]?.label }}</template></small>
+      <small v-if="!hero.unknown" class="pc-sub">{{ hero.level ? 'ур. ' + hero.level : '' }}<template v-if="hero.tab !== 'character'">{{ hero.level ? ' · ' : '' }}{{ hero.label }}</template></small>
       <i v-if="!hero.unknown && hero.staminaMax" class="pc-st" :title="`Выносливость ${hero.stamina} / ${hero.staminaMax}`"><i :style="{ width: Math.max(0, Math.min(100, (hero.stamina / hero.staminaMax) * 100)) + '%' }" /></i>
     </component>
     <div v-if="master" class="pc-act">
@@ -18,15 +18,10 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { heroCover, heroPortraitUrl } from '../map/store.js'
-import { HERO_KINDS } from '../shared/catalog.js'
-
 const props = defineProps({ hero: { type: Object, required: true }, master: Boolean, small: Boolean, moves: { type: Array, default: () => [] } })
 defineEmits(['move', 'remove'])
 const ICON = { slots: '⚔', camp: '⛺', companions: '🐾' }
 const TITLE = { slots: 'В группу', camp: 'В лагерь', companions: 'В компаньоны' }
-const pic = computed(() => { const c = heroCover(props.hero); return c ? heroPortraitUrl(c.thumb || c.file) : '' })
 </script>
 
 <style scoped>
@@ -35,6 +30,7 @@ const pic = computed(() => { const c = heroCover(props.hero); return c ? heroPor
 .pc:hover { transform: translateY(-3px); border-color: rgba(255, 190, 100, .7); box-shadow: 0 12px 24px rgba(0, 0, 0, .45), 0 0 18px rgba(255, 150, 60, .2); }
 .pc.sidekick { border-color: rgba(159, 198, 255, .4); }
 .pc.companion { border-color: rgba(126, 208, 122, .4); }
+.pc.personal { border-color: rgba(201, 184, 255, .45); }
 .pc.unknown { opacity: .6; }
 .pc-link { display: grid; justify-items: center; gap: 3px; height: 100%; padding: 12px 8px 10px; color: inherit; text-decoration: none; text-align: center; }
 .pc-pic { display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; overflow: hidden; border: 2px solid #c9a24f; background: #0f0b07; color: #f3dc9e; font: 700 30px 'Cormorant Garamond', serif; box-shadow: 0 0 14px rgba(255, 160, 60, .25); }
