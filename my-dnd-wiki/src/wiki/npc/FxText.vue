@@ -1,5 +1,6 @@
 <template>
-  <!-- описание навыка: эффекты из справочника подсвечены, при наведении (или касании) — подсказка; прочие «(…)» — формулы -->
+  <!-- описание навыка: эффекты из справочника НПС или из эффектов вики подсвечены, при наведении (или касании) — подсказка;
+       прочие «(…)» — формулы -->
   <span class="fxt">
     <template v-for="(p, i) in parts" :key="i">
       <span v-if="p.fx" class="fxt-ef" tabindex="0" :style="{ '--fc': p.fx.color || '#c9a2ff' }">{{ p.s }}<span class="fxt-tip" role="tooltip"><b><img v-if="wiki(p.fx)?.icon" :src="wiki(p.fx).icon" alt="" />{{ p.fx.name }}</b>{{ p.fx.desc || wikiText(p.fx) || 'Описание эффекта пока не заполнено.' }}</span></span>
@@ -10,12 +11,19 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { splitFx } from '../../shared/npc.js'
-import { rulesState } from '../../map/store.js'
+import { rulesState, loadRules } from '../../map/store.js'
 import { findEffect, htmlToText } from '../../shared/rules.js'
 const props = defineProps({ text: { type: String, default: '' }, effects: { type: Array, default: () => [] } })
-const parts = computed(() => splitFx(props.text, props.effects))
+// чего нет в справочнике НПС, ищем среди эффектов вики (там их больше: «Очарование» и т.д.)
+const parts = computed(() => splitFx(props.text, props.effects).map(p => {
+  if (!p.inner || p.fx) return p
+  const w = findEffect(rulesState.effects, { Name: p.inner })
+  return w ? { ...p, fx: { name: w.name, color: KIND_COLOR[w.kind] || '#c9a2ff', desc: '' } } : p
+}))
+const KIND_COLOR = { buff: '#8fd68a', debuff: '#c9a2ff', special: '#f3c86b' }
+onMounted(() => loadRules())
 // тот же эффект в вики правил — оттуда иконка, и описание, если в справочнике НПС его нет
 const wiki = fx => findEffect(rulesState.effects, { Name: fx.name })
 const wikiText = fx => htmlToText(wiki(fx)?.html || '').replace(/\s+/g, ' ')
