@@ -15,24 +15,28 @@
       <div class="rf-cover l"><div class="rf-tool"><span class="rf-corner tl" /><span class="rf-corner bl" /></div><svg class="rf-sigil" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1.2" /><path d="M16 3 L19 16 L16 29 L13 16 Z" fill="currentColor" /><path d="M3 16 L16 13.5 L29 16 L16 18.5 Z" fill="currentColor" opacity=".55" /></svg></div>
       <div class="rf-cover r"><div class="rf-tool"><span class="rf-corner tr" /><span class="rf-corner br" /></div><svg class="rf-sigil" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1.2" /><path d="M16 3 L19 16 L16 29 L13 16 Z" fill="currentColor" /><path d="M3 16 L16 13.5 L29 16 L16 18.5 Z" fill="currentColor" opacity=".55" /></svg></div>
     </template>
-    <!-- активность: ночь, искра падает на поленья, костёр вспыхивает, искры летят вверх, тёплый свет заливает экран -->
+    <!-- активность: ночь у лагеря. Угли тлеют в кольце камней, костёр тихо разгорается, вверх тянется дымок и летят искры,
+         а страница проступает из темноты кругом света от костра — без вспышки, глазам ночью не больно -->
     <template v-else-if="routeFx.kind === 'activity'">
       <i class="rf-night" />
-      <i class="rf-light" />
       <div class="rf-camp">
+        <i class="rf-glow" />
+        <i v-for="st in STONES.filter(x => x.back)" :key="'b' + st.k" class="rf-stone" :style="st.style" />
         <i class="rf-log a" /><i class="rf-log b" />
-        <!-- пламя: языки с острыми верхушками, каждый разгорается и дрожит по-своему -->
+        <i class="rf-coal" />
+        <!-- пламя: языки с острыми верхушками, разгораются от маленького к большому и дрожат каждый по-своему -->
         <svg class="rf-fire" viewBox="-60 -150 120 160" aria-hidden="true">
           <defs>
-            <radialGradient id="rf-fl-o" cx="50%" cy="85%" r="75%"><stop offset="0" stop-color="#ffd25a" /><stop offset=".45" stop-color="#ff8a1e" /><stop offset="1" stop-color="#d8380c" stop-opacity=".9" /></radialGradient>
-            <radialGradient id="rf-fl-m" cx="50%" cy="85%" r="70%"><stop offset="0" stop-color="#fff3b0" /><stop offset=".5" stop-color="#ffc23a" /><stop offset="1" stop-color="#ff7a1a" /></radialGradient>
-            <radialGradient id="rf-fl-c" cx="50%" cy="80%" r="65%"><stop offset="0" stop-color="#ffffff" /><stop offset=".6" stop-color="#fff2b8" /><stop offset="1" stop-color="#ffd36b" stop-opacity="0" /></radialGradient>
+            <radialGradient id="rf-fl-o" cx="50%" cy="88%" r="78%"><stop offset="0" stop-color="#ffb347" /><stop offset=".5" stop-color="#f06a1c" /><stop offset="1" stop-color="#a8290a" stop-opacity=".85" /></radialGradient>
+            <radialGradient id="rf-fl-m" cx="50%" cy="88%" r="72%"><stop offset="0" stop-color="#ffd47a" /><stop offset=".55" stop-color="#ff9a2e" /><stop offset="1" stop-color="#e2561a" /></radialGradient>
+            <radialGradient id="rf-fl-c" cx="50%" cy="82%" r="66%"><stop offset="0" stop-color="#ffe9b0" /><stop offset=".6" stop-color="#ffc867" /><stop offset="1" stop-color="#ff9a3a" stop-opacity="0" /></radialGradient>
           </defs>
           <path class="fl f1" fill="url(#rf-fl-o)" d="M0 0 C-34 0 -50 -26 -42 -56 C-36 -78 -20 -86 -24 -112 C-10 -98 -6 -88 -6 -76 C2 -96 0 -122 10 -146 C20 -116 32 -100 34 -78 C40 -86 42 -96 40 -106 C56 -80 54 -40 42 -20 C34 -6 18 0 0 0 Z" />
           <path class="fl f2" fill="url(#rf-fl-m)" d="M0 -2 C-24 -2 -34 -20 -28 -42 C-24 -58 -12 -64 -14 -84 C-4 -74 0 -64 0 -56 C6 -72 8 -92 16 -106 C22 -84 30 -68 28 -48 C34 -54 36 -62 34 -70 C44 -48 40 -24 30 -12 C22 -4 12 -2 0 -2 Z" />
           <path class="fl f3" fill="url(#rf-fl-c)" d="M0 -4 C-14 -4 -20 -16 -16 -30 C-12 -42 -4 -48 -2 -62 C6 -50 10 -40 12 -30 C16 -18 12 -4 0 -4 Z" />
         </svg>
-        <i class="rf-spark" />
+        <i v-for="st in STONES.filter(x => !x.back)" :key="'f' + st.k" class="rf-stone" :style="st.style" />
+        <i v-for="k in 3" :key="'s' + k" class="rf-smoke" :style="{ '--k': k }" />
         <i v-for="e in EMBERS" :key="e.k" class="rf-ember" :style="e.style" />
       </div>
     </template>
@@ -51,13 +55,17 @@ import { routeFx, sectionOf, reducedMotion } from './routeFx.js'
 import { sfx } from '../../sound/sound.js'
 
 const router = useRouter()
-const COVER = { map: 420, wiki: 460, sheets: 440, activity: 520 }
-const REVEAL = { map: 900, wiki: 950, sheets: 900, activity: 1350 }
-// костёр: искры разлетаются вверх веером, каждая со своей скоростью
-const EMBERS = Array.from({ length: 22 }, (_, k) => {
-  const a = -Math.PI / 2 + ((k % 11) - 5) * 0.16 + (k > 10 ? 0.08 : 0)
-  const v = 26 + (k * 37) % 30
-  return { k, style: { '--ex': (Math.cos(a) * v).toFixed(1) + 'vh', '--ey': (Math.sin(a) * v).toFixed(1) + 'vh', '--d': (0.18 + (k % 6) * 0.05).toFixed(2) + 's', '--s': (0.6 + (k % 4) * 0.25).toFixed(2) } }
+const COVER = { map: 420, wiki: 460, sheets: 440, activity: 850 }
+const REVEAL = { map: 900, wiki: 950, sheets: 900, activity: 1050 }
+// костёр: камни кольцом вокруг (дальние — за поленьями, ближние — перед ними) и искры, которые неспешно тянутся вверх
+const STONES = Array.from({ length: 11 }, (_, k) => {
+  const a = (k / 11) * Math.PI * 2 + 0.2
+  const w = 30 + ((k * 7) % 4) * 5
+  return { k, back: Math.sin(a) < 0, style: { left: (Math.cos(a) * 128 - w / 2).toFixed(0) + 'px', top: (Math.sin(a) * 30 - 9).toFixed(0) + 'px', width: w + 'px', '--r': ((k * 37) % 30 - 15) + 'deg', '--d': (0.05 + (k % 5) * 0.04).toFixed(2) + 's' } }
+})
+const EMBERS = Array.from({ length: 14 }, (_, k) => {
+  const x = ((k * 53) % 90) - 45
+  return { k, style: { left: x + 'px', '--ex': (((k * 29) % 70) - 35) + 'px', '--ey': -(26 + (k * 13) % 22) + 'vh', '--d': (0.25 + (k % 7) * 0.09).toFixed(2) + 's', '--t': (1 + (k % 3) * 0.2).toFixed(1) + 's', '--s': (0.6 + (k % 3) * 0.25).toFixed(2) } }
 })
 // облака: откуда приплывают и куда расходятся (направление от центра)
 // облака: гряда из клубов разного размера, каждый со своей стороны и своим местом в гряде
@@ -72,7 +80,7 @@ const CARDS = Array.from({ length: 7 }, (_, k) => {
   return { k, style: { '--t': t, '--d': (Math.abs(t) * 0.035).toFixed(3) + 's', '--rot': (t * 11) + 'deg', '--in': (k % 2 ? -1 : 1) * (40 + k * 6) + 'vw' } }
 })
 // карта: один порыв ветра на весь переход (звучит с начала, пока облака накатывают и расходятся)
-const SOUND = { map: null, wiki: ['bookOpen', 0.45], sheets: ['pageFlip', 0.45], activity: ['campfire', 0.7] }
+const SOUND = { map: null, wiki: ['bookOpen', 0.45], sheets: ['pageFlip', 0.45], activity: null }
 // номер текущего перехода: таймеры прошлого перехода (если успели переключиться дальше) ничего не трогают
 let seq = 0
 
@@ -90,6 +98,7 @@ onMounted(() => {
     setTimeout(() => { if (my === seq && !routeFx.phase) routeFx.phase = 'cover' }, 30)
     if (b === 'wiki') sfx('bookClose', 0.3)
     if (b === 'map') sfx('cloudWhoosh', 0.5)
+    if (b === 'activity') setTimeout(() => { if (my === seq) sfx('campfire', 0.6) }, 220) // треск — когда занимается огонь
     return new Promise(res => setTimeout(() => res(true), COVER[b]))
   })
   router.afterEach((to, from, failure) => {
@@ -178,46 +187,62 @@ onMounted(() => {
   100% { transform: translate(calc(var(--t) * 34vw), -70vh) rotate(calc(var(--rot) * 2.5)); opacity: 0; }
 }
 
-/* ---------- активность: костёр ---------- */
-.rf-night { inset: 0;
+/* ---------- активность: ночь у костра ---------- */
+/* ночь: в ней открывается «окно» от костра наружу — мягкий край, страница проступает кругом света */
+@property --hole { syntax: '<length>'; inherits: false; initial-value: 0px; }
+.rf-night { inset: 0; --hole: -20vmax; /* окно ещё закрыто: вся ночь непрозрачная */
   background:
-    radial-gradient(1px 1px at 18% 16%, #fffc, transparent), radial-gradient(1px 1px at 72% 10%, #fffb, transparent),
-    radial-gradient(1.5px 1.5px at 44% 24%, #ffe9c4, transparent), radial-gradient(1px 1px at 86% 34%, #fff9, transparent),
-    radial-gradient(1px 1px at 30% 38%, #fff8, transparent), radial-gradient(1.5px 1.5px at 60% 14%, #fffa, transparent),
-    radial-gradient(ellipse 80% 45% at 50% 100%, #2a1608, transparent 70%),
-    linear-gradient(180deg, #05060d, #0b0810 60%, #140b06); }
+    radial-gradient(1px 1px at 18% 16%, #fff9, transparent), radial-gradient(1px 1px at 72% 10%, #fff8, transparent),
+    radial-gradient(1.5px 1.5px at 44% 24%, #ffe9c4aa, transparent), radial-gradient(1px 1px at 86% 34%, #fff7, transparent),
+    radial-gradient(1px 1px at 30% 38%, #fff6, transparent), radial-gradient(1.5px 1.5px at 60% 14%, #fff8, transparent),
+    radial-gradient(ellipse 70% 40% at 50% 100%, #1d1008, transparent 70%),
+    linear-gradient(180deg, #04050b, #08070d 60%, #0e0906);
+  -webkit-mask-image: radial-gradient(circle at 50% 62%, transparent var(--hole), rgba(0, 0, 0, .55) calc(var(--hole) + 7vmax), #000 calc(var(--hole) + 20vmax));
+  mask-image: radial-gradient(circle at 50% 62%, transparent var(--hole), rgba(0, 0, 0, .55) calc(var(--hole) + 7vmax), #000 calc(var(--hole) + 20vmax)); }
 .rf.activity.cover .rf-night { animation: rf-fade-in .45s ease-out both; }
-.rf.activity.reveal .rf-night { animation: rf-fade-out .6s ease-in .62s both; }
+.rf.activity.reveal .rf-night { animation: rf-hole .9s cubic-bezier(.45, 0, .35, 1) .1s both, rf-fade-out .25s ease-in .8s both; }
+@keyframes rf-hole { from { --hole: -20vmax; } to { --hole: 110vmax; } }
+/* тёплый ореол вокруг огня — приглушённый, дышит вместе с пламенем */
+.rf-glow { left: -35vmax; top: -30vmax; width: 70vmax; height: 46vmax; border-radius: 50%; opacity: 0;
+  background: radial-gradient(closest-side, rgba(255, 140, 60, .22), rgba(255, 110, 40, .08) 55%, transparent); }
+.rf.activity .rf-glow { animation: rf-glow .7s ease-out .3s both, rf-breathe 1.1s ease-in-out 1s infinite alternate; }
+@keyframes rf-glow { from { opacity: 0; transform: scale(.5); } to { opacity: 1; transform: scale(1); } }
+@keyframes rf-breathe { from { opacity: 1; transform: scale(1); } to { opacity: .8; transform: scale(1.05); } }
+
 .rf-camp { left: 50%; top: 62%; width: 0; height: 0; }
-.rf.activity.cover .rf-camp { animation: rf-fade-in .4s ease-out .1s both; }
-.rf.activity.reveal .rf-camp { animation: rf-camp-out .55s ease-in .75s both; }
-.rf-log { border-radius: 14px; background: linear-gradient(180deg, #6b4223, #3d2412 70%, #24150a); box-shadow: inset 0 -4px 6px rgba(0, 0, 0, .5), 0 6px 14px rgba(0, 0, 0, .6); }
-.rf-log::after { content: ''; position: absolute; right: 4px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle, #c48a52 25%, #7a4c26 30%, #a06a3a 45%, #5a3518 70%); }
-.rf-log.a { transform: rotate(16deg); }
-.rf-log.b { transform: rotate(-16deg) scaleX(-1); }
-/* пламя (svg): языки растут от поленьев и дрожат — у каждого своя частота */
-.rf-fire { position: absolute; left: -105px; top: -262px; width: 210px; height: 280px; overflow: visible; filter: drop-shadow(0 0 18px rgba(255, 140, 40, .75)); }
-.rf-fire .fl { transform-box: fill-box; transform-origin: 50% 100%; transform: scale(0); opacity: 0; mix-blend-mode: screen; }
-.rf.activity.reveal .rf-fire .f1 { animation: rf-ignite .5s cubic-bezier(.2, 1.4, .4, 1) .02s both, rf-flicker .26s ease-in-out .52s infinite alternate; }
-.rf.activity.reveal .rf-fire .f2 { animation: rf-ignite .45s cubic-bezier(.2, 1.5, .4, 1) .08s both, rf-flicker2 .19s ease-in-out .53s infinite alternate; }
-.rf.activity.reveal .rf-fire .f3 { animation: rf-ignite .4s cubic-bezier(.2, 1.6, .4, 1) .12s both, rf-flicker .15s ease-in-out .52s infinite alternate; }
-.rf-log { left: -110px; width: 220px; height: 28px; top: -10px; }
-/* искра: падает с неба на поленья (пока закрывается экран) */
-.rf-spark { left: -4px; top: -4px; width: 8px; height: 8px; border-radius: 50%; background: #fff3b0; box-shadow: 0 0 12px 4px rgba(255, 170, 60, .9); opacity: 0; }
-.rf.activity.cover .rf-spark { animation: rf-spark-fall .5s cubic-bezier(.5, 0, .9, .6) .05s both; }
-/* свет костра: вспыхивает и заливает экран — под ним открывается страница */
-.rf-light { left: 50%; top: 62%; width: 60vmax; height: 60vmax; margin: -30vmax 0 0 -30vmax; border-radius: 50%; opacity: 0;
-  background: radial-gradient(closest-side, rgba(255, 214, 140, .95), rgba(255, 150, 60, .55) 45%, rgba(255, 110, 40, .15) 75%, transparent); }
-.rf.activity.reveal .rf-light { animation: rf-flood 1.25s cubic-bezier(.3, .1, .3, 1) .12s both; }
-.rf-ember { left: -3px; top: -110px; width: calc(5px * var(--s)); height: calc(5px * var(--s)); border-radius: 50%; background: #ffd27a; box-shadow: 0 0 8px 2px rgba(255, 140, 40, .85); opacity: 0; }
-.rf.activity.reveal .rf-ember { animation: rf-ember 1s cubic-bezier(.2, .7, .4, 1) var(--d) both; }
-@keyframes rf-spark-fall { 0% { transform: translate(-6vw, -48vh) scale(.6); opacity: 0; } 15% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translate(0, -10px) scale(1.4); opacity: 1; } }
-@keyframes rf-ignite { 0% { transform: scale(0, 0); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1, 1); opacity: 1; } }
-@keyframes rf-flicker { from { transform: scale(1, 1) skewX(-4deg); } to { transform: scale(1.05, .93) skewX(4deg); } }
-@keyframes rf-flicker2 { from { transform: scale(.96, 1.06) skewX(3deg); } to { transform: scale(1.04, .95) skewX(-5deg); } }
-@keyframes rf-flood { 0% { transform: scale(.05); opacity: 0; } 25% { transform: scale(.45); opacity: 1; } 70% { transform: scale(2.4); opacity: .85; } 100% { transform: scale(4); opacity: 0; } }
-@keyframes rf-ember { 0% { transform: translate(0, 0) scale(1); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--ex), var(--ey)) scale(.2); opacity: 0; } }
-@keyframes rf-camp-out { to { transform: scale(1.5) translateY(-20px); opacity: 0; } }
+.rf.activity.cover .rf-camp { animation: rf-fade-in .35s ease-out both; }
+.rf.activity.reveal .rf-camp { animation: rf-camp-out .55s ease-in .2s both; }
+@keyframes rf-camp-out { to { transform: translateY(-18px) scale(.92); opacity: 0; } }
+/* камни очага: в темноте едва видны, когда огонь разгорается — тёплый отсвет */
+.rf-stone { height: 20px; border-radius: 48% 52% 44% 56% / 60% 58% 42% 40%; transform: rotate(var(--r));
+  background: radial-gradient(ellipse at 50% 30%, #6a6058, #3b342f 60%, #1f1b18); box-shadow: inset 0 -4px 6px rgba(0, 0, 0, .55), 0 4px 8px rgba(0, 0, 0, .5); filter: brightness(.45); }
+.rf.activity .rf-stone { animation: rf-lit .6s ease-out calc(.3s + var(--d)) both; }
+@keyframes rf-lit { to { filter: brightness(1) sepia(.35) saturate(1.4); } }
+.rf-log { left: -105px; top: -12px; width: 210px; height: 26px; border-radius: 13px; background: linear-gradient(180deg, #5e3a1f, #37200f 70%, #1f1208); box-shadow: inset 0 -4px 6px rgba(0, 0, 0, .55), 0 6px 14px rgba(0, 0, 0, .6); }
+.rf-log::after { content: ''; position: absolute; right: 4px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle, #b07c4a 25%, #6e4322 30%, #8f5e33 45%, #4c2c13 70%); }
+.rf-log.a { transform: rotate(15deg); }
+.rf-log.b { transform: rotate(-15deg) scaleX(-1); }
+/* угли тлеют, пока экран темнеет */
+.rf-coal { left: -42px; top: -16px; width: 84px; height: 30px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 120, 40, .85), rgba(200, 50, 10, .45) 55%, transparent); filter: blur(3px); opacity: 0; }
+.rf.activity .rf-coal { animation: rf-smolder .5s ease-in-out .05s infinite alternate; }
+@keyframes rf-smolder { from { opacity: .35; transform: scale(.9); } to { opacity: 1; transform: scale(1.05); } }
+/* пламя (svg): сначала маленький язычок, потом средний, потом весь костёр — без резкого скачка */
+.rf-fire { position: absolute; left: -100px; top: -250px; width: 200px; height: 266px; overflow: visible; filter: drop-shadow(0 0 14px rgba(255, 120, 40, .45)); }
+.rf-fire .fl { transform-box: fill-box; transform-origin: 50% 100%; transform: scale(.2, 0); opacity: 0; }
+.rf.activity .rf-fire .f3 { animation: rf-ignite .5s cubic-bezier(.25, .8, .3, 1) .22s both, rf-flicker .24s ease-in-out .72s infinite alternate; }
+.rf.activity .rf-fire .f2 { animation: rf-ignite .55s cubic-bezier(.25, .8, .3, 1) .36s both, rf-flicker2 .3s ease-in-out .91s infinite alternate; }
+.rf.activity .rf-fire .f1 { animation: rf-ignite .6s cubic-bezier(.25, .8, .3, 1) .48s both, rf-flicker .36s ease-in-out 1.08s infinite alternate; }
+@keyframes rf-ignite { 0% { transform: scale(.2, 0); opacity: 0; } 40% { opacity: .9; } 100% { transform: scale(1, 1); opacity: 1; } }
+@keyframes rf-flicker { from { transform: scale(1, 1) skewX(-3deg); } to { transform: scale(1.04, .95) skewX(3deg); } }
+@keyframes rf-flicker2 { from { transform: scale(.97, 1.04) skewX(2deg); } to { transform: scale(1.03, .96) skewX(-4deg); } }
+/* дымок над костром */
+.rf-smoke { left: -40px; top: -230px; width: 80px; height: 80px; border-radius: 50%; background: radial-gradient(closest-side, rgba(170, 160, 150, .28), transparent); filter: blur(8px); opacity: 0; }
+.rf.activity .rf-smoke { animation: rf-smoke 1.4s ease-out calc(.45s + var(--k) * .18s) both; }
+@keyframes rf-smoke { 0% { transform: translate(0, 40px) scale(.5); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(calc((var(--k) - 2) * 40px), -26vh) scale(2.2); opacity: 0; } }
+/* искры: по одной тянутся вверх и покачиваются */
+.rf-ember { top: -90px; width: calc(4px * var(--s)); height: calc(4px * var(--s)); border-radius: 50%; background: #ffc46a; box-shadow: 0 0 6px 1px rgba(255, 130, 40, .7); opacity: 0; }
+.rf.activity .rf-ember { animation: rf-ember var(--t) cubic-bezier(.3, .6, .4, 1) calc(.4s + var(--d)) both; }
+@keyframes rf-ember { 0% { transform: translate(0, 0) scale(1); opacity: 0; } 15% { opacity: .9; } 50% { transform: translate(calc(var(--ex) * -.5), calc(var(--ey) * .5)) scale(.8); } 100% { transform: translate(var(--ex), var(--ey)) scale(.3); opacity: 0; } }
 
 @keyframes rf-fade-in { from { opacity: 0; } }
 @keyframes rf-fade-out { to { opacity: 0; } }
