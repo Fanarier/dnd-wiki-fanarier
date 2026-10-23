@@ -2,13 +2,16 @@
 // Заставку рисует RouteFx.vue, подсветку — директива v-tabslide на <nav> с вкладками-ссылками.
 import { reactive } from 'vue'
 
-export const SECTIONS = ['map', 'wiki', 'sheets']
-export const sectionOf = path => (path === '/' ? 'map' : path.startsWith('/wiki') ? 'wiki' : path.startsWith('/sheets') ? 'sheets' : null)
+export const SECTIONS = ['map', 'activity', 'wiki', 'sheets']
+// разделы вкладки «Активность» (остальное — вики); поселение тоже часть «Активности»
+export const ACTIVITY_SECTIONS = ['party', 'quests', 'campaign', 'activities', 'settlements']
+export const sectionOf = path => (path === '/' ? 'map' : path.startsWith('/wiki') ? 'wiki' : path.startsWith('/sheets') ? 'sheets'
+  : path.startsWith('/activity') || path.startsWith('/settlement') ? 'activity' : null)
 export const routeFx = reactive({ phase: '', kind: '', from: '' })
 export const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
 // v-tabslide: при открытии страницы золотая подсветка выезжает от прошлой вкладки к нынешней
-const HREF = { map: '/', wiki: '/wiki', sheets: '/sheets' }
+const HREF = { map: '/', activity: '/activity', wiki: '/wiki', sheets: '/sheets' }
 export const vTabslide = {
   mounted(nav) {
     const from = routeFx.from

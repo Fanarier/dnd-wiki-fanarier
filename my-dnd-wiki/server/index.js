@@ -393,6 +393,40 @@ function notifyNewQuest(q) {
   }
 }
 
+/* ------------------------- Статус группы (вкладка «Активность») -------------------------
+   Кто в группе (мест = игроков + 3), кто в лагере, компаньоны (лагерь и компаньоны — без ограничения),
+   цели группы (главные и побочные, выполнена ли, по желанию — ссылка на квест; секретную цель игроки видят как «???»,
+   пока мастер её не раскроет), эффекты местности — там, где сейчас группа, и в лагере. Правит только мастер. */
+const PARTY_IMG = /^\/(assets\/effects|rules-img)\/[\w.-]{1,80}$/
+const heroIdList = v => (Array.isArray(v) ? [...new Set(v.map(x => String(x || '').slice(0, 40)).filter(Boolean))].slice(0, 200) : [])
+const terrainOf = v => ({
+  name: T.str(80)(v?.name),
+  effects: (Array.isArray(v?.effects) ? v.effects : []).slice(0, 40).map(e => ({
+    id: String(e?.id || newId('te')).slice(0, 24), name: T.str(80)(e?.name), img: PARTY_IMG.test(e?.img || '') ? e.img : '',
+    desc: TEXT(e?.desc || ''), tone: ['good', 'bad', 'odd'].includes(e?.tone) ? e.tone : 'odd'
+  }))
+})
+function cleanParty(b) {
+  const players = Math.round(T.num(1, 30)(b?.players ?? 6))
+  const slots = heroIdList(b?.slots).slice(0, players + 3)
+  const camp = heroIdList(b?.camp).filter(id => !slots.includes(id))
+  const companions = heroIdList(b?.companions).filter(id => !slots.includes(id) && !camp.includes(id))
+  return {
+    players, slots, camp, companions,
+    goals: (Array.isArray(b?.goals) ? b.goals : []).slice(0, 100).map(g => ({
+      id: String(g?.id || newId('g')).slice(0, 24), title: T.str(200)(g?.title), kind: g?.kind === 'main' ? 'main' : 'side',
+      done: !!g?.done, secret: !!g?.secret, questId: g?.questId ? String(g.questId).slice(0, 40) : null, note: T.str(1000)(g?.note)
+    })),
+    here: terrainOf(b?.here), base: terrainOf(b?.base)
+  }
+}
+const partyOf = db => db.party || cleanParty({})
+// игрокам: у секретной цели — только что она есть (главная или побочная) и выполнена ли
+function partyFor(db) {
+  const p = partyOf(db)
+  return { ...p, goals: p.goals.map(g => (g.secret ? { id: g.id, kind: g.kind, done: g.done, secret: true, title: '', note: '', questId: null } : g)) }
+}
+
 /* ------------------------- Что видит каждый ------------------------- */
 
 const strip = ({ secret, revealTo, ...rest }) => rest
@@ -526,6 +560,7 @@ function viewFor(user, now = Date.now()) {
     npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false), rulesRev: rulesApi?.rev() || 0, activitiesRev: actApi?.rev() || 0,
     sheetLinks: sheetApi?.linksFor(user) || [],
     campaign: campaignFor(db, false),
+    party: partyFor(db),
     roster: roster(),
     notes,
     notifications: user ? notificationsFor(user) : [],
@@ -917,6 +952,14 @@ app.patch('/api/settings', requireMaster, (req, res) => {
   saveDb()
   broadcast()
   res.json(db.settings)
+})
+
+app.put('/api/party', requireMaster, (req, res) => {
+  const db = getDb()
+  db.party = cleanParty(req.body || {})
+  saveDb()
+  broadcast()
+  res.json(db.party)
 })
 
 app.patch('/api/hud', requireMaster, (req, res) => {

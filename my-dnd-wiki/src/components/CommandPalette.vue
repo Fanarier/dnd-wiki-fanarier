@@ -46,7 +46,7 @@ const mySheets = ref([])
 
 // разделы вики — как в меню
 const SECTIONS = [
-  ['quests', 'Заказы гильдий', '📜'], ['campaign', 'Квесты', '🗺'], ['heroes', 'Герои Анкарии', '⚔'], ['npcs', 'НПС', '🜲'], ['settlements', 'Поселения', '🏘'],
+  ['party', 'Статус группы', '🔥'], ['quests', 'Заказы гильдий', '📜'], ['campaign', 'Квесты', '🗺'], ['heroes', 'Герои Анкарии', '⚔'], ['npcs', 'НПС', '🜲'], ['settlements', 'Поселения', '🏘'],
   ['races', 'Расы', '🧬'], ['classes', 'Классы', '🛡'], ['mechanics', 'Механики', '⚙'], ['workplaces', 'Рабочие места', '⚒'], ['activities', 'Деятельности', '📒'],
   ['effects', 'Эффекты', '✦'], ['general', 'Магия: общее', '✺'], ['utility', 'Утилитарная магия', '✧'], ['school-fire', 'Школа Огня (Магмы)', '🔥'],
   ['school-water', 'Школа Воды (Льда)', '💧'], ['school-air', 'Школа Воздуха (Молний)', '🌪'], ['school-earth', 'Школа Земли (Природы)', '🌿']
@@ -66,7 +66,8 @@ const items = computed(() => {
   add('Страницы', { title: 'Карта мира', icon: '🗺', to: '/' })
   if (store.me) add('Страницы', { title: 'Листы персонажей', icon: '📚', to: '/sheets' })
   if (store.me) add('Страницы', { title: 'Профиль', icon: '👤', to: '/profile' })
-  for (const [id, t, ic] of SECTIONS) add('Разделы вики', { key: id, title: t, icon: ic, to: { path: '/wiki', query: { section: id } } })
+  // разделы «Активности» роутер сам откроет на своей вкладке (src/main.js)
+  for (const [id, t, ic] of SECTIONS) add('Разделы', { key: id, title: t, icon: ic, to: { path: '/wiki', query: { section: id } } })
   for (const r of rulesState.races) add('Расы', { key: r.id, title: r.name, icon: '🧬', to: { path: '/wiki', query: { race: r.id } } })
   for (const k of rulesState.classes) add('Классы', { key: k.id, title: k.name, sub: k.archetypes.map(a => a.name).join(', '), icon: '🛡', to: { path: '/wiki', query: { cls: k.id } } })
   const schools = new Map(rulesState.schools.map(s => [s.id, s]))

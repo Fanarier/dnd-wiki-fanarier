@@ -12,7 +12,8 @@
       </router-link>
       <nav v-tabslide class="w-tabs">
         <router-link to="/" class="w-tab">Карта</router-link>
-        <router-link to="/wiki" class="w-tab active">Вики</router-link>
+        <router-link to="/activity" class="w-tab" :class="{ active: isActivity }">Активность</router-link>
+        <router-link to="/wiki" class="w-tab" :class="{ active: !isActivity }">Вики</router-link>
         <router-link v-if="store.me" to="/sheets" class="w-tab">Листы</router-link>
       </nav>
       <label class="w-search" :class="{ filled: search }" title="Поиск по всему сайту">
@@ -32,7 +33,8 @@
 
       <main class="w-main" :class="{ 'theme-magic': isMagic }">
         <!-- живой фон: лучи, пылинки, свечи (у магии — своя стихия) -->
-        <WikiAmbience v-if="!isMagic" />
+        <WikiAmbience v-if="!isMagic && !isActivity" />
+        <CampAmbience v-else-if="isActivity" />
         <!-- живая стихия школы магии за текстом -->
         <MagicBackdrop v-if="isMagic && !magicLoading && element" :key="element" :kind="element" />
         <!-- звук стихии: по умолчанию выключен, включается кнопкой (браузеры не дают играть звук без нажатия) -->
@@ -80,23 +82,33 @@ import SpellsPage from './rules/SpellsPage.vue'
 import WikiAmbience from '../components/fx/WikiAmbience.vue'
 import EffectsPage from './rules/EffectsPage.vue'
 import RulesHistory from './rules/RulesHistory.vue'
+import PartyStatus from '../activity/PartyStatus.vue'
+import CampAmbience from '../activity/CampAmbience.vue'
+import { ACTIVITY_SECTIONS } from '../components/fx/routeFx.js'
+
+// вики и «Активность» — одна раскладка (меню разделов слева, поиск), разные наборы разделов
+const props = defineProps({ mode: { type: String, default: 'wiki' } })
+const isActivity = computed(() => props.mode === 'activity')
 
 /*
   Разделы вики. Правила (расы, классы, статьи, магия, эффекты) лежат на сервере и правятся на сайте —
   мастером и редакторами, которым он дал права (src/shared/wikiPerms.js). master: true — раздел только для мастера.
 */
 const ALL_CATEGORIES = [
+  // «Активность»
+  { id: 'party', title: 'Статус группы', description: 'Кто в группе и в лагере, цели, местность', component: PartyStatus },
   { id: 'quests', title: 'Заказы гильдий', description: 'Доска объявлений, хроника, репутация', component: QuestBoard },
   { id: 'campaign', title: 'Квесты', description: 'Квесты героев и хроника сюжета', component: CampaignPage },
+  { id: 'activities', title: 'Деятельности', description: 'Журнал деятельностей и чем заняться между приключениями', component: RulesArticles, group: 'activities' },
+  { id: 'settlements', title: 'Поселения', description: 'Урюпинск: карта, жители, стройка, журнал', component: SettlementsPage },
+  // вики
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
   { id: 'npcs', title: 'НПС', description: 'Полные листы: сайд-кики, компаньоны, важные НПС', component: NpcsPage },
-  { id: 'settlements', title: 'Поселения', description: 'Урюпинск: карта, жители, стройка, журнал', component: SettlementsPage },
   // правила Heroes & Adventures (перенесены из Google Docs, правит мастер)
   { id: 'races', title: 'Расы', description: 'Базовые навыки и навыки по уровням', component: RacesPage },
   { id: 'classes', title: 'Классы', description: 'Навыки по уровням и архетипы', component: ClassesPage },
   { id: 'mechanics', title: 'Механики', description: 'Формулы, характеристики, бой, черты', component: RulesArticles, group: 'mechanics' },
   { id: 'workplaces', title: 'Рабочие места', description: 'Столы и мастерские для крафта', component: RulesArticles, group: 'workplaces' },
-  { id: 'activities', title: 'Деятельности', description: 'Чем заняться между приключениями', component: RulesArticles, group: 'activities' },
   { id: 'effects', title: 'Эффекты', description: 'Положительные, отрицательные и особые — с иконками', component: EffectsPage },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: RulesArticles, group: 'magic' },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: SpellsPage },
@@ -106,7 +118,7 @@ const ALL_CATEGORIES = [
   { id: 'school-earth', title: 'Школа Земли (Природы)', description: 'Заклинания школ Земли и Природы', component: SpellsPage },
   { id: 'wiki-log', title: 'Журнал правок вики', description: 'Кто что менял в правилах; любую правку можно откатить', component: RulesHistory, master: true }
 ]
-const categories = computed(() => ALL_CATEGORIES.filter(c => !c.master || store.role === 'master').map(c =>
+const categories = computed(() => ALL_CATEGORIES.filter(c => (!c.master || store.role === 'master') && ACTIVITY_SECTIONS.includes(c.id) === isActivity.value).map(c =>
   // мастеру — сколько деятельностей ждут проверки
   c.id === 'activities' && store.role === 'master' && store.data.activitiesPending ? { ...c, badge: store.data.activitiesPending, badgeTitle: 'Деятельности ждут проверки' } : c))
 // права редактора поменялись — перезапросить правила (скрытое видно только тем, кто может править)
@@ -114,10 +126,13 @@ watch(() => [store.data.rulesRev, JSON.stringify(store.me?.wiki || null)], () =>
 
 const drawer = ref(false)
 // без раздела в адресе (пришли с карты, из листов) — тот раздел, где был в прошлый раз в этой вкладке
-const LAST_KEY = 'anacaria-wiki-section'
-const lastSection = (() => { try { return sessionStorage.getItem(LAST_KEY) || 'quests' } catch { return 'quests' } })()
+const LAST_KEY = props.mode === 'activity' ? 'anacaria-activity-section' : 'anacaria-wiki-section'
+const FIRST = props.mode === 'activity' ? 'party' : 'heroes'
+const lastSection = (() => {
+  try { const s = sessionStorage.getItem(LAST_KEY); return s && ACTIVITY_SECTIONS.includes(s) === (props.mode === 'activity') ? s : FIRST } catch { return FIRST }
+})()
 const currentCategory = ref(lastSection)
-const currentPage = computed(() => categories.value.find(x => x.id === currentCategory.value)?.component ?? QuestBoard)
+const currentPage = computed(() => categories.value.find(x => x.id === currentCategory.value)?.component ?? categories.value[0]?.component)
 const currentContent = computed(() => categories.value.find(x => x.id === currentCategory.value) ?? {})
 function onCategorySelect(id) {
   // тот же раздел ещё раз — к его началу (список рас, первая статья…); другой — адрес поправит watch ниже
@@ -148,7 +163,7 @@ function openArticle(id) {
 
 // раздел — в адресе: обновил страницу или поделился ссылкой — открылось то же место.
 // Подробности чужих разделов (открытая раса, НПС, заказ, статья, журнал) при переходе убираем
-const DETAILS = { quests: ['quest'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'] }
+const DETAILS = { quests: ['quest'], campaign: ['cq'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'] }
 const DETAIL_KEYS = [...new Set(Object.values(DETAILS).flat())]
 watch(currentCategory, c => {
   search.value = ''
@@ -181,8 +196,9 @@ onMounted(() => {
   if (main) { tableObs = new MutationObserver(labelTables); tableObs.observe(main, { childList: true, subtree: true }) }
 })
 onBeforeUnmount(() => tableObs?.disconnect())
-// ссылка с карты на заказ открывает доску заказов
-watch(() => route.query.quest, q => { if (q) currentCategory.value = 'quests' }, { immediate: true })
+// ссылка с карты на заказ открывает доску заказов, на квест — страницу квестов
+watch(() => route.query.quest, q => { if (q && isActivity.value) currentCategory.value = 'quests' }, { immediate: true })
+watch(() => route.query.cq, q => { if (q && isActivity.value) currentCategory.value = 'campaign' }, { immediate: true })
 // ссылки на карточку героя и на новые арты (из колокольчика, профиля)
 watch(() => [route.query.hero, route.query.heroes], ([h, t]) => { if (h || t) currentCategory.value = 'heroes' }, { immediate: true })
 // /wiki?section=settlements — открыть раздел сразу

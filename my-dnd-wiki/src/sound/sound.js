@@ -10,7 +10,9 @@ const FILES = {
   bookOpen: 'book-open', bookClose: 'book-close', pageFlip: ['book-flip-1', 'book-flip-2', 'book-flip-3'], bookPlace: 'book-place',
   coins: ['coins-1', 'coins-2'],
   // порыв ветра (из записи amb/wind) — переход на Карту, облака расходятся
-  cloudWhoosh: 'cloud-whoosh'
+  cloudWhoosh: 'cloud-whoosh',
+  // треск разгорающегося костра (из записи amb/fire) — вход во вкладку «Активность»
+  campfire: 'campfire'
 }
 const cache = {}
 const howl = (src, opts = {}) => { const key = [].concat(src).join('|'); return (cache[key] ||= new Howl({ src: [].concat(src), volume: 0.55, preload: true, ...opts })) }

@@ -4,7 +4,7 @@ import {
   mdiTreasureChest, mdiSkull, mdiAlert, mdiExclamationThick, mdiTowerFire, mdiShieldSword, mdiSword, mdiHorse,
   mdiSailBoat, mdiFlag, mdiPaw, mdiWizardHat, mdiAutoFix, mdiCandle, mdiSpiderWeb, mdiCursorDefault,
   mdiVectorPolyline, mdiBrush, mdiEraser, mdiLasso, mdiPlus, mdiMinus, mdiMagnify, mdiLayers, mdiClose, mdiLogin,
-  mdiLogout, mdiCog, mdiBookOpenPageVariant, mdiMap, mdiUndo, mdiRedo, mdiDelete, mdiEye, mdiEyeOff, mdiClockOutline,
+  mdiLogout, mdiCog, mdiBookOpenPageVariant, mdiMap, mdiUndo, mdiRedo, mdiCampfire, mdiDelete, mdiEye, mdiEyeOff, mdiClockOutline,
   mdiPlay, mdiStop, mdiCrosshairsGps, mdiImageFilterHdr, mdiWaves, mdiTerrain, mdiTree, mdiFlagVariant, mdiTextBox,
   mdiDownload, mdiMapMarkerPath, mdiAccountGroup, mdiAccountCircle, mdiCloud, mdiCloudOff, mdiFormatColorFill, mdiChevronLeft,
   mdiChevronRight, mdiPencil, mdiFitToScreen, mdiWeatherWindy, mdiRoadVariant, mdiAnchor, mdiCheck, mdiTimerSand,
@@ -25,7 +25,7 @@ export const ICONS = {
   // интерфейс
   select: mdiCursorDefault, road: mdiVectorPolyline, roadType: mdiRoadVariant, brush: mdiBrush, eraser: mdiEraser,
   lasso: mdiLasso, plus: mdiPlus, minus: mdiMinus, search: mdiMagnify, layers: mdiLayers, close: mdiClose,
-  login: mdiLogin, logout: mdiLogout, settings: mdiCog, wiki: mdiBookOpenPageVariant, map: mdiMap, undo: mdiUndo, redo: mdiRedo,
+  login: mdiLogin, logout: mdiLogout, settings: mdiCog, wiki: mdiBookOpenPageVariant, map: mdiMap, undo: mdiUndo, redo: mdiRedo, campfire: mdiCampfire,
   delete: mdiDelete, eye: mdiEye, eyeOff: mdiEyeOff, clock: mdiClockOutline, play: mdiPlay, stop: mdiStop,
   locate: mdiCrosshairsGps, relief: mdiImageFilterHdr, rivers: mdiWaves, heights: mdiTerrain, biomes: mdiTree,
   states: mdiFlagVariant, labels: mdiTextBox, download: mdiDownload, journey: mdiMapMarkerPath, party: mdiAccountGroup, npc: mdiAccountCircle,

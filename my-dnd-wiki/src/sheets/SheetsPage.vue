@@ -8,6 +8,7 @@
       </router-link>
       <nav v-tabslide class="sp-tabs">
         <router-link to="/" class="sp-tab">Карта</router-link>
+        <router-link to="/activity" class="sp-tab">Активность</router-link>
         <router-link to="/wiki" class="sp-tab">Вики</router-link>
         <router-link to="/sheets" class="sp-tab active">Листы</router-link>
       </nav>

@@ -37,7 +37,7 @@
       <section v-for="g in groups" :key="g.region" class="cp-region">
         <h3><span class="cp-flag" />{{ g.region || 'Без региона' }} <small>{{ g.items.length }}</small></h3>
         <TransitionGroup tag="div" name="cp-card" class="cp-grid">
-          <article v-for="it in g.items" :key="it.id" class="cp-q" :class="{ hid: it.hidden, done: DONE.has(it.status) }" :style="{ '--dc': DIFF[it.difficulty]?.color || '#9d978b', '--sc': STATUS[it.status]?.color || '#9d978b' }">
+          <article v-for="it in g.items" :key="it.id" class="cp-q" :data-cq="it.id" :class="{ hid: it.hidden, done: DONE.has(it.status), flash: flashId === it.id }" :style="{ '--dc': DIFF[it.difficulty]?.color || '#9d978b', '--sc': STATUS[it.status]?.color || '#9d978b' }">
             <header>
               <b class="cp-name">{{ it.name }}</b>
               <span class="cp-st">{{ STATUS[it.status]?.ic }} {{ it.status }}</span>
@@ -150,7 +150,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { store, isMaster, act, npcState, loadNpcs } from '../map/store.js'
 import { findPlace, placeLink } from '../shared/npc.js'
 
@@ -180,6 +181,18 @@ const chapters = computed(() => campaign.value.chapters || [])
 const q = ref(''), fStatus = ref('actual'), fRegion = ref(''), fType = ref(''), fTaker = ref('')
 const fDiff = reactive(new Set())
 const toggleDiff = d => (fDiff.has(d) ? fDiff.delete(d) : fDiff.add(d))
+// ссылка на квест (?cq=…, например из целей группы): показать его, сбросив фильтры, и подсветить
+const route = useRoute()
+const flashId = ref('')
+watch(() => [route.query.cq, store.data.campaign], async ([id]) => {
+  if (!id || !quests.value.some(x => x.id === id)) return
+  tab.value = 'quests'
+  q.value = ''; fStatus.value = ''; fRegion.value = ''; fType.value = ''; fTaker.value = ''; fDiff.clear()
+  flashId.value = String(id)
+  await nextTick()
+  document.querySelector(`[data-cq="${CSS.escape(String(id))}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  setTimeout(() => { if (flashId.value === id) flashId.value = '' }, 2600)
+}, { immediate: true })
 const regions = computed(() => [...new Set(quests.value.map(x => x.region).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')))
 const takers = computed(() => [...new Set(quests.value.map(x => x.taker).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')))
 const shownQuests = computed(() => {
@@ -360,4 +373,6 @@ onMounted(() => loadNpcs())
 .cp-chk { display: flex !important; align-items: center; gap: 6px; }
 .cp-dialog footer { display: flex; gap: 8px; }
 @media (max-width: 600px) { .cp-line li { grid-template-columns: minmax(0, 1fr); gap: 4px; } }
+.cp-q.flash { animation: cp-flash 2.4s ease; }
+@keyframes cp-flash { 0%, 60% { box-shadow: 0 0 0 2px #ffcf7a, 0 0 30px rgba(255, 180, 80, .6); } 100% { box-shadow: none; } }
 </style>
