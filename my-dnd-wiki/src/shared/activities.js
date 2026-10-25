@@ -198,16 +198,31 @@ function splitTop(s) {
 // отдельно (rep). Пункты без числа («Наставничество(+???)», «Комплект(без травм)») — в unknown. «с преимуществом» — adv
 export function rollMods(text) {
   const plain = String(text || '').replace(/<\/(p|div|li)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
-  const out = { sum: 0, items: [], unknown: [], rep: null, adv: /с\s+преимуществ/i.test(plain) ? 'adv' : /с\s+помех/i.test(plain) ? 'dis' : '' }
+  const out = { sum: 0, items: [], dice: [], unknown: [], rep: null, adv: /с\s+преимуществ/i.test(plain) ? 'adv' : /с\s+помех/i.test(plain) ? 'dis' : '' }
   for (const line of plain.matchAll(/модификатор[^:\n]*:\s*([^\n]+)/gi)) {
     for (const raw of splitTop(line[1])) {
-      const item = raw.trim().replace(/\.$/, '')
+      const item = raw.trim().replace(/[.,;]$/, '').trim()
       if (!item) continue
+      // где число: в скобках «Сила(+5)», после двоеточия «Бонус повторения: +3» или просто в конце «Ловкость рук +13», «Инструменты +1к10»
+      let name, tail
       const cut = item.search(/[(:]/)
-      const name = (cut > 0 ? item.slice(0, cut) : item).trim()
-      const tail = cut >= 0 ? item.slice(cut) : ''
+      if (cut >= 0) { name = item.slice(0, cut).trim(); tail = item.slice(cut) } else {
+        const t = item.match(/\s([+\-−]\s*\d+(?:[.,]\d+)?(?:\s*[кkdд]\s*\d+)?)\s*$/i)
+        name = t ? item.slice(0, t.index).trim() : item
+        tail = t ? t[1] : ''
+      }
+      if (/\?\?/.test(tail.split(/\d/)[0])) { out.unknown.push(name); continue }
+      // кубик-модификатор («+1к10», «(+2d6)») — докидывается к броску
+      const die = tail.match(/([+\-−])?\s*(\d*)\s*[кkdд]\s*(\d+)/i)
+      if (die && !/повтор/i.test(name)) {
+        if (die[1] && die[1] !== '+') { out.unknown.push(name); continue } // вычитать кубик кубики сайта не умеют
+        const n = Math.min(10, Number(die[2]) || 1), sides = Number(die[3])
+        out.dice.push({ name, n, sides })
+        out.items.push({ name, v: `${n}к${sides}` })
+        continue
+      }
       const m = tail.match(/([+\-−])?\s*(\d+(?:[.,]\d+)?)/)
-      const v = m && !/\?\?/.test(tail.slice(0, (m.index || 0) + 1)) ? Number(m[2].replace(',', '.')) * (m[1] && m[1] !== '+' ? -1 : 1) : null
+      const v = m ? Number(m[2].replace(',', '.')) * (m[1] && m[1] !== '+' ? -1 : 1) : null
       if (/повтор/i.test(name)) { if (v != null) out.rep = Math.min(10, Math.max(0, Math.round(v))); continue }
       if (v == null) { out.unknown.push(name); continue }
       out.sum += v
@@ -225,10 +240,12 @@ export function rollPlan(rec, placeMod, autoRep = 0) {
   const sign = v => (v ? (v > 0 ? '+' : '') + v : '')
   if (isLongTraining(rec.name)) {
     const place = placeMod?.formula ? `+${placeMod.formula}+${placeMod.formula}` : ''
-    return { ...m, rep, long: true, add: rep, formula: `2d20${place}${sign(2 * m.sum)}` }
+    const dice = m.dice.map(d => `+${d.n * 2}d${d.sides}`).join('') // кубики-модификаторы — к каждому из двух бросков
+    return { ...m, rep, long: true, add: rep, formula: `2d20${place}${dice}${sign(2 * m.sum)}` }
   }
   const place = placeMod?.formula ? `+${placeMod.formula}` : ''
-  return { ...m, rep, long: false, add: 0, formula: `1d20${place}${sign(m.sum + rep)}${m.adv === 'adv' ? ' преимущество' : m.adv === 'dis' ? ' помеха' : ''}` }
+  const dice = m.dice.map(d => `+${d.n}d${d.sides}`).join('')
+  return { ...m, rep, long: false, add: 0, formula: `1d20${place}${dice}${sign(m.sum + rep)}${m.adv === 'adv' ? ' преимущество' : m.adv === 'dis' ? ' помеха' : ''}` }
 }
 export const longFinal = (total, add) => Math.floor(total * LONG_MULT) + (add || 0)
 
