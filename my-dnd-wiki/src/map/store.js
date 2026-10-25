@@ -637,6 +637,34 @@ export async function loadNpcs(force = false) {
     npcsAgain = false
   }
 }
+/* ---------- бестиарий: отдельный запрос (сервер сам решает, что этому человеку видно), перезапрашиваем по bestiaryRev ---------- */
+export const beastState = reactive({ rev: -1, role: '', who: '', beasts: [], loading: false, loaded: false })
+let beastsAgain = false
+export async function loadBestiary(force = false) {
+  if (beastState.loading) { beastsAgain = true; return }
+  const want = store.data.bestiaryRev ?? 0
+  if (!force && beastState.loaded && beastState.rev === want && beastState.role === store.role && beastState.who === (store.me?.id || '')) return
+  beastState.loading = true
+  let ok = false
+  try {
+    const j = await api('GET', '/api/bestiary')
+    Object.assign(beastState, { rev: j.rev, role: store.role, who: store.me?.id || '', beasts: j.beasts, loaded: true })
+    ok = true
+  } catch (e) {
+    toast(e.message, 'error')
+  } finally {
+    beastState.loading = false
+    if (ok && (beastsAgain || (store.data.bestiaryRev ?? 0) > beastState.rev)) { beastsAgain = false; loadBestiary(true) }
+    beastsAgain = false
+  }
+}
+export async function uploadBeastArt(id, file) {
+  const big = file.size < 4e6 && /png|jpeg|webp/.test(file.type) ? { blob: file } : await shrink(file, 2400, 0.92)
+  const a = await postBlob(`/api/bestiary/${id}/arts`, big.blob)
+  const { blob } = await shrink(file, 720, 0.88)
+  try { return await postBlob(`/api/bestiary/${id}/arts/${a.id}/thumb`, blob) } catch { return a }
+}
+
 /* ---------- правила игры (расы, классы, статьи, магия, эффекты): отдельный запрос, перезапрашиваем по rulesRev ---------- */
 export const rulesState = reactive({ rev: -1, role: '', articles: [], races: [], classes: [], schools: [], spells: [], effects: [], loading: false, loaded: false })
 // кто смотрит: от роли и прав редактора зависит, видно ли скрытое

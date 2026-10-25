@@ -9,6 +9,7 @@ import { WebSocketServer } from 'ws'
 
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
 import { registerNpcRoutes, npcLinks, npcPins } from './npcs.js'
+import { registerBestiaryRoutes } from './bestiary.js'
 import { registerSheetRoutes, flushSheets, SHEET_IMG_DIR } from './sheets.js'
 import { registerCampaignRoutes, campaignFor } from './campaign.js'
 import { registerRulesRoutes, flushRules, RULES_IMG_DIR } from './rules.js'
@@ -511,7 +512,7 @@ function viewFor(user, now = Date.now()) {
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
   const notes = (db.notes || []).filter(n => n.ownerId === uid || (n.share === 'group' && mates.has(n.ownerId)))
   if (role === 'master') {
-    const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, campaignSeeded, npcs: _np, npcSkills: _ns, npcEffects: _ne, ...rest } = db
+    const { notifications, notes: _n, questsSeeded, heroesSeeded, settlementsSeeded, campaignSeeded, npcs: _np, npcSkills: _ns, npcEffects: _ne, bestiary: _be, bestiarySeeded: _bs, ...rest } = db
     return {
       ...rest, role, me, serverTime: now, notes, roster: roster(), rulesRev: rulesApi?.rev() || 0, activitiesRev: actApi?.rev() || 0, activitiesPending: actApi?.pending() || 0, arts: allArts(), npcLinks: npcLinks(db, true), npcPins: npcPins(db, true), sheetLinks: sheetApi?.linksFor(user) || [],
       notifications: notificationsFor(user),
@@ -557,7 +558,7 @@ function viewFor(user, now = Date.now()) {
       ? { ...s, army: { ...s.army, squads: s.army.squads.map(q => (q.taskSecret ? { ...q, task: '' } : q)) } }
       : s)),
     hud: db.hud?.visible ? db.hud : null,
-    npcsRev: db.npcsRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false), rulesRev: rulesApi?.rev() || 0, activitiesRev: actApi?.rev() || 0,
+    npcsRev: db.npcsRev || 0, bestiaryRev: db.bestiaryRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false), rulesRev: rulesApi?.rev() || 0, activitiesRev: actApi?.rev() || 0,
     sheetLinks: sheetApi?.linksFor(user) || [],
     campaign: campaignFor(db, false),
     party: partyFor(db),
@@ -1268,6 +1269,7 @@ app.delete('/api/heroes/:id/gallery/:gid', requireUser, (req, res) => {
 const STATIC_IMG = { maxAge: '30d', immutable: true, index: false, setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff') }
 app.use('/portraits', express.static(PORTRAIT_DIR, STATIC_IMG))
 registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
+registerBestiaryRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
 sheetApi = registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players: allPlayers, getDb, broadcast })
 app.use('/sheet-img', express.static(SHEET_IMG_DIR, STATIC_IMG))
 registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })

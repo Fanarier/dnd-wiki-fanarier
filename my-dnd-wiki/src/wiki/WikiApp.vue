@@ -83,6 +83,7 @@ import WikiAmbience from '../components/fx/WikiAmbience.vue'
 import EffectsPage from './rules/EffectsPage.vue'
 import RulesHistory from './rules/RulesHistory.vue'
 import PartyStatus from '../activity/PartyStatus.vue'
+import BestiaryPage from './bestiary/BestiaryPage.vue'
 import CampAmbience from '../activity/CampAmbience.vue'
 import { ACTIVITY_SECTIONS } from '../components/fx/routeFx.js'
 
@@ -104,6 +105,7 @@ const ALL_CATEGORIES = [
   // вики
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
   { id: 'npcs', title: 'НПС', description: 'Полные листы: сайд-кики, компаньоны, важные НПС', component: NpcsPage },
+  { id: 'bestiary', title: 'Бестиарий', description: 'Существа и монстры: что о них знают герои', component: BestiaryPage },
   // правила Heroes & Adventures (перенесены из Google Docs, правит мастер)
   { id: 'races', title: 'Расы', description: 'Базовые навыки и навыки по уровням', component: RacesPage },
   { id: 'classes', title: 'Классы', description: 'Навыки по уровням и архетипы', component: ClassesPage },
@@ -163,7 +165,7 @@ function openArticle(id) {
 
 // раздел — в адресе: обновил страницу или поделился ссылкой — открылось то же место.
 // Подробности чужих разделов (открытая раса, НПС, заказ, статья, журнал) при переходе убираем
-const DETAILS = { quests: ['quest'], campaign: ['cq'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'] }
+const DETAILS = { quests: ['quest'], campaign: ['cq'], bestiary: ['beast'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'] }
 const DETAIL_KEYS = [...new Set(Object.values(DETAILS).flat())]
 watch(currentCategory, c => {
   search.value = ''
@@ -203,6 +205,7 @@ watch(() => route.query.cq, q => { if (q && isActivity.value) currentCategory.va
 watch(() => [route.query.hero, route.query.heroes], ([h, t]) => { if (h || t) currentCategory.value = 'heroes' }, { immediate: true })
 // /wiki?section=settlements — открыть раздел сразу
 watch(() => route.query.npc, v => { if (v) currentCategory.value = 'npcs' }, { immediate: true })
+watch(() => route.query.beast, v => { if (v && !isActivity.value) currentCategory.value = 'bestiary' }, { immediate: true })
 watch(() => route.query.section, v => { if (v && categories.value.some(c => c.id === v)) currentCategory.value = String(v) }, { immediate: true })
 // ссылка на расу или класс (из листа персонажа) — сразу в нужный раздел
 watch(() => [route.query.race, route.query.cls], ([r, k]) => { if (r) currentCategory.value = 'races'; else if (k) currentCategory.value = 'classes' }, { immediate: true })
