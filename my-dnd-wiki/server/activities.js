@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
-import { isLongTraining, longFinal } from '../src/shared/activities.js'
+import { isLongTraining, longFinal, LONG_EXH } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -104,6 +104,14 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
       else c.rest = 'Сон'
     }
     store.restFix = true
+    save()
+  }
+  // один раз: длительные тренировки теперь дают 4 изнурения — непроверенные записи, где стояло старое авто-значение 2, поправить
+  if (!store.longExhFix) {
+    for (const log of Object.values(store.logs)) {
+      for (const r of log) if (isLongTraining(r.name) && r.exh === 2 && ['plan', 'pending'].includes(r.status)) r.exh = LONG_EXH
+    }
+    store.longExhFix = true
     save()
   }
   const fail = (res, code, error) => res.status(code).json({ error })

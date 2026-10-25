@@ -24,7 +24,7 @@
         <span v-if="rec.exh > 0" class="ar-tag exh" :class="{ ok: rec.appliedSheet }" title="Изнурение в лист">😵 +{{ rec.exh }} изнур.</span>
         <span v-else-if="rec.exh < 0" class="ar-tag unexh" :class="{ ok: rec.appliedSheet }" title="Отдых снимает изнурение в листе">🌿 −{{ -rec.exh }} изнур.</span>
         <span v-for="(it, i) in rec.items || []" :key="'i' + i" class="ar-tag item" :class="{ ok: rec.appliedSheet }">{{ it.qty > 0 ? '🎒 +' : '🎒 −' }}{{ Math.abs(it.qty) > 1 ? Math.abs(it.qty) + '× ' : '' }}{{ it.name }}{{ it.stored ? ' (склад)' : '' }}</span>
-        <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b v-if="!r.long">{{ r.total }}</b><template v-else>{{ r.total }} → ×1.35{{ r.add ? ' +' + r.add : '' }} = <b>{{ r.final }}</b></template><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
+        <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b v-if="!r.long">{{ r.total }}</b><template v-else>{{ longSteps(r) }}<b>{{ r.final }}</b></template><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
         <span v-if="rec.by && rec.at && !mirror" class="ar-by">{{ rec.by }}</span>
       </div>
@@ -80,6 +80,14 @@ const editable = computed(() => props.master || (props.hero?.canWrite && ['plan'
 const partners = computed(() => (props.rec.with || []).map(id => actState.heroes.find(h => h.heroId === id)).filter(Boolean))
 const city = computed(() => (props.rec.place ? (store.data.cities || []).find(c => c.id === props.rec.place) : null))
 const money = computed(() => [['gold', 'ЗМ'], ['silver', 'СМ'], ['copper', 'ММ']].filter(([k]) => props.rec[k]).map(([k, u]) => `${props.rec[k] > 0 ? '+' : ''}${props.rec[k]} ${u}`).join(' '))
+// длительная тренировка: каждый к20 со своими модами, сумма, +35% (вниз), бонус повторения
+function longSteps(r) {
+  const d20 = (r.groups || []).find(g => g.sides === 20)?.values || []
+  const each = d20.length === 2 ? Math.round(((r.total - d20[0] - d20[1]) / 2) * 100) / 100 : null
+  const part = v => (each ? `(${v}${each > 0 ? '+' : ''}${each})` : String(v))
+  const sum = d20.length === 2 ? `${part(d20[0])} + ${part(d20[1])} = ${r.total}` : String(r.total)
+  return r.add ? `${sum} → +35% = ${Math.floor(r.total * 1.35)} → +${r.add} повт. = ` : `${sum} → +35% = `
+}
 const dieText = r => (r.groups || []).map(g => `d${g.sides}: ${g.values.join(', ')}`).join('; ') + (r.mod ? `; ${r.mod > 0 ? '+' : ''}${r.mod}` : '')
 
 // проверка мастером — печать на запись, искры к тренировке, звук; провал и отмена — встряска

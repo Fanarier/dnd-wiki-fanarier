@@ -281,7 +281,8 @@ function rollRec(h, r) {
   // модификаторы из строки «Модификаторы броска: …» складываются сами; длительная тренировка — 2к20 и × 1.35
   const plan = rollPlan(r, mods.value.find(x => x.name === r.mod), rep)
   const label = r.name.replace(/\s*\(.*$/, '').slice(0, 40)
-  if (plan.unknown.length) toast(`Без числа, в бросок не вошли: ${plan.unknown.join(', ')}`)
+  if (plan.long && !plan.items.length) toast('В описании нет строки «Модификаторы броска: …» с числами — кидается 2к20 без модов', 'error')
+  else if (plan.unknown.length) toast(`Без числа, в бросок не вошли: ${plan.unknown.join(', ')}`)
   requestRoll({ formula: plan.formula, label, onDone: roll => send(h.heroId, r, { ...roll, label, long: plan.long, add: plan.add, miss: plan.unknown.join(', ') }) })
 }
 async function send(hid, r, roll, retry = true) {
