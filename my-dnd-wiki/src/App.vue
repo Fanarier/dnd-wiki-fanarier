@@ -59,7 +59,7 @@ watch(unread, (n, o) => { if (bellReady && n > o) sfx('notify'); bellReady = sto
 .app-toast.error { border-color: rgba(255, 107, 94, .6); color: #ffc2bb; }
 .app-toast.quill { position: relative; padding-left: 34px; overflow: hidden; }
 .app-toast.quill::after { content: ''; position: absolute; left: 34px; right: 16px; bottom: 6px; height: 1px; background: linear-gradient(90deg, #e7c56f, transparent); transform-origin: left; animation: app-ink .9s ease-out .15s both; }
-.app-quill { position: absolute; left: 12px; top: 50%; color: #e7c56f; font-size: 15px; animation: app-quill .9s ease-in-out; }
+.app-quill { position: absolute; left: 12px; top: 50%; color: #e7c56f; font-size: 15px; line-height: 1; transform: translate(0, -50%); animation: app-quill .9s ease-in-out both; } /* после анимации перо остаётся на месте, а не съезжает вниз */
 @keyframes app-quill { 0% { transform: translate(-6px, -60%) rotate(-25deg); opacity: 0; } 30% { opacity: 1; } 50% { transform: translate(2px, -40%) rotate(5deg); } 75% { transform: translate(-1px, -55%) rotate(-10deg); } 100% { transform: translate(0, -50%) rotate(0); } }
 @keyframes app-ink { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @media (prefers-reduced-motion: reduce) { .app-quill, .app-toast.quill::after { animation: none; } }

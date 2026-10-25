@@ -109,7 +109,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll } from '../../map/store.js'
-import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollFormula, restBudget, freeRows } from '../../shared/activities.js'
+import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, restBudget, freeRows } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
 import ActivityForm from './ActivityForm.vue'
 import ActivityPlanner from './ActivityPlanner.vue'
@@ -278,9 +278,11 @@ function rollRec(h, r) {
   const n = normAct(r.name)
   const same = logOf(h.heroId).filter(x => x.date === r.date && normAct(x.name) === n && x.status !== 'cancel')
   const rep = r.type === 'repeat' ? Math.min(10, Math.max(0, same.findIndex(x => x.id === r.id))) : 0
-  const formula = rollFormula('1d20', mods.value.find(x => x.name === r.mod), rep)
+  // модификаторы из строки «Модификаторы броска: …» складываются сами; длительная тренировка — 2к20 и × 1.35
+  const plan = rollPlan(r, mods.value.find(x => x.name === r.mod), rep)
   const label = r.name.replace(/\s*\(.*$/, '').slice(0, 40)
-  requestRoll({ formula, label, onDone: roll => send(h.heroId, r, { ...roll, label }) })
+  if (plan.unknown.length) toast(`Без числа, в бросок не вошли: ${plan.unknown.join(', ')}`)
+  requestRoll({ formula: plan.formula, label, onDone: roll => send(h.heroId, r, { ...roll, label, long: plan.long, add: plan.add, miss: plan.unknown.join(', ') }) })
 }
 async function send(hid, r, roll, retry = true) {
   await new Promise(res => setTimeout(res, 400)) // бросок сначала проходит по сокету — запись принимается после

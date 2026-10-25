@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
+import { isLongTraining, longFinal } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -73,7 +74,7 @@ function clean(b = {}, old = {}, heroIds = []) {
     mod: S(pick('mod'), 80), // место-модификатор из вики («Библиотека»…)
     with: [...new Set((Array.isArray(pick('with')) ? pick('with') : []).map(String).filter(id => heroIds.includes(id)))].slice(0, 8),
     gold: I(pick('gold'), -1e7, 1e7), silver: I(pick('silver'), -1e7, 1e7), copper: I(pick('copper'), -1e7, 1e7),
-    exp: I(pick('exp'), -1e7, 1e7), exh: I(pick('exh'), 0, 5),
+    exp: I(pick('exp'), -1e7, 1e7), exh: I(pick('exh'), -5, 5), // минус — отдых снимает изнурение
     items: cleanItems(pick('items'))
   }
 }
@@ -227,7 +228,13 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (req.user.role !== 'master' && !playerMay(req.user, h, rec)) return fail(res, 403, 'Бросать в проверенную запись нельзя')
     const r = findRoll(req.user, req.body || {})
     if (!r) return fail(res, 409, 'Этот бросок не прошёл через кубики сайта')
-    rec.rolls = [...(rec.rolls || []), { label: S(req.body?.label, 60), notation: r.notation, total: r.total, groups: r.groups, mod: r.mod, adv: r.adv || '', at: r.at }].slice(-30)
+    // длительная тренировка: (2к20 + 2×моды) × 1.35 вниз + бонус повторения — итог считает сервер по проверенному броску
+    const long = !!req.body?.long && isLongTraining(rec.name)
+    const add = long ? I(req.body?.add, 0, 10) : 0
+    rec.rolls = [...(rec.rolls || []), {
+      label: S(req.body?.label, 60), notation: r.notation, total: r.total, groups: r.groups, mod: r.mod, adv: r.adv || '', at: r.at,
+      ...(long ? { long: true, add, final: longFinal(r.total, add) } : {}), miss: S(req.body?.miss, 200)
+    }].slice(-30)
     changed()
     res.json(rec)
   })

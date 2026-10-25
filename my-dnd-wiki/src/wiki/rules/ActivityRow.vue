@@ -21,9 +21,10 @@
         </span>
         <span v-if="money" class="ar-tag gold" :class="{ ok: rec.appliedSheet }" :title="rec.appliedSheet ? 'Уже в листе' : 'Уйдёт в лист, когда мастер учтёт'">💰 {{ money }}</span>
         <span v-if="rec.exp" class="ar-tag exp" :class="{ ok: rec.appliedSheet }">✦ {{ rec.exp > 0 ? '+' : '' }}{{ rec.exp }} опыта</span>
-        <span v-if="rec.exh" class="ar-tag exh" :class="{ ok: rec.appliedSheet }" title="Изнурение в лист">😵 +{{ rec.exh }} изнур.</span>
+        <span v-if="rec.exh > 0" class="ar-tag exh" :class="{ ok: rec.appliedSheet }" title="Изнурение в лист">😵 +{{ rec.exh }} изнур.</span>
+        <span v-else-if="rec.exh < 0" class="ar-tag unexh" :class="{ ok: rec.appliedSheet }" title="Отдых снимает изнурение в листе">🌿 −{{ -rec.exh }} изнур.</span>
         <span v-for="(it, i) in rec.items || []" :key="'i' + i" class="ar-tag item" :class="{ ok: rec.appliedSheet }">{{ it.qty > 0 ? '🎒 +' : '🎒 −' }}{{ Math.abs(it.qty) > 1 ? Math.abs(it.qty) + '× ' : '' }}{{ it.name }}{{ it.stored ? ' (склад)' : '' }}</span>
-        <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b>{{ r.total }}</b></span>
+        <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b v-if="!r.long">{{ r.total }}</b><template v-else>{{ r.total }} → ×1.35{{ r.add ? ' +' + r.add : '' }} = <b>{{ r.final }}</b></template><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
         <span v-if="rec.by && rec.at && !mirror" class="ar-by">{{ rec.by }}</span>
       </div>
@@ -125,9 +126,11 @@ watch(() => props.rec.status, (now, was) => {
 .ar-tag.gold { background: rgba(243, 211, 107, .12); color: #f3d36b; }
 .ar-tag.exp { background: rgba(185, 166, 255, .12); color: #d2c8ff; }
 .ar-tag.exh { background: rgba(255, 122, 107, .12); color: #ffb3aa; }
+.ar-tag.unexh { background: rgba(126, 208, 122, .12); color: #b4ecb0; }
 .ar-tag.item { background: rgba(201, 180, 138, .12); color: #e6d4ad; }
 .ar-tag.roll { background: rgba(127, 180, 255, .12); color: #b9d6ff; }
 .ar-tag.roll b { color: #fff; }
+.ar-miss { margin-left: 6px; font-style: normal; color: #ffcf7a; }
 .ar-tag.coin { background: rgba(143, 133, 116, .15); color: #c9bda5; }
 .ar-tag.coin.win { background: rgba(243, 211, 107, .16); color: #f3d36b; }
 .ar-tag.mir { background: rgba(185, 166, 255, .12); color: #d2c8ff; }

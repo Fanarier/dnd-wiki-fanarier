@@ -45,19 +45,28 @@ export function stamp(kind = 'done') {
   return anim(100, [seal, ring])
 }
 
-// песочные часы: песок пересыпается сверху вниз, струйка, переворот — по кругу
+// песочные часы: песок тает в верхней колбе по её форме и горкой растёт в нижней, тонкая струйка между ними;
+// потом часы переворачиваются вместе с песком — и всё сначала (полная нижняя колба после переворота = полная верхняя)
+const W = (y, top) => 0.85 * (6 + 32 * (top ? (-4 - y) : (y - 4)) / 58) // полуширина колбы на высоте y (с зазором до стенки)
+const sandTop = ys => [[-W(ys, 1), ys], [W(ys, 1), ys], [W(-10, 1) * Math.min(1, (ys + 6) / -4), -10], [0, -5], [-W(-10, 1) * Math.min(1, (ys + 6) / -4), -10]]
+// нижняя колба: песок от дна до уровня yb, сверху горка; полная — как полная верхняя, повёрнутая на 180°
+const sandBottom = yb => { const h = 6 * Math.min(1, (56 - yb) / 10); return [[W(56, 0), 56], [-W(56, 0), 56], [-W(yb, 0), yb], [0, yb - h], [W(yb, 0), yb]] }
+// фигура с ключевыми кадрами (равномерно, без замедления)
+const shapeAt = v => ({ i: v.map(() => [0, 0]), o: v.map(() => [0, 0]), v, c: true })
+const apath = frames => ({ ty: 'sh', ks: { a: 1, k: frames.map(([t, v], i) => (i < frames.length - 1
+  ? { t, s: [shapeAt(v)], i: { x: [1], y: [1] }, o: { x: [0], y: [0] } } : { t, s: [shapeAt(v)] })) } })
 export function hourglass(color = '#e7c56f', sand = '#f0b54f') {
-  const glass = layer(1, [
+  const D = 140 // сколько кадров пересыпается
+  const steps = [0, 0.25, 0.5, 0.75, 1]
+  const top = group([apath(steps.map(k => [k * D, sandTop(-56 + k * 50)])), fill(sand)])
+  const bottom = group([apath(steps.map(k => [k * D, sandBottom(56 - k * 46)])), fill(sand)])
+  const stream = group([path([[0, -5], [0, 50]]), stroke(sand, 2.5)], { o: A([[0, 0], [6, 100], [D - 6, 100], [D, 0]]) })
+  const glass = [
     group([path([[-38, -62], [38, -62], [6, -4], [6, 4], [38, 62], [-38, 62], [-6, 4], [-6, -4]], true), stroke(color, 5)]),
     group([path([[-46, -66], [46, -66]]), stroke(color, 8)]),
     group([path([[-46, 66], [46, 66]]), stroke(color, 8)])
-  ], { r: A([[0, 0], [150, 0], [180, 180]], [0.5, 1]) }, 0, 180)
-  const top = layer(2, [group([path([[-30, -56], [30, -56], [0, -6]], true), fill(sand)])],
-    { a: P([0, -6, 0]), p: P([100, 94, 0]), s: A([[0, [100, 100, 100]], [140, [100, 0, 100]]]), o: A([[0, 100], [150, 100], [152, 0]]) }, 0, 180)
-  const bottom = layer(3, [group([path([[-32, 58], [32, 58], [0, 14]], true), fill(sand)])],
-    { a: P([0, 58, 0]), p: P([100, 158, 0]), s: A([[0, [100, 0, 100]], [140, [100, 100, 100]]]), o: A([[0, 100], [150, 100], [152, 0]]) }, 0, 180)
-  const stream = layer(4, [group([path([[0, -4], [0, 56]]), stroke(sand, 3)])], { o: A([[0, 0], [8, 100], [132, 100], [140, 0]]) }, 0, 180)
-  return anim(180, [stream, top, bottom, glass])
+  ]
+  return anim(180, [layer(1, [...glass, stream, top, bottom], { r: A([[0, 0], [D + 6, 0], [D + 34, 180]], [0.5, 1]) }, 0, 180)])
 }
 
 // вспышка: искры разлетаются из центра и гаснут

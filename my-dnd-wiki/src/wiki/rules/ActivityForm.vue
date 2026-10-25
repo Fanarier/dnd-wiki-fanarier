@@ -34,7 +34,7 @@
     <p v-if="hint || repeatNo > 1" class="af-hint">
       <template v-if="hint">📖 В вики: <router-link :to="{ path: '/wiki', query: { section: 'activities', a: hint.articleId } }" target="_blank">{{ hint.name }}</router-link> — {{ hint.dur }}, {{ hint.rate }} выносливости в час<template v-if="num(m.hours)"> → {{ autoSt }}</template>. </template>
       <template v-if="repeatNo > 1">↻ Повтор №{{ repeatNo }} в этой сессии — <b>+{{ repBonus }}</b> к броску. </template>
-      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b> — кнопкой 🎲 у записи.</template>
+      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b> — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
     <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" placeholder="Броски, очки, что получилось… (можно с цветом и свечением)" :min-height="44" /></div>
 
@@ -67,7 +67,7 @@
         <label class="af-f xs">СМ<input v-model.number="m.silver" type="number" class="af-in" /></label>
         <label class="af-f xs">ММ<input v-model.number="m.copper" type="number" class="af-in" /></label>
         <label class="af-f xs">Опыт<input v-model.number="m.exp" type="number" class="af-in" /></label>
-        <label class="af-f xs" title="По правилам длительная тренировка даёт 2 изнурения">Изнурение<input v-model.number="m.exh" type="number" min="0" max="5" class="af-in" /></label>
+        <label class="af-f xs" title="Длительная тренировка даёт 4 изнурения; отдых снимает: 1 за каждые 3 часа (минус — снять)">Изнурение<input v-model.number="m.exh" type="number" min="-5" max="5" class="af-in" @input="manualExh = true" /></label>
       </div>
       <div class="af-f">Вещи (плюс — получено, минус — отдано)
         <div v-for="(it, i) in m.items" :key="i" class="af-item">
@@ -98,7 +98,7 @@
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
 import RichInput from '../../components/rich/RichInput.vue'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollFormula } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, LONG_EXH, restExh, categoryOf } from '../../shared/activities.js'
 
 const m = defineModel({ type: Object, required: true })
 const props = defineProps({
@@ -129,8 +129,12 @@ watch([hint, () => m.value.hours], () => {
   if (!m.value.type) m.value.type = hint.value.type
   if (!manualSt.value && num(m.value.hours)) m.value.stamina = String(autoSt.value).replace('.', ',')
 })
-// длительная тренировка/обучение — по правилам 2 изнурения
-watch(() => m.value.name, n => { if (!manualExh.value) m.value.exh = /^(долг|длительн)\S*\s+(тренир|обуч)/i.test(n.trim()) ? 2 : 0 })
+// изнурение само: длительная тренировка/обучение даёт 4, отдых снимает — 1 за каждые 3 часа (6 часов — 2)
+const isRest = () => categoryOf(m.value.name) === 'rest' || num(m.value.stamina) < 0
+watch([() => m.value.name, () => m.value.hours, () => m.value.stamina], () => {
+  if (manualExh.value) return
+  m.value.exh = isLongTraining(m.value.name) ? LONG_EXH : isRest() ? restExh(m.value.hours) : 0
+})
 watch([() => m.value.result, () => m.value.trainId], () => {
   if (m.value.trainId && !manualPts.value) m.value.pts = ptsOf(m.value.result)
 })
@@ -143,7 +147,13 @@ const repeatNo = computed(() => {
 })
 const repBonus = computed(() => Math.min(10, Math.max(0, repeatNo.value - 1)))
 const mod = computed(() => props.mods.find(x => x.name === m.value.mod))
-const formula = computed(() => (m.value.type === 'repeat' || mod.value ? rollFormula('1d20', mod.value, repBonus.value) : ''))
+// бросок: модификаторы из строки «Модификаторы броска: …» складываются сами
+const plan = computed(() => rollPlan(m.value, mod.value, m.value.type === 'repeat' ? repBonus.value : 0))
+const formula = computed(() => {
+  const p = plan.value
+  if (!(m.value.type === 'repeat' || mod.value || p.items.length || p.long || p.rep != null)) return ''
+  return p.long ? `(${p.formula}) × 1.35${p.add ? ' + ' + p.add : ''}` : p.formula
+})
 
 const others = computed(() => actState.heroes.filter(h => h.heroId !== props.hero?.heroId))
 const toggleWith = id => { const w = m.value.with; const i = w.indexOf(id); i >= 0 ? w.splice(i, 1) : w.push(id) }

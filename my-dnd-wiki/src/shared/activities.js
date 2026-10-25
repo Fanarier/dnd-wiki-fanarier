@@ -128,6 +128,63 @@ export function rollFormula(base, mod, rep) {
   return [base || '1d20', mod?.formula, rep ? String(rep) : ''].filter(Boolean).join('+').replace(/\+-/g, '-')
 }
 
+// длительная тренировка/обучение: по правилам 4 изнурения и бросок (2к20 + 2×моды) × 1.35
+export const isLongTraining = name => /^(долг|длительн)\S*\s+(тренир|обуч)/i.test(String(name || '').trim())
+export const LONG_EXH = 4
+export const LONG_MULT = 1.35
+// отдых снимает изнурение: каждые 3 часа — одно (6 часов — два)
+export const restExh = hours => -Math.min(5, Math.floor(Math.max(0, num(hours)) / 3)) || 0
+
+// запятые верхнего уровня: «Ловкость рук(+10, взята с БМ), ОиГ(+3)» → два пункта
+function splitTop(s) {
+  const out = []
+  let depth = 0, cur = ''
+  for (const ch of s) {
+    if (ch === '(') depth++
+    if (ch === ')') depth = Math.max(0, depth - 1)
+    if ((ch === ',' || ch === ';') && !depth) { out.push(cur); cur = '' } else cur += ch
+  }
+  return [...out, cur]
+}
+// модификаторы броска из описания записи: строка «Модификаторы броска: Красивая речь(+4), Анализ(+6), ОиГ(+3)»
+// (или «бросков», «тренировки»…). Число — первое в скобках или после двоеточия. «Бонус повторения(+2)» / «: +3» —
+// отдельно (rep). Пункты без числа («Наставничество(+???)», «Комплект(без травм)») — в unknown. «с преимуществом» — adv
+export function rollMods(text) {
+  const plain = String(text || '').replace(/<\/(p|div|li)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
+  const out = { sum: 0, items: [], unknown: [], rep: null, adv: /с\s+преимуществ/i.test(plain) ? 'adv' : /с\s+помех/i.test(plain) ? 'dis' : '' }
+  for (const line of plain.matchAll(/модификатор[^:\n]*:\s*([^\n]+)/gi)) {
+    for (const raw of splitTop(line[1])) {
+      const item = raw.trim().replace(/\.$/, '')
+      if (!item) continue
+      const cut = item.search(/[(:]/)
+      const name = (cut > 0 ? item.slice(0, cut) : item).trim()
+      const tail = cut >= 0 ? item.slice(cut) : ''
+      const m = tail.match(/([+\-−])?\s*(\d+(?:[.,]\d+)?)/)
+      const v = m && !/\?\?/.test(tail.slice(0, (m.index || 0) + 1)) ? Number(m[2].replace(',', '.')) * (m[1] && m[1] !== '+' ? -1 : 1) : null
+      if (/повтор/i.test(name)) { if (v != null) out.rep = Math.min(10, Math.max(0, Math.round(v))); continue }
+      if (v == null) { out.unknown.push(name); continue }
+      out.sum += v
+      out.items.push({ name, v })
+    }
+  }
+  out.sum = Math.round(out.sum * 100) / 100
+  return out
+}
+// что бросать за запись: короткая — 1к20 + все моды + место + повторение; длительная тренировка — два к20, к каждому моды
+// и место, итог × 1.35 вниз, потом + повторение (его прибавляет сервер: add). autoRep — сколько насчитал сайт, если в тексте не написано
+export function rollPlan(rec, placeMod, autoRep = 0) {
+  const m = rollMods(rec.result)
+  const rep = m.rep ?? autoRep ?? 0
+  const sign = v => (v ? (v > 0 ? '+' : '') + v : '')
+  if (isLongTraining(rec.name)) {
+    const place = placeMod?.formula ? `+${placeMod.formula}+${placeMod.formula}` : ''
+    return { ...m, rep, long: true, add: rep, formula: `2d20${place}${sign(2 * m.sum)}` }
+  }
+  const place = placeMod?.formula ? `+${placeMod.formula}` : ''
+  return { ...m, rep, long: false, add: 0, formula: `1d20${place}${sign(m.sum + rep)}${m.adv === 'adv' ? ' преимущество' : m.adv === 'dis' ? ' помеха' : ''}` }
+}
+export const longFinal = (total, add) => Math.floor(total * LONG_MULT) + (add || 0)
+
 // Обязательный отдых вычитается из периода сразу: 336 ч − 14 дней × 8 ч сна = 224 ч свободно (дроу в трансе 4 ч — 280).
 // Поэтому записанный на сайте сон (транс, подзарядка…) — дополнительный отдых и идёт в счёт целиком. Исключение — сессии,
 // перенесённые из таблицы, где писали и ежедневный сон: если иначе часов больше свободных, их сон сначала покрывает норму.
