@@ -44,6 +44,7 @@
         <div class="al-tools">
           <h2>{{ hero.name }}</h2>
           <span v-if="hero.stamina != null" class="al-chip" title="Выносливость в листе">⚡ {{ hero.stamina }}</span>
+          <span v-if="hero.exh != null" class="al-chip" :class="{ exh: hero.exh }" title="Изнурение в листе сейчас (до 5). Длительная тренировка +4, отдых снимает 1 за каждые 3 часа">😵 {{ hero.exh }}<small> / 5</small></span>
           <span v-if="cfg.sleep != null && (cfg.sleep !== 8 || (cfg.rest && cfg.rest !== 'Сон'))" class="al-chip" title="Отдых в день по настройкам героя">🌙 {{ (cfg.rest || 'Сон').toLowerCase() }} {{ cfg.sleep }} ч</span>
           <span class="grow" />
           <nav class="al-views">
@@ -78,6 +79,7 @@
               <b>{{ fmtDate(s.date) }}</b>
               <span class="al-sum" :class="{ over: s.hours > budget.free }" :title="leftText(s)">⏱ {{ round(s.hours, 2) }}<small> / {{ budget.free }} ч</small></span>
               <span class="al-sum" :class="{ over: hero.stamina != null && s.stamina > hero.stamina }" :title="hero.stamina != null && s.stamina > hero.stamina ? `Потрачено больше выносливости, чем есть в листе — по правилам 1 изнурение за каждые −2 (≈ ${Math.ceil((s.stamina - hero.stamina) / 2)})` : 'Выносливость за сессию (отдых — со знаком минус)'">⚡ {{ round(s.stamina, 2) }}</span>
+              <span v-if="s.exhUp || s.exhDown" class="al-sum" title="Изнурение за сессию: получено / снято отдыхом">😵 <template v-if="s.exhUp">+{{ s.exhUp }}</template><template v-if="s.exhUp && s.exhDown"> / </template><template v-if="s.exhDown">−{{ s.exhDown }}</template></span>
               <span class="al-sum">{{ s.rows.length }} {{ plural(s.rows.length) }}</span>
               <span v-if="s.pending" class="al-sum pend">⏳ {{ s.pending }}</span>
               <span v-if="s.plans" class="al-sum plan">✎ {{ s.plans }} в черновике</span>
@@ -109,7 +111,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll } from '../../map/store.js'
-import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, restBudget, freeRows } from '../../shared/activities.js'
+import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, restBudget, freeRows, exhOf } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
 import ActivityForm from './ActivityForm.vue'
 import ActivityPlanner from './ActivityPlanner.vue'
@@ -181,10 +183,13 @@ const sessions = computed(() => {
       date, rows: rs, own, free: fr.rows, covered: fr.covered,
       hours: fr.rows.reduce((n, r) => n + num(r.hours), 0),
       stamina: own.reduce((n, r) => n + (r.coin?.win ? 0 : num(r.stamina)), 0),
+      exhUp: own.reduce((n, r) => n + Math.max(0, exhRec(r)), 0), exhDown: own.reduce((n, r) => n - Math.min(0, exhRec(r)), 0),
       pending: rs.filter(r => r.status === 'pending' && !r.mirror).length, plans: rs.filter(r => r.status === 'plan' && !r.mirror).length
     }
   })
 })
+// изнурение записи: учтённая — что ушло в лист, остальные — что уйдёт по правилам
+const exhRec = r => (r.status === 'done' ? r.appliedSheet?.want?.exh || 0 : exhOf(r))
 const shownSessions = computed(() => (q.value || stFilter.value ? sessions.value : sessions.value.slice(0, more.value)))
 const queueGroups = computed(() => actState.heroes.map(h => ({ hero: h, rows: logOf(h.heroId).filter(r => r.status === 'pending') })).filter(g => g.rows.length))
 const fmtDate = d => { const t = new Date(d + 'T12:00').toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'short' }); return t.charAt(0).toUpperCase() + t.slice(1) }
@@ -323,6 +328,8 @@ watch(() => [route.query.new, hero.value?.canWrite], ([n, can]) => {
 .al-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .al-tools h2 { margin: 0; font: 700 26px 'Cormorant Garamond', serif; color: #f3dc9e; }
 .al-chip { padding: 2px 9px; border-radius: 99px; background: rgba(240, 181, 79, .14); color: #f6cf86; font: 800 12px 'Manrope', sans-serif; }
+.al-chip.exh { background: rgba(255, 122, 107, .16); color: #ffb3aa; }
+.al-chip small { opacity: .6; }
 .al-views { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 12px; background: rgba(0, 0, 0, .25); }
 .al-views button { padding: 5px 11px; border-radius: 9px; border: 0; background: none; color: #cdbf9f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
 .al-views button.on { background: linear-gradient(180deg, rgba(240, 208, 131, .3), rgba(201, 162, 79, .2)); color: #f3dc9e; box-shadow: inset 0 0 0 1px rgba(231, 197, 111, .5); }

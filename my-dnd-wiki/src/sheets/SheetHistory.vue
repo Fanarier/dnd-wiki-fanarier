@@ -25,6 +25,7 @@
                 <small>{{ time(e.at) }}</small>
                 <span class="grow" />
                 <button v-if="canRevert(e)" type="button" class="sb-btn sh-rev" :disabled="busy === e.id" title="Вернуть как было до этой правки" @click="revert(e)">↶ Откатить</button>
+                <small v-else-if="fromJournal(e)" class="sh-journal" title="Чтобы отменить — сними «учтено» у записи в журнале деятельностей">📒 из журнала</small>
               </div>
               <div class="sh-what">{{ label(e) }}</div>
               <div v-if="e.p === '#owner' || e.p === '#share'" class="sh-diff"><span class="from">{{ e.from }}</span><span class="arr">→</span><span class="to">{{ e.to }}</span></div>
@@ -74,7 +75,9 @@ const groups = computed(() => {
   return out
 })
 const time = t => new Date(t).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-const canRevert = e => !e.p.startsWith('#') && !(e.p === '' && !e.from) && e.note !== 'лист создан'
+// из журнала деятельностей — откатывается в журнале (снять «учтено»), иначе снимется дважды
+const fromJournal = e => /^деятельность «/.test(e.note || '')
+const canRevert = e => !e.p.startsWith('#') && !(e.p === '' && !e.from) && e.note !== 'лист создан' && !fromJournal(e)
 async function revert(e) {
   if (!confirm(`Вернуть «${label(e)}» к значению «${shortValue(e.from)}»?`)) return
   busy.value = e.id
@@ -111,4 +114,5 @@ async function revert(e) {
 .sh-empty { color: var(--muted); padding: 20px; text-align: center; }
 @keyframes sh-fade { from { opacity: 0; } }
 @keyframes sh-in { from { transform: translateX(40px); opacity: 0; } }
+.sh-journal { color: #a8936c; font: 700 11px 'Manrope', sans-serif; white-space: nowrap; }
 </style>

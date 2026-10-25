@@ -134,6 +134,11 @@ export const LONG_EXH = 4
 export const LONG_MULT = 1.35
 // отдых снимает изнурение: каждые 3 часа — одно (6 часов — два)
 export const restExh = hours => -Math.min(5, Math.floor(Math.max(0, num(hours)) / 3)) || 0
+// любой отдых из вики (раздел «Отдых»: отдых, сон, транс, медитация, свидания) или запись, что возвращает выносливость
+const REST_RE = /^(отдых|свидани|сон\b|транс\b|медитац|день отдыха)|восстановительный сон/i
+export const isRestRec = rec => REST_RE.test(String(rec?.name || '').trim()) || num(rec?.stamina) < 0
+// сколько изнурения даёт запись: что вписано, а если пусто — по правилам (длительная +4, отдых −1 за 3 ч)
+export const exhOf = rec => Number(rec?.exh) || (isLongTraining(rec?.name) ? LONG_EXH : isRestRec(rec) ? restExh(rec?.hours) : 0)
 
 // запятые верхнего уровня: «Ловкость рук(+10, взята с БМ), ОиГ(+3)» → два пункта
 function splitTop(s) {

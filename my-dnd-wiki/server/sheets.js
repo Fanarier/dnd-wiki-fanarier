@@ -491,6 +491,8 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     const e = (sh.history || []).find(x => x.id === req.body?.entryId)
     if (!e) return res.status(404).json({ error: 'Запись не найдена' })
     if (e.p.startsWith('#') || (e.p === '' && !e.from)) return res.status(400).json({ error: 'Эту запись откатить нельзя' })
+    // пришло из журнала деятельностей — откатывается там (снять «учтено»), иначе журнал потом снимет это второй раз
+    if (/^деятельность «/.test(e.note || '')) return res.status(400).json({ error: 'Это пришло из журнала деятельностей — сними «учтено» у записи в журнале, и всё вернётся само' })
     const op = applyOp(sh, { p: e.p, v: e.from }, by(req), 'откат')
     if (!op) return res.json({ ok: true, same: true })
     touch(sh)
@@ -572,7 +574,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       const sh = heroSheet(heroId)
       if (!sh) return null
       const st = parseFloat(String(sh.data.Stamina || '').replace(',', '.'))
-      return { race: sh.data.Race || '', stamina: Number.isFinite(st) ? st : null, trainings: (sh.data.Trainings || []).map(t => ({ Id: t.Id, Name: t.Name, Cur: t.Cur, Max: t.Max, Stage: t.Stage, Status: t.Status })) }
+      return { race: sh.data.Race || '', stamina: Number.isFinite(st) ? st : null, exh: Number(sh.data.Exhaustion) || 0, trainings: (sh.data.Trainings || []).map(t => ({ Id: t.Id, Name: t.Name, Cur: t.Cur, Max: t.Max, Stage: t.Stage, Status: t.Status })) }
     },
     addTraining,
     linksFor: u => (u ? store.sheets.filter(sh => sh.heroId && canView(u, sh) && !sh.deletedAt).map(sh => ({ heroId: sh.heroId, sheetId: sh.id })) : []),

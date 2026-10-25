@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
-import { isLongTraining, longFinal, LONG_EXH } from '../src/shared/activities.js'
+import { isLongTraining, longFinal, LONG_EXH, exhOf } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -140,7 +140,11 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
       }
     }
     const d = {}
-    for (const k of ['gold', 'silver', 'copper', 'exp', 'exh']) if (rec[k]) d[k] = rec[k]
+    for (const k of ['gold', 'silver', 'copper', 'exp']) if (rec[k]) d[k] = rec[k]
+    // изнурение: вписанное, а если пусто — по правилам (длительная тренировка +4, любой отдых −1 за каждые 3 часа).
+    // По правилам — только если запись стала «учтено» уже при новых правилах (exhAuto): старые учтённые не трогаем
+    const exh = Number(rec.exh) || (rec.exhAuto ? exhOf(rec) : 0)
+    if (exh) d.exh = exh
     if (rec.items?.length) d.items = rec.items
     const want = done && Object.keys(d).length ? d : null
     const had = rec.appliedSheet || null
@@ -166,7 +170,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
         const w = canWrite(u, h)
         const sh = sheets.trainingsOfHero(h.id)
         // тренировки листа — тем, кто пишет в журнал (выбрать, куда идут очки), и мастеру
-        return { heroId: h.id, name: h.name, race: h.race || '', canWrite: w, hasSheet: !!sh, stamina: sh?.stamina ?? null, trainings: w ? sh?.trainings || [] : [] }
+        return { heroId: h.id, name: h.name, race: h.race || '', canWrite: w, hasSheet: !!sh, stamina: sh?.stamina ?? null, exh: sh?.exh ?? null, trainings: w ? sh?.trainings || [] : [] }
       }),
       logs: store.logs
     })
@@ -192,6 +196,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     const status = master ? (ACT_STATUS.includes(want) ? want : 'done') : (want === 'plan' ? 'plan' : 'pending')
     const rec = { id: 'a' + crypto.randomBytes(5).toString('hex'), ...clean(req.body, {}, heroes().map(x => x.id)), status, by: req.user.name, at: Date.now() }
     if (!master) { const why = playerBlock(h, rec, { creating: true }); if (why) return fail(res, 403, why) }
+    if (rec.status === 'done') rec.exhAuto = true
     list.push(rec)
     if (master) syncSheet(h, rec, req.user)
     else if (status === 'pending' && list.filter(x => x.status === 'pending').length === 1) notify('masters', 'activity', `${h.name}: новые деятельности на проверку`, { logHero: h.id })
@@ -210,6 +215,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     else if (!master && PLAYER_STATUS.includes(want)) next.status = want
     if (!master) { const why = playerBlock(h, next, { creating: rec.status === 'plan' && next.status === 'pending' }); if (why) return fail(res, 403, why) }
     const wasPending = rec.status === 'pending'
+    if (next.status === 'done' && rec.status !== 'done') next.exhAuto = true // изнурение по правилам — с этого «учтено»
     Object.assign(rec, next)
     if (master && want && want !== 'pending' && want !== 'plan') { rec.checkedBy = req.user.name; rec.checkedAt = Date.now() }
     syncSheet(h, rec, req.user)

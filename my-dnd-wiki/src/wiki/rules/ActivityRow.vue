@@ -21,8 +21,8 @@
         </span>
         <span v-if="money" class="ar-tag gold" :class="{ ok: rec.appliedSheet }" :title="rec.appliedSheet ? 'Уже в листе' : 'Уйдёт в лист, когда мастер учтёт'">💰 {{ money }}</span>
         <span v-if="rec.exp" class="ar-tag exp" :class="{ ok: rec.appliedSheet }">✦ {{ rec.exp > 0 ? '+' : '' }}{{ rec.exp }} опыта</span>
-        <span v-if="rec.exh > 0" class="ar-tag exh" :class="{ ok: rec.appliedSheet }" title="Изнурение в лист">😵 +{{ rec.exh }} изнур.</span>
-        <span v-else-if="rec.exh < 0" class="ar-tag unexh" :class="{ ok: rec.appliedSheet }" title="Отдых снимает изнурение в листе">🌿 −{{ -rec.exh }} изнур.</span>
+        <span v-if="exh > 0" class="ar-tag exh" :class="{ ok: rec.appliedSheet }" title="Изнурение в лист (при «учтено»)">😵 +{{ exh }} изнур.</span>
+        <span v-else-if="exh < 0" class="ar-tag unexh" :class="{ ok: rec.appliedSheet }" title="Отдых снимает изнурение в листе (при «учтено»): 1 за каждые 3 часа">🌿 −{{ -exh }} изнур.</span>
         <span v-for="(it, i) in rec.items || []" :key="'i' + i" class="ar-tag item" :class="{ ok: rec.appliedSheet }">{{ it.qty > 0 ? '🎒 +' : '🎒 −' }}{{ Math.abs(it.qty) > 1 ? Math.abs(it.qty) + '× ' : '' }}{{ it.name }}{{ it.stored ? ' (склад)' : '' }}</span>
         <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b v-if="!r.long">{{ r.total }}</b><template v-else>{{ longSteps(r) }}<b>{{ r.final }}</b></template><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
@@ -57,7 +57,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf } from '../../shared/activities.js'
 import LottieFx from './LottieFx.vue'
 import RichText from '../../components/RichText.vue'
 import { stamp } from './lottie.js'
@@ -88,6 +88,8 @@ function longSteps(r) {
   const sum = d20.length === 2 ? `${part(d20[0])} + ${part(d20[1])} = ${r.total}` : String(r.total)
   return r.add ? `${sum} → +35% = ${Math.floor(r.total * 1.35)} → +${r.add} повт. = ` : `${sum} → +35% = `
 }
+// учтённая — сколько на самом деле ушло в лист; остальные — сколько уйдёт по правилам
+const exh = computed(() => (props.rec.status === 'done' ? props.rec.appliedSheet?.want?.exh || 0 : exhOf(props.rec)))
 const dieText = r => (r.groups || []).map(g => `d${g.sides}: ${g.values.join(', ')}`).join('; ') + (r.mod ? `; ${r.mod > 0 ? '+' : ''}${r.mod}` : '')
 
 // проверка мастером — печать на запись, искры к тренировке, звук; провал и отмена — встряска

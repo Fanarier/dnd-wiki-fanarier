@@ -13,11 +13,7 @@
     <div class="af-row">
       <label class="af-f date">Сессия<input v-model="m.date" type="date" required class="af-in" /></label>
       <label class="af-f name">Деятельность
-        <input v-model="m.name" :list="listId" required maxlength="600" class="af-in" placeholder="Например: Долгая тренировка (Владение: Звездная колода)" />
-        <datalist :id="listId">
-          <option v-for="n in recent" :key="'r' + n" :value="n" />
-          <option v-for="c in catalog" :key="'c' + c.name" :value="c.name">{{ c.dur }} · {{ c.rate }} / ч</option>
-        </datalist>
+        <ActNameInput v-model="m.name" :recent="recent" :catalog="catalog" placeholder="Например: Долгая тренировка (Владение: Звездная колода)" />
       </label>
     </div>
     <div class="af-row">
@@ -98,7 +94,8 @@
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
 import RichInput from '../../components/rich/RichInput.vue'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, LONG_EXH, restExh, categoryOf } from '../../shared/activities.js'
+import ActNameInput from './ActNameInput.vue'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, LONG_EXH, restExh, isRestRec } from '../../shared/activities.js'
 
 const m = defineModel({ type: Object, required: true })
 const props = defineProps({
@@ -106,7 +103,6 @@ const props = defineProps({
   busy: Boolean, isNew: Boolean, planDays: { type: Number, default: 0 }
 })
 const emit = defineEmits(['save', 'cancel', 'fav'])
-const listId = 'af-list-' + Math.random().toString(36).slice(2, 8)
 // старые записи без новых полей
 for (const [k, v] of Object.entries({ with: [], items: [], place: '', mod: '', gold: 0, silver: 0, copper: 0, exp: 0, exh: 0, day: 0, trainId: '', pts: 0 })) if (m.value[k] == null) m.value[k] = Array.isArray(v) ? [] : v
 
@@ -130,7 +126,7 @@ watch([hint, () => m.value.hours], () => {
   if (!manualSt.value && num(m.value.hours)) m.value.stamina = String(autoSt.value).replace('.', ',')
 })
 // изнурение само: длительная тренировка/обучение даёт 4, отдых снимает — 1 за каждые 3 часа (6 часов — 2)
-const isRest = () => categoryOf(m.value.name) === 'rest' || num(m.value.stamina) < 0
+const isRest = () => isRestRec(m.value)
 watch([() => m.value.name, () => m.value.hours, () => m.value.stamina], () => {
   if (manualExh.value) return
   m.value.exh = isLongTraining(m.value.name) ? LONG_EXH : isRest() ? restExh(m.value.hours) : 0
