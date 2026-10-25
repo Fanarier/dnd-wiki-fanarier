@@ -7,6 +7,8 @@
       <router-link v-if="wiki" class="ar-wiki" :to="{ path: '/wiki', query: { section: 'activities', a: wiki.articleId } }" :title="`В вики: ${wiki.name} — ${wiki.dur}, ${wiki.rate} выносливости в час${wiki.cost ? ', ' + wiki.cost : ''}`">{{ rec.name }}<sup>📖</sup></router-link>
       <template v-else>{{ rec.name }}</template>
     </b>
+    <!-- место под печать: пока она падает, часы, выносливость и статус отъезжают вправо — ничего не закрыто -->
+    <span class="ar-sealslot" :class="{ on: seal }"><LottieFx v-if="seal" :key="seal.key" class="ar-seal" :data="seal.data" :size="80" @done="seal = null" /></span>
     <div class="ar-nums">
       <span class="ar-num" title="Часы">⏱ {{ rec.hours || '—' }}<small v-if="rec.hours && /^[\d.,]+$/.test(rec.hours)"> ч</small></span>
       <span class="ar-num st" :class="{ free: rec.coin?.win }" title="Выносливость">⚡ {{ rec.stamina || '—' }}</span>
@@ -68,7 +70,6 @@
         </template>
       </div>
     </div>
-    <LottieFx v-if="seal" :key="seal.key" class="ar-seal" :data="seal.data" :size="84" @done="seal = null" />
   </article>
 </template>
 
@@ -145,7 +146,7 @@ watch(() => props.rec.status, (now, was) => {
 </script>
 
 <style scoped>
-.ar { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; grid-template-areas: 'i n nums st' '. b b b' '. f f f'; align-items: center; gap: 4px 10px; padding: 10px 12px 8px 8px; border-radius: 12px; border-left: 3px solid var(--sc); background: rgba(255, 255, 255, .02); transition: background .15s; }
+.ar { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto auto; grid-template-areas: 'i n seal nums st' '. b b b b' '. f f f f'; align-items: center; gap: 4px 10px; padding: 10px 12px 8px 8px; border-radius: 12px; border-left: 3px solid var(--sc); background: rgba(255, 255, 255, .02); transition: background .15s; }
 .ar-type { grid-area: i; }
 .ar-name { grid-area: n; }
 .ar-nums { grid-area: nums; display: flex; gap: 6px; }
@@ -209,11 +210,13 @@ watch(() => props.rec.status, (now, was) => {
 .ar-acts { display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; }
 .ar-acts button:hover { border-color: #e7c56f; color: #f3dc9e; }
 .ar-acts .del:hover { border-color: #ff7a6b; color: #ff7a6b; }
-.ar-seal { position: absolute; right: 150px; top: -14px; z-index: 3; pointer-events: none; } /* над часами и выносливостью, рядом со статусом — его не закрывает */
+.ar-sealslot { grid-area: seal; position: relative; width: 0; height: 26px; transition: width .3s cubic-bezier(.3, 1.3, .5, 1); }
+.ar-sealslot.on { width: 64px; }
+.ar-seal { position: absolute; left: 50%; top: 50%; margin: -40px 0 0 -40px; z-index: 3; pointer-events: none; }
 .ar-badge.hit, .ar-sel.hit { animation: ar-hit .7s ease; }
 @keyframes ar-hit { 0% { transform: scale(1); } 30% { transform: scale(1.25); box-shadow: 0 0 18px var(--sc); } 100% { transform: scale(1); } }
 @media (max-width: 760px) {
   .ar { grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-areas: 'i n n' '. nums st' '. b b' '. f f'; }
-  .ar-seal { right: 10px; top: 0; }
+  .ar-sealslot { position: absolute; right: 44px; top: 16px; width: 0 !important; }
 }
 </style>
