@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
-import { isLongTraining, longFinal, LONG_EXH, exhOf } from '../src/shared/activities.js'
+import { isLongTraining, longFinal, LONG_EXH, exhOf, longExhNet } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -114,6 +114,14 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     store.longExhFix = true
     save()
   }
+  // один раз: ночной сон сразу снимает 2 (транс 1) — непроверенные длительные с авто-значением 4 → 4 − сон героя
+  if (!store.longExhFix2) {
+    for (const [hid, log] of Object.entries(store.logs)) {
+      for (const r of log) if (isLongTraining(r.name) && r.exh === LONG_EXH && ['plan', 'pending'].includes(r.status)) r.exh = longExhNet(cfgOf(hid).sleep)
+    }
+    store.longExhFix2 = true
+    save()
+  }
   const fail = (res, code, error) => res.status(code).json({ error })
 
   // что игроку сейчас нельзя: закрытый мастером период, блокировка, запрет деятельности этому герою
@@ -143,7 +151,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     for (const k of ['gold', 'silver', 'copper', 'exp']) if (rec[k]) d[k] = rec[k]
     // изнурение: вписанное, а если пусто — по правилам (длительная тренировка +4, любой отдых −1 за каждые 3 часа).
     // По правилам — только если запись стала «учтено» уже при новых правилах (exhAuto): старые учтённые не трогаем
-    const exh = Number(rec.exh) || (rec.exhAuto ? exhOf(rec) : 0)
+    const exh = Number(rec.exh) || (rec.exhAuto ? exhOf(rec, cfgOf(h.id).sleep) : 0)
     if (exh) d.exh = exh
     if (rec.items?.length) d.items = rec.items
     const want = done && Object.keys(d).length ? d : null

@@ -27,9 +27,10 @@
         <select v-model="m.status" class="af-in"><option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option></select>
       </label>
     </div>
-    <p v-if="hint || repeatNo > 1" class="af-hint">
-      <template v-if="hint">📖 В вики: <router-link :to="{ path: '/wiki', query: { section: 'activities', a: hint.articleId } }" target="_blank">{{ hint.name }}</router-link> — {{ hint.dur }}, {{ hint.rate }} выносливости в час<template v-if="num(m.hours)"> → {{ autoSt }}</template>. </template>
+    <p v-if="hint || repeatNo > 1 || sleepWarn || formula" class="af-hint">
+      <template v-if="hint">📖 В вики: <router-link :to="{ path: '/wiki', query: { section: 'activities', a: hint.articleId } }" target="_blank">{{ hint.name }}</router-link> — {{ hint.dur }}, {{ hint.rate }} выносливости в час<template v-if="num(m.hours)"> → {{ autoSt }}<template v-if="exhK > 1"> (×2 — у героя изнурение)</template></template>. </template>
       <template v-if="repeatNo > 1">↻ Повтор №{{ repeatNo }} в этой сессии — <b>+{{ repBonus }}</b> к броску. </template>
+      <b v-if="sleepWarn" class="af-sleep">{{ sleepWarn }} </b>
       <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b> — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
     <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" placeholder="Броски, очки, что получилось… (можно с цветом и свечением)" :min-height="44" /></div>
@@ -63,7 +64,7 @@
         <label class="af-f xs">СМ<input v-model.number="m.silver" type="number" class="af-in" /></label>
         <label class="af-f xs">ММ<input v-model.number="m.copper" type="number" class="af-in" /></label>
         <label class="af-f xs">Опыт<input v-model.number="m.exp" type="number" class="af-in" /></label>
-        <label class="af-f xs" title="Длительная тренировка даёт 4 изнурения; отдых снимает: 1 за каждые 3 часа (минус — снять)">Изнурение<input v-model.number="m.exh" type="number" min="-5" max="5" class="af-in" @input="manualExh = true" /></label>
+        <label class="af-f xs" title="Длительная тренировка: +4 и сразу минус ночной сон (сон −2, транс −1). Отдых снимает 1 за каждые 3 часа (минус — снять)">Изнурение<input v-model.number="m.exh" type="number" min="-5" max="5" class="af-in" @input="manualExh = true" /></label>
       </div>
       <div class="af-f">Вещи (плюс — получено, минус — отдано)
         <div v-for="(it, i) in m.items" :key="i" class="af-item">
@@ -95,7 +96,7 @@ import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
 import RichInput from '../../components/rich/RichInput.vue'
 import ActNameInput from './ActNameInput.vue'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, LONG_EXH, restExh, isRestRec } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, longExhNet, restExh, isRestRec, EXH_MAX, exhStaminaK } from '../../shared/activities.js'
 
 const m = defineModel({ type: Object, required: true })
 const props = defineProps({
@@ -116,7 +117,17 @@ const recent = computed(() => {
   return [...cnt.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30).map(x => x[0]).filter(n => n.length < 120)
 })
 const hint = computed(() => catalogMatch(props.catalog, m.value.name))
-const autoSt = computed(() => (hint.value ? round(num(m.value.hours) * hint.value.rate, 3) : 0))
+// изнурение удваивает затраты выносливости (отдых не трогаем — он её возвращает)
+const exhK = computed(() => (hint.value?.rate > 0 ? exhStaminaK(props.hero?.exh) : 1))
+const autoSt = computed(() => (hint.value ? round(num(m.value.hours) * hint.value.rate * exhK.value, 3) : 0))
+// 5 изнурений — эффект «Сон»
+const exhNow = computed(() => Number(props.hero?.exh) || 0)
+const sleepWarn = computed(() => {
+  if (isRest()) return ''
+  if (exhNow.value >= EXH_MAX) return `😴 У героя ${EXH_MAX} изнурений — эффект «Сон»: пока изнурение не снимут отдыхом, по правилам можно только отдыхать.`
+  if (m.value.exh > 0 && exhNow.value + m.value.exh >= EXH_MAX) return `⚠ Эта запись доведёт изнурение до ${EXH_MAX} (сейчас ${exhNow.value}, +${m.value.exh}) — эффект «Сон».`
+  return ''
+})
 const manualSt = ref(!!m.value.stamina)
 const manualPts = ref(!!m.value.pts)
 const manualExh = ref(!props.isNew)
@@ -129,7 +140,7 @@ watch([hint, () => m.value.hours], () => {
 const isRest = () => isRestRec(m.value)
 watch([() => m.value.name, () => m.value.hours, () => m.value.stamina], () => {
   if (manualExh.value) return
-  m.value.exh = isLongTraining(m.value.name) ? LONG_EXH : isRest() ? restExh(m.value.hours) : 0
+  m.value.exh = isLongTraining(m.value.name) ? longExhNet(cfg.value.sleep) : isRest() ? restExh(m.value.hours) : 0
 })
 watch([() => m.value.result, () => m.value.trainId], () => {
   if (m.value.trainId && !manualPts.value) m.value.pts = ptsOf(m.value.result)
@@ -216,4 +227,5 @@ function submit(status) {
 .af-btn.ghost { border-style: dashed; }
 .af-btn:disabled { opacity: .5; }
 @media (max-width: 600px) { .af-f.date, .af-f.sm { flex: 1 1 45%; max-width: none; } .af-f.xs { flex: 1 1 28%; } }
+.af-sleep { display: block; margin-bottom: 4px; color: #ffb3aa; }
 </style>

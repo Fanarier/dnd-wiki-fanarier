@@ -137,8 +137,15 @@ export const restExh = hours => -Math.min(5, Math.floor(Math.max(0, num(hours)) 
 // любой отдых из вики (раздел «Отдых»: отдых, сон, транс, медитация, свидания) или запись, что возвращает выносливость
 const REST_RE = /^(отдых|свидани|сон\b|транс\b|медитац|день отдыха)|восстановительный сон/i
 export const isRestRec = rec => REST_RE.test(String(rec?.name || '').trim()) || num(rec?.stamina) < 0
-// сколько изнурения даёт запись: что вписано, а если пусто — по правилам (длительная +4, отдых −1 за 3 ч)
-export const exhOf = rec => Number(rec?.exh) || (isLongTraining(rec?.name) ? LONG_EXH : isRestRec(rec) ? restExh(rec?.hours) : 0)
+// ночной сон (не пишется деятельностью) снимает по тому же правилу: сон 8 ч — 2, транс 4 ч — 1
+export const nightExh = sleepH => restExh(sleepH ?? 8)
+// длительная тренировка занимает сутки вместе со сном: +4 за неё и сразу минус ночной сон → обычно +2 (с трансом +3)
+export const longExhNet = sleepH => LONG_EXH + nightExh(sleepH)
+// сколько изнурения даёт запись: что вписано, а если пусто — по правилам (длительная +4 − сон, отдых −1 за 3 ч)
+export const exhOf = (rec, sleepH = 8) => Number(rec?.exh) || (isLongTraining(rec?.name) ? longExhNet(sleepH) : isRestRec(rec) ? restExh(rec?.hours) : 0)
+// 5 изнурений — эффект «Сон»; изнурение удваивает затраты выносливости
+export const EXH_MAX = 5
+export const exhStaminaK = exh => (Number(exh) > 0 ? 2 : 1)
 
 // запятые верхнего уровня: «Ловкость рук(+10, взята с БМ), ОиГ(+3)» → два пункта
 function splitTop(s) {
