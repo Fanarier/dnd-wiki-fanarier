@@ -3,11 +3,25 @@
        с кем, где, что ушло в лист. Мастер проверяет — на запись падает печать -->
   <article ref="el" class="ar" :class="['st-' + rec.status, { cut: rec.status === 'cancel', mirror }]" :style="{ '--sc': ST.color, '--cc': CAT.color }">
     <span class="ar-type" :title="`${CAT.name}${TYPE ? ' · ' + TYPE.name : ''}`">{{ CAT.icon }}</span>
-    <div class="ar-main">
-      <b class="ar-name">
-        <router-link v-if="wiki" class="ar-wiki" :to="{ path: '/wiki', query: { section: 'activities', a: wiki.articleId } }" :title="`В вики: ${wiki.name} — ${wiki.dur}, ${wiki.rate} выносливости в час${wiki.cost ? ', ' + wiki.cost : ''}`">{{ rec.name }}<sup>📖</sup></router-link>
-        <template v-else>{{ rec.name }}</template>
-      </b>
+    <b class="ar-name">
+      <router-link v-if="wiki" class="ar-wiki" :to="{ path: '/wiki', query: { section: 'activities', a: wiki.articleId } }" :title="`В вики: ${wiki.name} — ${wiki.dur}, ${wiki.rate} выносливости в час${wiki.cost ? ', ' + wiki.cost : ''}`">{{ rec.name }}<sup>📖</sup></router-link>
+      <template v-else>{{ rec.name }}</template>
+    </b>
+    <div class="ar-nums">
+      <span class="ar-num" title="Часы">⏱ {{ rec.hours || '—' }}<small v-if="rec.hours && /^[\d.,]+$/.test(rec.hours)"> ч</small></span>
+      <span class="ar-num st" :class="{ free: rec.coin?.win }" title="Выносливость">⚡ {{ rec.stamina || '—' }}</span>
+    </div>
+    <div class="ar-st">
+      <select v-if="master && !mirror" :value="rec.status" class="ar-sel" :class="{ hit }" title="Статус" @change="$emit('status', $event.target.value)">
+        <option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option>
+      </select>
+      <span v-else class="ar-badge" :class="{ hit }">{{ ST.name }}</span>
+      <span v-if="master && !mirror && rec.status === 'pending'" class="ar-quick">
+        <button type="button" class="ok" title="Учесть" @click="$emit('status', 'done')">✓</button>
+        <button type="button" class="no" title="Провал" @click="$emit('status', 'fail')">✗</button>
+      </span>
+    </div>
+    <div class="ar-body">
       <RichText v-if="rec.result" class="ar-res" :text="rec.result" />
       <div class="ar-meta">
         <span v-if="mirror" class="ar-tag mir" title="Совместная деятельность — запись в журнале другого героя, в суммы этого не входит">↔ из журнала {{ mirror }}</span>
@@ -29,29 +43,30 @@
         <span v-if="purse?.short" class="ar-tag poor" :title="`В листе ${fmtCoins(purse.have)}, тратится ${fmtCoins(purse.need)}`">⚠ не хватает денег</span>
         <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b v-if="!r.long">{{ r.total }}</b><template v-else>{{ longSteps(r) }}<b>{{ r.final }}</b></template><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
-        <span v-if="rec.by && rec.at && !mirror" class="ar-by">{{ rec.by }}</span>
+      </div>
+      <p v-if="rec.masterEdit && !mirror" class="ar-edited" :title="`Мастер ${rec.masterEdit.by || ''}, ${new Date(rec.masterEdit.at).toLocaleString('ru')}`">✎ Мастер поправил: {{ rec.masterEdit.fields.join(', ') }}</p>
+      <div v-if="(rec.reply || replying) && !mirror" class="ar-reply">
+        <b>💬 Мастер<small v-if="rec.replyAt && !replying"> · {{ new Date(rec.replyAt).toLocaleDateString('ru', { day: 'numeric', month: 'short' }) }}</small></b>
+        <template v-if="replying">
+          <textarea v-model="replyText" class="ar-reply-in" rows="2" maxlength="2000" placeholder="Ответ игроку: почему так, что поменял, что дальше… (не обязательно)" />
+          <span class="ar-reply-acts"><button type="button" @click="replying = false">Отмена</button><button type="button" class="go" @click="sendReply">Ответить</button></span>
+        </template>
+        <p v-else>{{ rec.reply }}</p>
       </div>
     </div>
-    <span class="ar-num" title="Часы">{{ rec.hours || '—' }}<small v-if="rec.hours && /^[\d.,]+$/.test(rec.hours)"> ч</small></span>
-    <span class="ar-num st" :class="{ free: rec.coin?.win }" title="Выносливость">{{ rec.stamina || '—' }}</span>
-    <div class="ar-st">
-      <select v-if="master && !mirror" :value="rec.status" class="ar-sel" :class="{ hit }" title="Статус" @change="$emit('status', $event.target.value)">
-        <option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option>
-      </select>
-      <span v-else class="ar-badge" :class="{ hit }">{{ ST.name }}</span>
-      <span v-if="master && !mirror && rec.status === 'pending'" class="ar-quick">
-        <button type="button" class="ok" title="Учесть" @click="$emit('status', 'done')">✓</button>
-        <button type="button" class="no" title="Провал" @click="$emit('status', 'fail')">✗</button>
-      </span>
-    </div>
-    <div v-if="!mirror" class="ar-acts">
-      <button v-if="editable" type="button" title="Бросить кубики в эту запись (видно, что брошено на сайте)" @click="$emit('roll')">🎲</button>
-      <button v-if="coinable" type="button" title="Первая уникальная деятельность периода: 50% не потратить выносливость" @click="$emit('coin')">🍀</button>
-      <button v-if="hero?.canWrite" type="button" title="Ещё раз — такой же записью" @click="$emit('repeat')">⧉</button>
-      <template v-if="editable">
-        <button type="button" title="Править" @click="$emit('edit')">✎</button>
-        <button type="button" class="del" title="Удалить" @click="$emit('remove')">✕</button>
-      </template>
+    <div v-if="!mirror" class="ar-foot">
+      <span v-if="rec.by && rec.at" class="ar-by">{{ rec.by }}</span>
+      <span class="grow" />
+      <div class="ar-acts">
+        <button v-if="master" type="button" :title="rec.reply ? 'Изменить ответ игроку' : 'Ответить игроку (увидит под записью, придёт уведомление)'" @click="openReply">💬</button>
+        <button v-if="editable" type="button" title="Бросить кубики в эту запись (видно, что брошено на сайте)" @click="$emit('roll')">🎲</button>
+        <button v-if="coinable" type="button" title="Первая уникальная деятельность периода: 50% не потратить выносливость" @click="$emit('coin')">🍀</button>
+        <button v-if="hero?.canWrite" type="button" title="Ещё раз — такой же записью" @click="$emit('repeat')">⧉</button>
+        <template v-if="editable">
+          <button type="button" :title="master && rec.status === 'pending' ? 'Поправить перед проверкой (игрок увидит, что поменял мастер)' : 'Править'" @click="$emit('edit')">✎</button>
+          <button type="button" class="del" title="Удалить" @click="$emit('remove')">✕</button>
+        </template>
+      </div>
     </div>
     <LottieFx v-if="seal" :key="seal.key" class="ar-seal" :data="seal.data" :size="84" @done="seal = null" />
   </article>
@@ -71,7 +86,7 @@ const props = defineProps({
   rec: { type: Object, required: true }, hero: { type: Object, default: null }, master: Boolean, showDate: Boolean,
   wiki: { type: Object, default: null }, mirror: { type: String, default: '' }, coinable: Boolean
 })
-defineEmits(['status', 'edit', 'remove', 'repeat', 'roll', 'coin'])
+const emit = defineEmits(['status', 'edit', 'remove', 'repeat', 'roll', 'coin', 'reply'])
 const el = ref(null)
 const trainTag = ref(null)
 const ST = computed(() => ACT_STATUS[props.rec.status] || ACT_STATUS.pending)
@@ -107,6 +122,10 @@ const dieText = r => (r.groups || []).map(g => `d${g.sides}: ${g.values.join(', 
 
 // проверка мастером — печать на запись, искры к тренировке, звук; провал и отмена — встряска
 const seal = ref(null)
+// ответ мастера под записью
+const replying = ref(false), replyText = ref('')
+function openReply() { replyText.value = props.rec.reply || ''; replying.value = true }
+function sendReply() { emit('reply', replyText.value.trim()); replying.value = false }
 const hit = ref(false) // статус вспыхивает, когда на запись падает печать
 watch(() => props.rec.status, (now, was) => {
   if (!was || now === was || props.mirror) return
@@ -126,19 +145,34 @@ watch(() => props.rec.status, (now, was) => {
 </script>
 
 <style scoped>
-.ar { position: relative; display: grid; grid-template-columns: 24px minmax(0, 1fr) 70px 60px 128px 104px; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 10px; border-left: 3px solid var(--sc); background: rgba(255, 255, 255, .015); transition: background .15s; }
+.ar { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; grid-template-areas: 'i n nums st' '. b b b' '. f f f'; align-items: center; gap: 4px 10px; padding: 10px 12px 8px 8px; border-radius: 12px; border-left: 3px solid var(--sc); background: rgba(255, 255, 255, .02); transition: background .15s; }
+.ar-type { grid-area: i; }
+.ar-name { grid-area: n; }
+.ar-nums { grid-area: nums; display: flex; gap: 6px; }
+.ar-st { grid-area: st; }
+.ar-body { grid-area: b; min-width: 0; }
+.ar-foot { grid-area: f; display: flex; align-items: center; gap: 8px; min-height: 26px; }
+.ar-foot .grow { flex: 1; }
+.ar-edited { margin: 6px 0 0; color: #f3d36b; font: 700 11.5px 'Manrope', sans-serif; }
+.ar-reply { margin-top: 8px; padding: 7px 10px; border-radius: 10px; background: rgba(127, 180, 255, .08); border-left: 3px solid #7fb4ff; }
+.ar-reply b { display: block; color: #b9d6ff; font: 800 11.5px 'Manrope', sans-serif; }
+.ar-reply b small { color: #7d8aa6; font-weight: 700; }
+.ar-reply p { margin: 2px 0 0; color: #dfe8f7; font: 500 13px/1.45 'Manrope', sans-serif; white-space: pre-line; overflow-wrap: anywhere; }
+.ar-reply-in { width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(127, 180, 255, .4); background: rgba(0, 0, 0, .35); color: #efe3c8; font: 500 13px 'Manrope', sans-serif; resize: vertical; outline: none; }
+.ar-reply-acts { display: flex; justify-content: flex-end; gap: 6px; margin-top: 4px; }
+.ar-reply-acts button { padding: 3px 10px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .3); background: none; color: #cdbf9f; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
+.ar-reply-acts .go { background: #7fb4ff; border: 0; color: #0d1420; }
 .ar:hover { background: rgba(231, 197, 111, .05); }
 .ar.st-plan { border-left-style: dashed; background: rgba(185, 166, 255, .04); }
 .ar.mirror { opacity: .72; border-left-style: dotted; }
 .ar-type { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: color-mix(in srgb, var(--cc) 18%, transparent); font-size: 13px; }
-.ar-main { min-width: 0; }
 .ar-name { display: block; color: #efe3c8; font: 700 13.5px/1.35 'Manrope', sans-serif; overflow-wrap: anywhere; }
 .ar-wiki { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(231, 197, 111, .5); }
 .ar-wiki:hover { color: #f3dc9e; border-bottom-color: #e7c56f; }
 .ar-wiki sup { margin-left: 2px; font-size: 9px; opacity: .7; }
 .ar.cut .ar-name { text-decoration: line-through; color: #8f8574; }
-.ar-res { margin: 2px 0 0; color: #cdbf9f; font: 500 12.5px/1.4 'Manrope', sans-serif; white-space: pre-line; overflow-wrap: anywhere; }
-.ar-meta { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 3px; }
+.ar-res { margin: 4px 0 0; color: #cdbf9f; font: 500 12.5px/1.4 'Manrope', sans-serif; white-space: pre-line; overflow-wrap: anywhere; }
+.ar-meta { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 6px; }
 .ar-meta:empty { display: none; }
 .ar-tag { padding: 1px 7px; border-radius: 99px; background: rgba(255, 255, 255, .05); color: #cdbf9f; font: 700 11px 'Manrope', sans-serif; text-decoration: none; white-space: nowrap; }
 .ar-tag.ok { box-shadow: inset 0 0 0 1px rgba(126, 208, 122, .45); }
@@ -161,7 +195,7 @@ watch(() => props.rec.status, (now, was) => {
 .ar-tag.coin.win { background: rgba(243, 211, 107, .16); color: #f3d36b; }
 .ar-tag.mir { background: rgba(185, 166, 255, .12); color: #d2c8ff; }
 .ar-by { color: #7d7160; font: 600 11px 'Manrope', sans-serif; }
-.ar-num { color: #e6dcc4; font: 800 13px 'Manrope', sans-serif; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ar-num { padding: 2px 8px; border-radius: 8px; background: rgba(255, 255, 255, .04); color: #e6dcc4; font: 800 12.5px 'Manrope', sans-serif; white-space: nowrap; }
 .ar-num small { color: #a8936c; font-weight: 600; }
 .ar-num.st { color: #f6cf86; }
 .ar-num.free { text-decoration: line-through; opacity: .6; }
@@ -175,18 +209,11 @@ watch(() => props.rec.status, (now, was) => {
 .ar-acts { display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; }
 .ar-acts button:hover { border-color: #e7c56f; color: #f3dc9e; }
 .ar-acts .del:hover { border-color: #ff7a6b; color: #ff7a6b; }
-.ar-seal { position: absolute; right: 230px; top: 50%; margin-top: -42px; z-index: 3; } /* над часами и выносливостью — статус не закрывает */
+.ar-seal { position: absolute; right: 150px; top: -14px; z-index: 3; pointer-events: none; } /* над часами и выносливостью, рядом со статусом — его не закрывает */
 .ar-badge.hit, .ar-sel.hit { animation: ar-hit .7s ease; }
 @keyframes ar-hit { 0% { transform: scale(1); } 30% { transform: scale(1.25); box-shadow: 0 0 18px var(--sc); } 100% { transform: scale(1); } }
 @media (max-width: 760px) {
-  .ar { grid-template-columns: 22px minmax(0, 1fr) auto auto; grid-template-areas: 't m m m' '. h s st' '. a a a'; row-gap: 4px; }
-  .ar-type { grid-area: t; }
-  .ar-main { grid-area: m; }
-  .ar-num { grid-area: h; text-align: left; }
-  .ar-num.st { grid-area: s; }
-  .ar-st { grid-area: st; }
-  .ar-acts { grid-area: a; justify-content: flex-start; }
-  .ar-acts:empty { display: none; }
-  .ar-seal { right: auto; left: 40%; }
+  .ar { grid-template-columns: 24px minmax(0, 1fr) auto; grid-template-areas: 'i n n' '. nums st' '. b b' '. f f'; }
+  .ar-seal { right: 10px; top: 0; }
 }
 </style>

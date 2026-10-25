@@ -135,6 +135,11 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     save()
   }
   const fail = (res, code, error) => res.status(code).json({ error })
+  // что мастер может поправить в записи игрока — и как это назвать игроку
+  const EDIT_FIELDS = [['name', 'название'], ['hours', 'часы'], ['stamina', 'выносливость'], ['result', 'результат'], ['pts', 'очки тренировки'], ['trainId', 'тренировка'],
+    ['gold', 'золото'], ['silver', 'серебро'], ['copper', 'бронза'], ['exp', 'опыт'], ['exh', 'изнурение'], ['items', 'вещи'], ['type', 'тип'], ['date', 'дата'], ['mod', 'место']]
+  // уведомление хозяину героя (игроку), со ссылкой на его журнал
+  const tellOwner = (h, text) => { const pid = sheets.ownerOfHero(h.id) || h.ownerId; if (pid) notify(pid, 'activity', text, { logHero: h.id }) }
 
   // что игроку сейчас нельзя: закрытый мастером период, блокировка, запрет деятельности этому герою
   function playerBlock(h, rec, { creating } = {}) {
@@ -238,7 +243,15 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (!master) { const why = playerBlock(h, next, { creating: rec.status === 'plan' && next.status === 'pending' }); if (why) return fail(res, 403, why) }
     const wasPending = rec.status === 'pending'
     if (next.status === 'done' && rec.status !== 'done') next.exhAuto = true // изнурение по правилам — с этого «учтено»
+    // мастер поправил запись игрока (результат, очки, монеты…) — запись помнит что именно, игроку уведомление
+    const edited = master && rec.by !== req.user.name ? EDIT_FIELDS.filter(([k]) => JSON.stringify(next[k] ?? null) !== JSON.stringify(rec[k] ?? null)).map(([, t]) => t) : []
+    if (edited.length) next.masterEdit = { at: Date.now(), by: req.user.name, fields: [...new Set([...(rec.masterEdit?.fields || []), ...edited])] }
+    // ответ мастера под записью
+    const reply = master && 'reply' in (req.body || {}) ? S(req.body.reply, 2000) : null
+    if (reply !== null && reply !== (rec.reply || '')) Object.assign(next, { reply, replyAt: Date.now(), replyBy: req.user.name })
     Object.assign(rec, next)
+    if (edited.length) tellOwner(h, `Мастер поправил деятельность «${rec.name.slice(0, 60)}»: ${edited.join(', ')}`)
+    if (reply) tellOwner(h, `Мастер ответил на деятельность «${rec.name.slice(0, 60)}»: ${reply.slice(0, 120)}`)
     if (master && want && want !== 'pending' && want !== 'plan') { rec.checkedBy = req.user.name; rec.checkedAt = Date.now() }
     syncSheet(h, rec, req.user)
     if (!master && !wasPending && rec.status === 'pending' && store.logs[h.id].filter(x => x.status === 'pending').length === 1) notify('masters', 'activity', `${h.name}: новые деятельности на проверку`, { logHero: h.id })

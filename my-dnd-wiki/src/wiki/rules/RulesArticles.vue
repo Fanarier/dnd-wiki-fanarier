@@ -6,8 +6,14 @@
       <p>{{ content.description }}</p>
     </header>
     <RuneLoader v-if="!rulesState.loaded" text="Листаю свод правил…" />
-    <div v-else class="ra-body">
-      <nav class="ra-toc">
+    <div v-else class="ra-body" :class="{ 'toc-closed': !tocOpen }">
+      <!-- в «Деятельностях» оглавление свёрнуто в кнопку ☰ (журнал — главное); раскрыл — остаётся раскрытым, пока не свернёшь -->
+      <button v-if="withLog && !tocOpen" type="button" class="ra-burger" title="Статьи раздела" @click="setToc(true)">
+        <span class="ra-bars"><i /><i /><i /></span>
+        <small v-if="master && store.data.activitiesPending" class="ra-pend">{{ store.data.activitiesPending }}</small>
+      </button>
+      <nav v-else class="ra-toc">
+        <button v-if="withLog" type="button" class="ra-fold" title="Свернуть оглавление" @click="setToc(false)">✕ Свернуть</button>
         <input v-model="q" class="ra-q" placeholder="Найти в разделе…" />
         <!-- в «Деятельностях» первым — журнал, куда герои пишут, чем заняты между сессиями -->
         <button v-if="withLog" type="button" class="ra-log" :class="{ on: logOpen }" @click="openLog">
@@ -43,6 +49,10 @@ import { useArticleOps } from './articleOps.js'
 import ActivityLog from './ActivityLog.vue'
 
 const props = defineProps({ content: { type: Object, default: () => ({}) } })
+// оглавление «Деятельностей»: по умолчанию свёрнуто; раскрытое помним в этом браузере
+const TOC_KEY = 'anacaria-toc-' + (props.content.group || '')
+const tocOpen = ref(props.content.group !== 'activities' || (() => { try { return localStorage.getItem(TOC_KEY) === '1' } catch { return false } })())
+function setToc(open) { tocOpen.value = open; try { localStorage.setItem(TOC_KEY, open ? '1' : '0') } catch { /* приватный режим */ } }
 const route = useRoute()
 const router = useRouter()
 // править могут мастер и редакторы этого раздела или статьи (src/shared/wikiPerms.js)
@@ -109,4 +119,15 @@ async function del() {
   .ra-toc button { padding: 5px 9px; border: 1px solid rgba(231, 197, 111, .15); }
   .ra-art { padding: 14px; }
 }
+.ra-body.toc-closed { grid-template-columns: 46px minmax(0, 1fr); }
+.ra-burger { position: sticky; top: 80px; display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border-radius: 14px; border: 1px solid rgba(231, 197, 111, .3); background: rgba(20, 16, 11, .75); cursor: pointer; transition: border-color .2s, transform .2s, box-shadow .2s; }
+.ra-burger:hover { border-color: #e7c56f; transform: translateY(-1px); box-shadow: 0 0 16px rgba(231, 197, 111, .25); }
+.ra-bars { display: grid; gap: 4px; }
+.ra-bars i { display: block; width: 18px; height: 2px; border-radius: 2px; background: #e7c56f; transition: width .2s; }
+.ra-burger:hover .ra-bars i:nth-child(2) { width: 12px; }
+.ra-burger .ra-pend { position: absolute; top: -6px; right: -6px; }
+.ra-toc .ra-fold { justify-content: center; margin-bottom: 4px; color: #a8936c; font-size: 12px; border: 1px dashed rgba(231, 197, 111, .2); }
+.ra-toc { animation: ra-unfold .22s ease-out; }
+@keyframes ra-unfold { from { opacity: 0; transform: translateX(-8px); } }
+@media (max-width: 760px) { .ra-body.toc-closed { grid-template-columns: minmax(0, 1fr); } .ra-burger { position: static; } }
 </style>

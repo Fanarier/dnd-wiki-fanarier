@@ -35,7 +35,7 @@
           </header>
           <div v-auto-animate class="al-rows">
             <ActivityRow v-for="r in g.rows" :key="r.id" :rec="r" :hero="g.hero" :master="master" :show-date="true" :wiki="wikiOf(r)"
-                         @status="setStatus(g.hero, r, $event)" @edit="startEdit(g.hero.heroId, r)" @remove="remove(g.hero.heroId, r)" @repeat="repeat(g.hero.heroId, r)" @roll="rollRec(g.hero, r)" />
+                         @status="setStatus(g.hero, r, $event)" @edit="startEdit(g.hero.heroId, r)" @remove="remove(g.hero.heroId, r)" @repeat="repeat(g.hero.heroId, r)" @roll="rollRec(g.hero, r)" @reply="t => reply(g.hero.heroId, r, t)" />
           </div>
         </section>
       </template>
@@ -90,7 +90,7 @@
             <SessionBar :rows="s.free" :limit="budget.free" />
             <div v-auto-animate class="al-rows">
               <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)"
-                           @status="setStatus(hero, r, $event)" @edit="startEdit(heroId, r)" @remove="remove(heroId, r)" @repeat="repeat(heroId, r)" @roll="rollRec(hero, r)" @coin="coin(heroId, r)" />
+                           @status="setStatus(hero, r, $event)" @edit="startEdit(heroId, r)" @remove="remove(heroId, r)" @repeat="repeat(heroId, r)" @roll="rollRec(hero, r)" @coin="coin(heroId, r)" @reply="t => reply(heroId, r, t)" />
             </div>
           </section>
           <button v-if="sessions.length > shownSessions.length" type="button" class="al-btn al-more" @click="more += 6">Ещё сессии: {{ sessions.length - shownSessions.length }}</button>
@@ -239,8 +239,10 @@ function defaultDate() {
 const blank = () => ({ date: defaultDate(), day: 0, name: '', hours: '', stamina: '', type: '', result: '', trainId: '', pts: 0, with: [], place: '', mod: '', gold: 0, silver: 0, copper: 0, exp: 0, exh: 0, items: [], status: master.value ? 'done' : 'pending' })
 const startNew = (o = {}) => { form.value = { heroId: heroId.value, key: Date.now(), rec: { ...blank(), ...o } } }
 function startEdit(hid, r) {
-  if (hid !== heroId.value) router.replace({ query: { ...route.query, log: hid } })
-  form.value = { heroId: hid, id: r.id, key: r.id, rec: JSON.parse(JSON.stringify(r)) }
+  // из «На проверке» — открыть журнал героя (форма живёт там), после сохранения вернуться к проверке
+  const back = queue.value ? 'queue' : ''
+  if (hid !== heroId.value || queue.value) router.replace({ query: { ...route.query, log: hid } })
+  form.value = { heroId: hid, id: r.id, key: r.id, back, rec: JSON.parse(JSON.stringify(r)) }
   scrollTo({ top: 0, behavior: 'smooth' })
 }
 async function call(fn, ok) {
@@ -253,6 +255,11 @@ async function save(status) {
   const done = await call(() => (f.id ? api('PUT', `/api/activities/${f.heroId}/${f.id}`, body) : api('POST', `/api/activities/${f.heroId}`, body)),
     f.id ? 'Запись сохранена' : master.value ? 'Записано' : status === 'plan' ? 'В черновике' : 'Записано — ждёт проверки мастера')
   if (done) form.value = f.id ? null : { heroId: f.heroId, key: Date.now(), rec: { ...blank(), date: f.rec.date, day: f.rec.day } }
+  if (done && f.back === 'queue') pickQueue()
+}
+// ответ мастера под записью (игроку уведомление)
+async function reply(hid, r, text) {
+  await call(() => api('PUT', `/api/activities/${hid}/${r.id}`, { reply: text }), text ? 'Ответ отправлен' : 'Ответ убран')
 }
 // «ещё раз»: та же деятельность новой записью (повторяемые пишут десятками)
 // ещё одна такая же; у героя изнурение, а выносливость в записи не удвоена — спросить, пересчитать ли
@@ -319,8 +326,14 @@ watch(() => [route.query.new, hero.value?.canWrite], ([n, can]) => {
 .al-empty { padding: 24px; text-align: center; color: #a8936c; }
 .al-empty :deep(.lfx) { display: inline-block; }
 .al-top { display: flex; align-items: flex-start; gap: 8px; }
-.al-heroes { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 8px; scrollbar-width: thin; }
-.al-info { flex: none; width: 34px; height: 34px; margin-top: 4px; border-radius: 50%; border: 2px solid #e7c56f; background: radial-gradient(circle at 35% 30%, #3a2c18, #15110c); color: #f3dc9e; font: italic 900 17px Georgia, serif; cursor: pointer; box-shadow: 0 0 14px rgba(231, 197, 111, .25); transition: transform .2s, box-shadow .2s; }
+.al-heroes { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; padding: 2px 14px 8px 2px; scrollbar-width: thin; scrollbar-color: rgba(231, 197, 111, .35) transparent;
+  -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
+.al-heroes::-webkit-scrollbar { height: 5px; }
+.al-heroes::-webkit-scrollbar-thumb { border-radius: 5px; background: rgba(231, 197, 111, .3); }
+.al-heroes::-webkit-scrollbar-thumb:hover { background: rgba(231, 197, 111, .55); }
+.al-heroes::-webkit-scrollbar-track { background: transparent; }
+.al-top { align-items: center; }
+.al-info { flex: none; width: 34px; height: 34px; margin: 0 2px 8px 6px; border-radius: 50%; border: 2px solid #e7c56f; background: radial-gradient(circle at 35% 30%, #3a2c18, #15110c); color: #f3dc9e; font: italic 900 17px Georgia, serif; cursor: pointer; box-shadow: 0 0 14px rgba(231, 197, 111, .25); transition: transform .2s, box-shadow .2s; }
 .al-info:hover { transform: scale(1.1) rotate(-8deg); box-shadow: 0 0 22px rgba(231, 197, 111, .5); }
 .al-hero { position: relative; display: grid; justify-items: center; gap: 4px; flex: none; width: 76px; padding: 8px 4px 6px; border-radius: 14px; border: 1px solid rgba(231, 197, 111, .16); background: rgba(20, 16, 11, .6); color: #cdbf9f; cursor: pointer; transition: border-color .2s, transform .2s, background .2s; }
 .al-hero:hover { transform: translateY(-2px); border-color: rgba(231, 197, 111, .45); }
