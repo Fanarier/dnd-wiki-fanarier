@@ -2,7 +2,7 @@
   <!-- название деятельности с подсказками: твои прошлые записи и справочник из вики (по разделам). Ищет по любой части
        и по началу слов, без учёта регистра и «ё»; совпадение подсвечено. ↑↓ — выбрать, Enter — взять, Esc — закрыть -->
   <div ref="root" class="ani" @focusout="onBlur">
-    <input :value="modelValue" class="af-in" required maxlength="600" :placeholder="placeholder" autocomplete="off"
+    <input :value="modelValue" class="af-in" :required="required" :maxlength="maxlength" :placeholder="placeholder" autocomplete="off"
            role="combobox" :aria-expanded="open" @input="onInput" @focus="open = true" @keydown="onKey" />
     <div v-if="open && groups.length" class="ani-pop" role="listbox">
       <template v-for="g in groups" :key="g.title">
@@ -22,7 +22,8 @@ import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' }, recent: { type: Array, default: () => [] }, catalog: { type: Array, default: () => [] },
-  placeholder: { type: String, default: '' }
+  placeholder: { type: String, default: '' }, required: { type: Boolean, default: true }, maxlength: { type: Number, default: 600 },
+  mineTitle: { type: String, default: 'Твои записи' }
 })
 const emit = defineEmits(['update:modelValue'])
 const root = ref(null)
@@ -61,11 +62,11 @@ function partsOf(name, q) {
 const groups = computed(() => {
   const q = norm(props.modelValue).trim()
   const take = (list, n) => list.map(x => ({ ...x, sc: score(x.name, q) })).filter(x => x.sc >= 0 && norm(x.name) !== q).sort((a, b) => a.sc - b.sc).slice(0, n)
-  const mine = take(props.recent.map(name => ({ name, sub: '' })), q ? 6 : 8)
+  const mine = take(props.recent.map(x => (typeof x === 'string' ? { name: x, sub: '' } : x)), q ? 8 : 12)
   const known = new Set(mine.map(x => norm(x.name)))
   const wiki = take(props.catalog.filter(c => !known.has(norm(c.name))).map(c => ({ name: c.name, sub: `${c.dur} · ${c.rate} / ч`, section: c.section || 'Из вики' })), q ? 14 : 60)
   const out = []
-  if (mine.length) out.push({ title: 'Твои записи', items: mine })
+  if (mine.length) out.push({ title: props.mineTitle, items: mine })
   // справочник — по разделам вики (без запроса — в порядке вики, с запросом — лучшие сверху одним списком)
   if (q && wiki.length) out.push({ title: 'Из вики', items: wiki.map(x => ({ ...x, sub: `${x.section} · ${x.sub}` })) })
   else for (const x of wiki) { const g = out.find(g => g.title === x.section) || (out.push({ title: x.section, items: [] }), out[out.length - 1]); g.items.push(x) }

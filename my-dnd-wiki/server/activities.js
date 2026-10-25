@@ -56,7 +56,16 @@ const S = (v, n) => String(v ?? '').slice(0, n).trim()
 const I = (v, min, max) => Math.max(min, Math.min(max, Math.round(Number(v) || 0)))
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim()
-const cleanItems = v => (Array.isArray(v) ? v.slice(0, 20) : []).map(x => ({ name: S(x?.name, 160), qty: I(x?.qty, -1e6, 1e6), stored: !!x?.stored })).filter(x => x.name && x.qty)
+// вещи записи: плюс — получено, минус — отдано/продано. info — описание новой вещи (ляжет в инвентарь при «учтено»);
+// created — вещи не было в листе, игрок сам создал её в инвентаре из журнала (мастер видит метку)
+const cleanInfo = i => (i && typeof i === 'object' ? { desc: cleanRich(S(i.desc, 8000), 8000), rarity: S(i.rarity, 40), notes: S(i.notes, 4000) } : null)
+const cleanItems = v => (Array.isArray(v) ? v.slice(0, 20) : []).map(x => {
+  const it = { name: S(x?.name, 160), qty: I(x?.qty, -1e6, 1e6), stored: !!x?.stored }
+  const info = cleanInfo(x?.info)
+  if (info && (info.desc || info.rarity || info.notes)) it.info = info
+  if (x?.created) it.created = true
+  return it
+}).filter(x => x.name && x.qty)
 // что можно прислать; статус — отдельно
 function clean(b = {}, old = {}, heroIds = []) {
   const pick = k => (k in b ? b[k] : old[k])
@@ -181,7 +190,9 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
         const w = canWrite(u, h)
         const sh = sheets.trainingsOfHero(h.id)
         // тренировки листа — тем, кто пишет в журнал (выбрать, куда идут очки), и мастеру
-        return { heroId: h.id, name: h.name, race: h.race || '', canWrite: w, hasSheet: !!sh, stamina: sh?.stamina ?? null, exh: sh?.exh ?? null, trainings: w ? sh?.trainings || [] : [] }
+        // инвентарь и монеты — тем же, кому тренировки: проверить, есть ли отдаваемая вещь и хватит ли денег
+        return { heroId: h.id, name: h.name, race: h.race || '', canWrite: w, hasSheet: !!sh, stamina: sh?.stamina ?? null, exh: sh?.exh ?? null,
+          trainings: w ? sh?.trainings || [] : [], inv: w ? sh?.items || [] : [], coins: w ? sh?.coins || null : null }
       }),
       logs: store.logs
     })
@@ -244,6 +255,22 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     store.logs[h.id] = store.logs[h.id].filter(x => x !== rec)
     changed()
     res.json({ ok: true })
+  })
+
+  // вещи нет в листе, а игрок уверен, что она у героя есть: создать её в инвентаре (видно в истории листа и метке у записи)
+  app.post('/api/activities-item/:hero', requireUser, (req, res) => {
+    const h = heroOf(req.params.hero)
+    if (!h) return fail(res, 404, 'Нет такого героя')
+    if (!canWrite(req.user, h)) return fail(res, 403, 'Это не твой герой')
+    const [it] = cleanItems([{ ...req.body, qty: Math.abs(Number(req.body?.qty) || 1) }])
+    if (!it) return fail(res, 400, 'Нужно название вещи')
+    const sheetId = sheets.sheetOfHero(h.id)
+    if (!sheetId) return fail(res, 400, 'У героя нет листа')
+    const got = sheets.applyDelta(sheetId, { items: [it] }, by(req.user), 'вещи не было в листе — создана из журнала деятельностей')
+    if (!got) return fail(res, 400, 'Не получилось положить вещь в инвентарь')
+    store.rev++
+    broadcast()
+    res.json({ ok: true, item: it })
   })
 
   // бросок в запись: только тот, что этот человек только что бросил общими кубиками сайта (его видели все)

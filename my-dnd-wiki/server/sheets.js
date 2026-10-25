@@ -534,7 +534,27 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     const sh = find(sheetId)
     if (!sh || sh.deletedAt || !d) return null
     const done = {}, ops = []
-    const NUM = { gold: ['GoldCoins', 0, 2e9], silver: ['SilverCoins', 0, 2e9], copper: ['CopperCoins', 0, 2e9], exp: ['Experience', 0, 2e9], exh: ['Exhaustion', 0, 5] }
+    // монеты: курс 1 к 100 (100 бронзовых = 1 серебряный, 100 серебряных = 1 золотой). Не хватает мелких — разменять крупную;
+    // не хватает совсем — до нуля (игрока и мастера предупреждает журнал)
+    if (d.gold || d.silver || d.copper) {
+      const KEYS = [['copper', 'CopperCoins'], ['silver', 'SilverCoins'], ['gold', 'GoldCoins']]
+      const was = KEYS.map(([, p]) => Number(sh.data[p]) || 0)
+      const a = KEYS.map(([k], i) => was[i] + (Number(d[k]) || 0))
+      for (let i = 0; i < a.length - 1; i++) {
+        if (a[i] >= 0) continue
+        const k = Math.ceil(-a[i] / 100)
+        a[i] += k * 100
+        a[i + 1] -= k
+      }
+      if (a[a.length - 1] < 0) a.fill(0)
+      KEYS.forEach(([k, p], i) => {
+        const next = Math.min(2e9, a[i])
+        if (next === was[i]) return
+        ops.push({ p, v: next })
+        done[k] = next - was[i]
+      })
+    }
+    const NUM = { exp: ['Experience', 0, 2e9], exh: ['Exhaustion', 0, 5] }
     for (const [k, [p, min, max]] of Object.entries(NUM)) {
       if (!d[k]) continue
       const cur = Number(sh.data[p]) || 0
@@ -551,7 +571,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
         if (it.qty > 0) {
           const ex = inv.find(x => same(x) && !!x.Stored === !!it.stored)
           if (ex) ex.Quantity = (Number(ex.Quantity) || 0) + it.qty
-          else if (inv.length < 600) inv.push({ Name: it.name, Quantity: it.qty, Stored: !!it.stored, Description: note ? `Из журнала: ${note}` : '' })
+          else if (inv.length < 600) inv.push({ Name: it.name, Quantity: it.qty, Stored: !!it.stored, Description: it.info?.desc || '', Rarity: it.info?.rarity || '', Notes: [it.info?.notes, note ? `Из журнала: ${note}` : ''].filter(Boolean).join('\n') })
           else continue
           moved.push(it)
         } else if (it.qty < 0) {
@@ -579,7 +599,10 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       const sh = heroSheet(heroId)
       if (!sh) return null
       const st = parseFloat(String(sh.data.Stamina || '').replace(',', '.'))
-      return { race: sh.data.Race || '', stamina: Number.isFinite(st) ? st : null, exh: Number(sh.data.Exhaustion) || 0, trainings: (sh.data.Trainings || []).map(t => ({ Id: t.Id, Name: t.Name, Cur: t.Cur, Max: t.Max, Stage: t.Stage, Status: t.Status })) }
+      return { race: sh.data.Race || '', stamina: Number.isFinite(st) ? st : null, exh: Number(sh.data.Exhaustion) || 0,
+        items: (sh.data.Inventory || []).map(x => ({ name: x.Name, qty: Number(x.Quantity) || 0, stored: !!x.Stored, rarity: x.Rarity || '' })),
+        coins: { gold: Number(sh.data.GoldCoins) || 0, silver: Number(sh.data.SilverCoins) || 0, copper: Number(sh.data.CopperCoins) || 0 },
+        trainings: (sh.data.Trainings || []).map(t => ({ Id: t.Id, Name: t.Name, Cur: t.Cur, Max: t.Max, Stage: t.Stage, Status: t.Status })) }
     },
     addTraining,
     linksFor: u => (u ? store.sheets.filter(sh => sh.heroId && canView(u, sh) && !sh.deletedAt).map(sh => ({ heroId: sh.heroId, sheetId: sh.id })) : []),

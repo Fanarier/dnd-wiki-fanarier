@@ -134,6 +134,28 @@ export const LONG_EXH = 4
 export const LONG_MULT = 1.35
 // отдых снимает изнурение: каждые 3 часа — одно (6 часов — два)
 export const restExh = hours => -Math.min(5, Math.floor(Math.max(0, num(hours)) / 3)) || 0
+// деньги: курс 1 к 100 (100 бронзовых = 1 серебряный, 100 серебряных = 1 золотой). Хватит ли героя и надо ли разменять
+export const coinsCopper = c => (Number(c?.gold) || 0) * 10000 + (Number(c?.silver) || 0) * 100 + (Number(c?.copper) || 0)
+export function moneyCheck(coins, rec) {
+  if (!coins) return null
+  const d = { gold: Number(rec?.gold) || 0, silver: Number(rec?.silver) || 0, copper: Number(rec?.copper) || 0 }
+  if (d.gold >= 0 && d.silver >= 0 && d.copper >= 0) return null
+  const have = coinsCopper(coins), after = have + coinsCopper(d)
+  if (after < 0) return { short: true, have, need: -coinsCopper(d) }
+  const exchange = (coins.copper || 0) + d.copper < 0 || (coins.silver || 0) + d.silver < 0
+  return exchange ? { exchange: true } : null
+}
+export const fmtCoins = cp => {
+  const g = Math.floor(cp / 10000), s = Math.floor((cp % 10000) / 100), c = cp % 100
+  return [g && `${g} зм`, s && `${s} см`, c && `${c} мм`].filter(Boolean).join(' ') || '0'
+}
+// вещь в инвентаре героя (склад или нет — всё равно): сколько всего штук
+export const invCount = (inv, name) => {
+  const n = String(name || '').trim().toLowerCase()
+  return n ? (inv || []).filter(x => String(x.name || '').trim().toLowerCase() === n).reduce((s, x) => s + (Number(x.qty) || 0), 0) : 0
+}
+export const invHas = (inv, name) => (inv || []).some(x => String(x.name || '').trim().toLowerCase() === String(name || '').trim().toLowerCase())
+
 // любой отдых из вики (раздел «Отдых»: отдых, сон, транс, медитация, свидания) или запись, что возвращает выносливость
 const REST_RE = /^(отдых|свидани|сон\b|транс\b|медитац|день отдыха)|восстановительный сон/i
 export const isRestRec = rec => REST_RE.test(String(rec?.name || '').trim()) || num(rec?.stamina) < 0

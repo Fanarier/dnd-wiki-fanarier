@@ -68,15 +68,33 @@
         <label class="af-f xs">Опыт<input v-model.number="m.exp" type="number" class="af-in" /></label>
         <label class="af-f xs" title="Длительная тренировка: +4 и сразу минус ночной сон (сон −2, транс −1). Отдых снимает 1 за каждые 3 часа (минус — снять)">Изнурение<input v-model.number="m.exh" type="number" min="-5" max="5" class="af-in" @input="manualExh = true" /></label>
       </div>
-      <div class="af-f">Вещи (плюс — получено, минус — отдано)
+      <p v-if="money" class="af-money" :class="{ short: money.short }">
+        <template v-if="money.short">⚠ Не хватает денег: в листе {{ fmtCoins(money.have) }}, а тратится {{ fmtCoins(money.need) }}. Мастер увидит метку на проверке.</template>
+        <template v-else>💱 Мелких монет не хватает — при «учтено» крупные разменяются (1 зм = 100 см, 1 см = 100 мм).</template>
+      </p>
+      <small v-if="hero?.coins" class="af-coins">В листе: {{ fmtCoins(coinsCopper(hero.coins)) }}</small>
+      <div class="af-f">Вещи (плюс — получено, минус — отдано или продано; из инвентаря, склад или нет — неважно)
         <div v-for="(it, i) in m.items" :key="i" class="af-item">
-          <input v-model="it.name" class="af-in" placeholder="Название" maxlength="160" />
-          <input v-model.number="it.qty" type="number" class="af-in qty" />
+          <ActNameInput v-model="it.name" :recent="invHints" :catalog="[]" :required="false" :maxlength="160" mine-title="В инвентаре героя" placeholder="Название" />
+          <input v-model.number="it.qty" type="number" class="af-in qty" title="Плюс — получено, минус — отдано" />
           <label class="af-chk"><input v-model="it.stored" type="checkbox" /> на склад</label>
           <button type="button" class="af-x" @click="m.items.splice(i, 1)">✕</button>
+          <div v-if="it.name.trim()" class="af-istat">
+            <template v-if="it.qty < 0">
+              <span v-if="it.created" class="ok">✨ создана в инвентаре — уйдёт при «учтено»</span>
+              <span v-else-if="invHas(inv, it.name) && invCount(inv, it.name) >= -it.qty" class="ok">✓ в инвентаре: {{ invCount(inv, it.name) }} шт.</span>
+              <span v-else-if="invHas(inv, it.name)" class="warn">⚠ в инвентаре только {{ invCount(inv, it.name) }} шт.</span>
+              <span v-else class="warn">⚠ Не нашёл в инвентаре <button type="button" @click="askExists(it)">Она есть — добавить</button></span>
+            </template>
+            <template v-else-if="it.qty > 0">
+              <span v-if="invHas(inv, it.name)" class="ok">✓ уже есть ({{ invCount(inv, it.name) }} шт.) — прибавится</span>
+              <span v-else class="new">✦ новая вещь<template v-if="it.info"> · описана</template> <button type="button" @click="quick = { it, mode: 'describe' }">{{ it.info ? 'Изменить' : 'Описать' }}</button></span>
+            </template>
+          </div>
         </div>
         <button type="button" class="af-add" @click="m.items.push({ name: '', qty: 1, stored: false })">＋ вещь</button>
       </div>
+      <ItemQuick v-if="quick" :item="quick.it" :mode="quick.mode" :busy="busyItem" @close="quick = null" @save="saveQuick" />
       <p v-if="sheetTouch" class="af-hint">Когда мастер поставит «учтено», это уйдёт в лист героя; снимет статус — вернётся обратно.</p>
     </div>
 
@@ -98,7 +116,9 @@ import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
 import RichInput from '../../components/rich/RichInput.vue'
 import ActNameInput from './ActNameInput.vue'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, longExhNet, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble } from '../../shared/activities.js'
+import ItemQuick from './ItemQuick.vue'
+import { api, toast } from '../../map/store.js'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, longExhNet, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
 
 const m = defineModel({ type: Object, required: true })
 const props = defineProps({
@@ -195,7 +215,36 @@ function useQuest(id) {
 }
 function submit(status) {
   m.value.items = m.value.items.filter(it => it.name.trim() && it.qty)
+  // отдаётся вещь, которой нет в инвентаре, — спросить: точно есть? Да — окно, вещь ляжет в инвентарь; нет — поправить
+  const lost = m.value.items.find(it => it.qty < 0 && !it.created && !invHas(inv.value, it.name))
+  if (lost && props.hero?.hasSheet) {
+    if (confirm(`Не могу найти «${lost.name}» в инвентаре героя (ни в сумке, ни на складе).\nУверен, что эта вещь у него есть?\n\nОК — да, добавлю её в инвентарь; Отмена — поправлю запись`)) askExists(lost)
+    return
+  }
   emit('save', status)
+}
+
+/* ---------- вещи и деньги: что есть в листе ---------- */
+const inv = computed(() => props.hero?.inv || [])
+const invHints = computed(() => {
+  const by = new Map()
+  for (const x of inv.value) { const k = x.name.toLowerCase(); const o = by.get(k) || { name: x.name, qty: 0, stored: 0 }; o.qty += x.qty; if (x.stored) o.stored += x.qty; by.set(k, o) }
+  return [...by.values()].map(o => ({ name: o.name, sub: `${o.qty} шт.${o.stored ? (o.stored === o.qty ? ' · склад' : ` · ${o.stored} на складе`) : ''}` }))
+})
+const money = computed(() => moneyCheck(props.hero?.coins, m.value))
+const quick = ref(null), busyItem = ref(false)
+const askExists = it => { quick.value = { it, mode: 'exists' } }
+async function saveQuick(v) {
+  const { it, mode } = quick.value
+  if (mode === 'describe') { Object.assign(it, { name: v.name, stored: v.stored, info: v.info }); it.qty = Math.abs(v.qty); quick.value = null; return }
+  busyItem.value = true
+  try {
+    await api('POST', `/api/activities-item/${props.hero.heroId}`, { name: v.name, qty: v.qty, stored: v.stored, info: v.info })
+    Object.assign(it, { name: v.name, created: true })
+    if (-it.qty > v.qty) it.qty = -v.qty // отдать больше, чем есть, нельзя
+    toast(`«${v.name}» добавлена в инвентарь — при «учтено» уйдёт. Теперь сохрани запись`)
+    quick.value = null
+  } catch (e) { toast(e.message, 'error') } finally { busyItem.value = false }
 }
 </script>
 
@@ -238,4 +287,12 @@ function submit(status) {
 .af-dbl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 6px; padding: 6px 9px; border-radius: 10px; background: rgba(255, 122, 107, .1); border: 1px solid rgba(255, 122, 107, .3); color: #ffcfc8; }
 .af-dbl button { padding: 3px 10px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(0, 0, 0, .3); color: #f3dc9e; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .af-dbl .af-dbl-yes { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
+.af-item { flex-wrap: wrap; }
+.af-item > .ani { flex: 1; min-width: 160px; }
+.af-istat { flex-basis: 100%; font: 700 11.5px 'Manrope', sans-serif; padding-left: 2px; }
+.af-istat .ok { color: #9fdc9a; } .af-istat .warn { color: #ffb3aa; } .af-istat .new { color: #f3d36b; }
+.af-istat button { margin-left: 4px; padding: 2px 9px; border-radius: 7px; border: 0; background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; font: 800 11px 'Manrope', sans-serif; cursor: pointer; }
+.af-money { margin: 0; padding: 6px 9px; border-radius: 10px; background: rgba(240, 181, 79, .1); color: #f6cf86; font: 700 12px 'Manrope', sans-serif; }
+.af-money.short { background: rgba(255, 122, 107, .12); color: #ffb3aa; }
+.af-coins { color: #a8936c; font: 700 11.5px 'Manrope', sans-serif; }
 </style>
