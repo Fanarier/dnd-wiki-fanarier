@@ -146,6 +146,19 @@ export const exhOf = (rec, sleepH = 8) => Number(rec?.exh) || (isLongTraining(re
 // 5 изнурений — эффект «Сон»; изнурение удваивает затраты выносливости
 export const EXH_MAX = 5
 export const exhStaminaK = exh => (Number(exh) > 0 ? 2 : 1)
+// у героя изнурение, а выносливость в записи не удвоена — что предложить: { from, to } (строки как в записи) или null.
+// Удвоена ли — по справочнику вики (часы × выносливость в час); без справочника — предлагаем ×2 к тому, что есть
+export function staminaDouble(rec, hero, hint) {
+  const st = num(rec?.stamina)
+  if (!(Number(hero?.exh) > 0) || st <= 0 || isRestRec(rec)) return null
+  const fmt = v => String(Math.round(v * 1000) / 1000).replace('.', ',')
+  if (hint?.rate > 0 && num(rec?.hours)) {
+    const base = num(rec.hours) * hint.rate
+    if (Math.abs(st - base * 2) < 0.001) return null // уже удвоена
+    return Math.abs(st - base) < 0.001 ? { from: fmt(st), to: fmt(base * 2) } : null // своё число — не трогаем
+  }
+  return { from: fmt(st), to: fmt(st * 2) }
+}
 
 // запятые верхнего уровня: «Ловкость рук(+10, взята с БМ), ОиГ(+3)» → два пункта
 function splitTop(s) {

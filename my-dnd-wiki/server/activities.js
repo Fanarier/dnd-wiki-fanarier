@@ -89,6 +89,9 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
   // писать в журнал: мастер, владелец карточки героя или владелец его листа
   const canWrite = (u, h) => !!u && !!h && (u.role === 'master' || h.ownerId === u.id || sheets.ownerOfHero(h.id) === u.id)
   const changed = () => { save(); broadcast() }
+  // в листе героя поменялось изнурение / выносливость / тренировки — журнал у всех перечитает героев (без записи файла)
+  let bumpTimer = null
+  sheets.watchHeroSheets?.(() => { clearTimeout(bumpTimer); bumpTimer = setTimeout(() => { store.rev++; broadcast() }, 300) })
   const by = u => ({ id: u.id, name: u.name, role: u.role })
   // отдых героя по умолчанию: эльфы и дроу не спят, а уходят в транс на 4 часа; остальные — сон 8 часов
   const TRANCE = /эльф|дроу|drow|elf/i

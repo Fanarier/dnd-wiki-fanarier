@@ -27,10 +27,12 @@
         <select v-model="m.status" class="af-in"><option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option></select>
       </label>
     </div>
-    <p v-if="hint || repeatNo > 1 || sleepWarn || formula" class="af-hint">
+    <p v-if="hint || repeatNo > 1 || sleepWarn || formula || dblOffer" class="af-hint">
       <template v-if="hint">📖 В вики: <router-link :to="{ path: '/wiki', query: { section: 'activities', a: hint.articleId } }" target="_blank">{{ hint.name }}</router-link> — {{ hint.dur }}, {{ hint.rate }} выносливости в час<template v-if="num(m.hours)"> → {{ autoSt }}<template v-if="exhK > 1"> (×2 — у героя изнурение)</template></template>. </template>
       <template v-if="repeatNo > 1">↻ Повтор №{{ repeatNo }} в этой сессии — <b>+{{ repBonus }}</b> к броску. </template>
       <b v-if="sleepWarn" class="af-sleep">{{ sleepWarn }} </b>
+      <span v-if="dblOffer" class="af-dbl">😵 У героя {{ hero.exh }} изнур. — выносливость удваивается: <b>{{ dblOffer.from }} → {{ dblOffer.to }}</b>
+        <button type="button" class="af-dbl-yes" @click="applyDbl">Пересчитать</button><button type="button" class="af-dbl-no" @click="keepSt = true">Оставить</button></span>
       <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b> — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
     <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" placeholder="Броски, очки, что получилось… (можно с цветом и свечением)" :min-height="44" /></div>
@@ -96,7 +98,7 @@ import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
 import RichInput from '../../components/rich/RichInput.vue'
 import ActNameInput from './ActNameInput.vue'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, longExhNet, restExh, isRestRec, EXH_MAX, exhStaminaK } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, longExhNet, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble } from '../../shared/activities.js'
 
 const m = defineModel({ type: Object, required: true })
 const props = defineProps({
@@ -120,6 +122,11 @@ const hint = computed(() => catalogMatch(props.catalog, m.value.name))
 // изнурение удваивает затраты выносливости (отдых не трогаем — он её возвращает)
 const exhK = computed(() => (hint.value?.rate > 0 ? exhStaminaK(props.hero?.exh) : 1))
 const autoSt = computed(() => (hint.value ? round(num(m.value.hours) * hint.value.rate * exhK.value, 3) : 0))
+// выносливость не удвоена, а у героя изнурение — предложить пересчитать (или оставить)
+const keepSt = ref(false)
+const dblOffer = computed(() => (keepSt.value ? null : staminaDouble(m.value, props.hero, hint.value)))
+watch(() => [m.value.name, m.value.hours], () => { keepSt.value = false })
+function applyDbl() { m.value.stamina = dblOffer.value.to; manualSt.value = true }
 // 5 изнурений — эффект «Сон»
 const exhNow = computed(() => Number(props.hero?.exh) || 0)
 const sleepWarn = computed(() => {
@@ -228,4 +235,7 @@ function submit(status) {
 .af-btn:disabled { opacity: .5; }
 @media (max-width: 600px) { .af-f.date, .af-f.sm { flex: 1 1 45%; max-width: none; } .af-f.xs { flex: 1 1 28%; } }
 .af-sleep { display: block; margin-bottom: 4px; color: #ffb3aa; }
+.af-dbl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 6px; padding: 6px 9px; border-radius: 10px; background: rgba(255, 122, 107, .1); border: 1px solid rgba(255, 122, 107, .3); color: #ffcfc8; }
+.af-dbl button { padding: 3px 10px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(0, 0, 0, .3); color: #f3dc9e; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
+.af-dbl .af-dbl-yes { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
 </style>

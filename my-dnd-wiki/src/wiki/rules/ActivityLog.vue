@@ -111,7 +111,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll } from '../../map/store.js'
-import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, restBudget, freeRows, exhOf } from '../../shared/activities.js'
+import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, restBudget, freeRows, exhOf, staminaDouble } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
 import ActivityForm from './ActivityForm.vue'
 import ActivityPlanner from './ActivityPlanner.vue'
@@ -255,7 +255,14 @@ async function save(status) {
   if (done) form.value = f.id ? null : { heroId: f.heroId, key: Date.now(), rec: { ...blank(), date: f.rec.date, day: f.rec.day } }
 }
 // «ещё раз»: та же деятельность новой записью (повторяемые пишут десятками)
-const repeat = (hid, r) => call(() => api('POST', `/api/activities/${hid}`, { ...r, result: '', pts: 0, status: master.value ? 'pending' : r.status === 'plan' ? 'plan' : 'pending' }), 'Добавлена ещё одна')
+// ещё одна такая же; у героя изнурение, а выносливость в записи не удвоена — спросить, пересчитать ли
+function repeat(hid, r) {
+  const h = actState.heroes.find(x => x.heroId === hid)
+  const dbl = staminaDouble(r, h, catalogMatch(catalog.value, r.name))
+  let stamina = r.stamina
+  if (dbl && confirm(`У героя ${h.exh} изнур. — по правилам выносливость удваивается.\nПересчитать: ${dbl.from} → ${dbl.to}?\n\nОК — пересчитать, Отмена — оставить ${dbl.from}`)) stamina = dbl.to
+  return call(() => api('POST', `/api/activities/${hid}`, { ...r, stamina, result: '', pts: 0, status: master.value ? 'pending' : r.status === 'plan' ? 'plan' : 'pending' }), 'Добавлена ещё одна')
+}
 // мастер ставит статус; закрылась тренировка — праздник
 async function setStatus(h, r, status) {
   const t = h.trainings?.find(x => x.Id === r.trainId)

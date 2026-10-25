@@ -217,8 +217,11 @@ function applyOp(sh, op, by, note) {
   const now = getAt(sh.data, p)
   record(sh, by, p, from === undefined ? null : from, now ?? null, note)
   try { heroEvents(sh, p, from, now) } catch (e) { console.warn('[sheets] событие героя', e) }
+  // журнал деятельностей показывает изнурение, выносливость, расу и тренировки героя — пусть обновится
+  if (sh.heroId && /^(Exhaustion|Stamina|Race|Trainings)(\.|$)/.test(p)) onHeroSheet?.()
   return { p, v: now ?? null }
 }
+let onHeroSheet = null
 
 /* ---------- маршруты ---------- */
 export function registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players, getDb, broadcast }) {
@@ -568,6 +571,8 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   }
   return {
     applyDelta,
+    // кто хочет знать, что в листе героя поменялось то, что видно в журнале деятельностей
+    watchHeroSheets(fn) { onHeroSheet = fn },
     ownerOfHero: heroId => heroSheet(heroId)?.ownerId || null,
     sheetOfHero: heroId => heroSheet(heroId)?.id || null,
     trainingsOfHero(heroId) {
