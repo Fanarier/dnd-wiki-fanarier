@@ -17,25 +17,28 @@
       </label>
     </div>
     <div class="af-row">
-      <label class="af-f sm">Часы<input v-model="m.hours" class="af-in" placeholder="8" maxlength="30" /></label>
+      <label class="af-f sm">Часы<input v-model="m.hours" class="af-in" placeholder="8" maxlength="30" :title="long ? `Длительная — сутки вместе со сном: ${longH} ч${cfg.elf ? ' (эльф, транс)' : ''}` : ''" /></label>
       <label class="af-f sm">Выносливость<input v-model="m.stamina" class="af-in" :placeholder="hint ? String(autoSt) : '1,6'" maxlength="30" @input="manualSt = true" /></label>
       <label class="af-f sm">Тип
         <select v-model="m.type" class="af-in"><option value="">—</option><option v-for="(t, k) in ACT_TYPES" :key="k" :value="k">{{ t.icon }} {{ t.name }}</option></select>
       </label>
       <label v-if="planDays" class="af-f sm">День<select v-model.number="m.day" class="af-in"><option :value="0">—</option><option v-for="d in planDays" :key="d" :value="d">{{ d }}</option></select></label>
+      <label v-if="long" class="af-chk af-multi" title="Несколько длительных подряд одной записью: всё ×N, кубики кидаются N раз, бонус повторения растёт"><input v-model="multi" type="checkbox" /> несколько</label>
+      <label v-if="long && multi" class="af-f xs">Сколько раз<span class="af-x-in">×<input v-model.number="m.times" type="number" min="2" max="10" class="af-in" /></span></label>
       <label v-if="master" class="af-f sm">Статус
         <select v-model="m.status" class="af-in"><option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option></select>
       </label>
     </div>
     <p v-if="hint || repeatNo > 1 || sleepWarn || formula || dblOffer" class="af-hint">
-      <template v-if="hint">📖 В вики: <router-link :to="{ path: '/wiki', query: { section: 'activities', a: hint.articleId } }" target="_blank">{{ hint.name }}</router-link> — {{ hint.dur }}, {{ hint.rate }} выносливости в час<template v-if="num(m.hours)"> → {{ autoSt }}<template v-if="exhK > 1"> (×2 — у героя изнурение)</template></template>. </template>
+      <template v-if="hint">📖 В вики: <router-link :to="{ path: '/wiki', query: { section: 'activities', a: hint.articleId } }" target="_blank">{{ hint.name }}</router-link> <template v-if="!long"> — {{ hint.dur }}, {{ hint.rate }} выносливости в час</template><template v-if="num(m.hours) && !long"> → {{ autoSt }}<template v-if="exhK > 1"> (×2 — у героя изнурение)</template></template>. </template>
       <template v-if="repeatNo > 1">↻ Повтор №{{ repeatNo }} в этой сессии — <b>+{{ repBonus }}</b> к броску. </template>
       <b v-if="sleepWarn" class="af-sleep">{{ sleepWarn }} </b>
       <span v-if="dblOffer" class="af-dbl">😵 У героя {{ hero.exh }} изнур. — выносливость удваивается: <b>{{ dblOffer.from }} → {{ dblOffer.to }}</b>
         <button type="button" class="af-dbl-yes" @click="applyDbl">Пересчитать</button><button type="button" class="af-dbl-no" @click="keepSt = true">Оставить</button></span>
-      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b> — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
+      <template v-if="long">🌙 Длительная — сутки вместе {{ cfg.elf ? 'с трансом' : 'со сном' }}: {{ longH }} ч, {{ LONG_STAMINA }} выносливости, без изнурения<template v-if="plan.times > 1"> — ×{{ plan.times }}: {{ longH * plan.times }} ч, {{ LONG_STAMINA * plan.times }} выносливости</template>. </template>
+      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b><template v-if="plan.times > 1"> — {{ plan.times }} раза</template>, в среднем ≈ {{ avg.each.length > 1 ? avg.each.join(' + ') + ' = ' + avg.total : avg.total }} — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
-    <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" placeholder="Броски, очки, что получилось… (можно с цветом и свечением)" :min-height="44" /></div>
+    <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" :snippets="ACT_SNIPPETS" placeholder="Броски, очки, что получилось… «!Мод» + Tab — «Модификаторы броска: »" :min-height="44" /></div>
 
     <button type="button" class="af-more" @click="more = !more">{{ more ? '▴ Меньше' : '▾ Подробнее: с кем, где, тренировка, монеты, вещи' }}<small v-if="!more && extras"> · заполнено: {{ extras }}</small></button>
     <div v-if="more" class="af-extra">
@@ -52,6 +55,13 @@
           <select v-model="m.mod" class="af-in"><option value="">—</option><option v-for="x in mods" :key="x.name" :value="x.name">{{ x.name }} · {{ x.what }} · {{ x.die }}</option></select>
         </label>
       </div>
+      <div class="af-row">
+        <label class="af-f name">Наставник (если есть)
+          <ActNameInput v-model="m.mentor" :recent="mentorHints" :catalog="[]" :required="false" :maxlength="80" mine-title="НПС и герои" placeholder="Имя наставника" />
+        </label>
+        <label class="af-f sm" title="Сколько наставник прибавляет к броску (фиксированно, один раз)">Бонус наставника<input v-model.number="m.mentorBonus" type="number" class="af-in" placeholder="+0" /></label>
+        <router-link v-if="mentorTo" class="af-mlink" :to="mentorTo.to" target="_blank" :title="`Открыть: ${mentorTo.kind}`">🎓 {{ mentorTo.kind }} →</router-link>
+      </div>
       <div v-if="hero?.trainings?.length" class="af-row">
         <label class="af-f name">Очки — в тренировку листа
           <select v-model="m.trainId" class="af-in">
@@ -66,7 +76,7 @@
         <label class="af-f xs">СМ<input v-model.number="m.silver" type="number" class="af-in" /></label>
         <label class="af-f xs">ММ<input v-model.number="m.copper" type="number" class="af-in" /></label>
         <label class="af-f xs">Опыт<input v-model.number="m.exp" type="number" class="af-in" /></label>
-        <label class="af-f xs" title="Длительная тренировка: +4 и сразу минус ночной сон (сон −2, транс −1). Отдых снимает 1 за каждые 3 часа (минус — снять)">Изнурение<input v-model.number="m.exh" type="number" min="-5" max="5" class="af-in" @input="manualExh = true" /></label>
+        <label class="af-f xs" title="Длительная тренировка изнурения не даёт. Отдых снимает 1 за каждые 3 часа (минус — снять)">Изнурение<input v-model.number="m.exh" type="number" min="-5" max="5" class="af-in" @input="manualExh = true" /></label>
       </div>
       <p v-if="money" class="af-money" :class="{ short: money.short }">
         <template v-if="money.short">⚠ Не хватает денег: в листе {{ fmtCoins(money.have) }}, а тратится {{ fmtCoins(money.need) }}. Мастер увидит метку на проверке.</template>
@@ -118,7 +128,8 @@ import RichInput from '../../components/rich/RichInput.vue'
 import ActNameInput from './ActNameInput.vue'
 import ItemQuick from './ItemQuick.vue'
 import { api, toast } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, isLongTraining, longExhNet, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, planText, planAvg, isLongTraining, longHours, LONG_STAMINA, ACT_SNIPPETS, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
+import { mentorHints as allMentors, mentorLink } from './mentor.js'
 
 const m = defineModel({ type: Object, required: true })
 const props = defineProps({
@@ -127,7 +138,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['save', 'cancel', 'fav'])
 // старые записи без новых полей
-for (const [k, v] of Object.entries({ with: [], items: [], place: '', mod: '', gold: 0, silver: 0, copper: 0, exp: 0, exh: 0, day: 0, trainId: '', pts: 0 })) if (m.value[k] == null) m.value[k] = Array.isArray(v) ? [] : v
+for (const [k, v] of Object.entries({ with: [], items: [], place: '', mod: '', mentor: '', mentorBonus: 0, times: 0, gold: 0, silver: 0, copper: 0, exp: 0, exh: 0, day: 0, trainId: '', pts: 0 })) if (m.value[k] == null) m.value[k] = Array.isArray(v) ? [] : v
 
 const log = computed(() => actState.logs[props.hero?.heroId] || [])
 const cfg = computed(() => actState.cfg[props.hero?.heroId] || {})
@@ -161,14 +172,26 @@ const manualExh = ref(!props.isNew)
 watch([hint, () => m.value.hours], () => {
   if (!hint.value) return
   if (!m.value.type) m.value.type = hint.value.type
+  if (long.value) return
   if (!manualSt.value && num(m.value.hours)) m.value.stamina = String(autoSt.value).replace('.', ',')
 })
-// изнурение само: длительная тренировка/обучение даёт 4, отдых снимает — 1 за каждые 3 часа (6 часов — 2)
+// изнурение само: отдых снимает 1 за каждые 3 часа (6 часов — 2); длительная — 0
 const isRest = () => isRestRec(m.value)
 watch([() => m.value.name, () => m.value.hours, () => m.value.stamina], () => {
   if (manualExh.value) return
-  m.value.exh = isLongTraining(m.value.name) ? longExhNet(cfg.value.sleep) : isRest() ? restExh(m.value.hours) : 0
+  m.value.exh = isLongTraining(m.value.name) ? 0 : isRest() ? restExh(m.value.hours) : 0
 })
+// длительная тренировка: сутки со сном — 24 ч (эльф 20), 3 выносливости (с изнурением — предложит ×2), ×N — всё N раз
+const long = computed(() => isLongTraining(m.value.name))
+const longH = computed(() => longHours(cfg.value))
+const multi = ref(m.value.times > 1)
+watch(multi, on => { m.value.times = on ? Math.max(2, m.value.times || 0) : 0 })
+watch([long, () => m.value.times, longH], ([l], old) => {
+  if (!l || (!props.isNew && !old)) return
+  const n = Math.max(1, Math.min(10, Number(m.value.times) || 1))
+  m.value.hours = String(longH.value * n)
+  if (!manualSt.value || old) m.value.stamina = String(LONG_STAMINA * n)
+}, { immediate: true })
 watch([() => m.value.result, () => m.value.trainId], () => {
   if (m.value.trainId && !manualPts.value) m.value.pts = ptsOf(m.value.result)
 })
@@ -185,22 +208,26 @@ const mod = computed(() => props.mods.find(x => x.name === m.value.mod))
 const plan = computed(() => rollPlan(m.value, mod.value, m.value.type === 'repeat' ? repBonus.value : 0))
 const formula = computed(() => {
   const p = plan.value
-  if (!(m.value.type === 'repeat' || mod.value || p.items.length || p.long || p.rep != null)) return ''
-  return p.long ? `(${p.formula}) × 1.35${p.add ? ' + ' + p.add : ''}` : p.formula
+  if (!(m.value.type === 'repeat' || mod.value || p.items.length || p.dice.length || p.long || p.repSet)) return ''
+  return planText(p)
 })
+const avg = computed(() => planAvg(plan.value))
+// наставник: подсказки — НПС и герои; совпало имя — ссылка
+const mentorHints = computed(() => allMentors())
+const mentorTo = computed(() => mentorLink(m.value.mentor))
 
 const others = computed(() => actState.heroes.filter(h => h.heroId !== props.hero?.heroId))
 const toggleWith = id => { const w = m.value.with; const i = w.indexOf(id); i >= 0 ? w.splice(i, 1) : w.push(id) }
 const cities = computed(() => (store.data.cities || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'ru')))
 const quests = computed(() => (store.data.quests || []).filter(q => ['taken', 'done', 'available'].includes(q.status)).slice().sort((a, b) => (b.postedAt || 0) - (a.postedAt || 0)).slice(0, 30))
 const sheetTouch = computed(() => !!(m.value.gold || m.value.silver || m.value.copper || m.value.exp || m.value.exh || m.value.items.length || m.value.trainId))
-const extras = computed(() => [m.value.with.length && 'с кем', m.value.place && 'где', m.value.mod && 'место', m.value.trainId && 'тренировка', (m.value.gold || m.value.silver || m.value.copper) && 'монеты', m.value.exp && 'опыт', m.value.exh && 'изнурение', m.value.items.length && 'вещи'].filter(Boolean).join(', '))
+const extras = computed(() => [m.value.with.length && 'с кем', m.value.place && 'где', m.value.mod && 'место', m.value.mentor && 'наставник', m.value.trainId && 'тренировка', (m.value.gold || m.value.silver || m.value.copper) && 'монеты', m.value.exp && 'опыт', m.value.exh && 'изнурение', m.value.items.length && 'вещи'].filter(Boolean).join(', '))
 const more = ref(!!extras.value)
 
 function useFav(f) {
-  Object.assign(m.value, { name: f.name, hours: f.hours, stamina: f.stamina, type: f.type, trainId: f.trainId, mod: f.mod, place: f.place })
+  Object.assign(m.value, { name: f.name, hours: f.hours, stamina: f.stamina, type: f.type, trainId: f.trainId, mod: f.mod, place: f.place, mentor: f.mentor || '', mentorBonus: f.mentorBonus || 0 })
   manualSt.value = !!f.stamina
-  if (f.trainId || f.mod || f.place) more.value = true
+  if (f.trainId || f.mod || f.place || f.mentor) more.value = true
 }
 function useQuest(id) {
   const q = (store.data.quests || []).find(x => x.id === id)
@@ -274,6 +301,9 @@ async function saveQuick(v) {
 .af-item { display: flex; gap: 6px; align-items: center; }
 .af-item .qty { width: 80px; flex: none; }
 .af-chk { display: flex; align-items: center; gap: 4px; flex: none; color: #cdbf9f; font: 600 12px 'Manrope', sans-serif; letter-spacing: 0; text-transform: none; }
+.af-multi { align-self: end; height: 34px; padding: 0 8px; border-radius: 9px; border: 1px dashed rgba(231, 197, 111, .3); cursor: pointer; }
+.af-x-in { display: flex; align-items: center; gap: 4px; color: #f3dc9e; font-size: 14px; }
+.af-mlink { align-self: end; height: 34px; display: flex; align-items: center; padding: 0 10px; border-radius: 9px; background: rgba(127, 180, 255, .12); color: #b9d6ff; font: 800 12px 'Manrope', sans-serif; text-decoration: none; }
 .af-x { flex: none; width: 28px; height: 28px; border-radius: 8px; border: 1px solid rgba(255, 122, 107, .35); background: none; color: #ff9b8f; cursor: pointer; }
 .af-add { justify-self: start; padding: 4px 10px; border-radius: 8px; border: 1px dashed rgba(231, 197, 111, .4); background: none; color: #e7c56f; font: 700 12px 'Manrope', sans-serif; letter-spacing: 0; text-transform: none; cursor: pointer; }
 .af-acts { display: flex; flex-wrap: wrap; gap: 8px; }

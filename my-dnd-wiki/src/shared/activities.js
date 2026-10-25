@@ -112,7 +112,7 @@ export function catalogMatch(catalog, name) {
 export function activityMods(articles) {
   const a = articles.find(x => x.group === 'activities' && /модификатор/i.test(x.title))
   if (!a) return []
-  return tablesOf(a).filter(r => r.cells.length >= 3 && /\d+к\d+/i.test(r.cells[2])).map(r => ({
+  return tablesOf(a).filter(r => r.cells.length >= 3 && /\d+к\d+/i.test(r.cells[2]) && !/наставник|учитель/i.test(r.cells[0])).map(r => ({
     name: r.cells[0], what: r.cells[1], die: r.cells[2], formula: r.cells[2].replace(/к/gi, 'd').replace(/\s*\+\s*Наставничество/i, ''), articleId: a.id
   }))
 }
@@ -128,10 +128,13 @@ export function rollFormula(base, mod, rep) {
   return [base || '1d20', mod?.formula, rep ? String(rep) : ''].filter(Boolean).join('+').replace(/\+-/g, '-')
 }
 
-// длительная тренировка/обучение: по правилам 4 изнурения и бросок (2к20 + 2×моды) × 1.35
+// длительная тренировка/обучение: сутки вместе со сном — 24 ч (эльф в трансе — 20 ч), 3 выносливости, изнурения не даёт;
+// бросок (2к20 + все модификаторы один раз) × 1.35 вниз, потом бонус повторения. «Несколько» (×N) — N таких суток подряд
 export const isLongTraining = name => /^(долг|длительн)\S*\s+(тренир|обуч)/i.test(String(name || '').trim())
-export const LONG_EXH = 4
+export const LONG_EXH = 0
 export const LONG_MULT = 1.35
+export const LONG_STAMINA = 3
+export const longHours = cfg => (cfg?.elf ? 20 : 24)
 // отдых снимает изнурение: каждые 3 часа — одно (6 часов — два)
 export const restExh = hours => -Math.min(5, Math.floor(Math.max(0, num(hours)) / 3)) || 0
 // деньги: курс 1 к 100 (100 бронзовых = 1 серебряный, 100 серебряных = 1 золотой). Хватит ли героя и надо ли разменять
@@ -161,9 +164,9 @@ const REST_RE = /^(отдых|свидани|сон\b|транс\b|медита�
 export const isRestRec = rec => REST_RE.test(String(rec?.name || '').trim()) || num(rec?.stamina) < 0
 // ночной сон (не пишется деятельностью) снимает по тому же правилу: сон 8 ч — 2, транс 4 ч — 1
 export const nightExh = sleepH => restExh(sleepH ?? 8)
-// длительная тренировка занимает сутки вместе со сном: +4 за неё и сразу минус ночной сон → обычно +2 (с трансом +3)
-export const longExhNet = sleepH => LONG_EXH + nightExh(sleepH)
-// сколько изнурения даёт запись: что вписано, а если пусто — по правилам (длительная +4 − сон, отдых −1 за 3 ч)
+// длительная тренировка — сутки вместе со сном: изнурения не даёт и не снимает
+export const longExhNet = () => LONG_EXH
+// сколько изнурения даёт запись: что вписано, а если пусто — по правилам (отдых −1 за 3 ч)
 export const exhOf = (rec, sleepH = 8) => Number(rec?.exh) || (isLongTraining(rec?.name) ? longExhNet(sleepH) : isRestRec(rec) ? restExh(rec?.hours) : 0)
 // 5 изнурений — эффект «Сон»; изнурение удваивает затраты выносливости
 export const EXH_MAX = 5
@@ -198,9 +201,14 @@ function splitTop(s) {
 // отдельно (rep). Пункты без числа («Наставничество(+???)», «Комплект(без травм)») — в unknown. «с преимуществом» — adv
 export function rollMods(text) {
   const plain = String(text || '').replace(/<\/(p|div|li)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
-  const out = { sum: 0, items: [], dice: [], unknown: [], rep: null, adv: /с\s+преимуществ/i.test(plain) ? 'adv' : /с\s+помех/i.test(plain) ? 'dis' : '' }
+  const adv = /преимуществ/i.test(plain) && !/без\s+преимуществ/i.test(plain) ? 'adv' : /помех/i.test(plain) && !/без\s+помех/i.test(plain) ? 'dis' : ''
+  const out = { sum: 0, items: [], dice: [], unknown: [], rep: null, adv }
+  // строка модификаторов кончается там, где начинается другая заготовка («… +13. Бонус повторения: +2. Преимущество»);
+  // точка с пробелом — тоже разделитель пунктов
+  const END = /(?:[.;,]\s*|\s+)(?=бонус\s+повтор|(?:с\s+)?преимуществ|(?:с\s+)?помех|результат\s*:|совместно\s+с)/i
   for (const line of plain.matchAll(/модификатор[^:\n]*:\s*([^\n]+)/gi)) {
-    for (const raw of splitTop(line[1])) {
+    const body = line[1].split(END)[0].replace(/\.\s+(?=\S)/g, ', ')
+    for (const raw of splitTop(body)) {
       const item = raw.trim().replace(/[.,;]$/, '').trim()
       if (!item) continue
       // где число: в скобках «Сила(+5)», после двоеточия «Бонус повторения: +3» или просто в конце «Ловкость рук +13», «Инструменты +1к10»
@@ -229,23 +237,48 @@ export function rollMods(text) {
       out.items.push({ name, v })
     }
   }
+  // «Бонус повторения: +2» / «(+2)» — где угодно в описании
+  if (out.rep == null) {
+    const r = plain.match(/бонус\s+повтор\S*\s*[:(]?\s*\+?\s*(\d+)/i)
+    if (r) out.rep = Math.min(10, Number(r[1]))
+  }
   out.sum = Math.round(out.sum * 100) / 100
   return out
 }
-// что бросать за запись: короткая — 1к20 + все моды + место + повторение; длительная тренировка — два к20, к каждому моды
-// и место, итог × 1.35 вниз, потом + повторение (его прибавляет сервер: add). autoRep — сколько насчитал сайт, если в тексте не написано
+// что бросать за запись. Модификаторы — из строки «Модификаторы броска: …», место из вики (кубик), наставник (фикс) — все один раз.
+// Короткая: 1к20 + модификаторы + повторение. Длительная: (2к20 + модификаторы) × 1.35 вниз, потом + повторение (его прибавляет
+// сервер: add); «несколько» (times) — столько бросков, у каждого следующего повторение на 1 больше (до +10).
+// autoRep — сколько насчитал сайт, если в тексте не написано
 export function rollPlan(rec, placeMod, autoRep = 0) {
   const m = rollMods(rec.result)
+  const mentor = Number(rec.mentorBonus) || 0
+  if (mentor) m.items.push({ name: 'Наставник' + (rec.mentor ? ' ' + rec.mentor : ''), v: mentor })
+  const sum = Math.round((m.sum + mentor) * 100) / 100
+  const repSet = m.rep != null // бонус повторения написан в тексте
   const rep = m.rep ?? autoRep ?? 0
   const sign = v => (v ? (v > 0 ? '+' : '') + v : '')
-  if (isLongTraining(rec.name)) {
-    const place = placeMod?.formula ? `+${placeMod.formula}+${placeMod.formula}` : ''
-    const dice = m.dice.map(d => `+${d.n * 2}d${d.sides}`).join('') // кубики-модификаторы — к каждому из двух бросков
-    return { ...m, rep, long: true, add: rep, formula: `2d20${place}${dice}${sign(2 * m.sum)}` }
-  }
   const place = placeMod?.formula ? `+${placeMod.formula}` : ''
   const dice = m.dice.map(d => `+${d.n}d${d.sides}`).join('')
-  return { ...m, rep, long: false, add: 0, formula: `1d20${place}${dice}${sign(m.sum + rep)}${m.adv === 'adv' ? ' преимущество' : m.adv === 'dis' ? ' помеха' : ''}` }
+  if (isLongTraining(rec.name)) {
+    const times = Math.max(1, Math.min(10, Number(rec.times) || 1))
+    const adds = Array.from({ length: times }, (_, i) => Math.min(10, rep + i))
+    return { ...m, sum, rep, repSet, long: true, times, adds, add: adds[0], formula: `2d20${place}${dice}${sign(sum)}` }
+  }
+  return { ...m, sum, rep, repSet, long: false, times: 1, adds: [0], add: 0, formula: `1d20${place}${dice}${sign(sum + rep)}${m.adv === 'adv' ? ' преимущество' : m.adv === 'dis' ? ' помеха' : ''}` }
+}
+// чего ждать в среднем (кубики — по среднему значению): у длительной — каждый бросок и сумма всех
+export function planAvg(p) {
+  let dice = 0
+  for (const [, n, s] of p.formula.matchAll(/(\d+)d(\d+)/g)) dice += (Number(n) * (Number(s) + 1)) / 2
+  const each = p.long ? p.adds.map(a => longFinal(dice + p.sum, a)) : [Math.floor(dice + p.sum + p.rep)]
+  return { each, total: each.reduce((a, b) => a + b, 0) }
+}
+// заготовки для описания: «!Мод» + Tab → «Модификаторы броска: »
+export const ACT_SNIPPETS = ['Модификаторы броска: ', 'Преимущество', 'Помеха', 'Бонус повторения: +', 'Результат: ', 'Совместно с: ']
+// как показать план броска: «(2d20+1d20+27) × 1.35 + 2», у нескольких — «×4»
+export function planText(p) {
+  if (!p.long) return p.formula
+  return `(${p.formula}) × 1.35${p.add ? ' + ' + (p.times > 1 ? `${p.adds[0]}…${p.adds[p.adds.length - 1]}` : p.add) : ''}${p.times > 1 ? ` · ×${p.times}` : ''}`
 }
 export const longFinal = (total, add) => Math.floor(total * LONG_MULT) + (add || 0)
 

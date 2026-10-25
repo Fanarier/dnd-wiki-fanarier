@@ -5,6 +5,10 @@
   <div ref="wrap" class="ri" :class="{ active, ro: readonly }" @focusin="active = true" @focusout="leave">
     <FormatBar v-if="(active || !compact) && !readonly" :editor="editor" :tables="tables" />
     <EditorContent :editor="editor" class="ri-body" :style="{ minHeight: minHeight + 'px' }" />
+    <!-- «!» + начало заготовки → подсказка, Tab (или Enter) вставляет -->
+    <div v-if="sug" class="ri-sug" :style="{ left: sug.x + 'px', top: sug.y + 'px' }">
+      <button v-for="(s, i) in sug.items" :key="s" type="button" :class="{ on: i === sug.i }" @mousedown.prevent="pickSug(i)">{{ s.trim() }}<kbd v-if="i === sug.i">Tab</kbd></button>
+    </div>
   </div>
 </template>
 
@@ -17,7 +21,8 @@ import { formatExtensions, plainToHtml } from './formatKit.js'
 
 const props = defineProps({
   modelValue: { type: String, default: '' }, placeholder: { type: String, default: '' }, minHeight: { type: Number, default: 34 },
-  compact: { type: Boolean, default: true }, tables: Boolean, readonly: Boolean, autofocus: Boolean
+  compact: { type: Boolean, default: true }, tables: Boolean, readonly: Boolean, autofocus: Boolean,
+  snippets: { type: Array, default: () => [] } // заготовки: пишешь «!Мод» — предлагает «Модификаторы броска: »
 })
 const emit = defineEmits(['update:modelValue', 'blur'])
 const wrap = ref(null)
@@ -37,9 +42,42 @@ const editor = useEditor({
     StarterKit.configure({ heading: { levels: [3, 4] }, code: false, codeBlock: false, horizontalRule: false, link: { openOnClick: false } }),
     ...formatExtensions({ tables: props.tables })
   ],
-  editorProps: { attributes: { 'data-placeholder': props.placeholder } },
-  onUpdate: ({ editor: e }) => emit('update:modelValue', e.isEmpty ? '' : toValue(e.getHTML()))
+  editorProps: { attributes: { 'data-placeholder': props.placeholder }, handleKeyDown: (view, ev) => sugKey(ev) },
+  onUpdate: ({ editor: e }) => { emit('update:modelValue', e.isEmpty ? '' : toValue(e.getHTML())); scanSug(e) },
+  onSelectionUpdate: ({ editor: e }) => scanSug(e),
+  onBlur: () => { sug.value = null }
 })
+// заготовки по «!»: «!» в начале строки или после пробела, дальше — начало заготовки («Ура!» не трогаем)
+const sug = ref(null)
+const low = s => s.toLowerCase().replace(/ё/g, 'е')
+function scanSug(e) {
+  sug.value = null
+  if (!props.snippets.length) return
+  const { $from, empty } = e.state.selection
+  if (!empty) return
+  const mt = $from.parent.textBetween(0, $from.parentOffset, ' ', ' ').match(/(?:^|\s)!([\p{L}][\p{L} ]{0,24})?$/u)
+  if (!mt) return
+  const q = low(mt[1] || '')
+  const items = props.snippets.filter(s => low(s).startsWith(q) || (q.length > 1 && low(s).includes(q)))
+  if (!items.length || items.some(s => low(s).trim() === q.trim() && q)) return
+  const c = e.view.coordsAtPos($from.pos), w = wrap.value.getBoundingClientRect()
+  sug.value = { from: $from.pos - q.length - 1, to: $from.pos, q, items, i: 0, x: Math.max(0, Math.min(c.left - w.left, w.width - 220)), y: c.bottom - w.top + 4 }
+}
+function pickSug(i) {
+  const e = editor.value, s = sug.value
+  if (!e || !s) return
+  e.view.dispatch(e.state.tr.insertText(s.items[i], s.from, s.to))
+  sug.value = null
+  e.commands.focus()
+}
+function sugKey(ev) {
+  const s = sug.value
+  if (!s) return false
+  if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') { s.i = (s.i + (ev.key === 'ArrowDown' ? 1 : s.items.length - 1)) % s.items.length; return true }
+  if (ev.key === 'Tab' || (ev.key === 'Enter' && s.q)) { ev.preventDefault(); pickSug(s.i); return true }
+  if (ev.key === 'Escape') { sug.value = null; return true }
+  return false
+}
 watch(() => props.modelValue, v => {
   const e = editor.value
   if (!e || (e.isEmpty ? '' : toValue(e.getHTML())) === (v || '')) return
@@ -55,7 +93,11 @@ onBeforeUnmount(() => editor.value?.destroy())
 </script>
 
 <style scoped>
-.ri { min-width: 0; border-radius: 8px; border: 1px dashed color-mix(in srgb, var(--acc, #e7c56f) 22%, transparent); background: transparent; color: var(--ink, #efe3c8); transition: border-color .2s, background .2s; }
+.ri { position: relative; min-width: 0; border-radius: 8px; border: 1px dashed color-mix(in srgb, var(--acc, #e7c56f) 22%, transparent); background: transparent; color: var(--ink, #efe3c8); transition: border-color .2s, background .2s; }
+.ri-sug { position: absolute; z-index: 30; display: grid; min-width: 200px; padding: 4px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .45); background: #17120c; box-shadow: 0 12px 28px rgba(0, 0, 0, .6); }
+.ri-sug button { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 5px 9px; border: 0; border-radius: 7px; background: none; color: #efe3c8; font: 700 13px 'Manrope', sans-serif; text-align: left; cursor: pointer; }
+.ri-sug button.on { background: rgba(231, 197, 111, .16); color: #f3dc9e; }
+.ri-sug kbd { padding: 0 5px; border-radius: 4px; border: 1px solid rgba(231, 197, 111, .4); color: #a8936c; font: 800 10px 'Manrope', sans-serif; }
 .ri:hover:not(.ro) { background: color-mix(in srgb, var(--acc, #e7c56f) 5%, transparent); }
 .ri.active { border-style: solid; border-color: var(--acc, #e7c56f); background: color-mix(in srgb, var(--acc, #e7c56f) 7%, #0f0c08); }
 .ri.ro { border-color: transparent; }

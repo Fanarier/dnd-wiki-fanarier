@@ -34,7 +34,7 @@
             <button type="button" class="al-btn ok" @click="setAll(g.hero, g.rows, 'done', $event)">✓ Учесть все</button>
           </header>
           <div v-auto-animate class="al-rows">
-            <ActivityRow v-for="r in g.rows" :key="r.id" :rec="r" :hero="g.hero" :master="master" :show-date="true" :wiki="wikiOf(r)"
+            <ActivityRow v-for="r in g.rows" :key="r.id" :rec="r" :hero="g.hero" :master="master" :show-date="true" :wiki="wikiOf(r)" :plan="planOf(g.hero, r)"
                          @status="setStatus(g.hero, r, $event)" @edit="startEdit(g.hero.heroId, r)" @remove="remove(g.hero.heroId, r)" @repeat="repeat(g.hero.heroId, r)" @roll="rollRec(g.hero, r)" @reply="t => reply(g.hero.heroId, r, t)" />
           </div>
         </section>
@@ -44,7 +44,8 @@
         <div class="al-tools">
           <h2>{{ hero.name }}</h2>
           <span v-if="hero.stamina != null" class="al-chip" title="Выносливость в листе">⚡ {{ hero.stamina }}</span>
-          <span v-if="hero.exh != null" class="al-chip" :class="{ exh: hero.exh, sleep: hero.exh >= 5 }" :title="hero.exh >= 5 ? 'Изнурение 5 из 5 — эффект «Сон»: только отдых, пока не снимут' : 'Изнурение в листе сейчас (до 5). Длительная тренировка: +4 и минус ночной сон; отдых снимает 1 за каждые 3 часа; изнурение удваивает затраты выносливости'">{{ hero.exh >= 5 ? '😴' : '😵' }} {{ hero.exh }}<small> / 5</small><template v-if="hero.exh >= 5"> · «Сон»</template></span>
+          <span v-if="hero.exh != null" class="al-chip" :class="{ exh: hero.exh, sleep: hero.exh >= 5 }" :title="hero.exh >= 5 ? 'Изнурение 5 из 5 — эффект «Сон»: только отдых, пока не снимут' : 'Изнурение в листе сейчас (до 5). Длительная тренировка изнурения не даёт; отдых снимает 1 за каждые 3 часа; изнурение удваивает затраты выносливости'">{{ hero.exh >= 5 ? '😴' : '😵' }} {{ hero.exh }}<small> / 5</small><template v-if="hero.exh >= 5"> · «Сон»</template></span>
+          <span v-if="cfg.elf" class="al-chip elf" title="Отмечено в настройках героя: эльф — транс 4 ч, длительная тренировка 20 ч">🧝 эльф</span>
           <span v-if="cfg.sleep != null && (cfg.sleep !== 8 || (cfg.rest && cfg.rest !== 'Сон'))" class="al-chip" title="Отдых в день по настройкам героя">🌙 {{ (cfg.rest || 'Сон').toLowerCase() }} {{ cfg.sleep }} ч</span>
           <span class="grow" />
           <nav class="al-views">
@@ -89,7 +90,7 @@
             </header>
             <SessionBar :rows="s.free" :limit="budget.free" />
             <div v-auto-animate class="al-rows">
-              <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)"
+              <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :plan="r.mirror ? null : planOf(hero, r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)"
                            @status="setStatus(hero, r, $event)" @edit="startEdit(heroId, r)" @remove="remove(heroId, r)" @repeat="repeat(heroId, r)" @roll="rollRec(hero, r)" @coin="coin(heroId, r)" @reply="t => reply(heroId, r, t)" />
             </div>
           </section>
@@ -110,7 +111,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
-import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll } from '../../map/store.js'
+import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll, loadNpcs } from '../../map/store.js'
 import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, restBudget, freeRows, exhOf, staminaDouble } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
 import ActivityForm from './ActivityForm.vue'
@@ -162,6 +163,8 @@ const views = computed(() => [
 /* ---------- справочники из вики ---------- */
 const catalog = computed(() => activityCatalog(rulesState.articles))
 const mods = computed(() => activityMods(rulesState.articles))
+// НПС — для ссылки на наставника в записи
+watch(() => store.data.npcsRev, () => loadNpcs(), { immediate: true })
 const wikiOf = r => catalogMatch(catalog.value, r.name)
 
 /* ---------- сессии: записи по датам, новые сверху; совместные из чужих журналов — с пометкой, в суммы не входят ---------- */
@@ -293,16 +296,30 @@ async function addFav(rec) {
 }
 
 /* ---------- броски: общие кубики сайта → в запись (сервер сверяет с лентой бросков) ---------- */
-function rollRec(h, r) {
+// что будет брошено за запись: повторяемая — +1 за каждое прошлое повторение в сессии (до 10)
+function planOf(h, r) {
+  if (!h) return null
   const n = normAct(r.name)
   const same = logOf(h.heroId).filter(x => x.date === r.date && normAct(x.name) === n && x.status !== 'cancel')
   const rep = r.type === 'repeat' ? Math.min(10, Math.max(0, same.findIndex(x => x.id === r.id))) : 0
-  // модификаторы из строки «Модификаторы броска: …» складываются сами; длительная тренировка — 2к20 и × 1.35
-  const plan = rollPlan(r, mods.value.find(x => x.name === r.mod), rep)
+  return rollPlan(r, mods.value.find(x => x.name === r.mod), rep)
+}
+function rollRec(h, r) {
+  // модификаторы из строки «Модификаторы броска: …» (и наставник) складываются сами, один раз; длительная — 2к20 и × 1.35
+  const plan = planOf(h, r)
   const label = r.name.replace(/\s*\(.*$/, '').slice(0, 40)
-  if (plan.long && !plan.items.length) toast('В описании нет строки «Модификаторы броска: …» с числами — кидается 2к20 без модов', 'error')
+  if (plan.long && !plan.items.length && !plan.dice.length && !r.mod) toast('В описании нет строки «Модификаторы броска: …» с числами — кидается 2к20 без модов', 'error')
   else if (plan.unknown.length) toast(`Без числа, в бросок не вошли: ${plan.unknown.join(', ')}`)
-  requestRoll({ formula: plan.formula, label, onDone: roll => send(h.heroId, r, { ...roll, label, long: plan.long, add: plan.add, miss: plan.unknown.join(', ') }) })
+  // «несколько» (×N): N бросков подряд, у каждого свой бонус повторения; уже брошенные — пропускаем
+  const done = (r.rolls || []).filter(x => x.long).length
+  const one = i => {
+    const lb = plan.times > 1 ? `${label} ${i + 1}/${plan.times}` : label
+    requestRoll({ formula: plan.formula, label: lb, onDone: async roll => {
+      await send(h.heroId, r, { ...roll, label: lb, long: plan.long, add: plan.adds[i], miss: plan.unknown.join(', ') })
+      if (i + 1 < plan.times) setTimeout(() => one(i + 1), 900)
+    } })
+  }
+  one(plan.long && done < plan.times ? done : 0)
 }
 async function send(hid, r, roll, retry = true) {
   await new Promise(res => setTimeout(res, 400)) // бросок сначала проходит по сокету — запись принимается после
@@ -348,6 +365,7 @@ watch(() => [route.query.new, hero.value?.canWrite], ([n, can]) => {
 .al-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .al-tools h2 { margin: 0; font: 700 26px 'Cormorant Garamond', serif; color: #f3dc9e; }
 .al-chip { padding: 2px 9px; border-radius: 99px; background: rgba(240, 181, 79, .14); color: #f6cf86; font: 800 12px 'Manrope', sans-serif; }
+.al-chip.elf { background: rgba(143, 220, 122, .14); color: #b4ecb0; }
 .al-chip.exh { background: rgba(255, 122, 107, .16); color: #ffb3aa; }
 .al-chip.sleep { background: rgba(155, 125, 255, .2); color: #d2c4ff; box-shadow: 0 0 10px rgba(155, 125, 255, .35); }
 .al-chip small { opacity: .6; }

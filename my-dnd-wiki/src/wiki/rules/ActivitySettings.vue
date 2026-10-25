@@ -14,6 +14,9 @@
             <option v-for="h in [0, 2, 4, 6, 8, 10, 12]" :key="h" :value="h">{{ h ? h + ' ч' : 'не нужен (Кованый, нежить…)' }}</option>
           </select>
         </label>
+        <label class="st-chk elf" title="Эльф уходит в транс на 4 ч вместо сна; длительная тренировка — 20 ч вместо 24. Мастер видит отметку">
+          <input :checked="c.elf" type="checkbox" :disabled="!hero.canWrite" @change="setElf($event.target.checked)" /> 🧝 Я эльф
+        </label>
         <label v-if="master" class="st-f">Свой период между сессиями, ч<input v-model.number="c.limit" type="number" min="0" class="st-in" placeholder="как у всех" title="Весь период (0 — как у всех); отдых вычтется сам" /></label>
       </div>
       <label class="st-f">Особенности героя (видно в журнале)
@@ -63,7 +66,9 @@ import { reactive, ref, watch } from 'vue'
 import { actState, api, toast, loadActivities } from '../../map/store.js'
 
 const props = defineProps({ hero: { type: Object, required: true }, master: Boolean })
-const blank = () => ({ limit: 0, sleep: 8, rest: 'Сон', note: '', favs: [], banned: [] })
+const blank = () => ({ limit: 0, sleep: 8, rest: 'Сон', elf: false, note: '', favs: [], banned: [] })
+// эльф: транс 4 ч вместо 8 ч сна (поправить можно и после)
+const setElf = on => Object.assign(c, on ? { elf: true, sleep: 4, rest: 'Транс' } : { elf: false, sleep: 8, rest: 'Сон' })
 // эльфы и дроу уходят в транс, монахи медитируют, Кованые подзаряжаются
 const REST_KINDS = ['Сон', 'Транс', 'Медитация', 'Подзарядка']
 const c = reactive(blank())
@@ -98,6 +103,7 @@ const saveGlobal = () => run(() => api('PUT', '/api/activities-settings', { ...g
 .st-add { justify-self: start; padding: 4px 10px; border-radius: 8px; border: 1px dashed rgba(231, 197, 111, .4); background: none; color: #e7c56f; font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .st-empty, .st-hint { margin: 0; color: #a8936c; font: 600 12.5px 'Manrope', sans-serif; }
 .st-chk { display: flex; align-items: center; gap: 8px; color: #efe3c8; font: 700 13px 'Manrope', sans-serif; }
+.st-chk.elf { align-self: end; height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(143, 220, 122, .3); background: rgba(143, 220, 122, .07); cursor: pointer; }
 .st-acts { display: flex; }
 .grow { flex: 1; }
 .st-btn { padding: 7px 14px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(231, 197, 111, .08); color: #f3d99a; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }

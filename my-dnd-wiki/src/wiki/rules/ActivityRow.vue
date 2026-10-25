@@ -32,6 +32,8 @@
         <span v-for="w in partners" :key="w.heroId" class="ar-tag with">с {{ w.name.split(' ')[0] }}</span>
         <router-link v-if="city" class="ar-tag place" :to="{ path: '/', query: { focus: 'cities:' + city.id } }" title="Показать на карте">📍 {{ city.name }}</router-link>
         <span v-if="rec.mod" class="ar-tag" title="Место — модификатор из вики">🏛 {{ rec.mod }}</span>
+        <span v-if="rec.mentor || rec.mentorBonus" class="ar-tag mentor" title="Наставник — фиксированный бонус к броску">🎓 <router-link v-if="mentor" :to="mentor.to" :title="`${mentor.kind}: ${mentor.name}`">{{ rec.mentor }}</router-link><template v-else>{{ rec.mentor || 'наставник' }}</template><b v-if="rec.mentorBonus">&nbsp;{{ rec.mentorBonus > 0 ? '+' : '' }}{{ rec.mentorBonus }}</b></span>
+        <span v-if="long && rec.times > 1" class="ar-tag" title="Несколько длительных подряд одной записью">×{{ rec.times }}</span>
         <span v-if="rec.trainId" ref="trainTag" class="ar-tag train" :class="{ ok: rec.applied }" :title="rec.applied ? 'Очки уже в прогрессе тренировки' : 'Очки прибавятся, когда мастер учтёт запись'">
           🏋 {{ trainName || 'тренировка' }} <b>+{{ rec.pts }}</b>{{ rec.applied ? ' ✓' : '' }}
         </span>
@@ -44,6 +46,9 @@
               :title="it.created ? 'Этой вещи не было в листе — игрок сам добавил её в инвентарь из журнала' : it.info?.desc ? 'Новая вещь с описанием' : ''">{{ it.qty > 0 ? '🎒 +' : '🎒 −' }}{{ Math.abs(it.qty) > 1 ? Math.abs(it.qty) + '× ' : '' }}{{ it.name }}{{ it.stored ? ' (склад)' : '' }}{{ it.created ? ' ✨ не было в листе' : '' }}{{ it.info && !it.created ? ' 📝' : '' }}</span>
         <span v-if="purse?.short" class="ar-tag poor" :title="`В листе ${fmtCoins(purse.have)}, тратится ${fmtCoins(purse.need)}`">⚠ не хватает денег</span>
         <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b v-if="!r.long">{{ r.total }}</b><template v-else>{{ longSteps(r) }}<b>{{ r.final }}</b></template><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
+        <!-- ещё не брошено — что будет брошено (проверить, подхватились ли модификаторы) -->
+        <span v-if="preview" class="ar-tag plan" :title="`Ещё не брошено. В среднем ≈ ${preview.avg}${plan.unknown.length ? '. Без числа, не войдут: ' + plan.unknown.join(', ') : ''}`">🎲 {{ preview.text }} = <b>?</b><template v-if="preview.left > 1"> · ещё {{ preview.left }} раза</template></span>
+        <span v-if="longSum" class="ar-tag sum" :title="`Сумма длительных: ${longSum.list.join(' + ')}`">Σ {{ longSum.total }}<template v-if="longSum.left"> + ? ({{ longSum.left }})</template></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
       </div>
       <p v-if="rec.masterEdit && !mirror" class="ar-edited" :title="`Мастер ${rec.masterEdit.by || ''}, ${new Date(rec.masterEdit.at).toLocaleString('ru')}`">✎ Мастер поправил: {{ rec.masterEdit.fields.join(', ') }}</p>
@@ -76,7 +81,8 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, LONG_EXH, nightExh, EXH_MAX, moneyCheck, fmtCoins } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg } from '../../shared/activities.js'
+import { mentorLink } from './mentor.js'
 import LottieFx from './LottieFx.vue'
 import RichText from '../../components/RichText.vue'
 import { stamp } from './lottie.js'
@@ -85,7 +91,8 @@ import { sfx } from '../../sound/sound.js'
 
 const props = defineProps({
   rec: { type: Object, required: true }, hero: { type: Object, default: null }, master: Boolean, showDate: Boolean,
-  wiki: { type: Object, default: null }, mirror: { type: String, default: '' }, coinable: Boolean
+  wiki: { type: Object, default: null }, mirror: { type: String, default: '' }, coinable: Boolean,
+  plan: { type: Object, default: null } // что будет брошено (из журнала: модификаторы, место, наставник, повторение)
 })
 const emit = defineEmits(['status', 'edit', 'remove', 'repeat', 'roll', 'coin', 'reply'])
 const el = ref(null)
@@ -99,22 +106,35 @@ const editable = computed(() => props.master || (props.hero?.canWrite && ['plan'
 const partners = computed(() => (props.rec.with || []).map(id => actState.heroes.find(h => h.heroId === id)).filter(Boolean))
 const city = computed(() => (props.rec.place ? (store.data.cities || []).find(c => c.id === props.rec.place) : null))
 const money = computed(() => [['gold', 'ЗМ'], ['silver', 'СМ'], ['copper', 'ММ']].filter(([k]) => props.rec[k]).map(([k, u]) => `${props.rec[k] > 0 ? '+' : ''}${props.rec[k]} ${u}`).join(' '))
-// длительная тренировка: каждый к20 со своими модами, сумма, +35% (вниз), бонус повторения
+// длительная тренировка: (2к20 + все модификаторы) = total, × 1.35 вниз, потом бонус повторения
 function longSteps(r) {
-  const d20 = (r.groups || []).find(g => g.sides === 20)?.values || []
-  const each = d20.length === 2 ? Math.round(((r.total - d20[0] - d20[1]) / 2) * 100) / 100 : null
-  const part = v => (each ? `(${v}${each > 0 ? '+' : ''}${each})` : String(v))
-  const sum = d20.length === 2 ? `${part(d20[0])} + ${part(d20[1])} = ${r.total}` : String(r.total)
-  return r.add ? `${sum} → +35% = ${Math.floor(r.total * 1.35)} → +${r.add} повт. = ` : `${sum} → +35% = `
+  return r.add ? `${r.total} × 1.35 = ${Math.floor(r.total * 1.35)} + ${r.add} повт. = ` : `${r.total} × 1.35 = `
 }
+const long = computed(() => isLongTraining(props.rec.name))
+const mentor = computed(() => mentorLink(props.rec.mentor))
+// план броска, пока не брошено (у «несколько» — пока брошены не все)
+const longRolls = computed(() => (props.rec.rolls || []).filter(r => r.long))
+const preview = computed(() => {
+  const p = props.plan
+  if (!p || props.rec.status === 'done' || props.mirror || !(p.long || p.items.length || p.dice.length || props.rec.mod || p.rep)) return null
+  const left = p.long ? p.times - longRolls.value.length : props.rec.rolls?.length ? 0 : 1
+  if (left <= 0) return null
+  const a = planAvg(p)
+  return { text: planText(p), left, avg: a.each.length > 1 ? `${a.each.join(' + ')} = ${a.total}` : a.total }
+})
+// несколько длительных — сумма брошенного
+const longSum = computed(() => {
+  if (!long.value || !(props.rec.times > 1) || !longRolls.value.length) return null
+  const list = longRolls.value.slice(0, props.rec.times).map(r => r.final)
+  return { list, total: list.reduce((a, b) => a + b, 0), left: Math.max(0, props.rec.times - list.length) }
+})
 // учтённая — сколько на самом деле ушло в лист; остальные — сколько уйдёт по правилам
 // деньги: хватит ли (до «учтено»; мастеру — метка на проверке)
 const purse = computed(() => (props.rec.status === 'done' ? null : moneyCheck(props.hero?.coins, props.rec)))
 const sleepH = computed(() => actState.cfg[props.hero?.heroId]?.sleep ?? 8)
 const exh = computed(() => (props.rec.status === 'done' ? props.rec.appliedSheet?.want?.exh || 0 : exhOf(props.rec, sleepH.value)))
-// подсказка: откуда число («+4 за тренировку − 2 ночной сон»)
+// подсказка: откуда число
 const exhWhy = computed(() => {
-  if (isLongTraining(props.rec.name) && exh.value === LONG_EXH + nightExh(sleepH.value)) return `+${LONG_EXH} за длительную тренировку, ${nightExh(sleepH.value)} — ночной ${sleepH.value < 8 ? 'транс' : 'сон'} (${sleepH.value} ч) → ${exh.value > 0 ? '+' : ''}${exh.value}`
   return exh.value > 0 ? 'Изнурение в лист (при «учтено»)' : 'Отдых снимает изнурение в листе (при «учтено»): 1 за каждые 3 часа'
 })
 // до 5 — эффект «Сон»: предупредить и игрока, и мастера на проверке
@@ -191,6 +211,11 @@ watch(() => props.rec.status, (now, was) => {
 .ar-tag.item { background: rgba(201, 180, 138, .12); color: #e6d4ad; }
 .ar-tag.roll { background: rgba(127, 180, 255, .12); color: #b9d6ff; }
 .ar-tag.roll b { color: #fff; }
+.ar-tag.plan { background: none; border: 1px dashed rgba(127, 180, 255, .4); color: #9fbfe8; }
+.ar-tag.plan b { color: #f0b54f; }
+.ar-tag.sum { background: rgba(126, 208, 122, .14); color: #b4ecb0; }
+.ar-tag.mentor { background: rgba(231, 197, 111, .12); color: #f3dc9e; }
+.ar-tag.mentor a { color: inherit; text-decoration: underline dotted; }
 .ar-miss { margin-left: 6px; font-style: normal; color: #ffcf7a; }
 .ar-tag.coin { background: rgba(143, 133, 116, .15); color: #c9bda5; }
 .ar-tag.coin.win { background: rgba(243, 211, 107, .16); color: #f3d36b; }

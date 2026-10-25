@@ -81,6 +81,8 @@ function clean(b = {}, old = {}, heroIds = []) {
     pts: I(pick('pts'), -1e6, 1e6),
     place: S(pick('place'), 40), // город на карте
     mod: S(pick('mod'), 80), // место-модификатор из вики («Библиотека»…)
+    mentor: S(pick('mentor'), 80), mentorBonus: I(pick('mentorBonus'), -100, 100), // наставник и его фиксированный бонус к броску
+    times: I(pick('times'), 0, 10), // длительная тренировка: сколько суток подряд в одной записи
     with: [...new Set((Array.isArray(pick('with')) ? pick('with') : []).map(String).filter(id => heroIds.includes(id)))].slice(0, 8),
     gold: I(pick('gold'), -1e7, 1e7), silver: I(pick('silver'), -1e7, 1e7), copper: I(pick('copper'), -1e7, 1e7),
     exp: I(pick('exp'), -1e7, 1e7), exh: I(pick('exh'), -5, 5), // минус — отдых снимает изнурение
@@ -105,7 +107,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
   // отдых героя по умолчанию: эльфы и дроу не спят, а уходят в транс на 4 часа; остальные — сон 8 часов
   const TRANCE = /эльф|дроу|drow|elf/i
   const raceOf = h => sheets.trainingsOfHero(h.id)?.race || h.race || ''
-  const defaultCfg = h => ({ limit: 0, ...(h && TRANCE.test(raceOf(h)) ? { sleep: 4, rest: 'Транс' } : { sleep: 8, rest: 'Сон' }), note: '', favs: [], banned: [] })
+  const defaultCfg = h => ({ limit: 0, ...(h && TRANCE.test(raceOf(h)) ? { sleep: 4, rest: 'Транс', elf: true } : { sleep: 8, rest: 'Сон', elf: false }), note: '', favs: [], banned: [] })
   const cfgOf = id => (store.cfg[id] ||= defaultCfg(heroOf(id)))
   // один раз: уже сохранённые настройки без вида отдыха — по расе (Джилл — дроу: транс 4 ч)
   if (!store.restFix) {
@@ -124,6 +126,21 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
       for (const r of log) if (isLongTraining(r.name) && r.exh === 2 && ['plan', 'pending'].includes(r.status)) r.exh = LONG_EXH
     }
     store.longExhFix = true
+    save()
+  }
+  // один раз: длительная тренировка теперь — сутки со сном (24 ч, эльф 20), 3 выносливости, без изнурения; эльфы — отметкой.
+  // Непроверенные записи со старыми значениями (16 ч, 3,2, авто-изнурение) приводим к новым
+  if (!store.longFix3) {
+    for (const [hid, c] of Object.entries(store.cfg)) if (c.elf === undefined) c.elf = c.rest === 'Транс' || (TRANCE.test(raceOf(heroOf(hid) || {})) && c.sleep === 4)
+    for (const [hid, log] of Object.entries(store.logs)) {
+      for (const r of log) {
+        if (!isLongTraining(r.name) || !['plan', 'pending'].includes(r.status)) continue
+        if ([1, 2, 3, 4].includes(r.exh)) r.exh = 0
+        if (String(r.hours).trim() === '16') r.hours = String(cfgOf(hid).elf ? 20 : 24)
+        if (/^3[,.]2$/.test(String(r.stamina).trim())) r.stamina = '3'
+      }
+    }
+    store.longFix3 = true
     save()
   }
   // один раз: ночной сон сразу снимает 2 (транс 1) — непроверенные длительные с авто-значением 4 → 4 − сон героя
@@ -293,9 +310,9 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (req.user.role !== 'master' && !playerMay(req.user, h, rec)) return fail(res, 403, 'Бросать в проверенную запись нельзя')
     const r = findRoll(req.user, req.body || {})
     if (!r) return fail(res, 409, 'Этот бросок не прошёл через кубики сайта')
-    // длительная тренировка: (2к20 + 2×моды) × 1.35 вниз + бонус повторения — итог считает сервер по проверенному броску
+    // длительная тренировка: (2к20 + модификаторы) × 1.35 вниз + бонус повторения — итог считает сервер по проверенному броску
     const long = !!req.body?.long && isLongTraining(rec.name)
-    const add = long ? I(req.body?.add, 0, 10) : 0
+    const add = long ? I(req.body?.add, 0, 10) : 0 // бонус повторения (у «несколько» — свой у каждого броска)
     rec.rolls = [...(rec.rolls || []), {
       label: S(req.body?.label, 60), notation: r.notation, total: r.total, groups: r.groups, mod: r.mod, adv: r.adv || '', at: r.at,
       ...(long ? { long: true, add, final: longFinal(r.total, add) } : {}), miss: S(req.body?.miss, 200)
@@ -322,6 +339,8 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (!h) return fail(res, 404, 'Нет такого героя')
     if (!canWrite(req.user, h)) return fail(res, 403, 'Это не твой герой')
     const c = cfgOf(h.id), b = req.body || {}
+    // эльф: транс 4 ч вместо сна, длительная тренировка — 20 ч (мастер видит отметку). Сон и отдых, если пришли, — поверх
+    if ('elf' in b && !!b.elf !== !!c.elf) Object.assign(c, b.elf ? { elf: true, sleep: 4, rest: 'Транс' } : { elf: false, sleep: 8, rest: 'Сон' })
     if ('sleep' in b) c.sleep = I(b.sleep, 0, 24)
     if ('rest' in b) c.rest = S(b.rest, 30) || 'Сон' // сон, транс, медитация, подзарядка…
     if ('note' in b) c.note = S(b.note, 2000)
