@@ -89,10 +89,12 @@
               <button v-if="master && s.pending" type="button" class="al-btn ok" @click="setAll(hero, s.rows.filter(r => r.status === 'pending' && !r.mirror), 'done', $event)">✓ Учесть все</button>
             </header>
             <SessionBar :rows="s.free" :limit="budget.free" />
-            <div v-auto-animate class="al-rows">
-              <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :plan="r.mirror ? null : planOf(hero, r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)"
+            <!-- порядок записей — перетаскиванием за значок слева (совместные из чужих журналов не двигаются) -->
+            <VueDraggable :model-value="s.rows" class="al-rows" :disabled="!canSort" handle=".ar-type" draggable=".ar:not(.mirror)" :animation="200" ghost-class="al-ghost"
+                          @update:model-value="list => reorder(s.date, list)">
+              <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :plan="r.mirror ? null : planOf(hero, r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)" :sortable="canSort && !r.mirror"
                            @status="setStatus(hero, r, $event)" @edit="startEdit(heroId, r)" @remove="remove(heroId, r)" @repeat="repeat(heroId, r)" @roll="rollRec(hero, r)" @coin="coin(heroId, r)" @reply="t => reply(heroId, r, t)" />
-            </div>
+            </VueDraggable>
           </section>
           <button v-if="sessions.length > shownSessions.length" type="button" class="al-btn al-more" @click="more += 6">Ещё сессии: {{ sessions.length - shownSessions.length }}</button>
         </template>
@@ -114,6 +116,7 @@ import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll, loadNpcs } from '../../map/store.js'
 import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, repChain, seriesInfo, restBudget, freeRows, exhOf, staminaDouble } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
+import { VueDraggable } from 'vue-draggable-plus'
 import ActivityForm from './ActivityForm.vue'
 import ActivityPlanner from './ActivityPlanner.vue'
 import ActivityStats from './ActivityStats.vue'
@@ -193,6 +196,17 @@ const sessions = computed(() => {
 })
 // изнурение записи: учтённая — что ушло в лист, остальные — что уйдёт по правилам
 const exhRec = r => (r.status === 'done' ? r.appliedSheet?.want?.exh || 0 : exhOf(r, cfg.value.sleep))
+// порядок записей в сессии: свой журнал (или мастер), без поиска и фильтра — иначе видна только часть
+const canSort = computed(() => !!hero.value?.canWrite && !q.value && !stFilter.value)
+async function reorder(date, list) {
+  const ids = list.filter(r => !r.mirror).map(r => r.id)
+  const log = actState.logs[heroId.value] || []
+  const slots = log.map((r, i) => (r.date === date ? i : -1)).filter(i => i >= 0)
+  if (ids.length !== slots.length) return
+  const byId = new Map(log.map(r => [r.id, r]))
+  slots.forEach((slot, i) => { log[slot] = byId.get(ids[i]) }) // сразу на экране, сервер — следом
+  try { await api('POST', `/api/activities-order/${heroId.value}`, { date, ids }) } catch (e) { toast(e.message, 'error'); loadActivities(true) }
+}
 const shownSessions = computed(() => (q.value || stFilter.value ? sessions.value : sessions.value.slice(0, more.value)))
 const queueGroups = computed(() => actState.heroes.map(h => ({ hero: h, rows: logOf(h.heroId).filter(r => r.status === 'pending') })).filter(g => g.rows.length))
 const fmtDate = d => { const t = new Date(d + 'T12:00').toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'short' }); return t.charAt(0).toUpperCase() + t.slice(1) }
@@ -391,6 +405,7 @@ watch(() => [route.query.new, hero.value?.canWrite], ([n, can]) => {
 .al-more { justify-self: center; }
 .al-sess { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 10px; border-radius: 16px; background: rgba(20, 16, 11, .55); border: 1px solid rgba(231, 197, 111, .12); }
 .al-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.al-rows :deep(.al-ghost) { opacity: .35; outline: 2px dashed rgba(231, 197, 111, .6); outline-offset: -2px; }
 .al-sh { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 4px; }
 .al-sh > b { font: 700 18px 'Cormorant Garamond', serif; color: #f3dc9e; }
 .al-sum { padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .04); color: #cdbf9f; font: 800 12px 'Manrope', sans-serif; }

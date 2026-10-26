@@ -2,7 +2,7 @@
   <!-- одна запись журнала: что делал (ссылка на правило в вики), часы, выносливость, результат и броски, статус;
        с кем, где, что ушло в лист. Мастер проверяет — на запись падает печать -->
   <article ref="el" class="ar" :class="['st-' + rec.status, { cut: rec.status === 'cancel', mirror }]" :style="{ '--sc': ST.color, '--cc': CAT.color }">
-    <span class="ar-type" :title="`${CAT.name}${TYPE ? ' · ' + TYPE.name : ''}`">{{ CAT.icon }}</span>
+    <span class="ar-type" :class="{ grip: sortable }" :title="`${CAT.name}${TYPE ? ' · ' + TYPE.name : ''}${sortable ? ' — перетащи, чтобы поменять порядок' : ''}`">{{ CAT.icon }}</span>
     <b class="ar-name">
       <router-link v-if="wiki" class="ar-wiki" :to="{ path: '/wiki', query: { section: 'activities', a: wiki.articleId } }" :title="`В вики: ${wiki.name} — ${wiki.dur}, ${wiki.rate} выносливости в час${wiki.cost ? ', ' + wiki.cost : ''}`">{{ rec.name }}<sup>📖</sup></router-link>
       <template v-else>{{ rec.name }}</template>
@@ -95,6 +95,7 @@ import { sfx } from '../../sound/sound.js'
 const props = defineProps({
   rec: { type: Object, required: true }, hero: { type: Object, default: null }, master: Boolean, showDate: Boolean,
   wiki: { type: Object, default: null }, mirror: { type: String, default: '' }, coinable: Boolean,
+  sortable: Boolean, // можно перетаскивать за значок
   plan: { type: Object, default: null } // что будет брошено (из журнала: модификаторы, место, наставник, повторение)
 })
 const emit = defineEmits(['status', 'edit', 'remove', 'repeat', 'roll', 'coin', 'reply'])
@@ -204,6 +205,9 @@ watch(() => props.rec.status, (now, was) => {
 .ar.st-plan { border-left-style: dashed; background: rgba(185, 166, 255, .04); }
 .ar.mirror { opacity: .72; border-left-style: dotted; }
 .ar-type { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 7px; background: color-mix(in srgb, var(--cc) 18%, transparent); font-size: 13px; }
+.ar-type.grip { cursor: grab; touch-action: none; transition: box-shadow .15s; }
+.ar-type.grip:hover { box-shadow: 0 0 0 1px color-mix(in srgb, var(--cc) 70%, transparent), 0 0 10px color-mix(in srgb, var(--cc) 40%, transparent); }
+.ar-type.grip:active { cursor: grabbing; }
 .ar-name { display: block; color: #efe3c8; font: 700 13.5px/1.35 'Manrope', sans-serif; overflow-wrap: anywhere; }
 .ar-wiki { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(231, 197, 111, .5); }
 .ar-wiki:hover { color: #f3dc9e; border-bottom-color: #e7c56f; }

@@ -249,6 +249,23 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     res.json(rec)
   })
 
+  // порядок записей в сессии (перетаскиванием): записи этой даты встают в присланном порядке на те же места журнала.
+  // От порядка зависит цепочка бонуса повторения — уже брошенное не меняется, новые броски считаются по новому порядку
+  app.post('/api/activities-order/:hero', requireUser, (req, res) => {
+    const h = heroOf(req.params.hero)
+    if (!h) return fail(res, 404, 'Нет такого героя')
+    if (!canWrite(req.user, h)) return fail(res, 403, 'Это не твой герой')
+    const list = store.logs[h.id] || []
+    const date = String(req.body?.date || '')
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(String) : []
+    const slots = list.map((r, i) => (r.date === date ? i : -1)).filter(i => i >= 0)
+    const recs = ids.map(id => list.find(r => r.id === id && r.date === date)).filter(Boolean)
+    if (!slots.length || recs.length !== slots.length || new Set(recs).size !== recs.length) return fail(res, 400, 'Список записей устарел — обнови страницу')
+    slots.forEach((slot, i) => { list[slot] = recs[i] })
+    changed()
+    res.json({ ok: true })
+  })
+
   app.put('/api/activities/:hero/:id', requireUser, (req, res) => {
     const [h, rec] = findRec(req, res)
     if (!h) return
