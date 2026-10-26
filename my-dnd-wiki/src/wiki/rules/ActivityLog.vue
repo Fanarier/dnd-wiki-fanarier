@@ -34,7 +34,7 @@
             <button type="button" class="al-btn ok" @click="setAll(g.hero, g.rows, 'done', $event)">✓ Учесть все</button>
           </header>
           <div v-auto-animate class="al-rows">
-            <ActivityRow v-for="r in g.rows" :key="r.id" :rec="r" :hero="g.hero" :master="master" :show-date="true" :wiki="wikiOf(r)" :plan="planOf(g.hero, r)"
+            <ActivityRow v-for="r in g.rows" :key="r.id" :rec="r" :hero="g.hero" :master="master" :show-date="true" :wiki="wikiOf(r)" :plan="planOf(g.hero, r)" :vod="vodOf(r, g.hero.heroId)"
                          @status="setStatus(g.hero, r, $event)" @edit="startEdit(g.hero.heroId, r)" @remove="remove(g.hero.heroId, r)" @repeat="repeat(g.hero.heroId, r)" @roll="rollRec(g.hero, r)" @reply="t => reply(g.hero.heroId, r, t)" />
           </div>
         </section>
@@ -92,8 +92,8 @@
             <!-- порядок записей — перетаскиванием за значок слева (совместные из чужих журналов не двигаются) -->
             <VueDraggable :model-value="s.rows" class="al-rows" :disabled="!canSort" handle=".ar-type" draggable=".ar:not(.mirror)" :animation="200" ghost-class="al-ghost"
                           @update:model-value="list => reorder(s.date, list)">
-              <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :plan="r.mirror ? null : planOf(hero, r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)" :sortable="canSort && !r.mirror"
-                           @status="setStatus(hero, r, $event)" @edit="startEdit(heroId, r)" @remove="remove(heroId, r)" @repeat="repeat(heroId, r)" @roll="rollRec(hero, r)" @coin="coin(heroId, r)" @reply="t => reply(heroId, r, t)" />
+              <ActivityRow v-for="r in s.rows" :key="r.id + (r.mirror || '')" :rec="r" :hero="hero" :master="master" :wiki="wikiOf(r)" :plan="r.mirror ? null : planOf(hero, r)" :mirror="r.mirror || ''" :coinable="coinable(s, r)" :sortable="canSort && !r.mirror" :vod="r.mirror ? null : vodOf(r, heroId)" :confirmable="!!r.mirror && hero.canWrite"
+                           @status="setStatus(hero, r, $event)" @edit="startEdit(heroId, r)" @remove="remove(heroId, r)" @repeat="repeat(heroId, r)" @roll="rollRec(hero, r)" @coin="coin(heroId, r)" @reply="t => reply(heroId, r, t)" @confirm="confirmVod(r)" />
             </VueDraggable>
           </section>
           <button v-if="sessions.length > shownSessions.length" type="button" class="al-btn al-more" @click="more += 6">Ещё сессии: {{ sessions.length - shownSessions.length }}</button>
@@ -175,8 +175,23 @@ const q = ref('')
 const stFilter = ref('')
 const more = ref(4)
 const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е')
-const mirrors = computed(() => actState.heroes.filter(h => h.heroId !== heroId.value)
-  .flatMap(h => logOf(h.heroId).filter(r => r.with?.includes(heroId.value)).map(r => ({ ...r, mirror: short(h.name) }))))
+// чужие записи «с этим героем»; подтверждённые (ВОД — у героя уже своя связанная запись) не дублируются
+const mirrors = computed(() => {
+  const mine = new Set(logOf(heroId.value).map(r => r.vod).filter(Boolean))
+  return actState.heroes.filter(h => h.heroId !== heroId.value)
+    .flatMap(h => logOf(h.heroId).filter(r => r.with?.includes(heroId.value) && !(r.vod && mine.has(r.vod))).map(r => ({ ...r, mirror: short(h.name), mirrorHero: h.heroId })))
+})
+// ВОД: связанные записи других героев — имя, ссылка на журнал и их броски (последняя серия)
+function vodOf(r, own) {
+  if (!r.vod) return null
+  return actState.heroes.filter(h => h.heroId !== own).flatMap(h => logOf(h.heroId).filter(x => x.vod === r.vod)
+    .map(x => ({ heroId: h.heroId, name: short(h.name), rolls: seriesInfo(x).last })))
+}
+// подтвердить общую деятельность из чужого журнала — у героя появится своя связанная запись
+async function confirmVod(r) {
+  const rec = await call(() => api('POST', `/api/activities-vod/${heroId.value}`, { from: r.mirrorHero, id: r.id }), '🤝 Подтверждено — теперь это взаимная общая деятельность')
+  if (rec) { celebrate(null); sfx('bookPlace', 0.4) }
+}
 const sessions = computed(() => {
   const t = norm(q.value.trim())
   const rows = [...logOf(heroId.value), ...mirrors.value].filter(r => (!stFilter.value || r.status === stFilter.value) && (!t || norm(r.name + ' ' + r.result).includes(t)))

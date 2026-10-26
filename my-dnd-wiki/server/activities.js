@@ -158,6 +158,16 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     ['gold', 'золото'], ['silver', 'серебро'], ['copper', 'бронза'], ['exp', 'опыт'], ['exh', 'изнурение'], ['items', 'вещи'], ['type', 'тип'], ['date', 'дата'], ['mod', 'место']]
   // уведомление хозяину героя (игроку), со ссылкой на его журнал
   const tellOwner = (h, text) => { const pid = sheets.ownerOfHero(h.id) || h.ownerId; if (pid) notify(pid, 'activity', text, { logHero: h.id }) }
+  // ВОД — взаимная общая деятельность: записи разных героев с одним vod. Часы и выносливость общие (пока запись
+  // не проверена), название, описание, броски и награды — у каждого свои
+  const vodRecs = (vod, except) => Object.entries(store.logs).flatMap(([hid, log]) => log.filter(r => r.vod === vod && r !== except).map(r => [hid, r]))
+  // позвали в общую деятельность — игроку героя-партнёра (если ещё не подтвердил)
+  const invite = (h, rec, ids) => {
+    for (const id of ids || []) {
+      const p = heroOf(id)
+      if (p && !(rec.vod && (store.logs[id] || []).some(x => x.vod === rec.vod))) tellOwner(p, `${h.name} зовёт в общую деятельность «${rec.name.slice(0, 60)}» — подтверди в журнале (⋯ у записи)`)
+    }
+  }
 
   // что игроку сейчас нельзя: закрытый мастером период, блокировка, запрет деятельности этому герою
   function playerBlock(h, rec, { creating } = {}) {
@@ -245,8 +255,37 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     list.push(rec)
     if (master) syncSheet(h, rec, req.user)
     else if (status === 'pending' && list.filter(x => x.status === 'pending').length === 1) notify('masters', 'activity', `${h.name}: новые деятельности на проверку`, { logHero: h.id })
+    invite(h, rec, rec.with)
     changed()
     res.json(rec)
+  })
+
+  // подтвердить общую деятельность: у героя появляется своя запись, связанная с исходной (ВОД). Статус — как у исходной
+  // (игроку — черновик или «на проверке»), название и описание сначала те же, дальше у каждого свои
+  app.post('/api/activities-vod/:hero', requireUser, (req, res) => {
+    const h = heroOf(req.params.hero)
+    if (!h) return fail(res, 404, 'Нет такого героя')
+    if (!canWrite(req.user, h)) return fail(res, 403, 'Это не твой герой')
+    const src = heroOf(String(req.body?.from || ''))
+    const a = src && (store.logs[src.id] || []).find(r => r.id === req.body?.id)
+    if (!a || !(a.with || []).includes(h.id)) return fail(res, 404, 'Нет такой общей деятельности')
+    if (a.vod && (store.logs[h.id] || []).some(x => x.vod === a.vod)) return fail(res, 400, 'Уже подтверждено')
+    const list = (store.logs[h.id] ||= [])
+    if (list.length >= PER_HERO) return fail(res, 400, 'Журнал переполнен')
+    const master = req.user.role === 'master'
+    const status = master ? a.status : a.status === 'plan' ? 'plan' : 'pending'
+    const pick = ['date', 'day', 'name', 'hours', 'stamina', 'type', 'result', 'die', 'mod', 'place', 'times']
+    const b = { id: 'a' + crypto.randomBytes(5).toString('hex'), ...clean({ ...Object.fromEntries(pick.map(k => [k, a[k]])), with: [src.id] }, {}, heroes().map(x => x.id)), status, by: req.user.name, at: Date.now() }
+    if (!master) { const why = playerBlock(h, b, { creating: true }); if (why) return fail(res, 403, why) }
+    a.vod ||= 'v' + crypto.randomBytes(5).toString('hex')
+    b.vod = a.vod
+    if (b.status === 'done') b.exhAuto = true
+    list.push(b)
+    if (master) syncSheet(h, b, req.user)
+    else if (status === 'pending' && list.filter(x => x.status === 'pending').length === 1) notify('masters', 'activity', `${h.name}: новые деятельности на проверку`, { logHero: h.id })
+    tellOwner(src, `${h.name}: общая деятельность «${a.name.slice(0, 60)}» подтверждена — теперь она взаимная (ВОД)`)
+    changed()
+    res.json(b)
   })
 
   // порядок записей в сессии (перетаскиванием): записи этой даты встают в присланном порядке на те же места журнала.
@@ -277,6 +316,8 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     else if (!master && PLAYER_STATUS.includes(want)) next.status = want
     if (!master) { const why = playerBlock(h, next, { creating: rec.status === 'plan' && next.status === 'pending' }); if (why) return fail(res, 403, why) }
     const wasPending = rec.status === 'pending'
+    const added = (next.with || []).filter(id => !(rec.with || []).includes(id))
+    const synced = rec.vod && (next.hours !== rec.hours || next.stamina !== rec.stamina)
     if (next.status === 'done' && rec.status !== 'done') next.exhAuto = true // изнурение по правилам — с этого «учтено»
     // мастер поправил запись игрока (результат, очки, монеты…) — запись помнит что именно, игроку уведомление
     const edited = master && rec.by !== req.user.name ? EDIT_FIELDS.filter(([k]) => JSON.stringify(next[k] ?? null) !== JSON.stringify(rec[k] ?? null)).map(([, t]) => t) : []
@@ -287,6 +328,18 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     Object.assign(rec, next)
     if (edited.length) tellOwner(h, `Мастер поправил деятельность «${rec.name.slice(0, 60)}»: ${edited.join(', ')}`)
     if (reply) tellOwner(h, `Мастер ответил на деятельность «${rec.name.slice(0, 60)}»: ${reply.slice(0, 120)}`)
+    invite(h, rec, added)
+    // ВОД: часы и выносливость — у всех связанных записей (кроме уже проверенных мастером)
+    if (synced) {
+      const what = `${rec.hours || '—'} ч, выносливость ${rec.stamina || '—'}`
+      for (const [hid, r] of vodRecs(rec.vod, rec)) {
+        if (!PLAYER_STATUS.includes(r.status) || (r.hours === rec.hours && r.stamina === rec.stamina)) continue
+        Object.assign(r, { hours: rec.hours, stamina: rec.stamina })
+        const p = heroOf(hid)
+        if (p) tellOwner(p, `${h.name} изменил(а) общую деятельность: ${what} — у «${r.name.slice(0, 50)}» так же`)
+      }
+      if (master) tellOwner(h, `Мастер изменил общую деятельность «${rec.name.slice(0, 50)}»: ${what} — у партнёров так же`)
+    }
     if (master && want && want !== 'pending' && want !== 'plan') { rec.checkedBy = req.user.name; rec.checkedAt = Date.now() }
     syncSheet(h, rec, req.user)
     if (!master && !wasPending && rec.status === 'pending' && store.logs[h.id].filter(x => x.status === 'pending').length === 1) notify('masters', 'activity', `${h.name}: новые деятельности на проверку`, { logHero: h.id })
@@ -301,6 +354,12 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     rec.status = 'cancel'
     syncSheet(h, rec, req.user) // всё, что ушло в лист, возвращается
     store.logs[h.id] = store.logs[h.id].filter(x => x !== rec)
+    // ВОД: у партнёров запись остаётся, но без этого героя; остался один — уже не взаимная
+    if (rec.vod) {
+      const rest = vodRecs(rec.vod, rec)
+      for (const [, r] of rest) r.with = (r.with || []).filter(id => id !== h.id)
+      if (rest.length === 1) delete rest[0][1].vod
+    }
     changed()
     res.json({ ok: true })
   })

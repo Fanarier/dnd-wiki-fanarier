@@ -30,6 +30,8 @@
         <span v-if="showDate" class="ar-tag">{{ rec.date.split('-').reverse().join('.') }}</span>
         <span v-if="rec.day" class="ar-tag">день {{ rec.day }}</span>
         <span v-for="w in partners" :key="w.heroId" class="ar-tag with">с {{ w.name.split(' ')[0] }}</span>
+        <router-link v-for="v in vod || []" :key="'v' + v.heroId" class="ar-tag vod" :to="{ query: { ...$route.query, log: v.heroId } }"
+                     title="Взаимная общая деятельность: часы и выносливость общие (меняются у обоих, пока не проверено), название, описание и броски — у каждого свои">🤝 ВОД · {{ v.name }}</router-link>
         <router-link v-if="city" class="ar-tag place" :to="{ path: '/', query: { focus: 'cities:' + city.id } }" title="Показать на карте">📍 {{ city.name }}</router-link>
         <span v-if="rec.mod" class="ar-tag" title="Место — модификатор из вики">🏛 {{ rec.mod }}</span>
         <span v-if="rec.mentor || rec.mentorBonus" class="ar-tag mentor" title="Наставник — фиксированный бонус к броску">🎓 <router-link v-if="mentor" :to="mentor.to" :title="`${mentor.kind}: ${mentor.name}`">{{ rec.mentor }}</router-link><template v-else>{{ rec.mentor || 'наставник' }}</template><b v-if="rec.mentorBonus">&nbsp;{{ rec.mentorBonus > 0 ? '+' : '' }}{{ rec.mentorBonus }}</b></span>
@@ -51,6 +53,11 @@
         <template v-if="showOld"><span v-for="r in series.old" :key="'o' + r.i" class="ar-tag roll old" :title="'Переброшено — не считается. ' + rollTitle(r)">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b>{{ r.final ?? r.total }}</b></span></template>
         <!-- ещё не брошено — что будет брошено (проверить, подхватились ли модификаторы) -->
         <span v-if="preview" class="ar-tag plan" :title="`Ещё не брошено. В среднем ≈ ${preview.avg}${plan.unknown.length ? '. Без числа, не войдут: ' + plan.unknown.join(', ') : ''}`">🎲 {{ preview.text }} = <b>?</b><template v-if="preview.left > 1"> · ещё {{ preview.left }} раза</template></span>
+        <template v-for="v in vod || []" :key="'vr' + v.heroId">
+          <span v-if="v.rolls.length" class="ar-vodrolls"><i>Броски {{ v.name }}:</i>
+            <span v-for="r in v.rolls" :key="r.i" class="ar-tag roll vodr" :class="{ crit: r.twenties, fumble: r.ones }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.notation }} = <b>{{ r.final ?? r.total }}</b></span>
+          </span>
+        </template>
         <span v-if="longSum" class="ar-tag sum" :title="`Сумма длительных: ${longSum.list.join(' + ')}`">Σ {{ longSum.total }}<template v-if="longSum.left"> + ? ({{ longSum.left }})</template></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
       </div>
@@ -62,6 +69,16 @@
           <span class="ar-reply-acts"><button type="button" @click="replying = false">Отмена</button><button type="button" class="go" @click="sendReply">Ответить</button></span>
         </template>
         <p v-else>{{ rec.reply }}</p>
+      </div>
+    </div>
+    <div v-if="mirror && confirmable" class="ar-foot">
+      <span class="ar-by">{{ mirror }} зовёт в общую деятельность</span>
+      <span class="grow" />
+      <div class="ar-more">
+        <button type="button" class="ar-dots" title="Действия" @click="menu = !menu">⋯</button>
+        <div v-if="menu" class="ar-menu" @pointerleave="menu = false">
+          <button type="button" @click="menu = false; $emit('confirm')">🤝 Подтвердить — добавить в свой журнал</button>
+        </div>
       </div>
     </div>
     <div v-if="!mirror" class="ar-foot">
@@ -96,9 +113,12 @@ const props = defineProps({
   rec: { type: Object, required: true }, hero: { type: Object, default: null }, master: Boolean, showDate: Boolean,
   wiki: { type: Object, default: null }, mirror: { type: String, default: '' }, coinable: Boolean,
   sortable: Boolean, // можно перетаскивать за значок
+  vod: { type: Array, default: null }, // взаимная общая деятельность: связанные записи других героев
+  confirmable: Boolean, // чужая запись «с этим героем» — можно подтвердить
   plan: { type: Object, default: null } // что будет брошено (из журнала: модификаторы, место, наставник, повторение)
 })
-const emit = defineEmits(['status', 'edit', 'remove', 'repeat', 'roll', 'coin', 'reply'])
+const emit = defineEmits(['status', 'edit', 'remove', 'repeat', 'roll', 'coin', 'reply', 'confirm'])
+const menu = ref(false)
 const el = ref(null)
 const trainTag = ref(null)
 const ST = computed(() => ACT_STATUS[props.rec.status] || ACT_STATUS.pending)
@@ -232,6 +252,15 @@ watch(() => props.rec.status, (now, was) => {
 .ar-tag.item { background: rgba(201, 180, 138, .12); color: #e6d4ad; }
 .ar-tag.roll { background: rgba(127, 180, 255, .12); color: #b9d6ff; }
 .ar-tag.roll b { color: #fff; }
+.ar-tag.vod { background: rgba(255, 140, 190, .14); color: #ffc3dc; box-shadow: inset 0 0 0 1px rgba(255, 140, 190, .35); }
+.ar-vodrolls { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 10px; border: 1px dashed rgba(255, 140, 190, .35); }
+.ar-vodrolls > i { color: #e6a9c4; font: 700 10.5px 'Manrope', sans-serif; font-style: normal; }
+.ar-tag.roll.vodr { background: rgba(255, 140, 190, .1); color: #f3c9da; }
+.ar-more { position: relative; }
+.ar-dots { width: 30px; height: 26px; border-radius: 8px; border: 1px solid rgba(255, 140, 190, .4); background: rgba(255, 140, 190, .08); color: #ffc3dc; font: 900 15px/1 'Manrope', sans-serif; cursor: pointer; }
+.ar-menu { position: absolute; right: 0; bottom: calc(100% + 4px); z-index: 20; display: grid; min-width: 260px; padding: 4px; border-radius: 10px; border: 1px solid rgba(255, 140, 190, .4); background: #1b1410; box-shadow: 0 12px 28px rgba(0, 0, 0, .6); }
+.ar-menu button { padding: 7px 10px; border: 0; border-radius: 7px; background: none; color: #efe3c8; font: 700 12.5px 'Manrope', sans-serif; text-align: left; cursor: pointer; }
+.ar-menu button:hover { background: rgba(255, 140, 190, .14); }
 .ar-tag.roll.crit { background: rgba(243, 211, 107, .2); color: #ffe7a0; box-shadow: 0 0 10px rgba(243, 211, 107, .35); }
 .ar-tag.roll.fumble { background: rgba(255, 107, 94, .16); color: #ffb3aa; }
 .ar-tag.roll.old { opacity: .55; text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .35); }
