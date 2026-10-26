@@ -87,7 +87,8 @@ export const RES_STYLES = [
 ]
 
 const TRAIT = O({ Name: S(120), Description: S(4000), IsAcquired: B })
-const SKILL = O({ SkillName: S(160), CategoryIndex: I(0, 1), Description: S(20000), IsActiveSymbol: B })
+// категория навыка: 0 — классовый (К), 1 — расовый (Р), 2 — магия (М; только на сайте, в приложение уходит как классовый)
+const SKILL = O({ SkillName: S(160), CategoryIndex: I(0, 2), Description: S(20000), IsActiveSymbol: B })
 const ITEM = N(O({ Name: S(160), ImageFile: IMG, Rarity: S(40), Stats: S(4000), Effects: S(8000) }))
 
 const statsFields = {}

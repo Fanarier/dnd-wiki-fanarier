@@ -135,6 +135,8 @@ function toAppFile(d) {
   out.PhotoPath = ''
   for (const s of EQUIP_SLOTS) if (out[s.key]) { out[s.key].ImageBase64 = fileB64(out[s.key].ImageFile); out[s.key].ImagePath = '' }
   out.Inventory = (out.Inventory || []).map(it => ({ ...it, ImageBase64: fileB64(it.ImageFile) }))
+  // «М — магия» есть только на сайте: приложение знает классовые (0) и расовые (1)
+  for (const k of ['Skills', 'PassiveSkills']) out[k] = (out[k] || []).map(s => (s.CategoryIndex > 1 ? { ...s, CategoryIndex: 0 } : s))
   return out
 }
 

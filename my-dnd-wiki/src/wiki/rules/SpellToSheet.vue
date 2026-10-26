@@ -49,7 +49,7 @@ async function add(s) {
       x.cost ? `Расход: ${x.cost}.` : '',
       x.cd ? `Перезарядка: ${x.cd}.` : ''
     ].filter(Boolean).join(' ')
-    const skill = { SkillName: x.name, CategoryIndex: 0, Description: head + '\n\n' + htmlToText(x.html), IsActiveSymbol: false }
+    const skill = { SkillName: x.name, CategoryIndex: 2, Description: head + '\n\n' + htmlToText(x.html), IsActiveSymbol: false }
     await api('PATCH', `/api/sheets/${s.id}`, { ops: [{ p: 'Skills', v: [...data.Skills, skill] }] })
     toast(`«${x.name}» — в навыках ${s.name}`)
   } catch (e) { toast(e.message, 'error') } finally { busy.value = false }

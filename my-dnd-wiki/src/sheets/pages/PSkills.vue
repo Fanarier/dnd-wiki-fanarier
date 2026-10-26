@@ -19,7 +19,7 @@
           <span v-if="!filtered && !ro" class="sb-handle" title="Перетащить">⠿</span>
           <button type="button" class="sb-dot" :class="{ on: it.IsActiveSymbol }" title="Отметка ● (например, «готов к использованию»)" @click="set(it, 'IsActiveSymbol', !it.IsActiveSymbol)" />
           <Fld :path="`${list}.${model.indexOf(it)}.SkillName`" placeholder="Название навыка" class="pk-name" />
-          <button type="button" class="pk-cat" :class="it.CategoryIndex ? 'r' : 'k'" :title="it.CategoryIndex ? 'Расовый — щёлкни, чтобы сделать классовым' : 'Классовый — щёлкни, чтобы сделать расовым'" @click="set(it, 'CategoryIndex', it.CategoryIndex ? 0 : 1)">{{ it.CategoryIndex ? 'Р' : 'К' }}</button>
+          <button type="button" class="pk-cat" :class="catOf(it).cls" :title="`${catOf(it).name} — щёлкни: ${CAT_INFO[(catOf(it).v + 1) % 3].name.toLowerCase()}`" @click="set(it, 'CategoryIndex', (catOf(it).v + 1) % 3)">{{ catOf(it).ch }}</button>
           <button v-if="!ro" type="button" class="sb-x" :title="editing.has(keyOf(it)) ? 'Готово' : 'Править описание'" @click="toggle(it)">{{ editing.has(keyOf(it)) ? '✓' : '✎' }}</button>
           <button v-if="!ro" type="button" class="sb-x" title="Удалить навык" @click="del(it)">✕</button>
         </header>
@@ -45,7 +45,10 @@ import { sheet, edit, keyOf, listOps } from '../sheetState.js'
 const props = defineProps({ list: { type: String, default: 'Skills' } })
 const ro = inject('sheetReadOnly', ref(false))
 const title = computed(() => (props.list === 'Skills' ? 'Активные навыки' : 'Пассивные навыки'))
-const CATS = [{ v: -1, t: 'Все' }, { v: 0, t: 'Классовые (К)' }, { v: 1, t: 'Расовые (Р)' }]
+const CATS = [{ v: -1, t: 'Все' }, { v: 0, t: 'Классовые (К)' }, { v: 1, t: 'Расовые (Р)' }, { v: 2, t: 'Магия (М)' }]
+// категория: щелчок по букве — К → Р → М → К
+const CAT_INFO = [{ v: 0, ch: 'К', cls: 'k', name: 'Классовый' }, { v: 1, ch: 'Р', cls: 'r', name: 'Расовый' }, { v: 2, ch: 'М', cls: 'm', name: 'Магия' }]
+const catOf = it => CAT_INFO[it.CategoryIndex] || CAT_INFO[0]
 const q = ref(''), cat = ref(-1), onlyMarked = ref(false)
 const items = computed(() => sheet.data[props.list] || [])
 const ops = computed(() => listOps(props.list))
@@ -82,6 +85,7 @@ function del(it) {
 .pk-cat { flex: none; width: 26px; height: 26px; border-radius: 7px; border: 1px solid; background: none; font: 800 12px 'Manrope', sans-serif; cursor: pointer; }
 .pk-cat.k { color: #7cc4ff; border-color: rgba(124, 196, 255, .45); }
 .pk-cat.r { color: #ffb36b; border-color: rgba(255, 179, 107, .45); }
+.pk-cat.m { color: #c9a6ff; border-color: rgba(201, 166, 255, .5); box-shadow: 0 0 8px rgba(170, 130, 255, .25); }
 .pk-desc { margin: 6px 4px 2px 30px; color: color-mix(in srgb, var(--ink) 88%, transparent); font: 500 13.5px/1.55 'Manrope', sans-serif; }
 .pk-desc.clamp { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .pk-more { margin-left: 30px; padding: 0; border: 0; background: none; color: var(--acc); font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
