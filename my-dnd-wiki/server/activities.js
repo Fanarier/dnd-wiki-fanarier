@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
-import { isLongTraining, longFinal, LONG_EXH, exhOf, longExhNet } from '../src/shared/activities.js'
+import { isLongTraining, longFinal, LONG_MULT, LONG_EXH, exhOf, longExhNet } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -310,12 +310,12 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (req.user.role !== 'master' && !playerMay(req.user, h, rec)) return fail(res, 403, 'Бросать в проверенную запись нельзя')
     const r = findRoll(req.user, req.body || {})
     if (!r) return fail(res, 409, 'Этот бросок не прошёл через кубики сайта')
-    // длительная тренировка: (2к20 + модификаторы) × 1.35 вниз + бонус повторения — итог считает сервер по проверенному броску
+    // длительная тренировка: (2к20 + модификаторы) × LONG_MULT вниз + бонус повторения — итог считает сервер по проверенному броску
     const long = !!req.body?.long && isLongTraining(rec.name)
     const add = long ? I(req.body?.add, 0, 10) : 0 // бонус повторения (у «несколько» — свой у каждого броска)
     rec.rolls = [...(rec.rolls || []), {
       label: S(req.body?.label, 60), notation: r.notation, total: r.total, groups: r.groups, mod: r.mod, adv: r.adv || '', at: r.at,
-      ...(long ? { long: true, add, final: longFinal(r.total, add) } : {}), miss: S(req.body?.miss, 200)
+      ...(long ? { long: true, add, mult: LONG_MULT, final: longFinal(r.total, add) } : {}), miss: S(req.body?.miss, 200)
     }].slice(-30)
     changed()
     res.json(rec)

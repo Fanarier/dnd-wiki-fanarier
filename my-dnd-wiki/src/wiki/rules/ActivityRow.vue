@@ -106,9 +106,11 @@ const editable = computed(() => props.master || (props.hero?.canWrite && ['plan'
 const partners = computed(() => (props.rec.with || []).map(id => actState.heroes.find(h => h.heroId === id)).filter(Boolean))
 const city = computed(() => (props.rec.place ? (store.data.cities || []).find(c => c.id === props.rec.place) : null))
 const money = computed(() => [['gold', 'ЗМ'], ['silver', 'СМ'], ['copper', 'ММ']].filter(([k]) => props.rec[k]).map(([k, u]) => `${props.rec[k] > 0 ? '+' : ''}${props.rec[k]} ${u}`).join(' '))
-// длительная тренировка: (2к20 + все модификаторы) = total, × 1.35 вниз, потом бонус повторения
+// длительная тренировка: (2к20 + все модификаторы) = total, × множитель вниз, потом бонус повторения.
+// Множитель — с которым бросали (старые броски — × 1.35)
 function longSteps(r) {
-  return r.add ? `${r.total} × 1.35 = ${Math.floor(r.total * 1.35)} + ${r.add} повт. = ` : `${r.total} × 1.35 = `
+  const k = r.mult || 1.35
+  return r.add ? `${r.total} × ${k} = ${Math.floor(r.total * k)} + ${r.add} повт. = ` : `${r.total} × ${k} = `
 }
 const long = computed(() => isLongTraining(props.rec.name))
 const mentor = computed(() => mentorLink(props.rec.mentor))

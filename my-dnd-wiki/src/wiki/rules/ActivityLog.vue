@@ -305,7 +305,7 @@ function planOf(h, r) {
   return rollPlan(r, mods.value.find(x => x.name === r.mod), rep)
 }
 function rollRec(h, r) {
-  // модификаторы из строки «Модификаторы броска: …» (и наставник) складываются сами, один раз; длительная — 2к20 и × 1.35
+  // модификаторы из строки «Модификаторы броска: …» (и наставник) складываются сами, один раз; длительная — 2к20 и × LONG_MULT
   const plan = planOf(h, r)
   const label = r.name.replace(/\s*\(.*$/, '').slice(0, 40)
   if (plan.long && !plan.items.length && !plan.dice.length && !r.mod) toast('В описании нет строки «Модификаторы броска: …» с числами — кидается 2к20 без модов', 'error')
