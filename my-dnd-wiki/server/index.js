@@ -1270,12 +1270,20 @@ app.delete('/api/heroes/:id/gallery/:gid', requireUser, (req, res) => {
 
 const STATIC_IMG = { maxAge: '30d', immutable: true, index: false, setHeaders: r => r.setHeader('X-Content-Type-Options', 'nosniff') }
 app.use('/portraits', express.static(PORTRAIT_DIR, STATIC_IMG))
-registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
+registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt, onChange: () => (getDb().heroes || []).forEach(heroFromSheet) })
 registerBestiaryRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
 sheetApi = registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players: allPlayers, getDb, broadcast })
-// лист главнее карточки: уровень, БМ и выносливость героя с листом всегда из листа (без листа — карточка как есть)
+// лист главнее карточки: уровень, БМ и выносливость героя с листом всегда из листа. Сайд-кики и компаньоны — из своего
+// листа НПС (вики → НПС, привязан к карточке): «Уровень» и «БМ». Без листа — карточка как есть
+const npcNum = v => { const m = String(v ?? '').match(/^\s*\+?(-?\d+)\s*$/); return m ? Number(m[1]) : null }
+function npcCardOf(h) {
+  const n = (getDb().npcs || []).find(x => x.heroId === h.id)
+  if (!n) return null
+  const lv = npcNum(n.info?.find(x => x.k === 'Уровень')?.v), bm = npcNum(n.combat?.['БМ'])
+  return { level: lv != null && lv > 0 ? lv : null, bm: bm != null ? (bm >= 0 ? '+' : '') + bm : null, stamina: null }
+}
 function heroFromSheet(h) {
-  const c = sheetApi?.cardOfHero(h.id)
+  const c = sheetApi?.cardOfHero(h.id) || npcCardOf(h)
   if (!c) return false
   let ch = false
   for (const k of ['level', 'bm', 'stamina']) if (c[k] != null && h[k] !== c[k]) { h[k] = c[k]; ch = true }

@@ -72,9 +72,10 @@ const cleanEffect = (b = {}, old = {}) => ({
   desc: S(b.desc ?? old.desc, 2000)
 })
 
-export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt }) {
+export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt, onChange }) {
   const db = () => getDb()
-  const changed = () => { db().npcsRev = (db().npcsRev || 0) + 1; saveDb(); broadcast() }
+  // onChange — карточки героев, привязанные к листу НПС (сайд-кики, компаньоны), берут из него уровень и БМ
+  const changed = () => { db().npcsRev = (db().npcsRev || 0) + 1; onChange?.(); saveDb(); broadcast() }
   const find = id => db().npcs.find(n => n.id === id)
   const dropFile = f => { if (f) try { fs.unlinkSync(path.join(PORTRAIT_DIR, path.basename(f))) } catch { /* нет файла */ } }
 
