@@ -112,7 +112,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll, loadNpcs } from '../../map/store.js'
-import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, restBudget, freeRows, exhOf, staminaDouble } from '../../shared/activities.js'
+import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, repChain, seriesInfo, restBudget, freeRows, exhOf, staminaDouble } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
 import ActivityForm from './ActivityForm.vue'
 import ActivityPlanner from './ActivityPlanner.vue'
@@ -301,25 +301,29 @@ function planOf(h, r) {
   if (!h) return null
   const n = normAct(r.name)
   const same = logOf(h.heroId).filter(x => x.date === r.date && normAct(x.name) === n && x.status !== 'cancel')
-  const rep = r.type === 'repeat' ? Math.min(10, Math.max(0, same.findIndex(x => x.id === r.id))) : 0
-  return rollPlan(r, mods.value.find(x => x.name === r.mod), rep)
+  return rollPlan(r, mods.value.find(x => x.name === r.mod), repChain(same, r))
 }
 function rollRec(h, r) {
   // модификаторы из строки «Модификаторы броска: …» (и наставник) складываются сами, один раз; длительная — 2к20 и × LONG_MULT
   const plan = planOf(h, r)
   const label = r.name.replace(/\s*\(.*$/, '').slice(0, 40)
-  if (plan.long && !plan.items.length && !plan.dice.length && !r.mod) toast('В описании нет строки «Модификаторы броска: …» с числами — кидается 2к20 без модов', 'error')
+  if (plan.long && !plan.items.length && !plan.dice.length && !r.mod) toast(`В описании нет строки «Модификаторы броска: …» с числами — кидается 2к${plan.die} без модов`, 'error')
   else if (plan.unknown.length) toast(`Без числа, в бросок не вошли: ${plan.unknown.join(', ')}`)
-  // «несколько» (×N): N бросков подряд, у каждого свой бонус повторения; уже брошенные — пропускаем
-  const done = (r.rolls || []).filter(x => x.long).length
+  // «несколько» (×N): N бросков подряд, у каждого свой бонус повторения. Серия не добрана — докидываем;
+  // добрана — это переброс: новая серия, прежние броски остаются в записи, но не считаются
+  const si = seriesInfo(r)
+  const series = si.full ? si.cur + 1 : si.cur
   const one = i => {
-    const lb = plan.times > 1 ? `${label} ${i + 1}/${plan.times}` : label
-    requestRoll({ formula: plan.formula, label: lb, onDone: async roll => {
-      await send(h.heroId, r, { ...roll, label: lb, long: plan.long, add: plan.adds[i], miss: plan.unknown.join(', ') })
-      if (i + 1 < plan.times) setTimeout(() => one(i + 1), 900)
+    // бонус повторения — по свежей записи: натуральная 1 в прошлом броске его сбросила
+    const fresh = logOf(h.heroId).find(x => x.id === r.id) || r
+    const p = planOf(h, fresh)
+    const lb = p.times > 1 ? `${label} ${i + 1}/${p.times}` : label
+    requestRoll({ formula: p.formula, label: lb, onDone: async roll => {
+      await send(h.heroId, r, { ...roll, label: lb, long: p.long, add: p.adds[i] ?? 0, base: p.base, series, miss: p.unknown.join(', ') })
+      if (i + 1 < p.times) setTimeout(() => one(i + 1), 900)
     } })
   }
-  one(plan.long && done < plan.times ? done : 0)
+  one(si.full ? 0 : si.done)
 }
 async function send(hid, r, roll, retry = true) {
   await new Promise(res => setTimeout(res, 400)) // бросок сначала проходит по сокету — запись принимается после

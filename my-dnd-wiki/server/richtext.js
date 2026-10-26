@@ -38,10 +38,18 @@ const OPTS = {
 }
 export const looksHtml = s => /<[a-z][^>]*>/i.test(s)
 
-export function cleanRich(v, max = 20000) {
+// фото в тексте (журнал деятельностей): только свои, загруженные на сайт (/act-img/…)
+const ACT_IMG_RE = /^\/act-img\/[a-f0-9]{24}\.(webp|jpg|png|gif)$/
+const IMG_OPTS = {
+  ...OPTS,
+  allowedTags: [...OPTS.allowedTags, 'img'],
+  allowedAttributes: { ...OPTS.allowedAttributes, img: ['src', 'alt'] },
+  exclusiveFilter: f => f.tag === 'img' && !ACT_IMG_RE.test(f.attribs.src || '')
+}
+export function cleanRich(v, max = 20000, { images = false } = {}) {
   const s = v == null ? '' : String(v).slice(0, max * 2)
   if (!looksHtml(s)) return s.slice(0, max)
-  return sanitizeHtml(s, OPTS).slice(0, max)
+  return sanitizeHtml(s, images ? IMG_OPTS : OPTS).slice(0, max)
 }
 
 // Правила (расы, классы, статьи вики): то же и ещё линия, h2, ширины колонок

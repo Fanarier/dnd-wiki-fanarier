@@ -20,6 +20,8 @@ export default defineConfig({
       '/portraits': 'http://127.0.0.1:3001',
       '/arts': 'http://127.0.0.1:3001',
       '/sheet-img': 'http://127.0.0.1:3001',
+      '/act-img': 'http://127.0.0.1:3001',
+      '/rules-img': 'http://127.0.0.1:3001',
       '/ws': { target: 'ws://127.0.0.1:3001', ws: true }
     }
   }

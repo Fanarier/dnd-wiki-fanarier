@@ -24,7 +24,7 @@
       </span>
     </div>
     <div class="ar-body">
-      <RichText v-if="rec.result" class="ar-res" :text="rec.result" />
+      <RichText v-if="rec.result" class="ar-res" :text="rec.result" @click="openImg" />
       <div class="ar-meta">
         <span v-if="mirror" class="ar-tag mir" title="Совместная деятельность — запись в журнале другого героя, в суммы этого не входит">↔ из журнала {{ mirror }}</span>
         <span v-if="showDate" class="ar-tag">{{ rec.date.split('-').reverse().join('.') }}</span>
@@ -45,7 +45,10 @@
         <span v-for="(it, i) in rec.items || []" :key="'i' + i" class="ar-tag item" :class="{ ok: rec.appliedSheet, made: it.created }"
               :title="it.created ? 'Этой вещи не было в листе — игрок сам добавил её в инвентарь из журнала' : it.info?.desc ? 'Новая вещь с описанием' : ''">{{ it.qty > 0 ? '🎒 +' : '🎒 −' }}{{ Math.abs(it.qty) > 1 ? Math.abs(it.qty) + '× ' : '' }}{{ it.name }}{{ it.stored ? ' (склад)' : '' }}{{ it.created ? ' ✨ не было в листе' : '' }}{{ it.info && !it.created ? ' 📝' : '' }}</span>
         <span v-if="purse?.short" class="ar-tag poor" :title="`В листе ${fmtCoins(purse.have)}, тратится ${fmtCoins(purse.need)}`">⚠ не хватает денег</span>
-        <span v-for="(r, i) in rec.rolls || []" :key="'r' + i" class="ar-tag roll" :title="`Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b v-if="!r.long">{{ r.total }}</b><template v-else>{{ longSteps(r) }}<b>{{ r.final }}</b></template><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
+        <span v-for="r in series.last" :key="'r' + r.i" class="ar-tag roll" :class="{ crit: r.twenties, fumble: r.ones }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <template v-if="steps(r)">{{ r.total }}{{ steps(r) }}</template><b>{{ r.final ?? r.total }}</b><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
+        <!-- переброшено: прежние броски остаются в записи (видно, что было), но не считаются -->
+        <button v-if="series.old.length" type="button" class="ar-tag oldbtn" :title="showOld ? 'Спрятать прежние броски' : 'Показать, что выпадало до переброса'" @click="showOld = !showOld">↺ перебросы: {{ series.old.length }}</button>
+        <template v-if="showOld"><span v-for="r in series.old" :key="'o' + r.i" class="ar-tag roll old" :title="'Переброшено — не считается. ' + rollTitle(r)">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b>{{ r.final ?? r.total }}</b></span></template>
         <!-- ещё не брошено — что будет брошено (проверить, подхватились ли модификаторы) -->
         <span v-if="preview" class="ar-tag plan" :title="`Ещё не брошено. В среднем ≈ ${preview.avg}${plan.unknown.length ? '. Без числа, не войдут: ' + plan.unknown.join(', ') : ''}`">🎲 {{ preview.text }} = <b>?</b><template v-if="preview.left > 1"> · ещё {{ preview.left }} раза</template></span>
         <span v-if="longSum" class="ar-tag sum" :title="`Сумма длительных: ${longSum.list.join(' + ')}`">Σ {{ longSum.total }}<template v-if="longSum.left"> + ? ({{ longSum.left }})</template></span>
@@ -81,7 +84,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg, seriesInfo } from '../../shared/activities.js'
 import { mentorLink } from './mentor.js'
 import LottieFx from './LottieFx.vue'
 import RichText from '../../components/RichText.vue'
@@ -106,28 +109,40 @@ const editable = computed(() => props.master || (props.hero?.canWrite && ['plan'
 const partners = computed(() => (props.rec.with || []).map(id => actState.heroes.find(h => h.heroId === id)).filter(Boolean))
 const city = computed(() => (props.rec.place ? (store.data.cities || []).find(c => c.id === props.rec.place) : null))
 const money = computed(() => [['gold', 'ЗМ'], ['silver', 'СМ'], ['copper', 'ММ']].filter(([k]) => props.rec[k]).map(([k, u]) => `${props.rec[k] > 0 ? '+' : ''}${props.rec[k]} ${u}`).join(' '))
-// длительная тренировка: (2к20 + все модификаторы) = total, × множитель вниз, потом бонус повторения.
-// Множитель — с которым бросали (старые броски — × 1.35)
-function longSteps(r) {
-  const k = r.mult || 1.35
-  return r.add ? `${r.total} × ${k} = ${Math.floor(r.total * k)} + ${r.add} повт. = ` : `${r.total} × ${k} = `
+// как получился итог: натуральные на к20 (20 — ×2, 1 — не в счёт), у длительной × множитель (с которым бросали;
+// старые — × 1.35), бонус повторения. Пусто — итог равен броску
+function steps(r) {
+  if (r.final == null) return ''
+  let s = ''
+  if (r.sum != null && r.sum !== r.total) s += ` → ${[r.twenties && '20 ×2', r.ones && '1 не в счёт'].filter(Boolean).join(', ')}: ${r.sum}`
+  const base = r.sum ?? r.total
+  if (r.long) s += ` × ${r.mult || 1.35}` + (r.add ? ` = ${Math.floor(base * (r.mult || 1.35))}` : '')
+  if (r.add) s += ` + ${r.add} повт.`
+  if (r.reset) s += ' (повторение сначала)'
+  return s ? s + ' = ' : ''
 }
+// фото в описании — открыть целиком
+const openImg = e => { if (e.target.tagName === 'IMG') window.open(e.target.src, '_blank', 'noopener') }
+const rollTitle = r => `Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.twenties ? '. Натуральная 20 — кубик ×2' : ''}${r.ones ? '. Натуральная 1 — кубик не в счёт, бонус повторения начинается заново' : ''}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`
 const long = computed(() => isLongTraining(props.rec.name))
 const mentor = computed(() => mentorLink(props.rec.mentor))
+// броски: последняя серия считается, прежние (переброшенные) — под кнопкой
+const series = computed(() => seriesInfo(props.rec))
+const showOld = ref(false)
 // план броска, пока не брошено (у «несколько» — пока брошены не все)
-const longRolls = computed(() => (props.rec.rolls || []).filter(r => r.long))
 const preview = computed(() => {
   const p = props.plan
-  if (!p || props.rec.status === 'done' || props.mirror || !(p.long || p.items.length || p.dice.length || props.rec.mod || p.rep)) return null
-  const left = p.long ? p.times - longRolls.value.length : props.rec.rolls?.length ? 0 : 1
+  if (!p || props.rec.status === 'done' || props.mirror || !(p.long || p.items.length || p.dice.length || props.rec.mod || p.rep || p.die !== 20)) return null
+  const left = series.value.full ? 0 : series.value.need - series.value.done
   if (left <= 0) return null
   const a = planAvg(p)
   return { text: planText(p), left, avg: a.each.length > 1 ? `${a.each.join(' + ')} = ${a.total}` : a.total }
 })
 // несколько длительных — сумма брошенного
 const longSum = computed(() => {
-  if (!long.value || !(props.rec.times > 1) || !longRolls.value.length) return null
-  const list = longRolls.value.slice(0, props.rec.times).map(r => r.final)
+  const last = series.value.last
+  if (!long.value || !(props.rec.times > 1) || !last.length) return null
+  const list = last.slice(0, props.rec.times).map(r => r.final ?? r.total)
   return { list, total: list.reduce((a, b) => a + b, 0), left: Math.max(0, props.rec.times - list.length) }
 })
 // учтённая — сколько на самом деле ушло в лист; остальные — сколько уйдёт по правилам
@@ -213,6 +228,11 @@ watch(() => props.rec.status, (now, was) => {
 .ar-tag.item { background: rgba(201, 180, 138, .12); color: #e6d4ad; }
 .ar-tag.roll { background: rgba(127, 180, 255, .12); color: #b9d6ff; }
 .ar-tag.roll b { color: #fff; }
+.ar-tag.roll.crit { background: rgba(243, 211, 107, .2); color: #ffe7a0; box-shadow: 0 0 10px rgba(243, 211, 107, .35); }
+.ar-tag.roll.fumble { background: rgba(255, 107, 94, .16); color: #ffb3aa; }
+.ar-tag.roll.old { opacity: .55; text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .35); }
+.ar-tag.oldbtn { border: 1px dashed rgba(231, 197, 111, .35); background: none; color: #a8936c; cursor: pointer; }
+.ar-res :deep(img) { display: block; max-width: min(100%, 420px); max-height: 300px; margin: 6px 0; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .25); cursor: zoom-in; object-fit: contain; }
 .ar-tag.plan { background: none; border: 1px dashed rgba(127, 180, 255, .4); color: #9fbfe8; }
 .ar-tag.plan b { color: #f0b54f; }
 .ar-tag.sum { background: rgba(126, 208, 122, .14); color: #b4ecb0; }

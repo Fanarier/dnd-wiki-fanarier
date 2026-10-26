@@ -22,6 +22,9 @@
       <label class="af-f sm">Тип
         <select v-model="m.type" class="af-in"><option value="">—</option><option v-for="(t, k) in ACT_TYPES" :key="k" :value="k">{{ t.icon }} {{ t.name }}</option></select>
       </label>
+      <label class="af-f xs" title="Базовый кубик броска. На к20: натуральная 1 — кубик не в счёт и бонус повторения сначала, 20 — кубик ×2">Кубик
+        <select v-model.number="m.die" class="af-in"><option v-for="d in ACT_DICE" :key="d" :value="d">к{{ d }}</option></select>
+      </label>
       <label v-if="planDays" class="af-f sm">День<select v-model.number="m.day" class="af-in"><option :value="0">—</option><option v-for="d in planDays" :key="d" :value="d">{{ d }}</option></select></label>
       <label v-if="long" class="af-chk af-multi" title="Несколько длительных подряд одной записью: всё ×N, кубики кидаются N раз, бонус повторения растёт"><input v-model="multi" type="checkbox" /> несколько</label>
       <label v-if="long && multi" class="af-f xs">Сколько раз<span class="af-x-in">×<input v-model.number="m.times" type="number" min="2" max="10" class="af-in" /></span></label>
@@ -31,14 +34,14 @@
     </div>
     <p v-if="hint || repeatNo > 1 || sleepWarn || formula || dblOffer" class="af-hint">
       <template v-if="hint">📖 В вики: <router-link :to="{ path: '/wiki', query: { section: 'activities', a: hint.articleId } }" target="_blank">{{ hint.name }}</router-link> <template v-if="!long"> — {{ hint.dur }}, {{ hint.rate }} выносливости в час</template><template v-if="num(m.hours) && !long"> → {{ autoSt }}<template v-if="exhK > 1"> (×2 — у героя изнурение)</template></template>. </template>
-      <template v-if="repeatNo > 1">↻ Повтор №{{ repeatNo }} в этой сессии — <b>+{{ repBonus }}</b> к броску. </template>
+      <template v-if="repeatNo > 1 || repBonus">↻ Повтор №{{ repeatNo }} в этой сессии — <b>+{{ repBonus }}</b> к броску<template v-if="hadReset"> (выпадала 1 — счёт начат заново)</template>. </template>
       <b v-if="sleepWarn" class="af-sleep">{{ sleepWarn }} </b>
       <span v-if="dblOffer" class="af-dbl">😵 У героя {{ hero.exh }} изнур. — выносливость удваивается: <b>{{ dblOffer.from }} → {{ dblOffer.to }}</b>
         <button type="button" class="af-dbl-yes" @click="applyDbl">Пересчитать</button><button type="button" class="af-dbl-no" @click="keepSt = true">Оставить</button></span>
       <template v-if="long">🌙 Длительная — сутки вместе {{ cfg.elf ? 'с трансом' : 'со сном' }}: {{ longH }} ч, {{ LONG_STAMINA }} выносливости, без изнурения<template v-if="plan.times > 1"> — ×{{ plan.times }}: {{ longH * plan.times }} ч, {{ LONG_STAMINA * plan.times }} выносливости</template>. </template>
       <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b><template v-if="plan.times > 1"> — {{ plan.times }} раза</template>, в среднем ≈ {{ avg.each.length > 1 ? avg.each.join(' + ') + ' = ' + avg.total : avg.total }} — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
-    <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" :snippets="ACT_SNIPPETS" placeholder="Броски, очки, что получилось… «!Мод» + Tab — «Модификаторы броска: »" :min-height="44" /></div>
+    <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" images :snippets="ACT_SNIPPETS" placeholder="Броски, очки, что получилось… «!Мод» + Tab — «Модификаторы броска: »" :min-height="44" /></div>
 
     <button type="button" class="af-more" @click="more = !more">{{ more ? '▴ Меньше' : '▾ Подробнее: с кем, где, тренировка, монеты, вещи' }}<small v-if="!more && extras"> · заполнено: {{ extras }}</small></button>
     <div v-if="more" class="af-extra">
@@ -128,7 +131,7 @@ import RichInput from '../../components/rich/RichInput.vue'
 import ActNameInput from './ActNameInput.vue'
 import ItemQuick from './ItemQuick.vue'
 import { api, toast } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, planText, planAvg, isLongTraining, longHours, LONG_STAMINA, ACT_SNIPPETS, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, repChain, seriesInfo, ACT_DICE, planText, planAvg, isLongTraining, longHours, LONG_STAMINA, ACT_SNIPPETS, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
 import { mentorHints as allMentors, mentorLink } from './mentor.js'
 
 const m = defineModel({ type: Object, required: true })
@@ -138,7 +141,7 @@ const props = defineProps({
 })
 const emit = defineEmits(['save', 'cancel', 'fav'])
 // старые записи без новых полей
-for (const [k, v] of Object.entries({ with: [], items: [], place: '', mod: '', mentor: '', mentorBonus: 0, times: 0, gold: 0, silver: 0, copper: 0, exp: 0, exh: 0, day: 0, trainId: '', pts: 0 })) if (m.value[k] == null) m.value[k] = Array.isArray(v) ? [] : v
+for (const [k, v] of Object.entries({ with: [], items: [], place: '', mod: '', mentor: '', mentorBonus: 0, times: 0, die: 20, gold: 0, silver: 0, copper: 0, exp: 0, exh: 0, day: 0, trainId: '', pts: 0 })) if (m.value[k] == null) m.value[k] = Array.isArray(v) ? [] : v
 
 const log = computed(() => actState.logs[props.hero?.heroId] || [])
 const cfg = computed(() => actState.cfg[props.hero?.heroId] || {})
@@ -202,10 +205,17 @@ const repeatNo = computed(() => {
   const n = normAct(m.value.name)
   return log.value.filter(r => r.date === m.value.date && r.id !== m.value.id && normAct(r.name) === n && r.status !== 'cancel').length + 1
 })
-const repBonus = computed(() => Math.min(10, Math.max(0, repeatNo.value - 1)))
 const mod = computed(() => props.mods.find(x => x.name === m.value.mod))
+// бонус повторения — по цепочке попыток сессии (натуральная 1 начинает счёт заново)
+const adds = computed(() => {
+  const n = normAct(m.value.name)
+  const same = log.value.filter(r => r.date === m.value.date && normAct(r.name) === n && r.status !== 'cancel')
+  return repChain(same, { ...m.value, id: m.value.id || '__new' })
+})
+const repBonus = computed(() => adds.value[0] || 0)
+const hadReset = computed(() => log.value.some(r => r.date === m.value.date && r.id !== m.value.id && normAct(r.name) === normAct(m.value.name) && seriesInfo(r).last.some(x => x.reset)))
 // бросок: модификаторы из строки «Модификаторы броска: …» складываются сами
-const plan = computed(() => rollPlan(m.value, mod.value, m.value.type === 'repeat' ? repBonus.value : 0))
+const plan = computed(() => rollPlan(m.value, mod.value, adds.value))
 const formula = computed(() => {
   const p = plan.value
   if (!(m.value.type === 'repeat' || mod.value || p.items.length || p.dice.length || p.long || p.repSet)) return ''

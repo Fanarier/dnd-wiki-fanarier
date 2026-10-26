@@ -3,6 +3,7 @@
 //   npm start                 — собрать сайт и запустить всё на одном порту
 import fs from 'node:fs'
 import path from 'node:path'
+import crypto from 'node:crypto'
 import http from 'node:http'
 import express from 'express'
 import { WebSocketServer } from 'ws'
@@ -1276,6 +1277,18 @@ registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })
 // правила: расы, классы, механики (отдельный файл, в состоянии — только номер версии)
 rulesApi = registerRulesRoutes(app, { express, requireMaster, requireUser, userOf, broadcast, imageExt })
 app.use('/rules-img', express.static(RULES_IMG_DIR, STATIC_IMG))
+// фото в описании деятельности: сайт уже сжал (webp до 1600 px); имя — по содержимому, одинаковые не копятся
+const ACT_IMG_DIR = path.join(path.dirname(PORTRAIT_DIR), 'act-img')
+app.post('/api/activities-img', requireUser, express.raw({ type: () => true, limit: '4mb' }), (req, res) => {
+  const ext = imageExt(req.body)
+  if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
+  const name = crypto.createHash('sha256').update(req.body).digest('hex').slice(0, 24) + '.' + ext
+  fs.mkdirSync(ACT_IMG_DIR, { recursive: true })
+  const f = path.join(ACT_IMG_DIR, name)
+  if (!fs.existsSync(f)) fs.writeFileSync(f, req.body)
+  res.json({ src: '/act-img/' + name })
+})
+app.use('/act-img', express.static(ACT_IMG_DIR, STATIC_IMG))
 actApi = registerActivityRoutes(app, { requireUser, requireMaster, getDb, broadcast, sheets: sheetApi, notify: (...a) => { notify(...a); saveDb() }, findRoll })
 
 /* ---------- Новые арты: не часть мира, мастер выкладывает и чистит ---------- */

@@ -5,6 +5,11 @@
   <div ref="wrap" class="ri" :class="{ active, ro: readonly }" @focusin="active = true" @focusout="leave">
     <FormatBar v-if="(active || !compact) && !readonly" :editor="editor" :tables="tables" />
     <EditorContent :editor="editor" class="ri-body" :style="{ minHeight: minHeight + 'px' }" />
+    <!-- фото (журнал деятельностей): сжимается в браузере и грузится на сайт; можно и вставить из буфера или перетащить -->
+    <div v-if="images && !readonly" class="ri-img">
+      <label class="ri-imgbtn" :class="{ busy: uploading }">📷 {{ uploading ? 'Загружаю…' : 'Фото' }}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden multiple :disabled="uploading" @change="pickImg" /></label>
+      <small>или вставь из буфера / перетащи</small>
+    </div>
     <!-- «!» + начало заготовки → подсказка, Tab (или Enter) вставляет -->
     <div v-if="sug" class="ri-sug" :style="{ left: sug.x + 'px', top: sug.y + 'px' }">
       <button v-for="(s, i) in sug.items" :key="s" type="button" :class="{ on: i === sug.i }" @mousedown.prevent="pickSug(i)">{{ s.trim() }}<kbd v-if="i === sug.i">Tab</kbd></button>
@@ -17,12 +22,23 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import FormatBar from './FormatBar.vue'
+import { Node, mergeAttributes } from '@tiptap/core'
 import { formatExtensions, plainToHtml } from './formatKit.js'
+import { shrink, postBlob, toast } from '../../map/store.js'
+
+// картинка в тексте — отдельным блоком (только загруженные на сайт, сервер чужие ссылки вырежет)
+const Img = Node.create({
+  name: 'image', group: 'block', atom: true, draggable: true,
+  addAttributes: () => ({ src: { default: null }, alt: { default: '' } }),
+  parseHTML: () => [{ tag: 'img[src]' }],
+  renderHTML: ({ HTMLAttributes }) => ['img', mergeAttributes(HTMLAttributes)]
+})
 
 const props = defineProps({
   modelValue: { type: String, default: '' }, placeholder: { type: String, default: '' }, minHeight: { type: Number, default: 34 },
   compact: { type: Boolean, default: true }, tables: Boolean, readonly: Boolean, autofocus: Boolean,
-  snippets: { type: Array, default: () => [] } // заготовки: пишешь «!Мод» — предлагает «Модификаторы броска: »
+  snippets: { type: Array, default: () => [] }, // заготовки: пишешь «!Мод» — предлагает «Модификаторы броска: »
+  images: Boolean // можно приложить фото
 })
 const emit = defineEmits(['update:modelValue', 'blur'])
 const wrap = ref(null)
@@ -40,13 +56,39 @@ const editor = useEditor({
   autofocus: props.autofocus ? 'end' : false,
   extensions: [
     StarterKit.configure({ heading: { levels: [3, 4] }, code: false, codeBlock: false, horizontalRule: false, link: { openOnClick: false } }),
-    ...formatExtensions({ tables: props.tables })
+    ...formatExtensions({ tables: props.tables }),
+    ...(props.images ? [Img] : [])
   ],
-  editorProps: { attributes: { 'data-placeholder': props.placeholder }, handleKeyDown: (view, ev) => sugKey(ev) },
+  editorProps: {
+    attributes: { 'data-placeholder': props.placeholder },
+    handleKeyDown: (view, ev) => sugKey(ev),
+    // фото из буфера и перетаскиванием
+    handlePaste: (view, ev) => takeFiles(ev.clipboardData?.files),
+    handleDrop: (view, ev) => takeFiles(ev.dataTransfer?.files)
+  },
   onUpdate: ({ editor: e }) => { emit('update:modelValue', e.isEmpty ? '' : toValue(e.getHTML())); scanSug(e) },
   onSelectionUpdate: ({ editor: e }) => scanSug(e),
   onBlur: () => { sug.value = null }
 })
+// фото: до 1600 px по большей стороне, webp ~80% — обычно 100–300 КБ
+const uploading = ref(false)
+function takeFiles(list) {
+  const files = [...(list || [])].filter(f => f.type.startsWith('image/'))
+  if (!props.images || !files.length) return false
+  upload(files)
+  return true
+}
+const pickImg = e => { upload([...e.target.files]); e.target.value = '' }
+async function upload(files) {
+  uploading.value = true
+  try {
+    for (const f of files.slice(0, 6)) {
+      const { blob } = await shrink(f, 1600, 0.8)
+      const { src } = await postBlob('/api/activities-img', blob)
+      editor.value?.chain().focus().insertContent({ type: 'image', attrs: { src, alt: '' } }).run()
+    }
+  } catch (e) { toast(e.message, 'error') } finally { uploading.value = false }
+}
 // заготовки по «!»: «!» в начале строки или после пробела, дальше — начало заготовки («Ура!» не трогаем)
 const sug = ref(null)
 const low = s => s.toLowerCase().replace(/ё/g, 'е')
@@ -98,6 +140,12 @@ onBeforeUnmount(() => editor.value?.destroy())
 .ri-sug button { display: flex; align-items: center; gap: 8px; justify-content: space-between; padding: 5px 9px; border: 0; border-radius: 7px; background: none; color: #efe3c8; font: 700 13px 'Manrope', sans-serif; text-align: left; cursor: pointer; }
 .ri-sug button.on { background: rgba(231, 197, 111, .16); color: #f3dc9e; }
 .ri-sug kbd { padding: 0 5px; border-radius: 4px; border: 1px solid rgba(231, 197, 111, .4); color: #a8936c; font: 800 10px 'Manrope', sans-serif; }
+.ri-img { display: flex; align-items: center; gap: 8px; padding: 0 9px 6px; }
+.ri-img small { color: #a8936c; font: 600 11px 'Manrope', sans-serif; }
+.ri-imgbtn { padding: 3px 10px; border-radius: 8px; border: 1px dashed color-mix(in srgb, var(--acc, #e7c56f) 45%, transparent); color: var(--acc, #e7c56f); font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
+.ri-imgbtn.busy { opacity: .6; cursor: wait; }
+.ri-body :deep(.ProseMirror img) { display: block; max-width: min(100%, 360px); max-height: 240px; margin: 4px 0; border-radius: 8px; object-fit: contain; }
+.ri-body :deep(.ProseMirror img.ProseMirror-selectednode) { outline: 2px solid var(--acc, #e7c56f); }
 .ri:hover:not(.ro) { background: color-mix(in srgb, var(--acc, #e7c56f) 5%, transparent); }
 .ri.active { border-style: solid; border-color: var(--acc, #e7c56f); background: color-mix(in srgb, var(--acc, #e7c56f) 7%, #0f0c08); }
 .ri.ro { border-color: transparent; }

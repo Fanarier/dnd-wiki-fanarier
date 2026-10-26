@@ -245,40 +245,90 @@ export function rollMods(text) {
   out.sum = Math.round(out.sum * 100) / 100
   return out
 }
+// базовый кубик записи: по умолчанию к20, можно выбрать другой (к12, к10…)
+export const ACT_DICE = [4, 6, 8, 10, 12, 20, 100]
+export const dieOf = rec => (ACT_DICE.includes(Number(rec?.die)) ? Number(rec.die) : 20)
+// сколько попыток в записи: у длительной «несколько» — N бросков, у остальных — один
+export const attemptsOf = rec => (isLongTraining(rec?.name) ? Math.max(1, Math.min(10, Number(rec?.times) || 1)) : 1)
+// броски последней серии: «перебросил» — новая серия, старые остаются в записи, но не считаются.
+// У короткой каждый бросок — своя серия (считается последний); броски без номера серии (старые) — серия 0
+export function seriesInfo(rec) {
+  const rolls = (rec?.rolls || []).map((r, i) => ({ ...r, i, series: r.series ?? 0 }))
+  const cur = rolls.reduce((m, r) => Math.max(m, r.series), 0)
+  let last = rolls.filter(r => r.series === cur)
+  if (!isLongTraining(rec?.name)) last = last.slice(-1)
+  const need = attemptsOf(rec)
+  return { cur, last, done: last.length, need, full: last.length >= need, old: rolls.filter(r => !last.includes(r)) }
+}
+// бонус повторения по цепочке попыток сессии (те же деятельности в той же сессии, по порядку журнала):
+// каждая попытка (у длительной ×N — каждый бросок) +1, до +10. Натуральная 1 на базовом к20 сбрасывает: эта попытка +0,
+// следующая снова +1. «Бонус повторения: +N» в тексте записи ставит счёт с неё. Вернёт бонусы попыток записи target
+export function repChain(recs, target) {
+  let c = 0
+  const i = recs.findIndex(r => r.id === target.id)
+  for (const x of i >= 0 ? [...recs.slice(0, i), target] : [...recs, target]) {
+    const text = rollMods(x.result).rep
+    if (text != null) c = text
+    else if (x === target && target.type !== 'repeat') c = 0
+    const { last } = seriesInfo(x)
+    const out = []
+    for (let j = 0; j < attemptsOf(x); j++) {
+      out.push(Math.min(10, c))
+      c = last[j]?.reset ? 1 : c + 1
+    }
+    if (x === target) return out
+  }
+  return [0]
+}
 // что бросать за запись. Модификаторы — из строки «Модификаторы броска: …», место из вики (кубик), наставник (фикс) — все один раз.
-// Короткая: 1к20 + модификаторы + повторение. Длительная: (2к20 + модификаторы) × LONG_MULT вниз, потом + повторение (его прибавляет
-// сервер: add); «несколько» (times) — столько бросков, у каждого следующего повторение на 1 больше (до +10).
-// autoRep — сколько насчитал сайт, если в тексте не написано
-export function rollPlan(rec, placeMod, autoRep = 0) {
+// Короткая: 1кX + модификаторы, потом + повторение. Длительная: (2кX + модификаторы) × LONG_MULT вниз, потом + повторение.
+// Итог считает сервер (rollOutcome): 1 на базовом к20 — кубик не в счёт и повторение сброшено, 20 — кубик ×2.
+// adds — бонусы повторения попыток (repChain); «несколько» (times) — столько бросков
+export function rollPlan(rec, placeMod, adds = [0]) {
   const m = rollMods(rec.result)
   const mentor = Number(rec.mentorBonus) || 0
   if (mentor) m.items.push({ name: 'Наставник' + (rec.mentor ? ' ' + rec.mentor : ''), v: mentor })
   const sum = Math.round((m.sum + mentor) * 100) / 100
   const repSet = m.rep != null // бонус повторения написан в тексте
-  const rep = m.rep ?? autoRep ?? 0
   const sign = v => (v ? (v > 0 ? '+' : '') + v : '')
   const place = placeMod?.formula ? `+${placeMod.formula}` : ''
   const dice = m.dice.map(d => `+${d.n}d${d.sides}`).join('')
-  if (isLongTraining(rec.name)) {
-    const times = Math.max(1, Math.min(10, Number(rec.times) || 1))
-    const adds = Array.from({ length: times }, (_, i) => Math.min(10, rep + i))
-    return { ...m, sum, rep, repSet, long: true, times, adds, add: adds[0], formula: `2d20${place}${dice}${sign(sum)}` }
-  }
-  return { ...m, sum, rep, repSet, long: false, times: 1, adds: [0], add: 0, formula: `1d20${place}${dice}${sign(sum + rep)}${m.adv === 'adv' ? ' преимущество' : m.adv === 'dis' ? ' помеха' : ''}` }
+  const die = dieOf(rec)
+  const long = isLongTraining(rec.name)
+  const times = attemptsOf(rec)
+  const all = Array.from({ length: times }, (_, i) => adds[i] ?? Math.min(10, (adds[adds.length - 1] ?? 0) + i - adds.length + 1))
+  const base = { n: long ? 2 : 1, sides: die }
+  const adv = !long && m.adv === 'adv' ? ' преимущество' : !long && m.adv === 'dis' ? ' помеха' : ''
+  return { ...m, sum, rep: all[0], repSet, long, times, adds: all, add: all[0], die, base, formula: `${base.n}d${die}${place}${dice}${sign(sum)}${adv}` }
 }
-// чего ждать в среднем (кубики — по среднему значению): у длительной — каждый бросок и сумма всех
+// итог броска: натуральные на базовых кубиках (только к20) — 1 не в счёт (и сброс повторения), 20 — ×2;
+// у длительной сумма × mult вниз; потом бонус повторения. roll — проверенный бросок сайта (groups, total, adv)
+export function rollOutcome(roll, base, add = 0, mult = 0) {
+  const g = (roll.groups || []).find(x => x.sides === base.sides)
+  let vals = g ? g.values.slice(0, roll.adv ? g.values.length : base.n) : []
+  if (roll.adv && vals.length === 2) vals = [roll.adv === 'adv' ? Math.max(...vals) : Math.min(...vals)]
+  const crit = base.sides === 20
+  const ones = crit ? vals.filter(v => v === 1).length : 0
+  const twenties = crit ? vals.filter(v => v === 20).length : 0
+  const sum = roll.total - ones + 20 * twenties
+  const reset = ones > 0
+  const a = reset ? 0 : add || 0
+  return { vals, ones, twenties, sum, reset, add: a, final: (mult ? Math.floor(sum * mult) : sum) + a }
+}
+// чего ждать в среднем (кубики — по среднему; к20 — с учётом 1 и 20): у длительной — каждый бросок и сумма всех
 export function planAvg(p) {
   let dice = 0
   for (const [, n, s] of p.formula.matchAll(/(\d+)d(\d+)/g)) dice += (Number(n) * (Number(s) + 1)) / 2
-  const each = p.long ? p.adds.map(a => longFinal(dice + p.sum, a)) : [Math.floor(dice + p.sum + p.rep)]
+  if (p.base?.sides === 20) dice += p.base.n * 0.95 // 1 → 0 (−1/20), 20 → 40 (+20/20)
+  const each = p.adds.map(a => (p.long ? longFinal(dice + p.sum, a) : Math.floor(dice + p.sum + a)))
   return { each, total: each.reduce((a, b) => a + b, 0) }
 }
 // заготовки для описания: «!Мод» + Tab → «Модификаторы броска: »
 export const ACT_SNIPPETS = ['Модификаторы броска: ', 'Преимущество', 'Помеха', 'Бонус повторения: +', 'Результат: ', 'Совместно с: ']
 // как показать план броска: «(2d20+1d20+27) × 1.8 + 2», у нескольких — «×4»
 export function planText(p) {
-  if (!p.long) return p.formula
-  return `(${p.formula}) × ${LONG_MULT}${p.add ? ' + ' + (p.times > 1 ? `${p.adds[0]}…${p.adds[p.adds.length - 1]}` : p.add) : ''}${p.times > 1 ? ` · ×${p.times}` : ''}`
+  const add = p.add || p.adds[p.adds.length - 1] ? ' + ' + (p.times > 1 ? `${p.adds[0]}…${p.adds[p.adds.length - 1]}` : p.add) + ' повт.' : ''
+  return p.long ? `(${p.formula}) × ${LONG_MULT}${add}${p.times > 1 ? ` · ×${p.times}` : ''}` : `${p.formula}${add}`
 }
 export const longFinal = (total, add, mult = LONG_MULT) => Math.floor(total * mult) + (add || 0)
 

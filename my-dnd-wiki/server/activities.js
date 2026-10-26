@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
-import { isLongTraining, longFinal, LONG_MULT, LONG_EXH, exhOf, longExhNet } from '../src/shared/activities.js'
+import { isLongTraining, longFinal, rollOutcome, ACT_DICE, LONG_MULT, LONG_EXH, exhOf, longExhNet } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -76,7 +76,8 @@ function clean(b = {}, old = {}, heroIds = []) {
     hours: S(pick('hours'), 30),
     stamina: S(pick('stamina'), 30),
     type: TYPES.includes(pick('type')) ? pick('type') : '',
-    result: cleanRich(S(pick('result'), 4000), 4000), // с оформлением — через очистку
+    result: cleanRich(S(pick('result'), 6000), 6000, { images: true }), // с оформлением (и фото) — через очистку
+    die: ACT_DICE.includes(Number(pick('die'))) ? Number(pick('die')) : 20, // базовый кубик броска
     trainId: S(pick('trainId'), 40),
     pts: I(pick('pts'), -1e6, 1e6),
     place: S(pick('place'), 40), // город на карте
@@ -312,11 +313,18 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (!r) return fail(res, 409, 'Этот бросок не прошёл через кубики сайта')
     // длительная тренировка: (2к20 + модификаторы) × LONG_MULT вниз + бонус повторения — итог считает сервер по проверенному броску
     const long = !!req.body?.long && isLongTraining(rec.name)
-    const add = long ? I(req.body?.add, 0, 10) : 0 // бонус повторения (у «несколько» — свой у каждого броска)
+    const add = I(req.body?.add, 0, 10) // бонус повторения (у «несколько» — свой у каждого броска)
+    const b = req.body?.base
+    // базовые кубики (2кX у длительной, 1кX у остальных): натуральная 1 на к20 — не в счёт и сброс повторения, 20 — ×2
+    const base = b && ACT_DICE.includes(Number(b.sides)) && [1, 2].includes(Number(b.n)) ? { n: Number(b.n), sides: Number(b.sides) } : null
+    const out = base ? rollOutcome(r, base, add, long ? LONG_MULT : 0) : null
     rec.rolls = [...(rec.rolls || []), {
       label: S(req.body?.label, 60), notation: r.notation, total: r.total, groups: r.groups, mod: r.mod, adv: r.adv || '', at: r.at,
-      ...(long ? { long: true, add, mult: LONG_MULT, final: longFinal(r.total, add) } : {}), miss: S(req.body?.miss, 200)
-    }].slice(-30)
+      series: I(req.body?.series, 0, 1000),
+      ...(out ? { base, add: out.add, ones: out.ones, twenties: out.twenties, sum: out.sum, reset: out.reset, final: out.final, ...(long ? { long: true, mult: LONG_MULT } : {}) }
+        : long ? { long: true, add, mult: LONG_MULT, final: longFinal(r.total, add) } : {}),
+      miss: S(req.body?.miss, 200)
+    }].slice(-40)
     changed()
     res.json(rec)
   })
