@@ -8,7 +8,13 @@
     <!-- фото (журнал деятельностей): сжимается в браузере и грузится на сайт; можно и вставить из буфера или перетащить -->
     <div v-if="images && !readonly" class="ri-img">
       <label class="ri-imgbtn" :class="{ busy: uploading }">📷 {{ uploading ? 'Загружаю…' : 'Фото' }}<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden multiple :disabled="uploading" @change="pickImg" /></label>
-      <small>или вставь из буфера / перетащи</small>
+      <!-- выбрано фото (щёлкни по нему): двигать кнопками — в длинном тексте тащить мышью неудобно -->
+      <span v-if="imgSel" class="ri-imgmove">Фото:
+        <button type="button" title="Выше на абзац (Alt+↑)" @mousedown.prevent="moveImg(-1)">↑ выше</button>
+        <button type="button" title="Ниже на абзац (Alt+↓)" @mousedown.prevent="moveImg(1)">↓ ниже</button>
+        <button type="button" class="del" title="Убрать фото" @mousedown.prevent="dropImg">✕</button>
+      </span>
+      <small v-else>или вставь из буфера / перетащи · щёлкни по фото — появятся «выше / ниже»</small>
     </div>
     <!-- «!» + начало заготовки → подсказка, Tab (или Enter) вставляет -->
     <div v-if="sug" class="ri-sug" :style="{ left: sug.x + 'px', top: sug.y + 'px' }">
@@ -23,6 +29,7 @@ import { useEditor, EditorContent } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import FormatBar from './FormatBar.vue'
 import { Node, mergeAttributes } from '@tiptap/core'
+import { NodeSelection } from '@tiptap/pm/state'
 import { formatExtensions, plainToHtml } from './formatKit.js'
 import { shrink, postBlob, toast } from '../../map/store.js'
 
@@ -61,21 +68,48 @@ const editor = useEditor({
   ],
   editorProps: {
     attributes: { 'data-placeholder': props.placeholder },
-    handleKeyDown: (view, ev) => sugKey(ev),
-    // фото из буфера и перетаскиванием
+    handleKeyDown: (view, ev) => sugKey(ev) || imgKey(ev),
+    // фото из буфера и перетаскиванием файла снаружи — туда, куда отпустили. Перетаскивание фото внутри текста
+    // (moved / view.dragging) — это перенос, не новая картинка: его делает сам редактор
     handlePaste: (view, ev) => takeFiles(ev.clipboardData?.files),
-    handleDrop: (view, ev) => takeFiles(ev.dataTransfer?.files)
+    handleDrop: (view, ev, slice, moved) => {
+      if (moved || view.dragging) return false
+      return takeFiles(ev.dataTransfer?.files, view.posAtCoords({ left: ev.clientX, top: ev.clientY })?.pos)
+    }
   },
   onUpdate: ({ editor: e }) => { emit('update:modelValue', e.isEmpty ? '' : toValue(e.getHTML())); scanSug(e) },
-  onSelectionUpdate: ({ editor: e }) => scanSug(e),
+  onSelectionUpdate: ({ editor: e }) => { scanSug(e); imgSel.value = isImgSel(e) },
   onBlur: () => { sug.value = null }
 })
 // фото: до 1600 px по большей стороне, webp ~80% — обычно 100–300 КБ
 const uploading = ref(false)
-function takeFiles(list) {
+function takeFiles(list, at) {
   const files = [...(list || [])].filter(f => f.type.startsWith('image/'))
   if (!props.images || !files.length) return false
+  if (at != null) editor.value?.commands.setTextSelection(at)
   upload(files)
+  return true
+}
+// выбранное фото — на абзац выше / ниже (меняется местами с соседним блоком)
+const imgSel = ref(false)
+const isImgSel = e => e.state.selection instanceof NodeSelection && e.state.selection.node.type.name === 'image'
+function moveImg(dir) {
+  const e = editor.value
+  if (!e || !isImgSel(e)) return
+  const { state } = e, sel = state.selection, node = sel.node, $p = state.doc.resolve(sel.from)
+  const idx = $p.index(), parent = $p.parent
+  if (idx + dir < 0 || idx + dir >= parent.childCount) return
+  const other = parent.child(idx + dir)
+  const at = dir < 0 ? sel.from - other.nodeSize : sel.from + other.nodeSize
+  const tr = state.tr.delete(sel.from, sel.from + node.nodeSize).insert(at, node)
+  tr.setSelection(NodeSelection.create(tr.doc, at)).scrollIntoView()
+  e.view.dispatch(tr)
+  e.view.focus()
+}
+function dropImg() { const e = editor.value; if (e && isImgSel(e)) e.chain().focus().deleteSelection().run() }
+function imgKey(ev) {
+  if (!ev.altKey || !['ArrowUp', 'ArrowDown'].includes(ev.key) || !editor.value || !isImgSel(editor.value)) return false
+  moveImg(ev.key === 'ArrowUp' ? -1 : 1)
   return true
 }
 const pickImg = e => { upload([...e.target.files]); e.target.value = '' }
@@ -144,6 +178,9 @@ onBeforeUnmount(() => editor.value?.destroy())
 .ri-img small { color: #a8936c; font: 600 11px 'Manrope', sans-serif; }
 .ri-imgbtn { padding: 3px 10px; border-radius: 8px; border: 1px dashed color-mix(in srgb, var(--acc, #e7c56f) 45%, transparent); color: var(--acc, #e7c56f); font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
 .ri-imgbtn.busy { opacity: .6; cursor: wait; }
+.ri-imgmove { display: flex; align-items: center; gap: 4px; color: #a8936c; font: 700 11.5px 'Manrope', sans-serif; }
+.ri-imgmove button { padding: 2px 8px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--acc, #e7c56f) 40%, transparent); background: color-mix(in srgb, var(--acc, #e7c56f) 10%, transparent); color: var(--acc, #e7c56f); font: 700 11.5px 'Manrope', sans-serif; cursor: pointer; }
+.ri-imgmove button.del { color: #ff8f7f; border-color: rgba(255, 107, 94, .4); background: none; }
 .ri-body :deep(.ProseMirror img) { display: block; max-width: min(100%, 360px); max-height: 240px; margin: 4px 0; border-radius: 8px; object-fit: contain; }
 .ri-body :deep(.ProseMirror img.ProseMirror-selectednode) { outline: 2px solid var(--acc, #e7c56f); }
 .ri:hover:not(.ro) { background: color-mix(in srgb, var(--acc, #e7c56f) 5%, transparent); }
