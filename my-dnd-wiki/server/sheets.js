@@ -221,9 +221,12 @@ function applyOp(sh, op, by, note) {
   try { heroEvents(sh, p, from, now) } catch (e) { console.warn('[sheets] событие героя', e) }
   // журнал деятельностей показывает изнурение, выносливость, расу и тренировки героя — пусть обновится
   if (sh.heroId && /^(Exhaustion|Stamina|Race|Trainings)(\.|$)/.test(p)) onHeroSheet?.()
+  // лист главнее карточки героя: уровень, мастерство и выносливость уходят в карточку
+  if (sh.heroId && /^(Level|Mastery|Stamina)$/.test(p)) onHeroCard?.(sh.heroId)
   return { p, v: now ?? null }
 }
 let onHeroSheet = null
+let onHeroCard = null
 
 /* ---------- маршруты ---------- */
 export function registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players, getDb, broadcast }) {
@@ -443,6 +446,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       const hero = b.heroId ? getDb().heroes?.find(h => h.id === b.heroId) : null
       if (b.heroId && !hero) return res.status(400).json({ error: 'Карточка героя не найдена' })
       sh.heroId = hero?.id || null
+      if (sh.heroId) setTimeout(() => onHeroCard?.(sh.heroId)) // привязали лист — карточка берёт данные из него
       // портрет с карточки, если у листа своего нет
       if (hero && b.copyPortrait && !sh.data.PhotoFile && hero.gallery?.[0]?.file) {
         try {
@@ -595,6 +599,15 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     applyDelta,
     // кто хочет знать, что в листе героя поменялось то, что видно в журнале деятельностей
     watchHeroSheets(fn) { onHeroSheet = fn },
+    watchHeroCard(fn) { onHeroCard = fn },
+    // что карточка героя берёт из листа (пустое в листе — не трогаем): уровень, бонус мастерства, выносливость
+    cardOfHero(heroId) {
+      const d = heroSheet(heroId)?.data
+      if (!d) return null
+      const num = v => (String(v ?? '').trim() && Number.isFinite(Number(String(v).replace(',', '.').replace(/^\+/, ''))) ? Number(String(v).replace(',', '.').replace(/^\+/, '')) : null)
+      const m = num(d.Mastery), st = num(d.Stamina)
+      return { level: Number(d.Level) > 0 ? Number(d.Level) : null, bm: m != null ? (m >= 0 ? '+' : '') + m : null, stamina: st != null ? Math.max(0, Math.round(st)) : null }
+    },
     ownerOfHero: heroId => heroSheet(heroId)?.ownerId || null,
     sheetOfHero: heroId => heroSheet(heroId)?.id || null,
     trainingsOfHero(heroId) {

@@ -44,10 +44,10 @@
               </select>
             </label>
             <label class="wide">Имя<input v-model="h.name" maxlength="60" required /></label>
-            <label v-if="h.kind !== 'companion'">Уровень<input v-model.number="h.level" type="number" min="0" max="99" /></label>
-            <label>БМ<input v-model="h.bm" maxlength="8" /></label>
+            <label v-if="h.kind !== 'companion'" :title="fromSheet">Уровень<input v-model.number="h.level" type="number" min="0" max="99" :disabled="!!fromSheet" /></label>
+            <label :title="fromSheet">БМ<input v-model="h.bm" maxlength="8" :disabled="!!fromSheet" /></label>
             <template v-if="h.kind === 'character'">
-              <label>Выносливость<input v-model.number="h.stamina" type="number" min="0" max="999" /></label>
+              <label :title="fromSheet">Выносливость<input v-model.number="h.stamina" type="number" min="0" max="999" :disabled="!!fromSheet" /></label>
               <label>Макс. выносливость<input v-model.number="h.staminaMax" type="number" min="0" max="999" /></label>
             </template>
             <label v-if="h.kind === 'sidekick' && master">Статус<input v-model="h.status" maxlength="60" list="he-sk-status" /></label>
@@ -153,6 +153,8 @@ const BLANK = {
   ownerId: null, canEdit: false, status: '', rarity: 'common', masterId: null, hidden: false, holo: false
 }
 const h = reactive({ ...JSON.parse(JSON.stringify(BLANK)), ...JSON.parse(JSON.stringify(props.hero)) })
+// у героя есть лист — уровень, БМ и выносливость берутся из листа (меняются там)
+const fromSheet = computed(() => (props.hero?.id && (store.data.sheetLinks || []).some(l => l.heroId === props.hero.id) ? 'Берётся из листа персонажа — меняй в листе' : ''))
 h.expenses = { ...BLANK.expenses, ...h.expenses }
 
 const heroes = computed(() => store.data.heroes || [])

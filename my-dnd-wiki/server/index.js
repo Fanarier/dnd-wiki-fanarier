@@ -1152,6 +1152,7 @@ app.patch('/api/heroes/:id', requireUser, (req, res) => {
   if (kind !== 'character') Object.assign(patch, { ownerId: null, canEdit: false })
   const before = h.ownerId
   Object.assign(h, patch)
+  heroFromSheet(h) // есть лист — уровень, БМ и выносливость из него, правка карточки их не меняет
   if (Array.isArray(req.body?.gallery)) arrangeGallery(h, req.body.gallery)
   if (master) heroOwnerChanged(h, before)
   else notify('masters', 'heroEdit', `${req.user.name} обновляет свою карточку «${h.name}»`, { heroId: h.id })
@@ -1272,6 +1273,17 @@ app.use('/portraits', express.static(PORTRAIT_DIR, STATIC_IMG))
 registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
 registerBestiaryRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
 sheetApi = registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players: allPlayers, getDb, broadcast })
+// лист главнее карточки: уровень, БМ и выносливость героя с листом всегда из листа (без листа — карточка как есть)
+function heroFromSheet(h) {
+  const c = sheetApi?.cardOfHero(h.id)
+  if (!c) return false
+  let ch = false
+  for (const k of ['level', 'bm', 'stamina']) if (c[k] != null && h[k] !== c[k]) { h[k] = c[k]; ch = true }
+  if (c.stamina != null && c.stamina > (h.staminaMax || 0)) { h.staminaMax = c.stamina; ch = true }
+  return ch
+}
+sheetApi.watchHeroCard(id => { const h = findHero(id); if (h && heroFromSheet(h)) { saveDb(); broadcast() } })
+if ((getDb().heroes || []).map(heroFromSheet).some(Boolean)) saveDb()
 app.use('/sheet-img', express.static(SHEET_IMG_DIR, STATIC_IMG))
 registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })
 // правила: расы, классы, механики (отдельный файл, в состоянии — только номер версии)
