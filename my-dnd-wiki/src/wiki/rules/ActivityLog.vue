@@ -110,7 +110,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll, loadNpcs } from '../../map/store.js'
@@ -211,6 +211,20 @@ const sessions = computed(() => {
 })
 // изнурение записи: учтённая — что ушло в лист, остальные — что уйдёт по правилам
 const exhRec = r => (r.status === 'done' ? r.appliedSheet?.want?.exh || 0 : exhOf(r, cfg.value.sleep))
+// переход к записи (из поиска Ctrl+K: ?rec=…): показать её сессию, прокрутить и подсветить
+watch(() => [route.query.rec, sessions.value.length], async ([id]) => {
+  if (!id) return
+  const i = sessions.value.findIndex(s => s.rows.some(r => r.id === id && !r.mirror))
+  if (i < 0) return
+  if (i >= more.value) more.value = i + 1
+  await nextTick()
+  const el = document.querySelector(`.ar[data-rec="${id}"]`)
+  if (!el) return
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  el.classList.add('found')
+  setTimeout(() => el.classList.remove('found'), 2400)
+  router.replace({ query: { ...route.query, rec: undefined } })
+}, { immediate: true })
 // порядок записей в сессии: свой журнал (или мастер), без поиска и фильтра — иначе видна только часть
 const canSort = computed(() => !!hero.value?.canWrite && !q.value && !stFilter.value)
 async function reorder(date, list) {

@@ -157,6 +157,9 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
   const EDIT_FIELDS = [['name', 'название'], ['hours', 'часы'], ['stamina', 'выносливость'], ['result', 'результат'], ['pts', 'очки тренировки'], ['trainId', 'тренировка'],
     ['gold', 'золото'], ['silver', 'серебро'], ['copper', 'бронза'], ['exp', 'опыт'], ['exh', 'изнурение'], ['items', 'вещи'], ['type', 'тип'], ['date', 'дата'], ['mod', 'место']]
   // уведомление хозяину героя (игроку), со ссылкой на его журнал
+  // история записи: кто, когда и что сделал (последние 40 событий) — у записи кнопка 🕑
+  const STATUS_NAME = { plan: 'черновик', pending: 'на проверке', done: 'учтено', fail: 'провал', cond: 'условие', cancel: 'отменено' }
+  const hist = (rec, by, t) => { rec.hist = [...(rec.hist || []), { at: Date.now(), by: by || '', t: String(t).slice(0, 300) }].slice(-40) }
   const tellOwner = (h, text) => { const pid = sheets.ownerOfHero(h.id) || h.ownerId; if (pid) notify(pid, 'activity', text, { logHero: h.id }) }
   // ВОД — взаимная общая деятельность: записи разных героев с одним vod. Часы и выносливость общие (пока запись
   // не проверена), название, описание, броски и награды — у каждого свои
@@ -252,6 +255,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     const rec = { id: 'a' + crypto.randomBytes(5).toString('hex'), ...clean(req.body, {}, heroes().map(x => x.id)), status, by: req.user.name, at: Date.now() }
     if (!master) { const why = playerBlock(h, rec, { creating: true }); if (why) return fail(res, 403, why) }
     if (rec.status === 'done') rec.exhAuto = true
+    hist(rec, req.user.name, `создана · ${STATUS_NAME[rec.status]}${rec.hours ? ` · ${rec.hours} ч` : ''}${rec.stamina ? `, выносливость ${rec.stamina}` : ''}`)
     list.push(rec)
     if (master) syncSheet(h, rec, req.user)
     else if (status === 'pending' && list.filter(x => x.status === 'pending').length === 1) notify('masters', 'activity', `${h.name}: новые деятельности на проверку`, { logHero: h.id })
@@ -280,6 +284,8 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     a.vod ||= 'v' + crypto.randomBytes(5).toString('hex')
     b.vod = a.vod
     if (b.status === 'done') b.exhAuto = true
+    hist(b, req.user.name, `создана подтверждением общей деятельности от ${src.name} · ${STATUS_NAME[b.status]}`)
+    hist(a, req.user.name, `${h.name} подтвердил(а) — теперь взаимная (ВОД)`)
     list.push(b)
     if (master) syncSheet(h, b, req.user)
     else if (status === 'pending' && list.filter(x => x.status === 'pending').length === 1) notify('masters', 'activity', `${h.name}: новые деятельности на проверку`, { logHero: h.id })
@@ -325,7 +331,15 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     // ответ мастера под записью
     const reply = master && 'reply' in (req.body || {}) ? S(req.body.reply, 2000) : null
     if (reply !== null && reply !== (rec.reply || '')) Object.assign(next, { reply, replyAt: Date.now(), replyBy: req.user.name })
+    // история: статус, часы и выносливость — со значениями, остальное — названиями полей
+    const diff = []
+    if (next.status !== rec.status) diff.push(`статус: ${STATUS_NAME[rec.status]} → ${STATUS_NAME[next.status]}`)
+    for (const [k, t] of [['hours', 'часы'], ['stamina', 'выносливость']]) if ((next[k] ?? '') !== (rec[k] ?? '')) diff.push(`${t}: ${rec[k] || '—'} → ${next[k] || '—'}`)
+    const other = EDIT_FIELDS.filter(([k]) => !['status', 'hours', 'stamina'].includes(k) && JSON.stringify(next[k] ?? null) !== JSON.stringify(rec[k] ?? null)).map(([, t]) => t)
+    if (other.length) diff.push('изменено: ' + other.join(', '))
+    if (reply !== null && reply !== (rec.reply || '')) diff.push('ответ мастера')
     Object.assign(rec, next)
+    if (diff.length) hist(rec, req.user.name, diff.join('; '))
     if (edited.length) tellOwner(h, `Мастер поправил деятельность «${rec.name.slice(0, 60)}»: ${edited.join(', ')}`)
     if (reply) tellOwner(h, `Мастер ответил на деятельность «${rec.name.slice(0, 60)}»: ${reply.slice(0, 120)}`)
     invite(h, rec, added)
@@ -335,6 +349,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
       for (const [hid, r] of vodRecs(rec.vod, rec)) {
         if (!PLAYER_STATUS.includes(r.status) || (r.hours === rec.hours && r.stamina === rec.stamina)) continue
         Object.assign(r, { hours: rec.hours, stamina: rec.stamina })
+        hist(r, req.user.name, `из общей деятельности (${h.name}): ${what}`)
         const p = heroOf(hid)
         if (p) tellOwner(p, `${h.name} изменил(а) общую деятельность: ${what} — у «${r.name.slice(0, 50)}» так же`)
       }
@@ -357,7 +372,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     // ВОД: у партнёров запись остаётся, но без этого героя; остался один — уже не взаимная
     if (rec.vod) {
       const rest = vodRecs(rec.vod, rec)
-      for (const [, r] of rest) r.with = (r.with || []).filter(id => id !== h.id)
+      for (const [, r] of rest) { r.with = (r.with || []).filter(id => id !== h.id); hist(r, req.user.name, `${h.name}: своя запись удалена — связь снята`) }
       if (rest.length === 1) delete rest[0][1].vod
     }
     changed()
@@ -401,6 +416,8 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
         : long ? { long: true, add, mult: LONG_MULT, final: longFinal(r.total, add) } : {}),
       miss: S(req.body?.miss, 200)
     }].slice(-40)
+    const lr = rec.rolls[rec.rolls.length - 1]
+    hist(rec, req.user.name, `🎲 ${lr.label ? lr.label + ': ' : ''}${lr.notation} = ${lr.total}${lr.final != null && lr.final !== lr.total ? ` → итог ${lr.final}` : ''}${lr.twenties ? ' · натуральная 20' : ''}${lr.ones ? ' · натуральная 1' : ''}`)
     changed()
     res.json(rec)
   })
@@ -413,6 +430,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (!PLAYER_STATUS.includes(rec.status)) return fail(res, 400, 'Монетку бросают до проверки мастером')
     if (store.logs[h.id].some(x => x.date === rec.date && x.coin)) return fail(res, 400, 'В этой сессии монетку уже бросали')
     rec.coin = { win: crypto.randomInt(2) === 1, at: Date.now() }
+    hist(rec, req.user.name, `🍀 монетка: ${rec.coin.win ? 'повезло — выносливость не тратится' : 'не повезло'}`)
     changed()
     res.json(rec)
   })

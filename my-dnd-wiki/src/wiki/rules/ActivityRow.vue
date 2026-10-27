@@ -61,6 +61,9 @@
         <span v-if="longSum" class="ar-tag sum" :title="`Сумма длительных: ${longSum.list.join(' + ')}`">Σ {{ longSum.total }}<template v-if="longSum.left"> + ? ({{ longSum.left }})</template></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
       </div>
+      <ol v-if="showHist" class="ar-hist">
+        <li v-for="(x, i) in [...rec.hist].reverse()" :key="i"><time>{{ new Date(x.at).toLocaleString('ru', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }}</time><b>{{ x.by }}</b><span>{{ x.t }}</span></li>
+      </ol>
       <p v-if="rec.masterEdit && !mirror" class="ar-edited" :title="`Мастер ${rec.masterEdit.by || ''}, ${new Date(rec.masterEdit.at).toLocaleString('ru')}`">✎ Мастер поправил: {{ rec.masterEdit.fields.join(', ') }}</p>
       <div v-if="(rec.reply || replying) && !mirror" class="ar-reply">
         <b>💬 Мастер<small v-if="rec.replyAt && !replying"> · {{ new Date(rec.replyAt).toLocaleDateString('ru', { day: 'numeric', month: 'short' }) }}</small></b>
@@ -85,6 +88,7 @@
       <span v-if="rec.by && rec.at" class="ar-by">{{ rec.by }}</span>
       <span class="grow" />
       <div class="ar-acts">
+        <button v-if="rec.hist?.length" type="button" :class="{ on: showHist }" :title="`История записи: кто и что менял (${rec.hist.length})`" @click="showHist = !showHist">🕑</button>
         <button v-if="master" type="button" :title="rec.reply ? 'Изменить ответ игроку' : 'Ответить игроку (увидит под записью, придёт уведомление)'" @click="openReply">💬</button>
         <button v-if="editable" type="button" title="Бросить кубики в эту запись (видно, что брошено на сайте)" @click="$emit('roll')">🎲</button>
         <button v-if="coinable" type="button" title="Первая уникальная деятельность периода: 50% не потратить выносливость" @click="$emit('coin')">🍀</button>
@@ -150,6 +154,7 @@ const mentor = computed(() => mentorLink(props.rec.mentor))
 // броски: последняя серия считается, прежние (переброшенные) — под кнопкой
 const series = computed(() => seriesInfo(props.rec))
 const showOld = ref(false)
+const showHist = ref(false)
 // только что брошенный — вспыхивает (крит — золотом, провал — трещиной)
 const fresh = ref(-1)
 watch(() => props.rec.rolls?.length || 0, (n, o) => {
@@ -270,6 +275,13 @@ watch(() => props.rec.status, (now, was) => {
 .ar-menu button:hover { background: rgba(255, 140, 190, .14); }
 .ar-tag.roll.crit { background: rgba(243, 211, 107, .2); color: #ffe7a0; box-shadow: 0 0 10px rgba(243, 211, 107, .35); }
 .ar-tag.roll.fumble { background: rgba(255, 107, 94, .16); color: #ffb3aa; }
+.ar.found { animation: ar-found 2.4s ease-out; }
+@keyframes ar-found { 0%, 40% { box-shadow: 0 0 0 2px #e7c56f, 0 0 26px rgba(231, 197, 111, .55); } 100% { box-shadow: none; } }
+.ar-hist { display: grid; gap: 2px; margin: 6px 0 0; padding: 6px 8px; list-style: none; border-radius: 10px; background: rgba(0, 0, 0, .25); border: 1px dashed rgba(231, 197, 111, .2); max-height: 220px; overflow-y: auto; }
+.ar-hist li { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 8px; align-items: baseline; color: #cdbf9f; font: 600 11.5px/1.4 'Manrope', sans-serif; }
+.ar-hist time { color: #7d7160; white-space: nowrap; }
+.ar-hist b { color: #e6cf98; white-space: nowrap; }
+.ar-hist span { overflow-wrap: anywhere; }
 .ar-tag.roll.fresh { animation: ar-roll-in .6s cubic-bezier(.2, .9, .3, 1.4); }
 .ar-tag.roll.crit.fresh { animation: ar-crit 1.8s ease-out; }
 .ar-tag.roll.fumble.fresh { animation: ar-fumble .9s ease-out; }
@@ -313,6 +325,7 @@ watch(() => props.rec.status, (now, was) => {
 .ar-quick .no { border-color: rgba(255, 122, 107, .45); color: #ff7a6b; }
 .ar-acts { display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; }
 .ar-acts button:hover { border-color: #e7c56f; color: #f3dc9e; }
+.ar-acts button.on { border-color: #e7c56f; background: rgba(231, 197, 111, .15); color: #f3dc9e; }
 .ar-acts .del:hover { border-color: #ff7a6b; color: #ff7a6b; }
 .ar-sealslot { grid-area: seal; position: relative; width: 0; height: 26px; transition: width .3s cubic-bezier(.3, 1.3, .5, 1); }
 .ar-sealslot.on { width: 64px; }

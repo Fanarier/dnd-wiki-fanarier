@@ -32,7 +32,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
-import { store, npcState, rulesState, actState, loadNpcs, loadRules, loadActivities, requestRoll, heroPortraitUrl, heroCover, api } from '../map/store.js'
+import { store, npcState, rulesState, actState, beastState, loadNpcs, loadRules, loadActivities, loadBestiary, requestRoll, heroPortraitUrl, heroCover, api } from '../map/store.js'
 import { EFFECT_KINDS } from '../shared/rules.js'
 import { sfx } from '../sound/sound.js'
 
@@ -79,9 +79,22 @@ const items = computed(() => {
   for (const c of store.data.cities || []) add('Места', { key: c.id, title: c.name, sub: 'город на карте', icon: '🏰', to: { path: '/', query: { focus: 'cities:' + c.id } } })
   for (const s of store.data.settlements || []) add('Места', { key: s.id, title: s.name, sub: 'поселение', icon: '🏘', to: '/settlement/' + s.id })
   for (const x of store.data.quests || []) add('Заказы гильдий', { key: x.id, title: x.type, sub: x.guild, icon: '📜', to: { path: '/wiki', query: { quest: x.id } } })
+  // бестиарий — только открытые герою существа
+  for (const b of beastState.beasts) if (!b.unknown) add('Бестиарий', { key: b.id, title: b.name, sub: [b.type, b.danger].filter(Boolean).join(' · '), icon: '🐉', to: { path: '/wiki', query: { section: 'bestiary', beast: b.id } } })
+  // навыки из листов (свои и открытые)
+  const CAT = ['К', 'Р', 'М']
+  for (const s of sheetSkills.value) add('Навыки в листах', { key: s.sheetId + s.name + s.page, title: s.name, sub: `${s.sheet} · ${CAT[s.cat] || 'К'} · ${s.page === 'active' ? 'активный' : 'пассивный'}`, icon: s.cat === 2 ? '✺' : '⚡', to: { path: '/sheets/' + s.sheetId, query: { p: s.page } } })
+  // записи журнала деятельностей — последние 150 у каждого героя
+  const names = new Map(actState.heroes.map(h => [h.heroId, h.name.split(' ')[0]]))
+  for (const [hid, log] of Object.entries(actState.logs || {})) {
+    for (const r of log.slice(-150)) {
+      add('Деятельности', { key: r.id, title: r.name.length > 90 ? r.name.slice(0, 88) + '…' : r.name, sub: `${names.get(hid) || ''} · ${r.date.split('-').reverse().join('.')}${r.hours ? ' · ' + r.hours + ' ч' : ''}`, icon: '✍', to: { path: '/activity', query: { section: 'activities', log: hid, rec: r.id } } })
+    }
+  }
   return d
 })
 const norm = s => String(s || '').toLowerCase().replace(/ё/g, 'е')
+const sheetSkills = ref([])
 const fuse = computed(() => new Fuse(items.value, { keys: [{ name: 'title', weight: 3 }, { name: 'sub', weight: 1 }, { name: 'group', weight: 0.5 }], threshold: 0.32, ignoreLocation: true, getFn: (o, p) => norm(Fuse.config.getFn(o, p)) }))
 // пусто — действия, листы и разделы; иначе — лучшие совпадения, сгруппированные по видам
 const list = computed(() => {
@@ -111,6 +124,8 @@ async function show() {
   loadRules(); loadNpcs()
   if (store.me) {
     loadActivities()
+    loadBestiary()
+    api('GET', '/api/sheets-skills').then(j => { sheetSkills.value = Array.isArray(j) ? j : [] }).catch(() => {})
     api('GET', '/api/sheets').then(j => { mySheets.value = (j.sheets || []).filter(s => s.canEdit && !s.deletedAt && (store.role !== 'master' || s.ownerId === store.me?.id)) }).catch(() => {})
   }
   await nextTick()

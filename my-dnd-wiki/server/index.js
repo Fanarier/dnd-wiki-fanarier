@@ -1280,13 +1280,13 @@ function npcCardOf(h) {
   const n = (getDb().npcs || []).find(x => x.heroId === h.id)
   if (!n) return null
   const lv = npcNum(n.info?.find(x => x.k === 'Уровень')?.v), bm = npcNum(n.combat?.['БМ'])
-  return { level: lv != null && lv > 0 ? lv : null, bm: bm != null ? (bm >= 0 ? '+' : '') + bm : null, stamina: null }
+  return { level: lv != null && lv > 0 ? lv : null, bm: bm != null ? (bm >= 0 ? '+' : '') + bm : null, stamina: null, hp: null, hpMax: null, exh: null }
 }
 function heroFromSheet(h) {
   const c = sheetApi?.cardOfHero(h.id) || npcCardOf(h)
   if (!c) return false
   let ch = false
-  for (const k of ['level', 'bm', 'stamina']) if (c[k] != null && h[k] !== c[k]) { h[k] = c[k]; ch = true }
+  for (const k of ['level', 'bm', 'stamina', 'hp', 'hpMax', 'exh']) if (c[k] != null && h[k] !== c[k]) { h[k] = c[k]; ch = true }
   if (c.stamina != null && c.stamina > (h.staminaMax || 0)) { h.staminaMax = c.stamina; ch = true }
   return ch
 }

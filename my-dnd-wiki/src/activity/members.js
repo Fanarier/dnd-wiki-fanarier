@@ -12,7 +12,8 @@ export function memberOf(id) {
     const c = heroCover(h)
     return {
       id, name: h.name, level: h.level, tab: h.kind, label: HERO_KINDS[h.kind]?.label || '', sub: '',
-      pic: c ? heroPortraitUrl(c.thumb || c.file) : '', stamina: h.stamina, staminaMax: h.staminaMax, to: { path: '/wiki', query: { hero: id } }
+      pic: c ? heroPortraitUrl(c.thumb || c.file) : '', stamina: h.stamina, staminaMax: h.staminaMax, to: { path: '/wiki', query: { hero: id } },
+      hp: h.hp, hpMax: h.hpMax, exh: h.exh || 0 // из листа персонажа
     }
   }
   const n = npcState.npcs.find(x => x.id === id)

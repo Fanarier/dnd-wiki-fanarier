@@ -222,7 +222,7 @@ function applyOp(sh, op, by, note) {
   // журнал деятельностей показывает изнурение, выносливость, расу и тренировки героя — пусть обновится
   if (sh.heroId && /^(Exhaustion|Stamina|Race|Trainings)(\.|$)/.test(p)) onHeroSheet?.()
   // лист главнее карточки героя: уровень, мастерство и выносливость уходят в карточку
-  if (sh.heroId && /^(Level|Mastery|Stamina)$/.test(p)) onHeroCard?.(sh.heroId)
+  if (sh.heroId && /^(Level|Mastery|Stamina|Exhaustion|Hits|HpData)(\.|$)/.test(p)) onHeroCard?.(sh.heroId)
   return { p, v: now ?? null }
 }
 let onHeroSheet = null
@@ -340,6 +340,19 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     const list = store.sheets.filter(sh => canView(req.user, sh)).map(sh => summary(sh, req.user))
     const owners = req.user.role === 'master' ? players().filter(p => p.status === 'active').map(p => ({ id: p.id, name: p.character, login: p.login, linked: !!p.linked, tech: !!p.linked && isOwner(p.login) })) : []
     res.json({ sheets: list, owners })
+  })
+
+  // навыки из листов для общего поиска (Ctrl+K): только названия, из листов, которые человеку видны
+  app.get('/api/sheets-skills', requireUser, (req, res) => {
+    const out = []
+    for (const sh of store.sheets) {
+      if (sh.deletedAt || !canView(req.user, sh)) continue
+      for (const [list, page] of [['Skills', 'active'], ['PassiveSkills', 'passive']]) {
+        for (const s of sh.data[list] || []) if (s.SkillName) out.push({ sheetId: sh.id, sheet: sh.data.CharacterName || '', name: s.SkillName, cat: s.CategoryIndex || 0, page })
+      }
+      if (out.length > 4000) break
+    }
+    res.json(out)
   })
 
   app.post('/api/sheets', requireUser, (req, res) => {
@@ -600,13 +613,18 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     // кто хочет знать, что в листе героя поменялось то, что видно в журнале деятельностей
     watchHeroSheets(fn) { onHeroSheet = fn },
     watchHeroCard(fn) { onHeroCard = fn },
-    // что карточка героя берёт из листа (пустое в листе — не трогаем): уровень, бонус мастерства, выносливость
+    // что карточка героя берёт из листа (пустое в листе — не трогаем): уровень, бонус мастерства, выносливость;
+    // хиты и изнурение — для полосок на карточках отряда
     cardOfHero(heroId) {
       const d = heroSheet(heroId)?.data
       if (!d) return null
       const num = v => (String(v ?? '').trim() && Number.isFinite(Number(String(v).replace(',', '.').replace(/^\+/, ''))) ? Number(String(v).replace(',', '.').replace(/^\+/, '')) : null)
       const m = num(d.Mastery), st = num(d.Stamina)
-      return { level: Number(d.Level) > 0 ? Number(d.Level) : null, bm: m != null ? (m >= 0 ? '+' : '') + m : null, stamina: st != null ? Math.max(0, Math.round(st)) : null }
+      const hpMax = num(d.Hits) > 0 ? num(d.Hits) : Number(d.HpData?.Max) || 0
+      return {
+        level: Number(d.Level) > 0 ? Number(d.Level) : null, bm: m != null ? (m >= 0 ? '+' : '') + m : null, stamina: st != null ? Math.max(0, Math.round(st)) : null,
+        hpMax: hpMax || null, hp: hpMax ? Math.max(0, Number(d.HpData?.Current ?? hpMax) || 0) : null, exh: Math.max(0, Math.min(5, Number(d.Exhaustion) || 0))
+      }
     },
     ownerOfHero: heroId => heroSheet(heroId)?.ownerId || null,
     sheetOfHero: heroId => heroSheet(heroId)?.id || null,
