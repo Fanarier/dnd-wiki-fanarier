@@ -39,8 +39,9 @@
       </div>
 
       <div class="right ui-panel">
-        <div class="clock" :title="store.connected ? 'Связь с сервером есть — изменения приходят вживую' : 'Нет связи с сервером, переподключаюсь…'">
-          <i class="live" :class="{ on: store.connected }" />
+        <div class="clock" :title="!store.connected ? 'Нет связи с сервером, переподключаюсь…' : `Связь с сервером есть — изменения приходят вживую.${store.rtt != null ? ` Пинг ${store.rtt} мс (${rttWord})` : ''}`" @click="store.rtt != null && toast(`Пинг до сервера: ${store.rtt} мс — ${rttWord}`)">
+          <i class="live" :class="{ on: store.connected, slow: rttLevel === 'slow', bad: rttLevel === 'bad' }" />
+          <small v-if="store.connected && store.rtt != null" class="rtt" :class="rttLevel">{{ store.rtt }} мс</small>
           <Icon name="clock" :size="16" class="ui-muted" />
           <span>{{ clock }}</span>
         </div>
@@ -202,6 +203,10 @@ watch(() => [route.query.focus, route.query.pick, route.query.plan, route.query.
   if (focus || pick || plan || route.query.view) router.replace({ query: {} })
 }, { immediate: true })
 
+/* ---------- Пинг до сервера: цвет точки и подпись при наведении ---------- */
+const rttLevel = computed(() => (store.rtt == null ? '' : store.rtt < 150 ? 'good' : store.rtt < 350 ? 'slow' : 'bad'))
+const rttWord = computed(() => ({ good: 'хорошо', slow: 'заметная задержка', bad: 'большая задержка' }[rttLevel.value] || ''))
+
 /* ---------- Часы ---------- */
 const clock = computed(() => new Date(store.now).toLocaleString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }))
 
@@ -324,6 +329,12 @@ async function exportDb() {
 .clock { display: flex; align-items: center; gap: 7px; padding: 0 10px; font-size: 13px; font-weight: 600; white-space: nowrap; }
 .live { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 .live.on { background: var(--ok); box-shadow: 0 0 0 0 rgba(126, 224, 163, .6); animation: live 2.4s infinite; }
+.live.on.slow { background: #f0c35a; }
+.live.on.bad { background: #ff8a5b; }
+/* цифра пинга — только при наведении на часы */
+.rtt { display: none; font: 800 11px var(--sans); color: var(--ok); }
+.rtt.slow { color: #f0c35a; } .rtt.bad { color: #ff8a5b; }
+.clock:hover .rtt { display: inline; }
 .nav { text-decoration: none; }
 .master-chip { color: var(--gold-2); border-color: rgba(231, 197, 111, 0.4); background: rgba(231, 197, 111, 0.1); }
 

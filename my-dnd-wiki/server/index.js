@@ -2317,6 +2317,8 @@ wss.on('connection', ws => {
     let msg
     try { msg = JSON.parse(raw) } catch { return }
     switch (msg.type) {
+      // замер пинга: браузер шлёт время, сервер сразу возвращает его же
+      case 'rtt': ws.send(JSON.stringify({ type: 'rtt', t: Number(msg.t) || 0 })); break
       case 'auth': {
         client.viewAs = msg.viewAs === 'player' ? 'player' : null
         const user = identify(msg.token, client.viewAs)

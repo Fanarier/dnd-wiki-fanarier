@@ -30,6 +30,7 @@ try { savedLayers = JSON.parse(lsGet(LAYERS_KEY) || '{}') } catch { /* ignore */
 export const store = reactive({
   ready: false,
   connected: false,
+  rtt: null, // пинг до сервера, мс (медиана последних замеров)
   role: 'player',
   token: lsGet(TOKEN_KEY),
   clockOffset: 0,
@@ -208,6 +209,8 @@ function connect() {
     store.reconnectTries = 0
     retry = 0
     if (store.token) ws.send(JSON.stringify({ type: 'auth', token: store.token, viewAs: store.viewAs }))
+    rttSamples = []
+    measureRtt()
     store.presence.cursors = {}
     store.presence.rulers = {}
   }
@@ -218,16 +221,26 @@ function connect() {
       if (store.token && msg.state.role === 'guest') return
       applyState(msg.state)
     } else if (msg.type === 'authFailed') tokenRevoked()
-    else onPresence(msg)
+    else if (msg.type === 'rtt') {
+      // медиана последних пяти — один медленный замер не дёргает цифру
+      rttSamples = [...rttSamples, performance.now() - msg.t].slice(-5)
+      store.rtt = Math.round([...rttSamples].sort((a, b) => a - b)[Math.floor(rttSamples.length / 2)])
+    } else onPresence(msg)
     for (const fn of wsListeners) fn(msg)
   }
   ws.onclose = () => {
     store.connected = false
+    store.rtt = null
     store.reconnectTries++
     offlineTimer ||= setTimeout(() => { store.offline = true }, 5000)
     reconnectTimer = setTimeout(connect, Math.min(15000, 1000 * 2 ** retry++))
   }
 }
+
+// пинг: замер сразу при подключении и каждые 10 секунд (пока вкладка открыта)
+let rttSamples = []
+const measureRtt = () => { if (ws?.readyState === 1 && !document.hidden) ws.send(JSON.stringify({ type: 'rtt', t: performance.now() })) }
+setInterval(measureRtt, 10000)
 
 // Арт «Энди спит» качаем заранее и держим в памяти: когда сервер лежит, взять его будет неоткуда
 export const offlineArt = ref('')
