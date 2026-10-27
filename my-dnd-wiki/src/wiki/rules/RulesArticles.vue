@@ -104,7 +104,8 @@ async function del() {
 .ra-toc button.hid { opacity: .6; }
 .ra-toc small { color: #a8936c; font-size: 10.5px; }
 .ra-toc .ra-log { margin-bottom: 4px; border: 1px solid rgba(231, 197, 111, .3); color: #f3dc9e; font-weight: 800; }
-.ra-pend { padding: 0 6px; border-radius: 99px; background: #f0b54f; color: #1b1408 !important; font-weight: 900; }
+/* счётчик «на проверке» — круглая плашка, не растягивается по высоте, когда подпись в две строки */
+.ra-pend { flex: none; align-self: center; min-width: 22px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 99px; background: #f0b54f; color: #1b1408 !important; font: 900 11px/20px 'Manrope', sans-serif !important; text-align: center; }
 .ra-art.ra-logbox { padding: 14px; }
 .ra-toc .ra-add { margin-top: 6px; color: #e7c56f; border: 1px dashed rgba(231, 197, 111, .35); justify-content: center; }
 .ra-art { min-width: 0; padding: 18px 22px; border-radius: 16px; background: linear-gradient(180deg, rgba(34, 27, 19, .7), rgba(20, 16, 11, .7)); border: 1px solid rgba(231, 197, 111, .18); animation: ra-in .3s ease; }

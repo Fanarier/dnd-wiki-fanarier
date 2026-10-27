@@ -15,6 +15,7 @@ import { registerSheetRoutes, flushSheets, SHEET_IMG_DIR } from './sheets.js'
 import { registerCampaignRoutes, campaignFor } from './campaign.js'
 import { registerRulesRoutes, flushRules, RULES_IMG_DIR } from './rules.js'
 import { registerActivityRoutes, flushActivities } from './activities.js'
+import { clientIp, noteIp, ipsOf, flushIpLog } from './iplog.js'
 import { cleanWikiPerms, WIKI_SECTIONS } from '../src/shared/wikiPerms.js'
 import { cleanRich } from './richtext.js'
 import { arts as allArts, addArt, setThumb, removeArts, ARTS_DIR } from './arts.js'
@@ -711,6 +712,13 @@ function requireUser(req, res, next) {
   req.user = u
   next()
 }
+
+// с каких адресов заходил игрок: IP, первый и последний раз, сколько раз, браузер. Видит только владелец сайта (Fanarier) —
+// ни другие мастера, ни техспециалист
+app.get('/api/players/:id/ips', requireMaster, (req, res) => {
+  if (!isOwner(req.user.login)) return res.status(403).json({ error: 'Журнал входов видит только владелец сайта' })
+  res.json(ipsOf(req.params.id))
+})
 
 app.post('/api/login', (req, res) => {
   const ip = req.ip
@@ -2300,7 +2308,8 @@ function findRoll(user, m) {
   return e || null
 }
 
-wss.on('connection', ws => {
+wss.on('connection', (ws, req) => {
+  const ip = clientIp(req), ua = req.headers['user-agent'] || ''
   const id = nextClientId++
   const client = { ws, role: 'guest', user: null, id, name: 'Гость', color: CURSOR_COLORS[id % CURSOR_COLORS.length], pings: [] }
   clients.add(client)
@@ -2329,6 +2338,7 @@ wss.on('connection', ws => {
         if (msg.token && !user) ws.send(JSON.stringify({ type: 'authFailed' }))
         client.token = user ? msg.token : null
         client.user = user
+        if (user) noteIp(user, ip, ua) // журнал входов (мастер видит в профиле у игрока)
         client.role = user?.role || 'guest'
         client.name = user?.name || 'Гость'
         if (user?.color) client.color = user.color
@@ -2411,4 +2421,4 @@ wss.on('connection', ws => {
 
 server.listen(PORT, HOST, () => console.log(`Анкария: http://${HOST || 'localhost'}:${PORT}`))
 
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); flushSheets(); flushRules(); flushActivities(); process.exit(0) })
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { flushDb(); flushSheets(); flushRules(); flushActivities(); flushIpLog(); process.exit(0) })

@@ -22,7 +22,7 @@
       <div class="rf-camp">
         <i class="rf-glow" />
         <i v-for="st in STONES.filter(x => x.back)" :key="'b' + st.k" class="rf-stone" :style="st.style" />
-        <i class="rf-log a" /><i class="rf-log b" />
+        <i class="rf-log c" /><i class="rf-log a" /><i class="rf-log b" />
         <i class="rf-coal" />
         <!-- пламя: языки с острыми верхушками, разгораются от маленького к большому и дрожат каждый по-своему -->
         <svg class="rf-fire" viewBox="-60 -150 120 160" aria-hidden="true">
@@ -218,10 +218,18 @@ onMounted(() => {
   background: radial-gradient(ellipse at 50% 30%, #6a6058, #3b342f 60%, #1f1b18); box-shadow: inset 0 -4px 6px rgba(0, 0, 0, .55), 0 4px 8px rgba(0, 0, 0, .5); filter: brightness(.45); }
 .rf.activity .rf-stone { animation: rf-lit .6s ease-out calc(.3s + var(--d)) both; }
 @keyframes rf-lit { to { filter: brightness(1) sepia(.35) saturate(1.4); } }
-.rf-log { left: -105px; top: -12px; width: 210px; height: 26px; border-radius: 13px; background: linear-gradient(180deg, #5e3a1f, #37200f 70%, #1f1208); box-shadow: inset 0 -4px 6px rgba(0, 0, 0, .55), 0 6px 14px rgba(0, 0, 0, .6); }
-.rf-log::after { content: ''; position: absolute; right: 4px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: radial-gradient(circle, #b07c4a 25%, #6e4322 30%, #8f5e33 45%, #4c2c13 70%); }
-.rf-log.a { transform: rotate(15deg); }
-.rf-log.b { transform: rotate(-15deg) scaleX(-1); }
+/* поленья: короче (лежат внутри кольца камней), с корой и тлеющей серединой под огнём; торец — на дальнем от огня конце */
+.rf-log { left: -84px; top: -11px; width: 168px; height: 24px; border-radius: 12px;
+  background:
+    radial-gradient(ellipse 46px 13px at 50% 45%, rgba(255, 130, 50, .7), rgba(200, 60, 15, .35) 55%, transparent 75%),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .22) 0 2px, transparent 2px 11px),
+    linear-gradient(180deg, #6e4625, #3f2613 62%, #201209);
+  box-shadow: inset 0 3px 2px rgba(255, 200, 140, .12), inset 0 -4px 6px rgba(0, 0, 0, .6), 0 6px 12px rgba(0, 0, 0, .65); }
+.rf-log::after { content: ''; position: absolute; right: 1px; top: 1px; width: 22px; height: 22px; border-radius: 50%;
+  background: radial-gradient(circle, #c48c55 18%, #7a4a24 24%, #a06a3a 38%, #6a3f1d 52%, #3a210d 72%); box-shadow: inset 0 0 0 1.5px #2a170a; }
+.rf-log.a { transform: rotate(17deg); }
+.rf-log.b { transform: rotate(-17deg) scaleX(-1); }
+.rf-log.c { left: -60px; top: -24px; width: 120px; height: 20px; transform: rotate(-2deg); filter: brightness(.7); }
 /* угли тлеют, пока экран темнеет */
 .rf-coal { left: -42px; top: -16px; width: 84px; height: 30px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 120, 40, .85), rgba(200, 50, 10, .45) 55%, transparent); filter: blur(3px); opacity: 0; }
 .rf.activity .rf-coal { animation: rf-smolder .5s ease-in-out .05s infinite alternate; }

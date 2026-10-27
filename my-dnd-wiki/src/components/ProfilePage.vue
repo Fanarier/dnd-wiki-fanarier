@@ -89,7 +89,16 @@
             <button v-if="!p.linked" class="mini" title="Игрок забыл пароль — выдать новый, старые входы сбросятся" @click="resetPlayer(p)">Новый пароль</button>
             <button v-if="p.status === 'active' && !p.linked" class="mini" :class="{ ok: p.wiki }" :title="p.wiki ? 'Редактор вики — изменить права' : 'Сделать редактором вики: разделы или отдельные страницы'" @click="wikiFor = p">📖 {{ p.wiki ? 'Редактор' : 'Вики' }}</button>
           </template>
+          <button v-if="store.me.owner && !p.linked" class="mini" :class="{ ok: ipFor?.id === p.id }" title="С каких IP заходил игрок" @click="showIps(p)">🌐 IP</button>
           <button class="mini no" title="Удалить аккаунт" @click="removePlayer(p)">✕</button>
+          <div v-if="ipFor?.id === p.id" class="pl-ips">
+            <div v-if="!ipFor.list.length" class="muted small">Пока ни одного входа не записано — журнал ведётся с 27 октября 2026.</div>
+            <table v-else>
+              <tr><th>IP</th><th>Первый раз</th><th>Последний</th><th>Раз</th><th>Браузер</th></tr>
+              <tr v-for="x in ipFor.list" :key="x.ip"><td><b>{{ x.ip }}</b></td><td>{{ dt(x.first) }}</td><td>{{ dt(x.last) }}</td><td>{{ x.n }}</td><td class="ua" :title="x.ua">{{ uaShort(x.ua) }}</td></tr>
+            </table>
+            <button v-if="ipFor.list.length" class="mini" @click="copyIps">Скопировать</button>
+          </div>
         </div>
         <WikiPermsDialog v-if="wikiFor" :player="store.data.players.find(x => x.id === wikiFor.id) || wikiFor" @close="wikiFor = null" />
         <div v-if="issuedPlayer" class="ms-issued">
@@ -309,6 +318,18 @@ async function copyIssued() {
   } catch { toast('Не получилось скопировать — перепиши вручную', 'error') }
 }
 
+// журнал входов игрока (только владелец сайта)
+const ipFor = ref(null)
+async function showIps(p) {
+  if (ipFor.value?.id === p.id) { ipFor.value = null; return }
+  try { ipFor.value = { id: p.id, name: p.character, list: await api('GET', `/api/players/${p.id}/ips`) } } catch (e) { toast(e.message, 'error') }
+}
+const dt = t => new Date(t).toLocaleString('ru-RU', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+const uaShort = ua => { const s = String(ua || ''); const os = /Android/.test(s) ? 'Android' : /iPhone|iPad/.test(s) ? 'iOS' : /Windows/.test(s) ? 'Windows' : /Mac OS/.test(s) ? 'macOS' : /Linux/.test(s) ? 'Linux' : ''; const br = /YaBrowser/.test(s) ? 'Яндекс' : /Edg\//.test(s) ? 'Edge' : /OPR\//.test(s) ? 'Opera' : /Firefox/.test(s) ? 'Firefox' : /Chrome/.test(s) ? 'Chrome' : /Safari/.test(s) ? 'Safari' : ''; return [br, os].filter(Boolean).join(' · ') || '—' }
+async function copyIps() {
+  const t = `${ipFor.value.name}:\n` + ipFor.value.list.map(x => `${x.ip} — ${dt(x.first)} … ${dt(x.last)}, ${x.n} раз, ${uaShort(x.ua)}`).join('\n')
+  try { await navigator.clipboard.writeText(t); toast('Скопировано') } catch { prompt('Скопируй:', t) }
+}
 const call = (url, method, text, body) => act(method, url, method === 'DELETE' ? undefined : (body || {}), text).catch(() => {})
 // игрок забыл пароль: новый придумывает сайт, мастер передаёт его игроку
 const issuedPlayer = ref(null)
@@ -377,7 +398,13 @@ input[type='color'] { width: 60px; padding: 3px; cursor: pointer; }
 .muted { color: #a8936c; }
 .small { font-size: 12px; }
 .err { color: #ff8a7a; font-size: 13px; font-weight: 600; margin-top: 6px; }
-.pl { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-top: 1px solid rgba(201, 162, 79, .14); }
+.pl { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-top: 1px solid rgba(201, 162, 79, .14); flex-wrap: wrap; }
+.pl-ips { flex-basis: 100%; display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, .25); border: 1px dashed rgba(201, 162, 79, .3); overflow-x: auto; }
+.pl-ips table { border-collapse: collapse; font: 600 12px 'Manrope', sans-serif; }
+.pl-ips th { padding: 3px 8px; color: #a8936c; font-weight: 800; text-align: left; white-space: nowrap; }
+.pl-ips td { padding: 3px 8px; border-top: 1px solid rgba(201, 162, 79, .12); white-space: nowrap; }
+.pl-ips td.ua { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.pl-ips .mini { justify-self: start; }
 .pl-pending { background: rgba(224, 96, 74, .08); border-radius: 10px; padding: 9px; }
 .pl-rejected { opacity: .55; }
 .pl-av { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; border: 2px solid #b8893f; flex: none; }
