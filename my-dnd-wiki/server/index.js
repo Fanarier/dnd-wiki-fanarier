@@ -2245,7 +2245,14 @@ app.use((err, req, res, next) => {
 
 // Собранный сайт (npm run build)
 if (fs.existsSync(DIST)) {
-  app.use(express.static(DIST, { index: false, maxAge: '1h' }))
+  // файлы сборки с хешем в имени (/assets/…) и слои карты с ?v=номер сборки не меняются никогда — браузер берёт их из кеша
+  // без запроса к серверу (для игроков издалека — минус десятки запросов по 300 мс); остальное — на сутки
+  app.use(express.static(DIST, {
+    index: false, maxAge: '1d',
+    setHeaders: (res, file) => {
+      if (/[\\/]assets[\\/]/.test(file) || (/[\\/]map[\\/]/.test(file) && res.req?.query?.v)) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    }
+  }))
   app.get('*', (req, res) => res.sendFile(path.join(DIST, 'index.html')))
 }
 

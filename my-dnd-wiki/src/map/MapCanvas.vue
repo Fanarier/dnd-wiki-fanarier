@@ -317,6 +317,10 @@
         </g>
       </g>
     </svg>
+    <!-- подсказка при наведении (мышь): имя и пара строк без щелчка -->
+    <div v-if="tip" class="map-tip" :style="{ left: tip.x + 'px', top: tip.y + 'px' }">
+      <b>{{ tip.title }}</b><small v-if="tip.sub">{{ tip.sub }}</small><p v-if="tip.text">{{ tip.text }}</p>
+    </div>
   </div>
 </template>
 
@@ -328,7 +332,7 @@ import { ICONS } from './icons.js'
 import { fogTexture } from './fogTexture.js'
 import { store, isMaster, act, toast, planPath, sendCursor, sendCursorLeave, sendRuler, ping, km, fmtKm, fmtDuration, markIcon } from './store.js'
 import { setPath, here, simplify, addStopAt, moveStatus } from './movement.js'
-import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS, ROUTE_COLORS, GUILDS } from '../shared/catalog.js'
+import { ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_COLORS, ROUTE_COLORS, GUILDS, CITY_TYPES } from '../shared/catalog.js'
 import { useRouter } from 'vue-router'
 import { undo, redo, copySelected, paste, duplicateSelected, removeSelected, nudgeSelected } from './history.js'
 import { toPath, partyPosition, anomalyState, slicePath, remainingPath, pointAt, dist, polyLength, projectOnPath, subPath, moveGeometry, moveSlice } from '../shared/geo.js'
@@ -652,11 +656,19 @@ function animateTo(target, ms = 600) {
   anim = requestAnimationFrame(step)
 }
 
+// телефон стоймя: карта шире экрана — вписываем по высоте (иначе узкая полоса посередине), листается вбок
+const portrait = () => size.h > size.w * 1.15
 function fit(animated = true) {
-  const k = fitScale() * 0.96
+  const k = portrait() ? (size.h / H.value) * 0.9 : fitScale() * 0.96
   const target = { k, x: (size.w - W.value * k) / 2, y: (size.h - H.value * k) / 2 }
   animated ? animateTo(target) : Object.assign(view, target)
 }
+// на телефоне сразу показываем, где отряд (первый видимый), а не середину моря
+watch(() => store.ready, r => {
+  if (!r || !portrait()) return
+  const p = parties.value.find(x => !x.hidden)
+  if (p) { view.x = size.w / 2 - p.pos.x * view.k; clampView() }
+}, { immediate: true })
 
 function flyTo(x, y, k = Math.max(view.k, 3)) {
   animateTo({ k, x: size.w / 2 - x * k, y: size.h / 2 - y * k })
@@ -764,7 +776,74 @@ function onDown(e) {
   gesture.value = { ...base, mode: 'pan' }
 }
 
+/* ---------------- Подсказка при наведении ---------------- */
+const tip = ref(null)
+const plain = (s, n = 150) => { const t = String(s || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n - 1) + '…' : t }
+function tipFor(hit) {
+  const d = store.data
+  const find = col => d[col]?.find(x => x.id === hit.id)
+  switch (hit.type) {
+    case 'cities': {
+      const c = find('cities'); if (!c) return null
+      const st = d.states.find(s => s.id === c.stateId)
+      const npcs = (d.npcPins || []).filter(p => p.cityId === c.id).length
+      return { title: c.name, sub: [CITY_TYPES[c.type]?.label, st?.name, c.population ? '≈ ' + c.population.toLocaleString('ru-RU') + ' жит.' : '', npcs ? `НПС: ${npcs}` : ''].filter(Boolean).join(' · '), text: plain(c.description) }
+    }
+    case 'states': case 'statelabel': {
+      const s = d.states.find(x => x.id === hit.id); if (!s) return null
+      const cap = d.cities.find(c => c.id === s.capitalId)
+      return { title: s.name, sub: ['народ', cap ? 'столица ' + cap.name : ''].filter(Boolean).join(' · '), text: plain(s.description) }
+    }
+    case 'anomalies': {
+      const a = find('anomalies'); if (!a) return null
+      const fx = (a.kind === 'zone' ? ZONE_EFFECTS : POINT_EFFECTS)[a.effect]
+      return { title: a.name || 'Метка', sub: a.kind === 'zone' ? fx?.label || 'аномалия' : markIcon(a.effect).label, text: plain(a.description) }
+    }
+    case 'parties': {
+      const p = parties.value.find(x => x.id === hit.id); if (!p) return null
+      const j = p.pos.journey
+      return { title: p.name, sub: j && !j.done ? (j.waiting ? 'ждёт выхода' : `в пути · ${Math.round(j.progress * 100)}%`) : 'стоит на месте', text: plain(p.description) }
+    }
+    case 'quests': {
+      const q = find('quests'); if (!q) return null
+      return { title: q.type, sub: [q.guild, q.danger && q.danger + ' опасность'].filter(Boolean).join(' · '), text: plain(q.text) }
+    }
+    case 'roads': case 'routes': {
+      const r = find(hit.type); if (!r) return null
+      return { title: r.name || (hit.type === 'roads' ? ROAD_TYPES[r.type]?.label || 'Дорога' : 'Маршрут'), sub: `${fmtKm(polyLength(r.points))} · ≈ ${travelText(polyLength(r.points))} пути` }
+    }
+    case 'routestop': {
+      const r = d.routes.find(x => x.id === hit.id), st = r?.stops.find(x => x.id === hit.sub)
+      return st ? { title: st.name, sub: 'остановка · ' + (r.name || 'маршрут'), text: plain(st.description) } : null
+    }
+    case 'npc': {
+      const p = (d.npcPins || []).find(x => x.id === hit.id)
+      return p ? { title: p.name, sub: p.role || 'НПС', text: 'Щёлкни — лист в вики' } : null
+    }
+    case 'npccity': {
+      const n = (d.npcPins || []).filter(p => p.cityId === hit.id)
+      return { title: `Ещё НПС: ${n.length}`, sub: n.map(p => p.name).slice(4).join(', ') }
+    }
+    case 'notes': { const n = find('notes'); return n ? { title: 'Заметка', text: plain(n.text) } : null }
+  }
+  return null
+}
+let tipKey = ''
+function showTip(e) {
+  const hit = hitInfo(e.target)
+  const key = hit.type ? `${hit.type}:${hit.id}:${hit.sub || ''}` : ''
+  if (!key) { tip.value = null; tipKey = ''; return }
+  const r = wrap.value.getBoundingClientRect()
+  const pos = { x: Math.min(e.clientX - r.left + 16, r.width - 280), y: e.clientY - r.top + 18 }
+  if (key === tipKey && tip.value) { Object.assign(tip.value, pos); return }
+  tipKey = key
+  const t = tipFor(hit)
+  tip.value = t ? { ...t, ...pos } : null
+}
+
 function onLeave() {
+  tip.value = null
+  tipKey = ''
   cursor.value = null
   sendCursorLeave()
 }
@@ -775,7 +854,8 @@ function onMove(e) {
   cursor.value = w
   if (master.value && e.pointerType !== 'touch') sendCursor(w[0], w[1])
   const g = gesture.value
-  if (!g) return
+  if (!g) { if (e.pointerType === 'mouse') showTip(e); return }
+  tip.value = null
 
   if (g.mode === 'pinch') {
     if (pointers.size < 2) return
@@ -1133,6 +1213,11 @@ watch(() => store.tool, t => {
 <style scoped>
 .canvas-wrap { position: absolute; inset: 0; overflow: hidden; background: #466eab radial-gradient(ellipse at center, transparent 55%, rgba(8, 14, 30, .45)); touch-action: none; user-select: none; cursor: grab; }
 .canvas-wrap.panning { cursor: grabbing; }
+.map-tip { position: absolute; z-index: 12; max-width: 270px; display: grid; gap: 2px; padding: 8px 11px; border-radius: 10px; background: rgba(15, 12, 9, .94); border: 1px solid rgba(231, 197, 111, .4); box-shadow: 0 10px 26px rgba(0, 0, 0, .55); color: #efe3c8; pointer-events: none; animation: tip-in .15s ease-out; }
+.map-tip b { font: 700 16px 'Cormorant Garamond', serif; color: #f3dc9e; }
+.map-tip small { color: #a8936c; font: 700 11px var(--sans); }
+.map-tip p { margin: 3px 0 0; font: 500 12px/1.4 var(--sans); color: #d9ccb0; }
+@keyframes tip-in { from { opacity: 0; transform: translateY(4px); } }
 .tool-city, .tool-zone, .tool-point, .tool-party, .tool-road, .tool-route, .tool-label, .tool-ruler, .tool-ping, .tool-journey, .tool-pick, .tool-fogLasso, .tool-fogLassoErase { cursor: crosshair; }
 .tool-fogBrush, .tool-fogErase { cursor: none; }
 .map-svg { display: block; }

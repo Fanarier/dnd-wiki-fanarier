@@ -108,7 +108,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import { ICONS } from './icons.js'
 import { store, isMaster, fmtDuration, fmtDateTime, setSound, avatarUrl } from './store.js'
@@ -129,7 +129,10 @@ const markGroups = computed(() => {
   }
   return out
 })
-const open = ref(window.innerWidth > 760)
+// свёрнута по умолчанию (на ноутбуке съедает треть карты); выбор запоминается
+const LEG_KEY = 'anacaria-legend-open'
+const open = ref((() => { try { return localStorage.getItem(LEG_KEY) === '1' } catch { return false } })())
+watch(open, v => { try { localStorage.setItem(LEG_KEY, v ? '1' : '0') } catch { /* приватный режим */ } })
 
 const BASE = [
   { key: 'states', label: 'Народы', icon: 'states' },

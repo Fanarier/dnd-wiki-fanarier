@@ -100,14 +100,17 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import { store, isMaster, act } from './store.js'
 import { HUD_LEVELS } from '../shared/catalog.js'
 
 const master = isMaster
 const hud = computed(() => store.data.hud)
-const collapsed = ref(window.innerWidth <= 760)
+// погода свёрнута по умолчанию (в свёрнутой видно «+18° · Весна»); выбор запоминается
+const HUD_KEY = 'anacaria-hud-open'
+const collapsed = ref((() => { try { return localStorage.getItem(HUD_KEY) !== '1' } catch { return true } })())
+watch(collapsed, v => { try { localStorage.setItem(HUD_KEY, v ? '0' : '1') } catch { /* приватный режим */ } })
 const editing = ref(false)
 const f = ref(null)
 

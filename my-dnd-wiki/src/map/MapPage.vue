@@ -73,6 +73,7 @@
       <button class="ui-btn icon ghost" title="Приблизить (+)" @click="canvas.zoomBy(1.5)"><Icon name="plus" /></button>
       <button class="ui-btn icon ghost" title="Отдалить (−)" @click="canvas.zoomBy(1 / 1.5)"><Icon name="minus" /></button>
       <button class="ui-btn icon ghost" title="Вся карта" @click="canvas.fit()"><Icon name="fit" :size="18" /></button>
+      <button class="ui-btn icon ghost" title="Скопировать ссылку на этот вид карты" @click="copyViewLink">🔗</button>
       <button v-if="master" class="ui-btn icon ghost show-view" title="Показать всем мой вид — камеры игроков прилетят сюда" @click="showMyView"><Icon name="eye" :size="18" /></button>
     </div>
     <div class="scale" :class="{ shifted: store.selection || store.journeyPlan }">
@@ -168,7 +169,7 @@ onMounted(init)
 // ссылки из вики: ?focus=quests:ID — показать заказ, ?pick=quest:ID — выбрать место заказа
 const route = useRoute()
 const router = useRouter()
-watch(() => [route.query.focus, route.query.pick, route.query.plan, store.ready], () => {
+watch(() => [route.query.focus, route.query.pick, route.query.plan, route.query.view, store.ready], () => {
   if (!store.ready) return
   const { focus, pick } = route.query
   if (focus) {
@@ -176,11 +177,15 @@ watch(() => [route.query.focus, route.query.pick, route.query.plan, store.ready]
     const o = store.data[type]?.find(x => x.id === id)
     if (o) {
       store.selection = { type, id }
-      const l = type === 'anomalies' ? locate(type, o) : null // движущаяся метка — там, где она сейчас
-      const at = l ? { x: l[0], y: l[1] } : o.loc || (o.x != null ? { x: o.x, y: o.y } : null)
-      if (at) setTimeout(() => canvas.value?.flyTo(at.x, at.y, 4), 300)
+      // где объект: города, метки (движущиеся — где сейчас), отряды, народы, дороги; заказ — его место
+      const l = locate(type, o)
+      const at = l ? { x: l[0], y: l[1], k: Math.max(3, l[2]) } : o.loc ? { ...o.loc, k: 4 } : o.x != null ? { x: o.x, y: o.y, k: 4 } : null
+      if (at) setTimeout(() => canvas.value?.flyTo(at.x, at.y, at.k), 300)
     }
   }
+  // ?view=x,y,масштаб — ссылка на вид карты
+  const v = route.query.view && String(route.query.view).split(',').map(Number)
+  if (v && v.length === 3 && v.every(Number.isFinite)) setTimeout(() => canvas.value?.flyTo(v[0], v[1], v[2]), 300)
   if (pick && String(pick).startsWith('quest:')) {
     store.pick = { purpose: 'questLoc', id: String(pick).slice(6) }
     toast('Кликни на карте место заказа')
@@ -194,7 +199,7 @@ watch(() => [route.query.focus, route.query.pick, route.query.plan, store.ready]
     setTimeout(() => canvas.value?.flyTo(p.x, p.y, 3), 300)
     toast(home ? 'Путь домой проложен — выбери время и «Отправить»' : 'Щёлкай по карте точки интереса, последняя — цель')
   }
-  if (focus || pick || plan) router.replace({ query: {} })
+  if (focus || pick || plan || route.query.view) router.replace({ query: {} })
 }, { immediate: true })
 
 /* ---------- Часы ---------- */
@@ -254,6 +259,11 @@ function go(r) {
   searchOpen.value = false
 }
 
+async function copyViewLink() {
+  const c = canvas.value.currentView()
+  const url = `${location.origin}/?view=${Math.round(c.x)},${Math.round(c.y)},${canvas.value.view.k.toFixed(2)}`
+  try { await navigator.clipboard.writeText(url); toast('🔗 Ссылка на этот вид скопирована') } catch { prompt('Скопируй ссылку:', url) }
+}
 function showMyView() {
   sendFollow({ mode: 'view', ...canvas.value.currentView() })
   toast('Игроки смотрят туда же, куда и ты')
@@ -318,7 +328,8 @@ async function exportDb() {
 .master-chip { color: var(--gold-2); border-color: rgba(231, 197, 111, 0.4); background: rgba(231, 197, 111, 0.1); }
 
 .zoom { position: absolute; right: 16px; bottom: 16px; display: flex; flex-direction: column; padding: 4px; z-index: 16; transition: right .2s; }
-.scale { position: absolute; right: 76px; bottom: 22px; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 16; font: 700 11px var(--sans); color: #fff; text-shadow: 0 1px 3px #000; pointer-events: none; transition: right .2s; }
+/* масштаб — на подложке, чтобы не терялся на пёстрой карте и не сливался со значками */
+.scale { position: absolute; right: 76px; bottom: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; z-index: 16; padding: 6px 9px 5px; border-radius: 9px; background: rgba(13, 16, 23, .78); border: 1px solid rgba(231, 197, 111, .22); font: 700 11px var(--sans); color: #fff; pointer-events: none; transition: right .2s; }
 .scale-bar { height: 6px; border: 2px solid #fff; border-top: 0; box-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
 .zoom.shifted { right: 392px; }
 .scale.shifted { right: 452px; }

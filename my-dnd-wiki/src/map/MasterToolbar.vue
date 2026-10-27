@@ -24,17 +24,24 @@
       </template>
       <template v-for="(g, gi) in groups" :key="gi">
         <i v-if="gi" class="sep" />
-        <button v-for="t in g" :key="t.id" class="tool" :class="{ active: store.tool === t.id }" :title="t.label + (t.key ? ` (${t.key})` : '')" @click="setTool(t.id)">
-          <Icon :name="t.icon" :size="20" />
-          <span>{{ t.short }}</span>
+        <!-- телефон: объекты и туман свёрнуты в кнопку-группу, раскрываются по нажатию -->
+        <button v-if="narrow && gi" class="tool grp" :class="{ active: g.some(t => t.id === store.tool), open: openGroup === gi }" @click="openGroup = openGroup === gi ? -1 : gi">
+          <Icon :name="GROUP_META[gi].icon" :size="20" />
+          <span>{{ GROUP_META[gi].short }} {{ openGroup === gi ? '▸' : '◂' }}</span>
         </button>
+        <template v-if="!narrow || !gi || openGroup === gi">
+          <button v-for="t in g" :key="t.id" class="tool" :class="{ active: store.tool === t.id }" :title="t.label + (t.key ? ` (${t.key})` : '')" @click="setTool(t.id)">
+            <Icon :name="t.icon" :size="20" />
+            <span>{{ t.short }}</span>
+          </button>
+        </template>
       </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 import Icon from './Icon.vue'
 import { store, act, fmtKm, isMaster } from './store.js'
 import { history, undo, redo } from './history.js'
@@ -67,6 +74,12 @@ const GROUPS = [
   ]
 ]
 
+// узкий экран — группы инструментов мастера свёрнуты
+const GROUP_META = { 1: { icon: 'cityAdd', short: 'Объекты' }, 2: { icon: 'brush', short: 'Туман' } }
+const narrowMq = matchMedia('(max-width: 760px)')
+const narrow = ref(narrowMq.matches)
+const onNarrow = e => { narrow.value = e.matches }
+const openGroup = ref(-1)
 // заметка — для вошедших; гостям только выбор и линейка
 const groups = computed(() => {
   const common = store.me ? [...COMMON, NOTE_TOOL] : COMMON.filter(t => t.id !== 'ping')
@@ -138,8 +151,8 @@ function onKey(e) {
   const t = KEYS[k] || KEYS[RU[k]]
   if (t && (master.value || PLAYER_TOOLS.includes(t))) setTool(t)
 }
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onMounted(() => { window.addEventListener('keydown', onKey); narrowMq.addEventListener('change', onNarrow) })
+onBeforeUnmount(() => { window.removeEventListener('keydown', onKey); narrowMq.removeEventListener('change', onNarrow) })
 </script>
 
 <style scoped>
@@ -149,6 +162,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .tool:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
 .tool:disabled { opacity: .35; cursor: default; background: none; }
 .tool.active { color: var(--gold-2); background: rgba(231, 197, 111, 0.15); border-color: rgba(231, 197, 111, 0.45); }
+.tool.grp { border-style: dashed; border-color: rgba(231, 197, 111, .3); }
+.tool.grp.open { color: var(--gold-2); }
 .sep { width: 1px; height: 32px; background: var(--line-2); margin: 0 4px; flex: none; }
 .mt-hint { padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: var(--gold-2); text-align: center; }
 .fog-bar { display: flex; align-items: center; gap: 8px; padding: 8px 10px; flex-wrap: wrap; justify-content: center; }
@@ -158,7 +173,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 /* телефон: панель начинается правее кнопки кубиков, чтобы та не закрывала первый инструмент */
 @media (max-width: 760px) {
   .mt { left: 70px; right: 8px; bottom: 14px; transform: none; max-width: none; align-items: stretch; }
-  .mt-bar { align-self: flex-start; }
-  .tool { min-width: 52px; }
+  .mt-bar { align-self: flex-start; flex-wrap: wrap; overflow: visible; }
+  /* телефон: только значки, панель переносится на вторую строку вместо прокрутки вбок */
+  .tool { min-width: 42px; height: 42px; padding: 4px; justify-content: center; }
+  .tool span { display: none; }
+  .tool.grp span { display: block; font-size: 9.5px; }
+  .tool.grp { min-width: 64px; }
+  .sep { height: 26px; margin: 0 2px; }
 }
 </style>

@@ -240,7 +240,8 @@ export function npcPins(db, master) {
     const cityId = findPlace(n.home, db.cities, db.settlements)?.city?.id
     if (!cityId) continue
     const a = n.arts?.[0]
-    out.push({ id: n.id, name: n.name, cityId, img: n.avatar || a?.thumb || a?.file || '', square: !!n.avatar, y: a?.pos?.y ?? 20 })
+    const role = n.info?.find(x => x.k === 'Профессия')?.v || n.info?.find(x => x.k === 'Принадлежность')?.v || ''
+    out.push({ id: n.id, name: n.name, cityId, img: n.avatar || a?.thumb || a?.file || '', square: !!n.avatar, y: a?.pos?.y ?? 20, group: n.group, role: role.slice(0, 60) })
   }
   return out
 }

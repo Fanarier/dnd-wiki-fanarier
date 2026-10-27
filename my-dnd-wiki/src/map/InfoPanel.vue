@@ -9,6 +9,7 @@
         <div class="ui-kicker">{{ kindLabel }}</div>
         <h2 class="ui-title">{{ (type === 'labels' ? item.text : type === 'quests' ? item.type : type === 'notes' ? 'Заметка' : item.name) || 'Без названия' }}</h2>
       </div>
+      <button v-if="linkable" class="ui-btn icon ghost" title="Скопировать ссылку: откроет карту здесь с выбранным объектом" @click="copyLink">🔗</button>
       <button class="ui-btn icon ghost" title="Закрыть (Esc)" @click="store.selection = null"><Icon name="close" /></button>
     </header>
 
@@ -65,6 +66,14 @@
       <button v-if="type === 'cities' && state" class="link-row" @click="select('states', state.id)">
         <i class="swatch" :style="{ background: state.color }" /> {{ state.name }}
       </button>
+      <!-- кто живёт в городе (листы НПС с домом здесь) — щелчок открывает лист в вики -->
+      <div v-if="cityNpcs.length" class="city-npcs">
+        <div class="ui-kicker">Живут здесь · {{ cityNpcs.length }}</div>
+        <router-link v-for="n in cityNpcs" :key="n.id" class="cn" :to="{ path: '/wiki', query: { npc: n.id } }">
+          <span class="cn-pic"><img v-if="n.img" :src="'/portraits/' + n.img" alt="" :style="{ objectPosition: n.square ? 'center' : `50% ${n.y}%` }" /><template v-else>{{ n.name[0] }}</template></span>
+          <span class="cn-txt"><b>{{ n.name }}</b><small>{{ [groupOf(n.group).one, n.role].filter(Boolean).join(' · ') }}</small></span>
+        </router-link>
+      </div>
       <!-- у поселения игроков есть своя мини-карта -->
       <router-link v-if="settlement" :to="`/settlement/${settlement.id}`" class="ui-btn primary small enter-settle">
         <img src="/settlement/medieval-village-01.png" alt="" /> Войти в поселение
@@ -374,6 +383,7 @@ import Icon from './Icon.vue'
 import IconPicker from './IconPicker.vue'
 import RichEditor from '../components/RichEditor.vue'
 import RichText from '../components/RichText.vue'
+import { groupOf } from '../shared/npc.js'
 import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km, toast, markIcon, sendFollow, avatarUrl } from './store.js'
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
 import { URGENCY, rewardText } from '../shared/quests.js'
@@ -428,6 +438,13 @@ const accent = computed(() => {
 })
 
 const settlement = computed(() => (type.value === 'cities' ? store.data.settlements?.find(s => s.cityId === item.value.id) : null))
+// ссылка на объект карты: /?focus=тип:id — откроет карту, выделит и подлетит
+const linkable = computed(() => ['cities', 'states', 'anomalies', 'parties', 'roads', 'routes', 'quests', 'labels'].includes(type.value))
+async function copyLink() {
+  const url = `${location.origin}/?focus=${type.value}:${item.value.id}`
+  try { await navigator.clipboard.writeText(url); toast('🔗 Ссылка скопирована') } catch { prompt('Скопируй ссылку:', url) }
+}
+const cityNpcs = computed(() => (type.value === 'cities' ? (store.data.npcPins || []).filter(p => p.cityId === item.value.id).sort((a, b) => a.name.localeCompare(b.name, 'ru')) : []))
 // у поселения игроков жителей считает само поселение
 const settlePop = computed(() => (settlement.value?.races || []).reduce((n, r) => n + (r.male || 0) + (r.female || 0) + (r.kids || 0), 0))
 const state = computed(() => (type.value === 'cities' && item.value.stateId ? store.data.states.find(s => s.id === item.value.stateId) : null))
@@ -713,6 +730,14 @@ function replay() {
 .badge-img { max-width: 32px; max-height: 32px; }
 .route-box { display: grid; gap: 8px; padding: 12px; border-radius: 12px; background: rgba(255, 74, 61, 0.06); border: 1px solid rgba(255, 74, 61, 0.25); margin-bottom: 10px; }
 .route-box .ui-kicker { color: #ff9b8f; }
+.city-npcs { display: grid; gap: 4px; margin: 10px 0; }
+.cn { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 10px; color: var(--text); text-decoration: none; transition: background .15s; }
+.cn:hover { background: rgba(231, 197, 111, .1); }
+.cn-pic { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 50%; overflow: hidden; border: 1.5px solid var(--gold); background: #120e09; color: var(--gold-2); font: 700 16px 'Cormorant Garamond', serif; }
+.cn-pic img { width: 100%; height: 100%; object-fit: cover; }
+.cn-txt { display: grid; min-width: 0; }
+.cn-txt b { font: 700 14px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cn-txt small { color: var(--muted); font: 600 11.5px var(--sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .route-box .ui-check { margin: 0; }
 .stop-now { display: flex; flex-wrap: wrap; gap: 6px; font-size: 13px; }
 .step-row { gap: 8px; }
