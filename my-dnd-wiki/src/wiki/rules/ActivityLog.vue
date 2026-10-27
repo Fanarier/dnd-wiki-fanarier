@@ -125,7 +125,7 @@ import ActivityInfo from './ActivityInfo.vue'
 import SessionBar from './SessionBar.vue'
 import LottieFx from './LottieFx.vue'
 import { hourglass } from './lottie.js'
-import { celebrate } from './actFx.js'
+import { celebrate, shake } from './actFx.js'
 import { sfx } from '../../sound/sound.js'
 
 const route = useRoute()
@@ -356,7 +356,16 @@ function rollRec(h, r) {
 }
 async function send(hid, r, roll, retry = true) {
   await new Promise(res => setTimeout(res, 400)) // бросок сначала проходит по сокету — запись принимается после
-  try { await api('POST', `/api/activities/${hid}/${r.id}/roll`, roll); await loadActivities(true); toast('🎲 Бросок записан') } catch (e) {
+  try {
+    const rec = await api('POST', `/api/activities/${hid}/${r.id}/roll`, roll)
+    await loadActivities(true)
+    // натуральная 20 — праздник, натуральная 1 — встряска (у самой записи вспыхнет бросок)
+    const last = rec?.rolls?.[rec.rolls.length - 1]
+    const row = document.querySelector(`.ar[data-rec="${r.id}"]`)
+    if (last?.twenties) { celebrate(row, true); sfx('crit', 0.6); toast(`✨ Натуральная 20! Кубик ×2 — итог ${last.final}`) }
+    else if (last?.ones) { shake(row); sfx('fail', 0.6); toast(`💀 Натуральная 1 — кубик не в счёт, бонус повторения сначала. Итог ${last.final}`) }
+    else toast('🎲 Бросок записан')
+  } catch (e) {
     if (retry && /не прошёл/.test(e.message)) return send(hid, r, roll, false)
     toast(e.message, 'error')
   }

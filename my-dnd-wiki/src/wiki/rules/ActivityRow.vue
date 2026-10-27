@@ -1,7 +1,7 @@
 <template>
   <!-- одна запись журнала: что делал (ссылка на правило в вики), часы, выносливость, результат и броски, статус;
        с кем, где, что ушло в лист. Мастер проверяет — на запись падает печать -->
-  <article ref="el" class="ar" :class="['st-' + rec.status, { cut: rec.status === 'cancel', mirror }]" :style="{ '--sc': ST.color, '--cc': CAT.color }">
+  <article ref="el" :data-rec="rec.id" class="ar" :class="['st-' + rec.status, { cut: rec.status === 'cancel', mirror }]" :style="{ '--sc': ST.color, '--cc': CAT.color }">
     <span class="ar-type" :class="{ grip: sortable }" :title="`${CAT.name}${TYPE ? ' · ' + TYPE.name : ''}${sortable ? ' — перетащи, чтобы поменять порядок' : ''}`">{{ CAT.icon }}</span>
     <b class="ar-name">
       <router-link v-if="wiki" class="ar-wiki" :to="{ path: '/wiki', query: { section: 'activities', a: wiki.articleId } }" :title="`В вики: ${wiki.name} — ${wiki.dur}, ${wiki.rate} выносливости в час${wiki.cost ? ', ' + wiki.cost : ''}`">{{ rec.name }}<sup>📖</sup></router-link>
@@ -47,7 +47,7 @@
         <span v-for="(it, i) in rec.items || []" :key="'i' + i" class="ar-tag item" :class="{ ok: rec.appliedSheet, made: it.created }"
               :title="it.created ? 'Этой вещи не было в листе — игрок сам добавил её в инвентарь из журнала' : it.info?.desc ? 'Новая вещь с описанием' : ''">{{ it.qty > 0 ? '🎒 +' : '🎒 −' }}{{ Math.abs(it.qty) > 1 ? Math.abs(it.qty) + '× ' : '' }}{{ it.name }}{{ it.stored ? ' (склад)' : '' }}{{ it.created ? ' ✨ не было в листе' : '' }}{{ it.info && !it.created ? ' 📝' : '' }}</span>
         <span v-if="purse?.short" class="ar-tag poor" :title="`В листе ${fmtCoins(purse.have)}, тратится ${fmtCoins(purse.need)}`">⚠ не хватает денег</span>
-        <span v-for="r in series.last" :key="'r' + r.i" class="ar-tag roll" :class="{ crit: r.twenties, fumble: r.ones }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <template v-if="steps(r)">{{ r.total }}{{ steps(r) }}</template><b>{{ r.final ?? r.total }}</b><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
+        <span v-for="r in series.last" :key="'r' + r.i" class="ar-tag roll" :class="{ crit: r.twenties, fumble: r.ones, fresh: r.i === fresh }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <template v-if="steps(r)">{{ r.total }}{{ steps(r) }}</template><b>{{ r.final ?? r.total }}</b><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
         <!-- переброшено: прежние броски остаются в записи (видно, что было), но не считаются -->
         <button v-if="series.old.length" type="button" class="ar-tag oldbtn" :title="showOld ? 'Спрятать прежние броски' : 'Показать, что выпадало до переброса'" @click="showOld = !showOld">↺ перебросы: {{ series.old.length }}</button>
         <template v-if="showOld"><span v-for="r in series.old" :key="'o' + r.i" class="ar-tag roll old" :title="'Переброшено — не считается. ' + rollTitle(r)">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b>{{ r.final ?? r.total }}</b></span></template>
@@ -150,6 +150,13 @@ const mentor = computed(() => mentorLink(props.rec.mentor))
 // броски: последняя серия считается, прежние (переброшенные) — под кнопкой
 const series = computed(() => seriesInfo(props.rec))
 const showOld = ref(false)
+// только что брошенный — вспыхивает (крит — золотом, провал — трещиной)
+const fresh = ref(-1)
+watch(() => props.rec.rolls?.length || 0, (n, o) => {
+  if (o == null || n <= o) return
+  fresh.value = n - 1
+  setTimeout(() => { fresh.value = -1 }, 2200)
+})
 // план броска, пока не брошено (у «несколько» — пока брошены не все)
 const preview = computed(() => {
   const p = props.plan
@@ -263,6 +270,23 @@ watch(() => props.rec.status, (now, was) => {
 .ar-menu button:hover { background: rgba(255, 140, 190, .14); }
 .ar-tag.roll.crit { background: rgba(243, 211, 107, .2); color: #ffe7a0; box-shadow: 0 0 10px rgba(243, 211, 107, .35); }
 .ar-tag.roll.fumble { background: rgba(255, 107, 94, .16); color: #ffb3aa; }
+.ar-tag.roll.fresh { animation: ar-roll-in .6s cubic-bezier(.2, .9, .3, 1.4); }
+.ar-tag.roll.crit.fresh { animation: ar-crit 1.8s ease-out; }
+.ar-tag.roll.fumble.fresh { animation: ar-fumble .9s ease-out; }
+@keyframes ar-roll-in { from { transform: scale(.6); opacity: 0; } }
+@keyframes ar-crit {
+  0% { transform: scale(.6); box-shadow: 0 0 0 rgba(243, 211, 107, 0); }
+  25% { transform: scale(1.25); box-shadow: 0 0 26px 6px rgba(243, 211, 107, .8); background: rgba(243, 211, 107, .45); }
+  100% { transform: scale(1); }
+}
+@keyframes ar-fumble {
+  0%, 100% { transform: none; }
+  15% { transform: translateX(-4px) rotate(-3deg); background: rgba(255, 70, 60, .45); }
+  30% { transform: translateX(4px) rotate(2deg); }
+  45% { transform: translateX(-3px); }
+  60% { transform: translateX(2px); }
+}
+@media (prefers-reduced-motion: reduce) { .ar-tag.roll.fresh { animation: none; } }
 .ar-tag.roll.old { opacity: .55; text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .35); }
 .ar-tag.oldbtn { border: 1px dashed rgba(231, 197, 111, .35); background: none; color: #a8936c; cursor: pointer; }
 .ar-res :deep(img) { display: block; max-width: min(100%, 420px); max-height: 300px; margin: 6px 0; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .25); cursor: zoom-in; object-fit: contain; }

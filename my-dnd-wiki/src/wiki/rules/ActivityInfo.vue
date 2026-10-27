@@ -107,6 +107,12 @@
           </div>
         </section>
 
+        <!-- калькулятор -->
+        <section v-else-if="tab === 'calc'">
+          <p>Сколько в среднем даст тренировка: впиши свои моды, место и наставника — сайт сравнит обычные тренировки и длительную за одно и то же время.</p>
+          <ActivityCalc />
+        </section>
+
         <!-- изнурение -->
         <section v-else-if="tab === 'exh'">
           <p><b>Изнурение</b> — эффект до <b>5</b>. Каждое снижает характеристики на 2 и <b>удваивает затраты выносливости</b>; на 5 накладывается эффект <b>«Сон»</b>.
@@ -167,6 +173,7 @@ import gsap from 'gsap'
 import LottieFx from './LottieFx.vue'
 import SessionBar from './SessionBar.vue'
 import ActivityRow from './ActivityRow.vue'
+import ActivityCalc from './ActivityCalc.vue'
 import { hourglass } from './lottie.js'
 import { celebrate, sparks } from './actFx.js'
 import { sfx } from '../../sound/sound.js'
@@ -175,7 +182,7 @@ defineProps({ limit: { type: Number, default: 336 } })
 defineEmits(['close'])
 const TABS = [
   { id: 'write', icon: '✍', name: 'Записать' }, { id: 'check', icon: '🔏', name: 'Проверка' }, { id: 'sheet', icon: '📜', name: 'Лист' },
-  { id: 'dice', icon: '🎲', name: 'Броски' }, { id: 'exh', icon: '😵', name: 'Изнурение' }, { id: 'links', icon: '🔗', name: 'Связи' }, { id: 'plan', icon: '🗓', name: 'План и настройки' }, { id: 'stats', icon: '📊', name: 'Статистика' }
+  { id: 'dice', icon: '🎲', name: 'Броски' }, { id: 'calc', icon: '🧮', name: 'Калькулятор' }, { id: 'exh', icon: '😵', name: 'Изнурение' }, { id: 'links', icon: '🔗', name: 'Связи' }, { id: 'plan', icon: '🗓', name: 'План и настройки' }, { id: 'stats', icon: '📊', name: 'Статистика' }
 ]
 const tab = ref('write')
 const glass = hourglass()

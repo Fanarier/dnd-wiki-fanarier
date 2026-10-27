@@ -8,6 +8,7 @@
       <div class="as-card" :title="`Учтено ${s.done}, провалов ${s.fail}`"><b>{{ s.done + s.fail ? Math.round(s.done / (s.done + s.fail) * 100) : 0 }}%</b><small>попыток удачны</small></div>
       <div class="as-card"><b>{{ fmt(s.pts) }}</b><small>очков ушло в тренировки</small></div>
       <div class="as-card"><b>{{ s.streak }}</b><small>сессий подряд с тренировками</small></div>
+      <div v-if="s.rolls" class="as-card" :title="`Бросков на сайте: ${s.rolls}. Натуральные на базовом к20: 20 — ${s.crits}, 1 — ${s.fumbles}`"><b>✨ {{ s.crits }} · 💀 {{ s.fumbles }}</b><small>критов и провалов из {{ s.rolls }} бросков</small></div>
       <div v-if="s.gold || s.exp" class="as-card"><b>{{ s.gold > 0 ? '+' : '' }}{{ fmt(s.gold) }} ЗМ</b><small>{{ s.exp ? `и ${fmt(s.exp)} опыта` : 'монет по журналу' }}</small></div>
     </div>
     <div v-if="!s.count" class="as-empty">Пока нечего считать.</div>
@@ -29,6 +30,15 @@
       <section class="as-box wide">
         <h3>Часы по сессиям <small>линия — свободно {{ limit }} ч (обязательный отдых уже вычтен)</small></h3>
         <div class="as-ch"><canvas ref="barEl" /></div>
+      </section>
+      <section v-if="luck.length" class="as-box">
+        <h3>Кубики отряда <small>натуральные 20 и 1 на базовом к20</small></h3>
+        <ol class="as-luck">
+          <li v-for="(x, i) in luck" :key="x.heroId" :class="{ me: x.heroId === heroId }">
+            <span>{{ i === 0 && x.crits ? '👑 ' : '' }}{{ x.name }}</span>
+            <b class="c">✨ {{ x.crits }}</b><b class="f">💀 {{ x.fumbles }}</b><small>{{ x.rolls }} бр.</small>
+          </li>
+        </ol>
       </section>
       <section class="as-box wide">
         <h3>Отряд: часы по видам дел</h3>
@@ -74,14 +84,23 @@ function statsOf(rows) {
   const dates = [...bySess.keys()].sort()
   let streak = 0
   for (const d of dates.slice().reverse()) { if (bySess.get(d).has('train') || bySess.get(d).has('study')) streak++; else break }
+  const dice = diceOf(rows)
   return {
-    count: rows.length, hours, pts, gold, exp, streak, sessions: dates.length,
+    ...dice, count: rows.length, hours, pts, gold, exp, streak, sessions: dates.length,
     done: rows.filter(r => r.status === 'done' && r.type === 'repeat').length, fail: rows.filter(r => r.status === 'fail').length,
     byCat, dates, bySess,
     top: [...byName.values()].sort((a, b) => b.hours - a.hours).slice(0, 8).map(t => ({ ...t, icon: ACT_CATS[t.cat].icon, color: ACT_CATS[t.cat].color }))
   }
 }
 const s = computed(() => statsOf(actState.logs[props.heroId] || []))
+// броски с сайта: все (и переброшенные — крит всё равно был), натуральные на базовом к20
+function diceOf(rows) {
+  const all = rows.flatMap(r => r.rolls || [])
+  return { rolls: all.length, crits: all.reduce((n, x) => n + (x.twenties || 0), 0), fumbles: all.reduce((n, x) => n + (x.ones || 0), 0) }
+}
+// везунчики отряда: больше критов — выше, при равенстве — меньше провалов
+const luck = computed(() => actState.heroes.map(h => ({ heroId: h.heroId, name: h.name.split(' ')[0], ...diceOf(actState.logs[h.heroId] || []) }))
+  .filter(x => x.rolls).sort((a, b) => b.crits - a.crits || a.fumbles - b.fumbles || b.rolls - a.rolls))
 
 /* ---------- графики (Chart.js грузится здесь же, по требованию) ---------- */
 const pieEl = ref(null), barEl = ref(null), partyEl = ref(null)
@@ -155,6 +174,12 @@ onBeforeUnmount(() => charts.splice(0).forEach(c => c.destroy()))
 .as-ch.round { height: 220px; }
 .as-ch.tall { height: 300px; }
 .as-top { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.as-luck { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.as-luck li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; color: #efe3c8; font: 700 13px 'Manrope', sans-serif; }
+.as-luck li.me { background: rgba(231, 197, 111, .1); }
+.as-luck li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.as-luck .c { color: #ffe7a0; } .as-luck .f { color: #ffb3aa; }
+.as-luck small { color: #a8936c; font: 700 11px 'Manrope', sans-serif; }
 .as-top li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) auto; align-items: center; gap: 8px; }
 .as-tn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #efe3c8; font: 700 12.5px 'Manrope', sans-serif; }
 .as-tb { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .05); overflow: hidden; }
