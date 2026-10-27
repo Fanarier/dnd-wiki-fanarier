@@ -3,12 +3,8 @@ import { createApp } from 'vue'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 
-// Vuetify используется страницами вики
-import 'vuetify/styles'
-import { createVuetify } from 'vuetify'
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
-import '@mdi/font/css/materialdesignicons.css'
+// базовый сброс стилей (раньше приходил с Vuetify — сам Vuetify с его 0,5 МБ скриптов и иконками сайту не нужен)
+import './styles/reset.css'
 
 import './styles.css'
 import './components/rich/richfx.css'
@@ -17,28 +13,6 @@ import { vTilt } from './components/fx/tilt.js'
 import { vTabslide, ACTIVITY_SECTIONS } from './components/fx/routeFx.js' // «живой» текст из редакторов — нужен везде, где показывается оформленный текст
 import './map/history.js' // журнал правок карты (Ctrl+Z / Ctrl+Y) — с первой загрузки, даже если зашли не с карты
 
-const vuetify = createVuetify({
-  components,
-  directives,
-  icons: { defaultSet: 'mdi' },
-  theme: {
-    defaultTheme: 'anacaria',
-    themes: {
-      anacaria: {
-        dark: true,
-        colors: {
-          background: '#0d1017',
-          surface: '#141a24',
-          primary: '#e7c56f',
-          secondary: '#b9a6ff',
-          info: '#7cc4ff',
-          'on-surface': '#ece6da',
-          'on-background': '#ece6da'
-        }
-      }
-    }
-  }
-})
 
 const router = createRouter({
   history: createWebHistory(),
@@ -64,4 +38,4 @@ router.beforeEach(to => {
 })
 
 // v-tilt: наклон карточек за курсором с рунным кругом (src/components/fx)
-createApp(App).use(vuetify).use(router).directive('tilt', vTilt).directive('tabslide', vTabslide).mount('#app')
+createApp(App).use(router).directive('tilt', vTilt).directive('tabslide', vTabslide).mount('#app')

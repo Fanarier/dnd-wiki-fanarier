@@ -1,5 +1,5 @@
 <template>
-  <v-app class="wiki">
+  <div class="v-application wiki"><div class="v-application__wrap">
     <header class="w-top">
       <button class="w-burger" aria-label="Открыть разделы" @click="drawer = !drawer"><span /><span /><span /></button>
       <router-link to="/" class="w-brand">
@@ -17,7 +17,7 @@
         <router-link v-if="store.me" to="/sheets" class="w-tab">Листы</router-link>
       </nav>
       <label class="w-search" :class="{ filled: search }" title="Поиск по всему сайту">
-        <v-icon size="18">mdi-magnify</v-icon>
+        <svg class="w-mag" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
         <input v-model="search" placeholder="Поиск: НПС, навыки, города, заказы…" aria-label="Поиск по всему сайту" />
         <button type="button" class="w-cmd" title="Быстрый переход — Ctrl+K" @click.prevent="openPalette">⌘K</button>
         <button v-if="search" class="w-clear" aria-label="Очистить" @click="search = ''">×</button>
@@ -54,7 +54,7 @@
       </main>
     </div>
 
-  </v-app>
+  </div></div>
 </template>
 
 <script setup>
