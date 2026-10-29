@@ -143,7 +143,7 @@ import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import UserMenu from '../components/UserMenu.vue'
 import { store, init, toast } from '../map/store.js'
-import { sheet, openSheet, closeSheet, rollMode, sheetImg, exportSheet, replaceFromFile, deleteSheet, flush, lastRoll } from './sheetState.js'
+import { sheet, openSheet, closeSheet, sheetGen, rollMode, sheetImg, exportSheet, replaceFromFile, deleteSheet, flush, lastRoll } from './sheetState.js'
 import { syncWikiSkills } from './rulesSync.js'
 import { rulesState, loadRules } from '../map/store.js'
 import BookFx from './ui/BookFx.vue'
@@ -171,6 +171,8 @@ import PInventory from './pages/PInventory.vue'
 import PResources from './pages/PResources.vue'
 import PJournal from './pages/PJournal.vue'
 import PCustom from './pages/PCustom.vue'
+// общие классы страниц листа (их же берёт мини-лист в журнале деятельностей) — последними, поверх стилей страниц
+import './sheetCommon.css'
 
 const SECTIONS = [
   { key: 'main', name: 'Главная', icon: '👤', comp: PMain },
@@ -882,43 +884,10 @@ onBeforeUnmount(() => {
   removeEventListener('resize', onResize)
   removeEventListener('keydown', onKey)
   flush()
-  closeSheet()
+  closeSheet(sheetGen())
 })
 </script>
 
-<style>
-/* ---- общие классы страниц листа (префикс sb-, чтобы не пересечься с остальным сайтом) ---- */
-.sb-root { --ink: #efe3c8; --muted: #a8936c; --paper: #1b1610; --paper2: #221b13; --line: color-mix(in srgb, var(--acc) 22%, transparent); }
-.sb-h { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; font: 700 24px 'Cormorant Garamond', serif; color: color-mix(in srgb, var(--acc) 70%, #fff3d6); letter-spacing: .01em; }
-.sb-h::after { content: ''; flex: 1; height: 8px; background: radial-gradient(circle at 4px 4px, color-mix(in srgb, var(--acc) 60%, transparent) 2.5px, transparent 3px) no-repeat, linear-gradient(90deg, color-mix(in srgb, var(--acc) 40%, transparent), transparent) 10px 50% / 100% 1px no-repeat; }
-.sb-h .ic { flex: none; width: 30px; height: 30px; padding: 6px; box-sizing: border-box; border-radius: 50%; color: color-mix(in srgb, var(--acc) 70%, #fff3d6); background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--acc) 30%, #2a1d10), #120c07); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--acc) 60%, #e2c278), 0 0 12px color-mix(in srgb, var(--acc) 30%, transparent); }
-.sb-h::before { content: none; }
-.sb-h2 { margin: 18px 0 8px; font: 800 11px 'Manrope', sans-serif; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-.sb-card { padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--acc) 5%, rgba(0, 0, 0, .18)); border: 1px solid var(--line); }
-.sb-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--acc) 40%, transparent); background: color-mix(in srgb, var(--acc) 8%, transparent); color: color-mix(in srgb, var(--acc) 60%, #fff3d6); font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; text-decoration: none; transition: background .15s, transform .15s; }
-.sb-btn:hover { background: color-mix(in srgb, var(--acc) 18%, transparent); }
-.sb-btn:active { transform: scale(.96); }
-.sb-btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 85%, #fff), var(--acc)); color: #1b140c; border-color: var(--acc); }
-.sb-btn.danger { border-color: rgba(255, 122, 107, .45); color: #ff9b8f; background: rgba(255, 122, 107, .06); }
-.sb-btn:disabled { opacity: .45; cursor: default; }
-.sb-x { width: 26px; height: 26px; flex: none; border-radius: 7px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; font-size: 14px; }
-.sb-x:hover { border-color: rgba(255, 122, 107, .45); color: #ff9b8f; }
-.sb-empty { padding: 22px; text-align: center; color: var(--muted); font: 600 13px 'Manrope', sans-serif; border: 1px dashed var(--line); border-radius: 12px; }
-.sb-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
-.sb-tools .grow { flex: 1; }
-.sb-input { padding: 6px 10px; border-radius: 9px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); color: var(--ink); font: 600 13px 'Manrope', sans-serif; min-width: 0; }
-.sb-input:focus { outline: none; border-color: var(--acc); }
-.sb-chip { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); font: 800 11px 'Manrope', sans-serif; letter-spacing: .03em; background: none; cursor: pointer; white-space: nowrap; }
-.sb-chip.on { background: color-mix(in srgb, var(--acc) 20%, transparent); border-color: var(--acc); color: var(--ink); }
-.sb-dot { width: 18px; height: 18px; flex: none; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--acc) 50%, transparent); background: none; cursor: pointer; transition: background .2s, box-shadow .2s; }
-.sb-dot.on { background: var(--acc); box-shadow: 0 0 10px color-mix(in srgb, var(--acc) 70%, transparent); }
-.sb-handle { cursor: grab; color: var(--muted); padding: 0 4px; user-select: none; font-size: 14px; }
-.sb-flash { animation: sb-flash 1.6s ease-out; border-radius: 10px; }
-@keyframes sb-flash { 0%, 30% { box-shadow: 0 0 0 3px var(--acc), 0 0 26px color-mix(in srgb, var(--acc) 60%, transparent); } }
-.sb-grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.sb-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-@media (max-width: 560px) { .sb-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-</style>
 
 <style scoped>
 .sb-root { position: fixed; inset: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 0%, #1d1710 0%, #0d0b08 60%, #070605 100%); color: var(--ink); font-family: 'Manrope', sans-serif; overflow: hidden; }
@@ -1148,9 +1117,6 @@ onBeforeUnmount(() => {
 </style>
 
 <style>
-/* полоса прокрутки страниц — в цвет листа */
-.sb-root ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, color-mix(in srgb, var(--acc) 75%, transparent), color-mix(in srgb, var(--acc) 45%, #000)) padding-box; }
-.sb-root ::-webkit-scrollbar-thumb:hover { background: var(--acc) padding-box; }
 /* лист, который переворачивается (создаётся скриптом — без scoped) */
 .sb-leaf { position: absolute; z-index: 15; transform-style: preserve-3d; transform-origin: 0% 50%; pointer-events: none; }
 .sb-leaf .sb-face { position: absolute; inset: 0; overflow: hidden; backface-visibility: hidden; border-radius: 4px 14px 14px 4px; background: linear-gradient(180deg, var(--paper2), var(--paper)); border: 1px solid color-mix(in srgb, var(--acc) 30%, #3b2a1a); }

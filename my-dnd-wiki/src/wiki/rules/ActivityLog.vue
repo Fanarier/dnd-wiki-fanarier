@@ -48,6 +48,7 @@
           <span v-if="cfg.elf" class="al-chip elf" title="Отмечено в настройках героя: эльф — транс 4 ч, длительная тренировка 20 ч">🧝 эльф</span>
           <span v-if="cfg.sleep != null && (cfg.sleep !== 8 || (cfg.rest && cfg.rest !== 'Сон'))" class="al-chip" title="Отдых в день по настройкам героя">🌙 {{ (cfg.rest || 'Сон').toLowerCase() }} {{ cfg.sleep }} ч</span>
           <span class="grow" />
+          <button v-if="wide && sheetOf(heroId)" type="button" class="al-book" :class="{ on: miniHero === heroId }" :title="miniHero === heroId ? 'Отпустить книгу листа' : 'Призвать мини-лист персонажа: та же книга, правки сразу в лист'" @click="toggleMini">📖 Лист</button>
           <nav class="al-views">
             <button v-for="v in views" :key="v.id" type="button" :class="{ on: view === v.id }" @click="view = v.id">{{ v.icon }} {{ v.name }}</button>
           </nav>
@@ -106,11 +107,12 @@
       </template>
     </template>
     <ActivityInfo v-if="info" :limit="actState.limit" @close="info = false" />
+    <MiniSheet v-if="wide && miniSheet" ref="miniRef" :sheet-id="miniSheet" :name="heroName(miniHero)" :avatar="avatar(miniHero)" @close="miniHero = ''" />
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll, loadNpcs } from '../../map/store.js'
@@ -122,6 +124,7 @@ import ActivityPlanner from './ActivityPlanner.vue'
 import ActivityStats from './ActivityStats.vue'
 import ActivitySettings from './ActivitySettings.vue'
 import ActivityInfo from './ActivityInfo.vue'
+import MiniSheet from './MiniSheet.vue'
 import SessionBar from './SessionBar.vue'
 import LottieFx from './LottieFx.vue'
 import { hourglass } from './lottie.js'
@@ -158,6 +161,20 @@ const budget = computed(() => restBudget(limit.value, cfg.value))
 const pick = id => { form.value = null; more.value = 4; router.replace({ query: { ...route.query, log: id } }) }
 const pickQueue = () => { form.value = null; router.replace({ query: { ...route.query, log: 'queue' } }) }
 const view = ref('log')
+
+/* ---------- мини-лист: книга листа героя в плавающем окне (на телефоне — нет) ---------- */
+const wide = ref(innerWidth >= 640)
+const onWide = () => { wide.value = innerWidth >= 640 }
+onMounted(() => addEventListener('resize', onWide))
+onBeforeUnmount(() => removeEventListener('resize', onWide))
+const sheetOf = id => (store.data.sheetLinks || []).find(l => l.heroId === id)?.sheetId || ''
+const heroName = id => actState.heroes.find(h => h.heroId === id)?.name || ''
+const miniHero = ref('')
+const miniRef = ref(null)
+const miniSheet = computed(() => sheetOf(miniHero.value))
+const toggleMini = () => { if (miniHero.value === heroId.value) miniRef.value?.dismiss(); else miniHero.value = heroId.value }
+// выбрали другого героя — книга меняется на его (если у него есть лист; нет — остаётся прежняя)
+watch(heroId, id => { if (miniHero.value && !queue.value && sheetOf(id)) miniHero.value = id })
 const views = computed(() => [
   { id: 'log', icon: '📜', name: 'Журнал' }, { id: 'plan', icon: '🗓', name: 'План' }, { id: 'stats', icon: '📊', name: 'Статистика' },
   ...(hero.value?.canWrite || cfg.value.banned?.length ? [{ id: 'cfg', icon: '⚙', name: 'Настройки' }] : [])
@@ -425,6 +442,10 @@ watch(() => [route.query.new, hero.value?.canWrite], ([n, can]) => {
 .al-chip.exh { background: rgba(255, 122, 107, .16); color: #ffb3aa; }
 .al-chip.sleep { background: rgba(155, 125, 255, .2); color: #d2c4ff; box-shadow: 0 0 10px rgba(155, 125, 255, .35); }
 .al-chip small { opacity: .6; }
+.al-book { padding: 5px 12px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .35); background: radial-gradient(circle at 30% 20%, rgba(240, 208, 131, .16), rgba(0, 0, 0, .25)); color: #f3dc9e; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; transition: box-shadow .2s, background .2s, transform .15s; }
+.al-book:hover { box-shadow: 0 0 14px rgba(231, 197, 111, .35); }
+.al-book:active { transform: scale(.95); }
+.al-book.on { background: linear-gradient(180deg, rgba(240, 208, 131, .3), rgba(201, 162, 79, .2)); box-shadow: inset 0 0 0 1px rgba(231, 197, 111, .6), 0 0 16px rgba(231, 197, 111, .35); }
 .al-views { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px; border-radius: 12px; background: rgba(0, 0, 0, .25); }
 .al-views button { padding: 5px 11px; border-radius: 9px; border: 0; background: none; color: #cdbf9f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
 .al-views button.on { background: linear-gradient(180deg, rgba(240, 208, 131, .3), rgba(201, 162, 79, .2)); color: #f3dc9e; box-shadow: inset 0 0 0 1px rgba(231, 197, 111, .5); }

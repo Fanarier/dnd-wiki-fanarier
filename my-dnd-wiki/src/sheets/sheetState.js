@@ -38,7 +38,12 @@ const pending = new Map() // путь → значение, ещё не ушло
 let flushTimer = 0
 let inflight = null
 
+// кто открыл лист последним: книга листа и мини-лист в журнале деятельностей делят один открытый лист,
+// и тот, кто закрывается позже, не должен закрыть лист, который уже открыл другой
+let gen = 0
+export const sheetGen = () => gen
 export async function openSheet(id) {
+  gen++
   if (sheet.id && sheet.id !== id) await flush()
   sheet.id = id
   sheet.status = 'loading'
@@ -58,8 +63,9 @@ export async function openSheet(id) {
     sheet.error = e.message
   }
 }
-export async function closeSheet() {
+export async function closeSheet(onlyGen) {
   await flush()
+  if (onlyGen != null && onlyGen !== gen) return
   wsSend({ type: 'sheetSub', id: null })
   Object.assign(sheet, { id: null, meta: null, data: null, rev: 0, status: 'idle', error: '' })
 }
