@@ -111,6 +111,7 @@ const ALL_CATEGORIES = [
   { id: 'classes', title: 'Классы', description: 'Навыки по уровням и архетипы', component: ClassesPage },
   { id: 'mechanics', title: 'Механики', description: 'Формулы, характеристики, бой, черты', component: RulesArticles, group: 'mechanics' },
   { id: 'workplaces', title: 'Рабочие места', description: 'Столы и мастерские для крафта', component: RulesArticles, group: 'workplaces' },
+  { id: 'holdings', title: 'Владения и поселения', description: 'Жильё, поселения, градостроительство', component: RulesArticles, group: 'holdings' },
   { id: 'effects', title: 'Эффекты', description: 'Положительные, отрицательные и особые — с иконками', component: EffectsPage },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: RulesArticles, group: 'magic' },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: SpellsPage },

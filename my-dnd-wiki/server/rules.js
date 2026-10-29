@@ -17,7 +17,7 @@ const SEED2 = path.resolve(import.meta.dirname, 'seed', 'rules-part2.json')
 const HISTORY = path.join(DATA_DIR, 'rules-history.json')
 export const RULES_IMG_DIR = path.join(DATA_DIR, 'rules-img')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
-export const RULE_GROUPS = ['mechanics', 'workplaces', 'activities', 'classes', 'races', 'magic']
+export const RULE_GROUPS = ['mechanics', 'workplaces', 'activities', 'holdings', 'classes', 'races', 'magic']
 // страницы вики со школами магии (у каждой школы — своя)
 export const MAGIC_PAGES = ['utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
 const EFFECT_KINDS = ['buff', 'debuff', 'special']

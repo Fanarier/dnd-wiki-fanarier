@@ -7,6 +7,7 @@ export const WIKI_SECTIONS = [
   { id: 'mechanics', name: 'Механики' },
   { id: 'workplaces', name: 'Рабочие места' },
   { id: 'activities', name: 'Деятельности' },
+  { id: 'holdings', name: 'Владения и поселения' },
   { id: 'magic', name: 'Магия' },
   { id: 'effects', name: 'Эффекты' }
 ]
