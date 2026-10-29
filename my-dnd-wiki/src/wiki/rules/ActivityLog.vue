@@ -48,7 +48,7 @@
           <span v-if="cfg.elf" class="al-chip elf" title="Отмечено в настройках героя: эльф — транс 4 ч, длительная тренировка 20 ч">🧝 эльф</span>
           <span v-if="cfg.sleep != null && (cfg.sleep !== 8 || (cfg.rest && cfg.rest !== 'Сон'))" class="al-chip" title="Отдых в день по настройкам героя">🌙 {{ (cfg.rest || 'Сон').toLowerCase() }} {{ cfg.sleep }} ч</span>
           <span class="grow" />
-          <button v-if="wide && sheetOf(heroId)" type="button" class="al-book" :class="{ on: miniHero === heroId }" :title="miniHero === heroId ? 'Отпустить книгу листа' : 'Призвать мини-лист персонажа: та же книга, правки сразу в лист'" @click="toggleMini">📖 Лист</button>
+          <button v-if="wide && sheetOf(heroId)" type="button" class="al-book" :class="{ on: miniHero === heroId }" :title="miniHero === heroId ? 'Убрать карточку листа' : 'Карточка героя с его листом: вылетит, перевернётся — правки сразу в лист'" @click="toggleMini">📖 Лист</button>
           <nav class="al-views">
             <button v-for="v in views" :key="v.id" type="button" :class="{ on: view === v.id }" @click="view = v.id">{{ v.icon }} {{ v.name }}</button>
           </nav>
@@ -107,7 +107,7 @@
       </template>
     </template>
     <ActivityInfo v-if="info" :limit="actState.limit" @close="info = false" />
-    <MiniSheet v-if="wide && miniSheet" ref="miniRef" :sheet-id="miniSheet" :name="heroName(miniHero)" :avatar="avatar(miniHero)" @close="miniHero = ''" />
+    <MiniSheet v-if="wide && miniSheet" ref="miniRef" :sheet-id="miniSheet" :hero-id="miniHero" @close="miniHero = ''" />
   </div>
 </template>
 
@@ -162,18 +162,17 @@ const pick = id => { form.value = null; more.value = 4; router.replace({ query: 
 const pickQueue = () => { form.value = null; router.replace({ query: { ...route.query, log: 'queue' } }) }
 const view = ref('log')
 
-/* ---------- мини-лист: книга листа героя в плавающем окне (на телефоне — нет) ---------- */
+/* ---------- мини-лист: карточка героя с его листом в плавающем окне (на телефоне — нет) ---------- */
 const wide = ref(innerWidth >= 640)
 const onWide = () => { wide.value = innerWidth >= 640 }
 onMounted(() => addEventListener('resize', onWide))
 onBeforeUnmount(() => removeEventListener('resize', onWide))
 const sheetOf = id => (store.data.sheetLinks || []).find(l => l.heroId === id)?.sheetId || ''
-const heroName = id => actState.heroes.find(h => h.heroId === id)?.name || ''
 const miniHero = ref('')
 const miniRef = ref(null)
 const miniSheet = computed(() => sheetOf(miniHero.value))
 const toggleMini = () => { if (miniHero.value === heroId.value) miniRef.value?.dismiss(); else miniHero.value = heroId.value }
-// выбрали другого героя — книга меняется на его (если у него есть лист; нет — остаётся прежняя)
+// выбрали другого героя — карточка меняется на его (если у него есть лист; нет — остаётся прежняя)
 watch(heroId, id => { if (miniHero.value && !queue.value && sheetOf(id)) miniHero.value = id })
 const views = computed(() => [
   { id: 'log', icon: '📜', name: 'Журнал' }, { id: 'plan', icon: '🗓', name: 'План' }, { id: 'stats', icon: '📊', name: 'Статистика' },
