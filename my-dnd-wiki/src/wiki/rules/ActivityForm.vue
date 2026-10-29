@@ -25,6 +25,11 @@
       <label class="af-f xs" title="Базовый кубик броска. На к20: натуральная 1 — кубик не в счёт и бонус повторения сначала, 20 — кубик ×2">Кубик
         <select v-model.number="m.die" class="af-in"><option v-for="d in ACT_DICE" :key="d" :value="d">к{{ d }}</option></select>
       </label>
+      <div class="af-f adv-f" :title="advLock ? 'Не действует: ' + advLock : 'Преимущество — к20 бросается дважды, берётся больший; помеха — меньший. Слова «Преимущество» / «Помеха» в описании ставят его сами'">Бросок
+        <div class="af-adv" role="group" aria-label="Преимущество или помеха" :class="{ lock: advLock }">
+          <button v-for="o in ADV_OPTS" :key="o.v" type="button" :class="[o.cls, { on: (m.adv || '') === o.v }]" @click="m.adv = o.v">{{ o.t }}</button>
+        </div>
+      </div>
       <label v-if="planDays" class="af-f sm">День<select v-model.number="m.day" class="af-in"><option :value="0">—</option><option v-for="d in planDays" :key="d" :value="d">{{ d }}</option></select></label>
       <label v-if="long" class="af-chk af-multi" title="Несколько длительных подряд одной записью: всё ×N, кубики кидаются N раз, бонус повторения растёт"><input v-model="multi" type="checkbox" /> несколько</label>
       <label v-if="long && multi" class="af-f xs">Сколько раз<span class="af-x-in">×<input v-model.number="m.times" type="number" min="2" max="10" class="af-in" /></span></label>
@@ -39,7 +44,8 @@
       <span v-if="dblOffer" class="af-dbl">😵 У героя {{ hero.exh }} изнур. — выносливость удваивается: <b>{{ dblOffer.from }} → {{ dblOffer.to }}</b>
         <button type="button" class="af-dbl-yes" @click="applyDbl">Пересчитать</button><button type="button" class="af-dbl-no" @click="keepSt = true">Оставить</button></span>
       <template v-if="long">🌙 Длительная — сутки вместе {{ cfg.elf ? 'с трансом' : 'со сном' }}: {{ longH }} ч, {{ LONG_STAMINA }} выносливости, без изнурения<template v-if="plan.times > 1"> — ×{{ plan.times }}: {{ longH * plan.times }} ч, {{ LONG_STAMINA * plan.times }} выносливости</template>. </template>
-      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b><template v-if="plan.times > 1"> — {{ plan.times }} раза</template>, в среднем ≈ {{ avg.each.length > 1 ? avg.each.join(' + ') + ' = ' + avg.total : avg.total }} — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
+      <template v-if="advNote"><span class="af-advnote" :class="advNote.cls">{{ advNote.text }}</span> </template>
+      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b><em v-if="plan.adv" class="af-mode" :class="plan.adv === 'adv' ? 'm-hi' : 'm-lo'">{{ ADV_SIGN[plan.adv] }} {{ ADV_NAME[plan.adv].toLowerCase() }}</em><template v-if="plan.times > 1"> — {{ plan.times }} раза</template>, в среднем ≈ {{ avg.each.length > 1 ? avg.each.join(' + ') + ' = ' + avg.total : avg.total }} — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
     <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" images :snippets="ACT_SNIPPETS" placeholder="Броски, очки, что получилось… «!Мод» + Tab — «Модификаторы броска: »" :min-height="44" /></div>
 
@@ -131,7 +137,7 @@ import RichInput from '../../components/rich/RichInput.vue'
 import ActNameInput from './ActNameInput.vue'
 import ItemQuick from './ItemQuick.vue'
 import { api, toast } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, repChain, seriesInfo, ACT_DICE, planText, planAvg, isLongTraining, longHours, LONG_STAMINA, ACT_SNIPPETS, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, repChain, seriesInfo, ACT_DICE, planText, advText, ADV_NAME, ADV_SIGN, planAvg, isLongTraining, longHours, LONG_STAMINA, ACT_SNIPPETS, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
 import { mentorHints as allMentors, mentorLink } from './mentor.js'
 
 const m = defineModel({ type: Object, required: true })
@@ -222,6 +228,20 @@ const formula = computed(() => {
   return planText(p)
 })
 const avg = computed(() => planAvg(plan.value))
+// преимущество / помеха: переключатель в записи; слова в описании (или заготовки) ставят его сами —
+// когда то, что написано в тексте, меняется. Оба сразу нельзя
+const ADV_OPTS = [{ v: '', t: 'Обычный', cls: 'm-plain' }, { v: 'adv', t: '▲ Преимущество', cls: 'm-hi' }, { v: 'dis', t: '▼ Помеха', cls: 'm-lo' }]
+const textAdv = computed(() => advText(m.value.result))
+if (m.value.adv == null) m.value.adv = textAdv.value.adv // старая запись — как было по тексту
+watch(() => `${textAdv.value.adv}|${textAdv.value.both}`, (n, o) => { if (n !== o && !textAdv.value.both) m.value.adv = textAdv.value.adv })
+const advLock = computed(() => (isLongTraining(m.value.name) ? 'у длительной тренировки преимущества и помехи нет' : Number(m.value.die) !== 20 ? 'только на к20' : ''))
+const advNote = computed(() => {
+  const t = textAdv.value, cur = m.value.adv || ''
+  if (cur && advLock.value) return { cls: 'off', text: `${ADV_SIGN[cur]} ${ADV_NAME[cur]} не действует: ${advLock.value}.` }
+  if (t.both) return { cls: 'warn', text: cur ? `В описании и «Преимущество», и «Помеха» — считается выбранное: ${ADV_SIGN[cur]} ${ADV_NAME[cur]}.` : '⚠ В описании и «Преимущество», и «Помеха» — оба сразу нельзя, выбери одно переключателем.' }
+  if (t.adv && cur !== t.adv) return { cls: 'warn', text: `В описании «${ADV_NAME[t.adv]}», а выбрано «${cur ? ADV_NAME[cur] : 'Обычный'}» — считается выбранное.` }
+  return null
+})
 // наставник: подсказки — НПС и герои; совпало имя — ссылка
 const mentorHints = computed(() => allMentors())
 const mentorTo = computed(() => mentorLink(m.value.mentor))
@@ -302,6 +322,20 @@ async function saveQuick(v) {
 .af-rich { background: rgba(0, 0, 0, .35); letter-spacing: 0; text-transform: none; font-weight: 500; }
 .af-hint { margin: 0; color: #a8936c; font: 600 12px/1.5 'Manrope', sans-serif; }
 .af-hint b, .af-hint a { color: #f3dc9e; }
+/* преимущество / помеха (классы без «adv» — блокировщики рекламы прячут .adv) */
+.adv-f { flex: none; }
+.af-adv { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(0, 0, 0, .35); border: 1px solid rgba(231, 197, 111, .25); }
+.af-adv button { padding: 4px 9px; border-radius: 7px; border: 0; background: none; color: #a8936c; font: 700 12px 'Manrope', sans-serif; cursor: pointer; white-space: nowrap; letter-spacing: 0; text-transform: none; }
+.af-adv button:hover { color: #efe3c8; }
+.af-adv button.on.m-plain { background: rgba(231, 197, 111, .16); color: #f3dc9e; }
+.af-adv button.on.m-hi { background: rgba(124, 207, 139, .2); color: #8fe09c; box-shadow: inset 0 0 0 1px rgba(124, 207, 139, .55); }
+.af-adv button.on.m-lo { background: rgba(255, 122, 107, .18); color: #ff9b8f; box-shadow: inset 0 0 0 1px rgba(255, 122, 107, .5); }
+.af-adv.lock { opacity: .5; }
+.af-mode { margin-left: 6px; padding: 1px 7px; border-radius: 99px; font: 800 11px 'Manrope', sans-serif; font-style: normal; }
+.af-mode.m-hi { background: rgba(124, 207, 139, .16); color: #8fe09c; }
+.af-mode.m-lo { background: rgba(255, 122, 107, .14); color: #ff9b8f; }
+.af-advnote.warn { color: #f0b860; }
+.af-advnote.off { color: #a8936c; font-style: italic; }
 .af-more { justify-self: start; padding: 4px 0; border: 0; background: none; color: #e7c56f; font: 700 12.5px 'Manrope', sans-serif; cursor: pointer; }
 .af-more small { color: #a8936c; }
 .af-extra { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(0, 0, 0, .2); border: 1px solid rgba(231, 197, 111, .12); }

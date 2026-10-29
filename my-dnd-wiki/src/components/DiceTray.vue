@@ -178,7 +178,8 @@ watch(() => dice.request?.key, () => {
   if (!applyText(r.formula)) { toast(`Не понял формулу «${r.formula}»`, 'error'); return }
   text.value = r.formula
   label.value = r.label || ''
-  mode.value = r.adv || ''
+  // преимущество / помеха: передано отдельно — оно; нет — как в формуле («… преимущество»)
+  if (r.adv != null) mode.value = r.adv
   if (advError.value) mode.value = ''
   nextTick(roll)
 })

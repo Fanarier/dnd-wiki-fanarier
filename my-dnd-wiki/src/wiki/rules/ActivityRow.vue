@@ -47,15 +47,17 @@
         <span v-for="(it, i) in rec.items || []" :key="'i' + i" class="ar-tag item" :class="{ ok: rec.appliedSheet, made: it.created }"
               :title="it.created ? 'Этой вещи не было в листе — игрок сам добавил её в инвентарь из журнала' : it.info?.desc ? 'Новая вещь с описанием' : ''">{{ it.qty > 0 ? '🎒 +' : '🎒 −' }}{{ Math.abs(it.qty) > 1 ? Math.abs(it.qty) + '× ' : '' }}{{ it.name }}{{ it.stored ? ' (склад)' : '' }}{{ it.created ? ' ✨ не было в листе' : '' }}{{ it.info && !it.created ? ' 📝' : '' }}</span>
         <span v-if="purse?.short" class="ar-tag poor" :title="`В листе ${fmtCoins(purse.have)}, тратится ${fmtCoins(purse.need)}`">⚠ не хватает денег</span>
-        <span v-for="r in series.last" :key="'r' + r.i" class="ar-tag roll" :class="{ crit: r.twenties, fumble: r.ones, fresh: r.i === fresh }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <template v-if="steps(r)">{{ r.total }}{{ steps(r) }}</template><b>{{ r.final ?? r.total }}</b><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
+        <span v-for="r in series.last" :key="'r' + r.i" class="ar-tag roll" :class="{ crit: r.twenties, fumble: r.ones, fresh: r.i === fresh }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.label ? r.label + ': ' : '' }}{{ r.notation }}<span v-if="advDice(r)" class="ar-mode" :class="advDice(r).cls">{{ advDice(r).sign }}<template v-if="advDice(r).keep != null"> {{ advDice(r).keep }} <s>{{ advDice(r).drop }}</s></template></span> = <template v-if="steps(r)">{{ r.total }}{{ steps(r) }}</template><b>{{ r.final ?? r.total }}</b><em v-if="r.miss" class="ar-miss">⚠ без числа: {{ r.miss }}</em></span>
         <!-- переброшено: прежние броски остаются в записи (видно, что было), но не считаются -->
         <button v-if="series.old.length" type="button" class="ar-tag oldbtn" :title="showOld ? 'Спрятать прежние броски' : 'Показать, что выпадало до переброса'" @click="showOld = !showOld">↺ перебросы: {{ series.old.length }}</button>
-        <template v-if="showOld"><span v-for="r in series.old" :key="'o' + r.i" class="ar-tag roll old" :title="'Переброшено — не считается. ' + rollTitle(r)">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }} = <b>{{ r.final ?? r.total }}</b></span></template>
+        <template v-if="showOld"><span v-for="r in series.old" :key="'o' + r.i" class="ar-tag roll old" :title="'Переброшено — не считается. ' + rollTitle(r)">🎲 {{ r.label ? r.label + ': ' : '' }}{{ r.notation }}<span v-if="advDice(r)" class="ar-mode" :class="advDice(r).cls">{{ advDice(r).sign }}</span> = <b>{{ r.final ?? r.total }}</b></span></template>
         <!-- ещё не брошено — что будет брошено (проверить, подхватились ли модификаторы) -->
+        <!-- преимущество / помеха: видно, что подтянулось (и откуда) -->
+        <span v-if="advTag" class="ar-tag mode" :class="advTag.cls" :title="advTag.title">{{ advTag.text }}</span>
         <span v-if="preview" class="ar-tag plan" :title="`Ещё не брошено. В среднем ≈ ${preview.avg}${plan.unknown.length ? '. Без числа, не войдут: ' + plan.unknown.join(', ') : ''}`">🎲 {{ preview.text }} = <b>?</b><template v-if="preview.left > 1"> · ещё {{ preview.left }} раза</template></span>
         <template v-for="v in vod || []" :key="'vr' + v.heroId">
           <span v-if="v.rolls.length" class="ar-vodrolls"><i>Броски {{ v.name }}:</i>
-            <span v-for="r in v.rolls" :key="r.i" class="ar-tag roll vodr" :class="{ crit: r.twenties, fumble: r.ones }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.notation }} = <b>{{ r.final ?? r.total }}</b></span>
+            <span v-for="r in v.rolls" :key="r.i" class="ar-tag roll vodr" :class="{ crit: r.twenties, fumble: r.ones }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.notation }}<span v-if="advDice(r)" class="ar-mode" :class="advDice(r).cls">{{ advDice(r).sign }}</span> = <b>{{ r.final ?? r.total }}</b></span>
           </span>
         </template>
         <span v-if="longSum" class="ar-tag sum" :title="`Сумма длительных: ${longSum.list.join(' + ')}`">Σ {{ longSum.total }}<template v-if="longSum.left"> + ? ({{ longSum.left }})</template></span>
@@ -105,7 +107,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg, seriesInfo } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg, seriesInfo, ADV_NAME, ADV_SIGN } from '../../shared/activities.js'
 import { mentorLink } from './mentor.js'
 import LottieFx from './LottieFx.vue'
 import RichText from '../../components/RichText.vue'
@@ -148,7 +150,26 @@ function steps(r) {
 }
 // фото в описании — открыть целиком
 const openImg = e => { if (e.target.tagName === 'IMG') window.open(e.target.src, '_blank', 'noopener') }
-const rollTitle = r => `Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${r.twenties ? '. Натуральная 20 — кубик ×2' : ''}${r.ones ? '. Натуральная 1 — кубик не в счёт, бонус повторения начинается заново' : ''}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`
+// бросок с преимуществом / помехой: оба к20 — засчитанный и отброшенный
+function advDice(r) {
+  if (r.adv !== 'adv' && r.adv !== 'dis') return null
+  const g = (r.groups || []).find(x => x.sides === 20)
+  const v = g?.values || []
+  const keep = v.length === 2 ? (r.adv === 'adv' ? Math.max(...v) : Math.min(...v)) : null
+  return { cls: r.adv === 'adv' ? 'm-hi' : 'm-lo', sign: ADV_SIGN[r.adv], keep, drop: keep == null ? null : v[0] === keep ? v[1] : v[0] }
+}
+// метка у записи: с преимуществом / помехой (из текста или выбрано), не действует или и то и другое в тексте
+const advTag = computed(() => {
+  const p = props.plan
+  if (!p) return null
+  if (p.advBoth) return { cls: 'warn', text: '⚠ ▲▼ и преимущество, и помеха', title: 'В описании есть оба слова — оба сразу нельзя, бросок обычный. Выбери одно в записи (✎)' }
+  const w = p.advWant
+  if (!w) return null
+  const src = p.advSrc === 'text' ? 'Подтянуто из описания записи' : 'Выбрано в записи'
+  if (p.advNo) return { cls: 'off', text: `${ADV_SIGN[w]} ${ADV_NAME[w].toLowerCase()} — не действует`, title: `${src}, но не действует: ${p.advNo}` }
+  return { cls: w === 'adv' ? 'm-hi' : 'm-lo', text: `${ADV_SIGN[w]} ${ADV_NAME[w]}`, title: `${src}. ${w === 'adv' ? 'к20 бросается дважды, засчитывается больший' : 'к20 бросается дважды, засчитывается меньший'}` }
+})
+const rollTitle = r => `Брошено на сайте ${new Date(r.at).toLocaleString('ru')}: ${dieText(r)}${advDice(r)?.keep != null ? `. ${ADV_NAME[r.adv]}: выпало ${advDice(r).keep} и ${advDice(r).drop}, засчитано ${advDice(r).keep}` : ''}${r.twenties ? '. Натуральная 20 — кубик ×2' : ''}${r.ones ? '. Натуральная 1 — кубик не в счёт, бонус повторения начинается заново' : ''}${r.miss ? '. Без числа, не вошли: ' + r.miss : ''}`
 const long = computed(() => isLongTraining(props.rec.name))
 const mentor = computed(() => mentorLink(props.rec.mentor))
 // броски: последняя серия считается, прежние (переброшенные) — под кнопкой
@@ -304,6 +325,15 @@ watch(() => props.rec.status, (now, was) => {
 .ar-res :deep(img) { display: block; max-width: min(100%, 420px); max-height: 300px; margin: 6px 0; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .25); cursor: zoom-in; object-fit: contain; }
 .ar-tag.plan { background: none; border: 1px dashed rgba(127, 180, 255, .4); color: #9fbfe8; }
 .ar-tag.plan b { color: #f0b54f; }
+/* преимущество / помеха (классы без «adv» — блокировщики рекламы прячут .adv) */
+.ar-tag.mode.m-hi { background: rgba(124, 207, 139, .16); color: #8fe09c; box-shadow: inset 0 0 0 1px rgba(124, 207, 139, .45); }
+.ar-tag.mode.m-lo { background: rgba(255, 122, 107, .14); color: #ff9b8f; box-shadow: inset 0 0 0 1px rgba(255, 122, 107, .45); }
+.ar-tag.mode.warn { background: rgba(240, 184, 96, .12); color: #f0b860; }
+.ar-tag.mode.off { background: none; border: 1px dashed rgba(168, 147, 108, .45); color: #a8936c; }
+.ar-mode { margin-left: 5px; padding: 0 6px; border-radius: 99px; font-weight: 800; white-space: nowrap; }
+.ar-mode.m-hi { background: rgba(124, 207, 139, .2); color: #8fe09c; }
+.ar-mode.m-lo { background: rgba(255, 122, 107, .18); color: #ff9b8f; }
+.ar-mode s { opacity: .55; font-weight: 600; }
 .ar-tag.sum { background: rgba(126, 208, 122, .14); color: #b4ecb0; }
 .ar-tag.mentor { background: rgba(231, 197, 111, .12); color: #f3dc9e; }
 .ar-tag.mentor a { color: inherit; text-decoration: underline dotted; }

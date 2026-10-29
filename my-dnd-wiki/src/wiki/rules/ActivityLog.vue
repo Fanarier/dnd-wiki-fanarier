@@ -377,7 +377,7 @@ function rollRec(h, r) {
     const fresh = logOf(h.heroId).find(x => x.id === r.id) || r
     const p = planOf(h, fresh)
     const lb = p.times > 1 ? `${label} ${i + 1}/${p.times}` : label
-    requestRoll({ formula: p.formula, label: lb, onDone: async roll => {
+    requestRoll({ formula: p.formula, label: lb, adv: p.adv, onDone: async roll => {
       await send(h.heroId, r, { ...roll, label: lb, long: p.long, add: p.adds[i] ?? 0, base: p.base, series, miss: p.unknown.join(', ') })
       if (i + 1 < p.times) setTimeout(() => one(i + 1), 900)
     } })

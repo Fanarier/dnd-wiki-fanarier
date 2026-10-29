@@ -196,13 +196,23 @@ function splitTop(s) {
   }
   return [...out, cur]
 }
+// преимущество / помеха по тексту записи: слово «Преимущество» / «Помеха» (заготовка или просто в тексте), «без …» не в счёт.
+// Оба сразу нельзя: тогда both, и бросок обычный, пока не выберут переключателем в записи
+export function advText(text) {
+  const plain = String(text || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')
+  const a = /преимуществ/i.test(plain) && !/без\s+преимуществ/i.test(plain)
+  const d = /помех/i.test(plain) && !/без\s+помех/i.test(plain)
+  return { adv: a && d ? '' : a ? 'adv' : d ? 'dis' : '', both: a && d }
+}
+export const ADV_NAME = { adv: 'Преимущество', dis: 'Помеха' }
+export const ADV_SIGN = { adv: '▲', dis: '▼' }
 // модификаторы броска из описания записи: строка «Модификаторы броска: Красивая речь(+4), Анализ(+6), ОиГ(+3)»
 // (или «бросков», «тренировки»…). Число — первое в скобках или после двоеточия. «Бонус повторения(+2)» / «: +3» —
 // отдельно (rep). Пункты без числа («Наставничество(+???)», «Комплект(без травм)») — в unknown. «с преимуществом» — adv
 export function rollMods(text) {
   const plain = String(text || '').replace(/<\/(p|div|li)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
-  const adv = /преимуществ/i.test(plain) && !/без\s+преимуществ/i.test(plain) ? 'adv' : /помех/i.test(plain) && !/без\s+помех/i.test(plain) ? 'dis' : ''
-  const out = { sum: 0, items: [], dice: [], unknown: [], rep: null, adv }
+  const t = advText(plain)
+  const out = { sum: 0, items: [], dice: [], unknown: [], rep: null, adv: t.adv, advBoth: t.both }
   // строка модификаторов кончается там, где начинается другая заготовка («… +13. Бонус повторения: +2. Преимущество»);
   // точка с пробелом — тоже разделитель пунктов
   const END = /(?:[.;,]\s*|\s+)(?=бонус\s+повтор|(?:с\s+)?преимуществ|(?:с\s+)?помех|результат\s*:|совместно\s+с)/i
@@ -298,8 +308,19 @@ export function rollPlan(rec, placeMod, adds = [0]) {
   const times = attemptsOf(rec)
   const all = Array.from({ length: times }, (_, i) => adds[i] ?? Math.min(10, (adds[adds.length - 1] ?? 0) + i - adds.length + 1))
   const base = { n: long ? 2 : 1, sides: die }
-  const adv = !long && m.adv === 'adv' ? ' преимущество' : !long && m.adv === 'dis' ? ' помеха' : ''
-  return { ...m, sum, rep: all[0], repSet, long, times, adds: all, add: all[0], die, base, formula: `${base.n}d${die}${place}${dice}${sign(sum)}${adv}` }
+  // преимущество / помеха: выбранное в записи (rec.adv), а у старых записей без выбора — по тексту.
+  // Работает только на одиночном к20: у длительной (2к20) и на других кубиках — нет
+  const picked = ['adv', 'dis', ''].includes(rec.adv)
+  const want = picked ? rec.adv : m.adv
+  const advNo = !want ? '' : long ? 'у длительной тренировки преимущества и помехи нет'
+    : die !== 20 ? 'только на к20, а кубик записи — к' + die
+      : m.dice.some(d => d.sides === 20) || /d20/i.test(placeMod?.formula || '') ? 'в броске уже есть другой к20' : ''
+  const adv = want && !advNo ? want : ''
+  return {
+    ...m, sum, rep: all[0], repSet, long, times, adds: all, add: all[0], die, base,
+    adv, advWant: want, advSrc: picked ? 'pick' : m.adv ? 'text' : '', advNo, advBoth: !picked && m.advBoth,
+    formula: `${base.n}d${die}${place}${dice}${sign(sum)}${adv ? ' ' + ADV_NAME[adv].toLowerCase() : ''}`
+  }
 }
 // итог броска: натуральные на базовых кубиках (только к20) — 1 не в счёт (и сброс повторения), 20 — ×2;
 // у длительной сумма × mult вниз; потом бонус повторения. roll — проверенный бросок сайта (groups, total, adv)
@@ -328,7 +349,9 @@ export const ACT_SNIPPETS = ['Модификаторы броска: ', 'Пре�
 // как показать план броска: «(2d20+1d20+27) × 1.8 + 2», у нескольких — «×4»
 export function planText(p) {
   const add = p.add || p.adds[p.adds.length - 1] ? ' + ' + (p.times > 1 ? `${p.adds[0]}…${p.adds[p.adds.length - 1]}` : p.add) + ' повт.' : ''
-  return p.long ? `(${p.formula}) × ${LONG_MULT}${add}${p.times > 1 ? ` · ×${p.times}` : ''}` : `${p.formula}${add}`
+  // преимущество / помеха показываются отдельной меткой, в тексте формулы их нет
+  const f = p.formula.replace(/ (преимущество|помеха)$/, '')
+  return p.long ? `(${f}) × ${LONG_MULT}${add}${p.times > 1 ? ` · ×${p.times}` : ''}` : `${f}${add}`
 }
 export const longFinal = (total, add, mult = LONG_MULT) => Math.floor(total * mult) + (add || 0)
 

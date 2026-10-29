@@ -78,6 +78,7 @@ function clean(b = {}, old = {}, heroIds = []) {
     type: TYPES.includes(pick('type')) ? pick('type') : '',
     result: cleanRich(S(pick('result'), 6000), 6000, { images: true }), // с оформлением (и фото) — через очистку
     die: ACT_DICE.includes(Number(pick('die'))) ? Number(pick('die')) : 20, // базовый кубик броска
+    adv: ['adv', 'dis', ''].includes(pick('adv')) ? pick('adv') : undefined, // преимущество / помеха (нет поля — по тексту записи)
     trainId: S(pick('trainId'), 40),
     pts: I(pick('pts'), -1e6, 1e6),
     place: S(pick('place'), 40), // город на карте
