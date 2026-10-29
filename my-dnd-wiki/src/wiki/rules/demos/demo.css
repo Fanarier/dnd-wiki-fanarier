@@ -1,0 +1,37 @@
+/* общие детали схем-примеров в «ⓘ» журнала деятельностей: карточки записей, поля, плашки, кубики (всё с префиксом dz-) */
+.dz { position: relative; color: #efe3c8; font: 600 12.5px/1.4 'Manrope', sans-serif; }
+.dz-card { position: relative; display: grid; gap: 5px; padding: 8px 10px; border-radius: 11px; background: linear-gradient(180deg, #2a2118, #1c160f); border: 1px solid rgba(231, 197, 111, .25); border-left: 3px solid var(--sc, #f0b54f); box-shadow: 0 6px 14px rgba(0, 0, 0, .35); transition: all .5s cubic-bezier(.2, .8, .3, 1); }
+.dz-card b { color: #f3dc9e; font-size: 13px; }
+.dz-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.dz-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px; border-radius: 99px; background: rgba(255, 255, 255, .06); color: #cdbf9f; font: 700 11px 'Manrope', sans-serif; white-space: nowrap; transition: all .4s; }
+.dz-chip.gold { background: rgba(243, 211, 107, .18); color: #ffe7a0; }
+.dz-chip.green { background: rgba(126, 208, 122, .16); color: #b4ecb0; }
+.dz-chip.red { background: rgba(255, 107, 94, .16); color: #ffb3aa; }
+.dz-chip.blue { background: rgba(127, 180, 255, .14); color: #b9d6ff; }
+.dz-chip.pink { background: rgba(255, 140, 190, .14); color: #ffc3dc; box-shadow: inset 0 0 0 1px rgba(255, 140, 190, .35); }
+.dz-chip.violet { background: rgba(185, 166, 255, .16); color: #d2c8ff; }
+.dz-st { margin-left: auto; padding: 1px 8px; border-radius: 99px; border: 1px solid currentColor; font: 800 10.5px 'Manrope', sans-serif; transition: color .4s; }
+.dz-inp { min-height: 26px; padding: 4px 8px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .25); background: rgba(0, 0, 0, .35); color: #efe3c8; transition: border-color .3s, box-shadow .3s, background .3s; }
+.dz-inp.focus { border-color: #e7c56f; box-shadow: 0 0 0 2px rgba(231, 197, 111, .15); }
+.dz-inp.flash { animation: dz-flash 1s ease-out; }
+.dz-lbl { color: #a8936c; font: 800 9.5px 'Manrope', sans-serif; letter-spacing: .06em; text-transform: uppercase; }
+.dz-caret { display: inline-block; width: 1.5px; height: 13px; margin-left: 1px; vertical-align: -2px; background: #f3dc9e; animation: dz-blink .8s steps(1) infinite; }
+.dz-btn { display: inline-block; padding: 4px 11px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .35); color: #f3dc9e; font: 800 11.5px 'Manrope', sans-serif; transition: transform .15s, box-shadow .3s; }
+.dz-btn.primary { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
+.dz-btn.press { animation: dz-press .5s ease; }
+.dz-die { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: radial-gradient(circle at 35% 30%, #3a2c18, #15110c); border: 1.5px solid #c9a24f; color: #f3dc9e; font: 900 15px 'Manrope', sans-serif; transition: all .3s; }
+.dz-die.spin { animation: dz-spin .22s linear infinite; }
+.dz-die.crit { border-color: #ffe08a; color: #fff3c4; box-shadow: 0 0 18px 4px rgba(243, 211, 107, .7); background: radial-gradient(circle at 35% 30%, #6b5320, #2a1f0a); }
+.dz-die.fumble { border-color: #ff6b5e; color: #ffb3aa; box-shadow: 0 0 14px rgba(255, 70, 60, .5); text-decoration: line-through; }
+.dz-pop { animation: dz-pop .45s cubic-bezier(.2, .9, .3, 1.4); }
+.dz-in { animation: dz-in .5s cubic-bezier(.2, .9, .3, 1.2) both; }
+.dz-gone { opacity: 0; transform: scale(.8); pointer-events: none; }
+.dz-stamp { position: absolute; right: 10px; top: 50%; padding: 2px 10px; border: 2.5px solid currentColor; border-radius: 8px; font: 900 13px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; transform: translateY(-50%) rotate(-12deg); animation: dz-stamp .45s cubic-bezier(.3, 1.6, .5, 1) both; background: rgba(20, 15, 10, .6); }
+@keyframes dz-blink { 50% { opacity: 0; } }
+@keyframes dz-flash { 0%, 40% { border-color: #7ee06a; box-shadow: 0 0 0 3px rgba(126, 224, 106, .25); background: rgba(126, 224, 106, .12); } }
+@keyframes dz-press { 40% { transform: scale(.9); box-shadow: 0 0 16px rgba(240, 208, 131, .7); } }
+@keyframes dz-spin { 50% { transform: rotate(20deg) scale(1.08); } }
+@keyframes dz-pop { from { transform: scale(.5); opacity: 0; } }
+@keyframes dz-in { from { transform: translateY(10px) scale(.96); opacity: 0; } }
+@keyframes dz-stamp { from { transform: translateY(-50%) rotate(-12deg) scale(2.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .dz *, .dz { animation-duration: .01s !important; transition-duration: .01s !important; } }

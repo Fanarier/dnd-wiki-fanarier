@@ -27,10 +27,7 @@
             <li>Начни писать название — сайт подскажет деятельности из вики и твои прошлые записи. Нашлась в вики — <b>тип и выносливость посчитаются сами</b> (часы × выносливость в час; отдых — с минусом).</li>
             <li>«В черновик» — для себя (планируешь), «На проверку» — мастеру.</li>
           </ol>
-          <div class="ai-demo">
-            <small>Пример: так заполняются песочные часы сессии — цвет показывает вид дела</small>
-            <SessionBar :rows="demoRows.slice(0, grow)" :limit="limit" legend />
-          </div>
+          <WriteDemo />
           <p class="ai-tip">💡 Под каждой датой — свободные часы и выносливость («⏱ 180 / 224 ч»). Красный хвост с песком — часов больше, чем свободно.</p>
         </section>
 
@@ -64,10 +61,7 @@
             <li><b>😵 Изнурение</b> — сайт считает сам: отдых снимает, длительная тренировка не даёт. Подробно и с примерами — во вкладке <a href="#" @click.prevent="tab = 'exh'">😵 Изнурение</a>.</li>
           </ul>
           <p>Всё это уходит в лист, <b>когда мастер ставит «учтено»</b>. Поставил «провал» или удалил — возвращается обратно. Видно в истории листа.</p>
-          <div class="ai-demo center">
-            <div ref="trainDemo" class="ai-train"><span>🏋 Телосложение</span><i><b :style="{ width: trainPct + '%' }" /></i><small>{{ trainCur }}/200</small></div>
-            <button ref="sparkBtn" type="button" class="ai-btn" @click="demoTrain">Учесть «+43» к тренировке</button>
-          </div>
+          <SheetDemo />
         </section>
 
         <!-- броски -->
@@ -79,10 +73,6 @@
             <li><b>✨ Натуральная 20</b> на базовом к20 — этот кубик <b>×2</b> (20 → 40). <b>💀 Натуральная 1</b> — кубик <b>не в счёт</b> (0), а бонус повторения <b>начинается заново</b>: этот бросок +0, следующий снова +1, +2…
               Так у всех бросков деятельностей, но только на к20 (и только на базовом кубике — к20 библиотеки не считается). Сайт считает сам и пишет у броска, что было.</li>
             <li><b>↺ Переброс</b>: нажал 🎲 у уже брошенной записи — это новая попытка. Считается только последняя (у «×N» — последняя серия из N бросков), прежние прячутся под кнопкой «↺ перебросы» — их видно, но в сумму они не входят.</li>
-            <li><b>🤝 ВОД — взаимная общая деятельность.</b> Отметил в «Подробнее → С кем» другого героя — запись придёт в его журнал (и уведомление). Там у неё «⋯ → Подтвердить»: у героя появится своя запись, связанная с твоей, с тегом «🤝 ВОД».
-              Часы и выносливость у связанных записей общие — поменял у себя, поменяется и у партнёра (пока его запись не проверена мастером; обоим придёт уведомление). Название, описание, награды и броски — у каждого свои; броски партнёра видны у записи отдельно («Броски …»).
-              Удалил свою — у партнёра запись остаётся, но уже без тега ВОД. Мастер проверяет каждую запись отдельно.</li>
-            <li><b>↕ Порядок записей</b> в сессии — перетащи запись за значок слева (📚, ⚔…). От порядка зависит бонус повторения для новых бросков; уже брошенное не меняется. Пока включён поиск или фильтр, перетаскивать нельзя.</li>
             <li><b>📷 Фото</b> в описание: кнопка «Фото» под полем, вставка из буфера (Ctrl+V) или перетаскивание. Сайт сам сжимает (до 1600 px) — у записи фото маленькое, щёлкни — откроется целиком.</li>
             <li><b>🏛 Место</b> из «Модификаторов» (библиотека 1к10, спорткомплекс 1к20…) — кость добавится в формулу один раз.</li>
             <li><b>🎓 Наставник</b> («Подробнее» в форме): имя и сколько он даёт — фиксированное число, прибавится к броску один раз. Совпало имя с НПС или героем — у записи будет ссылка.</li>
@@ -100,11 +90,19 @@
             <li><b>×N — несколько длительных</b> одной записью: галочка «несколько» и число. Всё умножается (×4 — 96 ч, 12 выносливости), кубики кидаются 4 раза подряд, бонус повторения растёт: +0, +1, +2, +3 (до +10).
               У записи — каждый бросок и <b>Σ сумма</b>, до броска — средний итог.</li>
           </ul>
-          <div class="ai-demo center">
-            <div class="ai-die" :class="{ spin: rolling }">{{ die }}</div>
-            <button type="button" class="ai-btn" :disabled="rolling" @click="demoRoll">Пример: 1d20 + 1к10 (библиотека) + 4 (5-й повтор)</button>
-            <small v-if="dieNote">{{ dieNote }}</small>
-          </div>
+          <DiceDemo />
+        </section>
+
+        <!-- ВОД и порядок -->
+        <section v-else-if="tab === 'vod'">
+          <ul>
+            <li><b>🤝 ВОД — взаимная общая деятельность.</b> Отметил в «Подробнее → С кем» другого героя — запись придёт в его журнал (и уведомление). Там у неё «⋯ → Подтвердить»: у героя появится своя запись, связанная с твоей, с тегом «🤝 ВОД».
+              Часы и выносливость у связанных записей общие — поменял у себя, поменяется и у партнёра (пока его запись не проверена мастером; обоим придёт уведомление). Название, описание, награды и броски — у каждого свои; броски партнёра видны у записи отдельно («Броски …»).
+              Удалил свою — у партнёра запись остаётся, но уже без тега ВОД. Мастер проверяет каждую запись отдельно.</li>
+            <li><b>↕ Порядок записей</b> в сессии — перетащи запись за значок слева (📚, ⚔…). От порядка зависит бонус повторения для новых бросков; уже брошенное не меняется. Пока включён поиск или фильтр, перетаскивать нельзя.</li>
+          </ul>
+          <VodDemo />
+          <OrderDemo />
         </section>
 
         <!-- калькулятор -->
@@ -125,8 +123,9 @@
             <li><b>😴 5 изнурений — «Сон».</b> У героя в шапке загорится «😴 5/5 · Сон», в форме — предупреждение, а у записи, которая доведёт до 5, — метка «😴 до 5 — Сон»: её увидит и мастер на проверке.</li>
             <li><b>Своё число</b> можно вписать в «Подробнее → Изнурение» (минус — снять) — тогда сайт возьмёт его, а не правило.</li>
           </ul>
+          <ExhDemo />
           <div class="ai-demo">
-            <small>Примеры (герой спит 8 ч; было 3 изнурения)</small>
+            <small>Ещё примеры (герой спит 8 ч; было 3 изнурения)</small>
             <table class="ai-ex">
               <tr><td>Длительная тренировка владения, 24 ч</td><td>сутки со сном</td><td>0</td><td>3 → 3</td></tr>
               <tr><td>Обычная тренировка, 8 ч · 0,2/ч</td><td>1,6 × 2 (изнурение)</td><td>⚡ 3,2</td><td>3</td></tr>
@@ -153,6 +152,7 @@
         <section v-else-if="tab === 'plan'">
           <p>Вкладка <b>🗓 План</b> раскладывает сессию по 14 дням. Отдых из настроек героя (сон, у эльфов — транс 4 ч) отложен в каждом дне. Карточки перетаскиваются между днями,
             день, где больше 24 часов, подсвечивается. Набросал черновики — <b>«📨 Отправить мастеру»</b> отправит их на проверку разом.</p>
+          <PlanDemo />
           <p><b>⚙ Настройки героя</b>: <b>🧝 Я эльф</b> (транс 4 ч, длительная — 20 ч; мастер видит отметку), отдых в день — сон, транс, медитация, подзарядка и сколько часов (Кованому — 0), особенности, избранное. Мастер задаёт герою свой лимит часов и <b>запреты</b> («нельзя в подземелье — ранен»).</p>
           <p><b>⌛ Таймскип</b> (мастер): закрыть прошедший период — его больше не правят; заблокировать следующий — игроки могут только планировать черновики.</p>
         </section>
@@ -168,71 +168,39 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import gsap from 'gsap'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import LottieFx from './LottieFx.vue'
-import SessionBar from './SessionBar.vue'
 import ActivityRow from './ActivityRow.vue'
 import ActivityCalc from './ActivityCalc.vue'
+import WriteDemo from './demos/WriteDemo.vue'
+import DiceDemo from './demos/DiceDemo.vue'
+import SheetDemo from './demos/SheetDemo.vue'
+import ExhDemo from './demos/ExhDemo.vue'
+import VodDemo from './demos/VodDemo.vue'
+import OrderDemo from './demos/OrderDemo.vue'
+import PlanDemo from './demos/PlanDemo.vue'
 import { hourglass } from './lottie.js'
-import { celebrate, sparks } from './actFx.js'
-import { sfx } from '../../sound/sound.js'
 
 defineProps({ limit: { type: Number, default: 336 } })
 defineEmits(['close'])
 const TABS = [
   { id: 'write', icon: '✍', name: 'Записать' }, { id: 'check', icon: '🔏', name: 'Проверка' }, { id: 'sheet', icon: '📜', name: 'Лист' },
-  { id: 'dice', icon: '🎲', name: 'Броски' }, { id: 'calc', icon: '🧮', name: 'Калькулятор' }, { id: 'exh', icon: '😵', name: 'Изнурение' }, { id: 'links', icon: '🔗', name: 'Связи' }, { id: 'plan', icon: '🗓', name: 'План и настройки' }, { id: 'stats', icon: '📊', name: 'Статистика' }
+  { id: 'dice', icon: '🎲', name: 'Броски' }, { id: 'vod', icon: '🤝', name: 'ВОД и порядок' }, { id: 'calc', icon: '🧮', name: 'Калькулятор' }, { id: 'exh', icon: '😵', name: 'Изнурение' }, { id: 'links', icon: '🔗', name: 'Связи' }, { id: 'plan', icon: '🗓', name: 'План и настройки' }, { id: 'stats', icon: '📊', name: 'Статистика' }
 ]
 const tab = ref('write')
 const glass = hourglass()
 
-// песочные часы заполняются по одной записи
-const demoRows = [
-  { name: 'Отдых (Сон)', hours: '96' }, { name: 'Долгая тренировка (Тело)', hours: '64' }, { name: 'Заказ гильдии: «Зачистка»', hours: '48' },
-  { name: 'Изучение базовой магии', hours: '32' }, { name: 'Свидание (Парк)', hours: '6' }, { name: 'Поход за покупками', hours: '4' },
-  { name: 'Телепорт в Ширатори', hours: '1' }, { name: 'Крафт: обычный предмет', hours: '30' }, { name: 'Долгая тренировка (Тело)', hours: '80' }
-]
-const grow = ref(0)
 // запись, которую «проверяет мастер»
 const STEPS = ['pending', 'done', 'pending', 'fail', 'pending', 'cancel']
-const demoRec = ref({ id: 'demo', date: '2026-05-08', name: 'Долгая тренировка (Характеристика: Телосложение)', hours: '16', stamina: '3,2', type: 'repeat', status: 'pending', result: '42+1', trainId: 't', pts: 43 })
+const demoRec = ref({ id: 'demo', date: '2026-05-08', name: 'Долгая тренировка (Характеристика: Телосложение)', hours: '24', stamina: '3', type: 'repeat', status: 'pending', result: '42+1', trainId: 't', pts: 43 })
 let step = 0, timer = 0
 onMounted(() => {
   timer = setInterval(() => {
-    grow.value = grow.value >= demoRows.length ? 1 : grow.value + 1
     if (tab.value === 'check') { step = (step + 1) % STEPS.length; demoRec.value = { ...demoRec.value, status: STEPS[step], applied: STEPS[step] === 'done' } }
   }, 1500)
 })
-watch(tab, () => { grow.value = 0 })
 onBeforeUnmount(() => clearInterval(timer))
 
-// очки в тренировку
-const trainCur = ref(170)
-const trainPct = ref(85)
-const trainDemo = ref(null), sparkBtn = ref(null)
-function demoTrain() {
-  sparks(sparkBtn.value, trainDemo.value, '#7ed07a')
-  sfx('bookPlace', 0.4)
-  setTimeout(() => {
-    const v = { n: trainCur.value }
-    gsap.to(v, { n: Math.min(200, trainCur.value + 43), duration: 0.8, onUpdate: () => { trainCur.value = Math.round(v.n); trainPct.value = (v.n / 200) * 100 } })
-    if (trainCur.value + 43 >= 200) setTimeout(() => { celebrate(trainDemo.value, true); sfx('crit', 0.5); trainCur.value = 200 }, 800)
-  }, 700)
-  setTimeout(() => { trainCur.value = 170; trainPct.value = 85 }, 4000)
-}
-// бросок для примера — не настоящими кубиками, чтобы не сыпать в ленту отряда
-const die = ref('20')
-const rolling = ref(false)
-const dieNote = ref('')
-function demoRoll() {
-  rolling.value = true
-  dieNote.value = ''
-  sfx('diceShake')
-  const d20 = 1 + Math.floor(Math.random() * 20), d10 = 1 + Math.floor(Math.random() * 10)
-  let n = 0
-  const t = setInterval(() => { die.value = String(1 + Math.floor(Math.random() * 20)); if (++n > 12) { clearInterval(t); die.value = String(d20 + d10 + 4); rolling.value = false; dieNote.value = `d20: ${d20} · d10: ${d10} · +4 повторения = ${d20 + d10 + 4}`; if (d20 === 20) celebrate(null) } }, 70)
-}
 </script>
 
 <style scoped>
