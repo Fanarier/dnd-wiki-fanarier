@@ -16,7 +16,7 @@
         <div ref="cardRef" class="mc" :class="{ flat }">
           <!-- ===== лицо: настоящая карточка героя (видна только при призыве) ===== -->
           <div class="face front" aria-hidden="true">
-            <div ref="heroWrapRef" class="hc" :style="{ '--k': hcScale }"><HeroCard v-if="hero" :hero="hero" /></div>
+            <div ref="heroWrapRef" class="hc" :style="{ '--k': hcScale }"><HeroCard v-if="hero && showFront" :hero="hero" /></div>
           </div>
 
           <!-- ===== оборот: страницы листа, в теме героя ===== -->
@@ -217,12 +217,15 @@ const page = computed(() => SECTIONS.find(s => s.key === cur.value) || SECTIONS[
 const idxOf = k => SECTIONS.findIndex(s => s.key === k)
 const winRef = ref(null), cardRef = ref(null), scrollRef = ref(null), heroWrapRef = ref(null), deckRef = ref(null)
 const sparkRef = ref(null), fxRef = ref(null)
-// текст страницы проявляется чернилами
+// текст страницы проявляется (только прозрачность, без размытия — размытие многих элементов тормозит;
+// и только первые блоки — остальные всё равно ниже края)
 function inkIn(root, delay = 0) {
-  const els = root?.querySelectorAll('.sb-anim') || []
+  const els = [...(root?.querySelectorAll('.sb-anim') || [])].slice(0, 24)
   if (!els.length || reduce) return
-  gsap.fromTo(els, { opacity: 0, filter: 'blur(4px)' }, { opacity: 1, filter: 'blur(0px)', delay, stagger: 0.02, duration: 0.38, ease: 'power1.out', clearProps: 'opacity,filter' })
+  gsap.fromTo(els, { opacity: 0 }, { opacity: 1, delay, stagger: 0.025, duration: 0.3, ease: 'power1.out', clearProps: 'opacity' })
 }
+// следующий кадр отрисован
+const frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
 
 /* ---------- очередь анимаций: следующая начинается, только когда кончилась предыдущая ---------- */
 let chain = Promise.resolve()
@@ -245,6 +248,7 @@ let hurry = false // попросили закрыть посреди призы
 /* ---------- положение карточки ---------- */
 // flat — лежит оборотом вверх без 3D (чёткий текст, поля и всплывающие окна ведут себя обычно)
 const flat = ref(false)
+const showFront = ref(false) // лицо (карточка героя) нужно только при призыве — потом его нет совсем, окно легче
 function goFlat() {
   gsap.set(cardRef.value, { clearProps: 'transform' })
   flat.value = true
@@ -355,10 +359,11 @@ async function summonStep() {
   alive.value = true
   veil.value = true
   flat.value = false
+  showFront.value = true
   opening.value = !reduce
   const loading = load(props.sheetId)
   await nextTick()
-  if (reduce || !winRef.value || !cardRef.value) { veil.value = false; await loading; if (cardRef.value) goFlat(); opening.value = false; return }
+  if (reduce || !winRef.value || !cardRef.value) { veil.value = false; await loading; if (cardRef.value) goFlat(); showFront.value = false; opening.value = false; return }
   const picked = await deckStep()
   const win = winRef.value, card = cardRef.value
   if (!win || !card) { deck.value = []; return }
@@ -387,8 +392,8 @@ async function summonStep() {
   await play(gsap.timeline()
     .to(cardRef.value, { rotateY: 180, duration: 0.7, ease: 'back.out(1.3)' }, 0)
     .call(() => burst(18), null, 0.3), 2000)
-  liven(heroWrapRef.value, false)
   goFlat()
+  showFront.value = false
   inkIn(scrollRef.value)
   setTimeout(() => { opening.value = false }, 500)
 }
@@ -416,22 +421,34 @@ async function spinStep(key) {
   if (reduce || !cardRef.value || !ready.value || !flat.value) { cur.value = key; return }
   const card = cardRef.value
   const d = Math.abs(to - from), flips = Math.min(1 + Math.floor(d / 3), 4)
-  const per = Math.max(0.13, 0.26 - 0.04 * (flips - 1)), tilt = (to > from ? -1 : 1) * 3
-  const t = gsap.timeline()
+  const per = Math.max(0.13, 0.26 - 0.04 * (flips - 1)), half = per / 2, tilt = (to > from ? -1 : 1) * 3
+  card.classList.add('anim')
+  // 1) подпрыгнула и сплющилась в полоску
+  sfx('pageFlip', 0.18)
+  await play(gsap.timeline()
     .set(card, { transformOrigin: '50% 50%' })
-    .to(card, { y: -10, rotation: tilt, duration: per, ease: 'power2.out' }, 0)
-  for (let k = 0; k < flips; k++) {
-    t.to(card, { scaleX: 0.04, scaleY: 1.03, duration: per / 2, ease: 'power2.in' }, k * per)
-      .call(() => { sfx('pageFlip', 0.18); if (k === 0) cur.value = key }, null, k * per + per / 2)
-      .to(card, { scaleX: 1, scaleY: 1, duration: per / 2, ease: 'power2.out' }, k * per + per / 2)
+    .to(card, { y: -10, rotation: tilt, duration: half, ease: 'power2.out' }, 0)
+    .to(card, { scaleX: 0.04, scaleY: 1.03, duration: half, ease: 'power2.in' }, 0), 1500)
+  // 2) пока она ребром, меняем страницу: тяжёлая отрисовка новой страницы не видна и не дёргает анимацию
+  cur.value = key
+  await nextTick()
+  await frame()
+  // 3) разворачивается, докручивает остальные шлепки и приземляется
+  const t = gsap.timeline().to(card, { scaleX: 1, scaleY: 1, duration: half, ease: 'power2.out' }, 0)
+  for (let k = 1; k < flips; k++) {
+    const at = half + (k - 1) * per
+    t.to(card, { scaleX: 0.04, scaleY: 1.03, duration: half, ease: 'power2.in' }, at)
+      .call(() => sfx('pageFlip', 0.18), null, at + half)
+      .to(card, { scaleX: 1, scaleY: 1, duration: half, ease: 'power2.out' }, at + half)
   }
   // приземление: чуть сплющилась и отпружинила
-  t.to(card, { y: 0, rotation: 0, scaleY: 0.96, scaleX: 1.03, duration: 0.12, ease: 'power2.in' }, flips * per)
+  const land = half + (flips - 1) * per
+  t.to(card, { y: 0, rotation: 0, scaleY: 0.96, scaleX: 1.03, duration: 0.12, ease: 'power2.in' }, land)
     .to(card, { scaleY: 1, scaleX: 1, duration: 0.45, ease: 'elastic.out(1.1, 0.45)' })
+  inkIn(scrollRef.value, half * 0.5)
   await play(t, 3000)
+  card.classList.remove('anim')
   goFlat()
-  await nextTick()
-  inkIn(scrollRef.value)
 }
 function closeStep() {
   return leaveStep().then(() => emit('close'))
@@ -553,8 +570,10 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px var(--tbg2), 0 0 0 4px color-mix(in srgb, var(--ta) 45%, transparent), 0 0 22px color-mix(in srgb, var(--ta) 16%, transparent), 0 24px 60px rgba(0, 0, 0, .7); }
 .mark { position: absolute; right: -28px; bottom: -30px; width: 170px; height: 170px; color: var(--ta); opacity: .07; pointer-events: none; }
 /* лежит оборотом вверх — без 3D */
+.mc.flat { transform-style: flat; }
 .mc.flat .front { visibility: hidden; }
-.mc.flat .back { transform: none; }
+.mc.flat .back { transform: none; backface-visibility: visible; }
+.mc.anim { will-change: transform; }
 .ms.downed .back { filter: grayscale(.6) brightness(.8); }
 .rivet { position: absolute; z-index: 6; width: 8px; height: 8px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ffe9b0, #8a6630 60%, #3b2a12); pointer-events: none; }
 .themed .rivet { background: radial-gradient(circle at 35% 35%, var(--tl), var(--ta) 60%, var(--tbg2)); box-shadow: 0 0 6px color-mix(in srgb, var(--ta) 55%, transparent); }
