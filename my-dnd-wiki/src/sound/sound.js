@@ -9,6 +9,10 @@ const FILES = {
   // книга листа персонажа (Kenney RPG Audio, CC0)
   bookOpen: 'book-open', bookClose: 'book-close', pageFlip: ['book-flip-1', 'book-flip-2', 'book-flip-3'], bookPlace: 'book-place',
   coins: ['coins-1', 'coins-2'],
+  // карточка героя (мини-лист в деятельностях) — Kenney Casino Audio, CC0
+  cardTakeOut: 'card-take-out', cardShuffleSplit: 'card-shuffle-1', cardShuffleJoin: 'card-shuffle-2', cardFan: ['card-fan-1', 'card-fan-2'],
+  cardSlide: ['card-slide-1', 'card-slide-2', 'card-slide-3', 'card-slide-4'], cardPlace: ['card-place-1', 'card-place-2', 'card-place-3', 'card-place-4'],
+  cardShove: ['card-shove-1', 'card-shove-2', 'card-shove-3', 'card-shove-4'],
   // порыв ветра (из записи amb/wind) — переход на Карту, облака расходятся
   cloudWhoosh: 'cloud-whoosh',
   // треск разгорающегося костра (из записи amb/fire) — вход во вкладку «Активность»
@@ -23,6 +27,7 @@ const pickOne = f => (Array.isArray(f) ? f[Math.floor(Math.random() * f.length)]
 const VARY = {
   pageFlip: { rate: [0.84, 1.14], vol: 0.3 }, bookPlace: { rate: [0.92, 1.08], vol: 0.15 }, bookOpen: { rate: [0.94, 1.04], vol: 0.1 },
   bookClose: { rate: [0.92, 1.06], vol: 0.12 }, coins: { rate: [0.9, 1.12], vol: 0.2 },
+  cardSlide: { rate: [0.9, 1.15], vol: 0.25 }, cardPlace: { rate: [0.9, 1.12], vol: 0.2 }, cardShove: { rate: [0.92, 1.1], vol: 0.2 }, cardFan: { rate: [0.95, 1.05], vol: 0.1 },
   diceGrab: { rate: [0.9, 1.12], vol: 0.25 }, diceShake: { rate: [0.92, 1.1], vol: 0.2 }, diceThrow: { rate: [0.88, 1.12], vol: 0.25 }, roll: { rate: [0.94, 1.06], vol: 0.1 }
 }
 const lastPick = {}

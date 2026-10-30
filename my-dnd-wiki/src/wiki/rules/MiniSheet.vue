@@ -309,14 +309,15 @@ async function deckStep() {
     return { x: cx + Math.sin(r) * R - HC_W / 2, y: cy + (1 - Math.cos(r)) * R - HC_H / 2, rotation: a }
   })
   gsap.set(els, { x: cx - HC_W / 2, y: cy - HC_H / 2 + 60, scale: DS * 0.9, rotation: () => rnd(-6, 6), opacity: 0, transformOrigin: '50% 50%' })
-  sfx('bookPlace', 0.5)
+  sfx('cardTakeOut', 0.6)
   // колода появляется стопкой, тасуется (половинки разлетаются и сходятся) и раскрывается веером
   await play(gsap.timeline()
     .to(els, { y: cy - HC_H / 2, scale: DS, opacity: 1, duration: 0.35, stagger: 0.02, ease: 'back.out(2)' })
-    .call(() => sfx('pageFlip', 0.3))
+    .call(() => sfx('cardShuffleSplit', 0.7))
     .to(els, { x: (i) => cx - HC_W / 2 + (i % 2 ? 1 : -1) * cw * 0.55, rotation: (i) => (i % 2 ? 8 : -8), duration: 0.18, ease: 'power2.out' })
+    .call(() => sfx('cardShuffleJoin', 0.75))
     .to(els, { x: cx - HC_W / 2, rotation: () => rnd(-3, 3), duration: 0.18, ease: 'power2.in', stagger: 0.01 })
-    .call(() => { sfx('pageFlip', 0.35); setTimeout(() => sfx('pageFlip', 0.25), 120) })
+    .call(() => sfx('cardFan', 0.7))
     .to(els, { x: i => spot[i].x, y: i => spot[i].y, rotation: i => spot[i].rotation, duration: 0.6, ease: 'back.out(1.3)', stagger: 0.025 }), 3000)
   // рулетка: подсветка бежит по вееру и замедляется на выбранном
   rolling.value = true
@@ -329,8 +330,9 @@ async function deckStep() {
     i = k
     hl.value = deck.value[k].id
     lift(k, true)
-    sfx('pageFlip', 0.1)
     const t = s / steps
+    // карта чуть выезжает из веера; на быстром ходу — через раз, чтобы шорох не слипался в кашу
+    if (t > 0.4 || s % 2 === 0) sfx('cardSlide', 0.12 + 0.12 * t)
     await wait(40 + 230 * t * t * t)
   }
   rolling.value = false
@@ -338,12 +340,12 @@ async function deckStep() {
   const pick = els[mine]
   // выбранная оживает (эффекты темы) и поднимается; остальные падают вниз
   liven(pick, true)
-  sfx('bookPlace', 0.7)
+  sfx('cardPlace', 0.7)
   burstAt(pick.getBoundingClientRect(), 24)
   await play(gsap.timeline()
     .to(pick, { y: spot[mine].y - 60, scale: DS * 1.2, rotation: 0, duration: 0.45, ease: 'back.out(2)', overwrite: 'auto' }, 0)
     .to(els.filter((_, k) => k !== mine), { y: `+=${innerHeight * 0.6}`, rotation: () => rnd(-35, 35), opacity: 0, duration: 0.55, ease: 'power2.in', stagger: { each: 0.03, from: mine } }, 0.1)
-    .call(() => sfx('cloudWhoosh', 0.12), null, 0.1), 2000)
+    .call(() => sfx('cardShove', 0.55), null, 0.1), 2000)
   if (!hurry) await wait(250)
   return { el: pick, x: spot[mine].x + HC_W / 2, y: spot[mine].y - 60 + HC_H / 2, scale: DS * 1.2 }
 }
@@ -377,18 +379,18 @@ async function summonStep() {
   if (picked) picked.el.style.visibility = 'hidden'
   deck.value = []
   liven(heroWrapRef.value, true)
-  sfx('cloudWhoosh', 0.14)
+  sfx('cardSlide', 0.5)
   await play(gsap.timeline()
     .to(win, { x: 0, y: -16, scale: 1.03, opacity: 1, duration: 0.7, ease: 'power3.inOut' })
     .to(win, { y: 0, scale: 1, duration: 0.3, ease: 'back.out(3)' }), 2000)
-  sfx('bookPlace', 0.6)
+  sfx('cardPlace', 0.65)
   burst(30)
   if (!hurry) await wait(450)
   // лист ещё не пришёл — подождём (не дольше 4 с), чтобы перевернуться уже с данными
   await Promise.race([loading, wait(hurry ? 0 : 4000)])
   await nextTick()
   if (!cardRef.value || closing) return
-  sfx('pageFlip', 0.4)
+  sfx('cardShove', 0.6)
   await play(gsap.timeline()
     .to(cardRef.value, { rotateY: 180, duration: 0.7, ease: 'back.out(1.3)' }, 0)
     .call(() => burst(18), null, 0.3), 2000)
@@ -403,7 +405,7 @@ async function leaveStep() {
   deck.value = []
   if (reduce || !win || !card) { alive.value = false; await release(); return }
   const r = win.getBoundingClientRect()
-  sfx('cloudWhoosh', 0.12)
+  sfx('cardSlide', 0.5)
   await play(gsap.timeline()
     .to(card, { scaleX: 1.06, scaleY: 0.9, transformOrigin: '50% 100%', duration: 0.12, ease: 'power2.out' })
     .to(card, { scaleX: 0.92, scaleY: 1.08, duration: 0.12, ease: 'power2.in' })
@@ -424,7 +426,7 @@ async function spinStep(key) {
   const per = Math.max(0.13, 0.26 - 0.04 * (flips - 1)), half = per / 2, tilt = (to > from ? -1 : 1) * 3
   card.classList.add('anim')
   // 1) подпрыгнула и сплющилась в полоску
-  sfx('pageFlip', 0.18)
+  sfx('cardPlace', 0.3)
   await play(gsap.timeline()
     .set(card, { transformOrigin: '50% 50%' })
     .to(card, { y: -10, rotation: tilt, duration: half, ease: 'power2.out' }, 0)
@@ -438,7 +440,7 @@ async function spinStep(key) {
   for (let k = 1; k < flips; k++) {
     const at = half + (k - 1) * per
     t.to(card, { scaleX: 0.04, scaleY: 1.03, duration: half, ease: 'power2.in' }, at)
-      .call(() => sfx('pageFlip', 0.18), null, at + half)
+      .call(() => sfx('cardPlace', 0.25), null, at + half)
       .to(card, { scaleX: 1, scaleY: 1, duration: half, ease: 'power2.out' }, at + half)
   }
   // приземление: чуть сплющилась и отпружинила
