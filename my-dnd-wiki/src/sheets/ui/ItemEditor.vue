@@ -21,7 +21,7 @@
             <label class="fld-like">
               <span>Редкость</span>
               <div class="ie-rar">
-                <button v-for="r in RARITIES" :key="r.name" type="button" :style="{ '--rc': r.color }" :class="{ on: rar?.name === r.name }" :title="r.note || r.name" @click="edit(`${path}.Rarity`, r.name, { now: true })">{{ r.name }}</button>
+                <button v-for="r in RARITIES" :key="r.name" type="button" :style="{ '--rc': r.color }" :class="{ on: rar?.name === r.name }" :title="r.note || r.name" :disabled="ro" @click="edit(`${path}.Rarity`, r.name, { now: true })">{{ r.name }}</button>
               </div>
             </label>
             <template v-if="kind === 'equip'">
@@ -38,6 +38,9 @@
             </template>
           </div>
         </div>
+        <!-- уникальный предмет: карточка из таблицы предметов (типы, характеристики, требования, эффекты) -->
+        <ItemCard v-if="ro && cardFilled(item?.Card)" :name="item.Name" :rarity="item.Rarity" :img="sheetImg(item.ImageFile)" :card="item.Card" :icon="icon || '✦'" compact />
+        <CardEdit v-else-if="!ro" :model-value="item?.Card ?? null" @update:model-value="v => edit(`${path}.Card`, v, { now: v === null || !item?.Card })" />
         <footer>
           <button v-if="removable" type="button" class="sb-btn danger" @click="$emit('remove')">🗑 {{ kind === 'equip' ? 'Снять и удалить' : 'Удалить' }}</button>
           <span class="grow" />
@@ -49,14 +52,18 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted } from 'vue'
+import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import Fld from './Fld.vue'
+import CardEdit from '../../components/items/CardEdit.vue'
+import ItemCard from '../../components/items/ItemCard.vue'
+import { cardFilled } from '../../shared/items.js'
 import { sheet, val, edit, sheetImg, pickImage } from '../sheetState.js'
 import { RARITIES, rarityOf } from '../../shared/sheet.js'
 import { toast } from '../../map/store.js'
 
 const props = defineProps({ path: { type: String, required: true }, kind: { type: String, default: 'equip' }, title: { type: String, default: 'Предмет' }, icon: { type: String, default: '' }, removable: { type: Boolean, default: true } })
 const emit = defineEmits(['close', 'remove'])
+const ro = inject('sheetReadOnly', ref(false))
 const item = computed(() => val(props.path))
 const rar = computed(() => rarityOf(item.value?.Rarity))
 const vars = computed(() => ({ '--acc': sheet.data?.Accent || '#C9A24F' }))

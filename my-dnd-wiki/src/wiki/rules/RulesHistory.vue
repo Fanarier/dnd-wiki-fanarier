@@ -58,7 +58,7 @@ import { store, api, toast, loadRules } from '../../map/store.js'
 import { htmlToText } from '../../shared/rules.js'
 
 defineProps({ content: { type: Object, default: () => ({}) } })
-const LIST_NAMES = { articles: 'Статьи', races: 'Расы', classes: 'Классы', schools: 'Школы магии', spells: 'Заклинания', effects: 'Эффекты' }
+const LIST_NAMES = { articles: 'Статьи', races: 'Расы', classes: 'Классы', schools: 'Школы магии', spells: 'Заклинания', effects: 'Эффекты', items: 'Предметы' }
 const ACTIONS = { create: 'создано', update: 'изменено', delete: 'удалено' }
 const rows = ref([])
 const loading = ref(false)

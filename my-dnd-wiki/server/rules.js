@@ -9,6 +9,8 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRules } from './richtext.js'
 import { canEditRule, canManageRule, RULE_LISTS } from '../src/shared/wikiPerms.js'
+import { cleanBy, CARD_SCHEMA } from '../src/shared/sheet.js'
+import { DEFAULT_BASE_CELLS } from '../src/shared/items.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'rules.json')
@@ -38,6 +40,8 @@ function load() {
   store.schools ||= []
   store.spells ||= []
   store.effects ||= []
+  store.items ||= []
+  store.settings ||= {}
   store.rev ||= 1
   applyFixes()
 }
@@ -209,6 +213,18 @@ const cleanEffect = (b = {}, old = {}) => ({
   html: H(b.html ?? old.html)
 })
 
+// уникальный предмет без хозяина или общий для группы (shared): как в листе — название, редкость, картинка, описание, карточка
+const cleanItem = (b = {}, old = {}) => ({
+  ...old,
+  name: S(b.name ?? old.name, 160) || 'Предмет',
+  rarity: S(b.rarity ?? old.rarity, 40),
+  img: ICON_RE.test(String(b.img ?? old.img ?? '')) ? String(b.img ?? old.img) : '',
+  shared: !!(b.shared ?? old.shared),
+  hidden: !!b.hidden,
+  html: H(b.html ?? old.html),
+  card: cleanBy(CARD_SCHEMA, b.card === undefined ? old.card : b.card)
+})
+
 /* ---------- журнал правок: кто, что, было → стало; мастер откатывает ---------- */
 let history = null
 let historyTimer = null
@@ -244,7 +260,7 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
   load()
   backup()
   setInterval(backup, 6 * 3600 * 1000)
-  const CLEAN = { articles: [cleanArticle, 'a-'], races: [cleanRace, 'r-'], classes: [cleanClass, 'k-'], schools: [cleanSchool, 'm-'], spells: [cleanSpell, 's-'], effects: [cleanEffect, 'fx-'] }
+  const CLEAN = { articles: [cleanArticle, 'a-'], races: [cleanRace, 'r-'], classes: [cleanClass, 'k-'], schools: [cleanSchool, 'm-'], spells: [cleanSpell, 's-'], effects: [cleanEffect, 'fx-'], items: [cleanItem, 'it-'] }
   const changed = () => { save(); broadcast() }
   const deny = res => res.status(403).json({ error: 'Эту страницу вики тебе править нельзя — права даёт мастер' })
   const copy = x => (x ? JSON.parse(JSON.stringify(x)) : null)
@@ -255,6 +271,7 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
     const u = userOf(req)
     const out = { rev: store.rev }
     for (const list of RULE_LISTS) out[list] = store[list].filter(x => !x.hidden || canEditRule(u, list, x))
+    out.settings = { baseCells: store.settings.baseCells ?? DEFAULT_BASE_CELLS }
     res.json(out)
   })
 
@@ -305,10 +322,20 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
     })
   }
 
-  // своя иконка эффекта вместо иконки из комплекта
+  // настройки вики для листов: сколько ячеек сумки без рюкзака (мастер)
+  app.put('/api/rules/settings', requireMaster, (req, res) => {
+    const n = Math.round(Number(req.body?.baseCells))
+    if (!(n >= 0 && n <= 200)) return res.status(400).json({ error: 'Число ячеек — от 0 до 200' })
+    store.settings.baseCells = n
+    changed()
+    res.json({ baseCells: n })
+  })
+
+  // своя иконка эффекта вместо иконки из комплекта; картинка предмета вики
   app.post('/api/rules/icon', requireUser, express.raw({ type: () => true, limit: '2mb' }), (req, res) => {
     const pages = req.user.wiki?.pages || []
-    if (!canManageRule(req.user, 'effects', {}) && !pages.some(p => p.startsWith('effects:'))) return deny(res)
+    const may = list => canManageRule(req.user, list, {}) || pages.some(p => p.startsWith(list + ':'))
+    if (!may('effects') && !may('items')) return deny(res)
     const ext = imageExt(req.body)
     if (!ext) return res.status(400).json({ error: 'Нужна картинка PNG, JPG, GIF или WebP' })
     const name = crypto.createHash('sha256').update(req.body).digest('hex').slice(0, 24) + '.' + ext
@@ -353,5 +380,23 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
     changed()
     res.json({ ok: true })
   })
-  return { rev: () => store.rev }
+  // предмет из вики ушёл герою: убираем (в журнале — «выдан …»), отдаём копию
+  function takeItem(id, u, note) {
+    const i = store.items.findIndex(x => x.id === id)
+    if (i < 0) return null
+    const [it] = store.items.splice(i, 1)
+    record(u, 'items', 'delete', copy(it), null, note)
+    changed()
+    return copy(it)
+  }
+  // предмет вернулся в вики (из листа): новая запись
+  function putItem(body, u, note) {
+    const item = { id: 'it-' + crypto.randomBytes(4).toString('hex'), order: Math.max(0, ...store.items.map(x => x.order || 0)) + 1, ...cleanItem(body) }
+    store.items.push(item)
+    record(u, 'items', 'create', null, copy(item), note)
+    changed()
+    return item
+  }
+  const getItem = id => store.items.find(x => x.id === id) || null
+  return { rev: () => store.rev, takeItem, putItem, getItem, baseCells: () => store.settings.baseCells ?? DEFAULT_BASE_CELLS }
 }

@@ -63,7 +63,10 @@ export const EQUIP_SLOTS = [
   { key: 'Artifact2Item', name: 'Артефакт 2', icon: '🔮' },
   { key: 'Weapon1Item', name: 'Оружие 1', icon: '⚔' },
   { key: 'Weapon2Item', name: 'Оружие 2', icon: '🗡' },
-  { key: 'ShieldItem', name: 'Щит', icon: '🛡' }
+  { key: 'ShieldItem', name: 'Щит', icon: '🛡' },
+  // слоты сайта: рюкзак даёт ячейки сумки, поклажа — вьюк на транспорте (свои ячейки); пояс даёт карманы
+  { key: 'BackpackItem', name: 'Рюкзак', icon: '🎒' },
+  { key: 'PackItem', name: 'Поклажа', icon: '🐎' }
 ]
 // редкость: цвет текста и плашки (как в приложении, тёмная тема); в файлах встречается и «Эпическое/Эпические»
 export const RARITIES = [
@@ -71,12 +74,15 @@ export const RARITIES = [
   { name: 'Необычный', color: '#4CAF72', bg: '#1E5C30' },
   { name: 'Редкий', color: '#4A90D9', bg: '#1A3D7A' },
   { name: 'Эпический', color: '#A060E0', bg: '#4A1A80' },
+  { name: 'Эпический+', color: '#C070F0', bg: '#55209A' },
   { name: 'Легендарный', color: '#E08020', bg: '#703010', note: 'Не продаётся' },
+  { name: 'Мифический', color: '#F0C030', bg: '#6A5008' },
   { name: 'Артефакт', color: '#E04060', bg: '#6E1020', note: 'Копий не существует' }
 ]
 export function rarityOf(name) {
   const s = String(name || '').trim().toLowerCase()
   if (!s) return null
+  if (s.endsWith('+') && s.startsWith('эпич')) return RARITIES.find(r => r.name === 'Эпический+')
   return RARITIES.find(r => s.startsWith(r.name.toLowerCase().slice(0, 5))) || null
 }
 export const RES_STYLES = [
@@ -89,7 +95,14 @@ export const RES_STYLES = [
 const TRAIT = O({ Name: S(120), Description: S(4000), IsAcquired: B })
 // категория навыка: 0 — классовый (К), 1 — расовый (Р), 2 — магия (М; только на сайте, в приложение уходит как классовый)
 const SKILL = O({ SkillName: S(160), CategoryIndex: I(0, 2), Description: S(20000), IsActiveSymbol: B })
-const ITEM = N(O({ Name: S(160), ImageFile: IMG, Rarity: S(40), Stats: S(4000), Effects: S(8000) }))
+// карточка уникального предмета (поле сайта): типы, настройка, вид, характеристики «название — значение»,
+// компоненты, требования, пассивные и активные эффекты, происхождение (народ-мастер). Нет карточки — null
+const CARD = N(O({
+  Type1: S(80), Type2: S(80), Attune: S(40), Kind: S(80), Origin: S(80),
+  Chars: A(O({ K: S(80), V: S(200) }), 40), Comps: A(S(120), 20), Reqs: A(S(120), 20), Passive: A(S(300), 40), Active: A(S(300), 40)
+}))
+export const CARD_SCHEMA = CARD
+const ITEM = N(O({ Name: S(160), ImageFile: IMG, Rarity: S(40), Stats: S(4000), Effects: S(8000), Card: CARD }))
 
 const statsFields = {}
 for (const a of ATTRS) { statsFields[a.key + 'Base'] = I(-99, 999); statsFields[a.key + 'SaveProf'] = B }
@@ -121,8 +134,8 @@ const main = {
   Trait4: TRAIT, Trait9: TRAIT, Trait18: TRAIT,
   HumanoidTraits: A(TRAIT, 5),
   Proficiencies: A(O({ TypeIndex: I(0, 1), Description: S(400), Rating: I(0, 3) }), 120),
-  // Stored — лежит на личном складе (поле сайта), а не при себе
-  Inventory: A(O({ ImageFile: IMG, Name: S(160), Description: S(8000), Rarity: S(40), Quantity: I(0, 1e6), Notes: S(4000), Equipped: B, Stored: B }), 600),
+  // поля сайта: Stored — на личном складе, Pack — во вьюке (поклажа), Pocket — в кармане пояса №1–8, Card — карточка уникального
+  Inventory: A(O({ ImageFile: IMG, Name: S(160), Description: S(8000), Rarity: S(40), Quantity: I(0, 1e6), Notes: S(4000), Equipped: B, Stored: B, Pack: B, Pocket: I(0, 8), Card: CARD }), 600),
   GoldCoins: I(0, 2e9), SilverCoins: I(0, 2e9), CopperCoins: I(0, 2e9),
   // связь с правилами вики (поля сайта): раса, класс и архетип из вики (пусто — узнаются по полям «Раса», «Класс», «Подкласс»),
   // выбранные расовые навыки по уровням и какие навыки из вики уже добавлялись (удалённый вручную не вернётся)
@@ -289,7 +302,9 @@ const LABELS = {
   Trait18: 'Черта 18 ур.', HumanoidTraits: 'Черты гуманоидов', Proficiencies: 'Владения', Inventory: 'Инвентарь',
   GoldCoins: 'Золото', SilverCoins: 'Серебро', CopperCoins: 'Медь', FieldColors: 'Цвет поля', Accent: 'Цвет листа', SlotLocks: 'Замок слота',
   Current: 'текущие', Max: 'максимум', Temp: 'временные', Name: 'название', Description: 'описание', SkillName: 'название',
-  IsAcquired: 'получена', Stored: 'на складе', RulesRace: 'Раса из вики', RulesClass: 'Класс из вики', RulesArch: 'Архетип из вики',
+  IsAcquired: 'получена', Stored: 'на складе', Pack: 'во вьюке', Pocket: 'карман', Card: 'карточка предмета', Type1: 'тип основной',
+  Type2: 'тип дополнительный', Attune: 'сложность настройки', Origin: 'происхождение', Chars: 'характеристики', Comps: 'компоненты',
+  Reqs: 'требования', Passive: 'пассивные эффекты', Active: 'активные эффекты', K: 'название', V: 'значение', RulesRace: 'Раса из вики', RulesClass: 'Класс из вики', RulesArch: 'Архетип из вики',
   RaceChoices: 'Выбор расового навыка', RaceProf: 'Владение за расу', WikiAdded: 'Навыки из вики', ActiveEffects: 'Эффекты на персонаже',
   Stacks: 'стаки', Turns: 'ходов осталось', Kind: 'вид', Rating: 'уровень', Quantity: 'количество', Rarity: 'редкость', Notes: 'заметки', Equipped: 'надет',
   Stats_: 'статы', Effects: 'эффекты', AttackType: 'тип', Title: 'заголовок', Content: 'текст', Tags: 'теги', ImageFile: 'картинка',

@@ -679,7 +679,7 @@ export async function uploadBeastArt(id, file) {
 }
 
 /* ---------- правила игры (расы, классы, статьи, магия, эффекты): отдельный запрос, перезапрашиваем по rulesRev ---------- */
-export const rulesState = reactive({ rev: -1, role: '', articles: [], races: [], classes: [], schools: [], spells: [], effects: [], loading: false, loaded: false })
+export const rulesState = reactive({ rev: -1, role: '', articles: [], races: [], classes: [], schools: [], spells: [], effects: [], items: [], settings: { baseCells: 5 }, loading: false, loaded: false })
 // кто смотрит: от роли и прав редактора зависит, видно ли скрытое
 const rulesViewer = () => store.role + JSON.stringify(store.me?.wiki || null)
 // права на правку вики для проверок в интерфейсе (src/shared/wikiPerms.js)
@@ -693,7 +693,7 @@ export async function loadRules(force = false) {
   let ok = false
   try {
     const j = await api('GET', '/api/rules')
-    Object.assign(rulesState, { rev: j.rev, role: rulesViewer(), articles: j.articles, races: j.races, classes: j.classes, schools: j.schools || [], spells: j.spells || [], effects: j.effects || [], loaded: true })
+    Object.assign(rulesState, { rev: j.rev, role: rulesViewer(), articles: j.articles, races: j.races, classes: j.classes, schools: j.schools || [], spells: j.spells || [], effects: j.effects || [], items: j.items || [], settings: j.settings || { baseCells: 5 }, loaded: true })
     ok = true
   } catch (e) {
     toast(e.message, 'error')

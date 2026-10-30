@@ -1280,7 +1280,23 @@ const STATIC_IMG = { maxAge: '30d', immutable: true, index: false, setHeaders: r
 app.use('/portraits', express.static(PORTRAIT_DIR, STATIC_IMG))
 registerNpcRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt, onChange: () => (getDb().heroes || []).forEach(heroFromSheet) })
 registerBestiaryRoutes(app, { express, requireMaster, userOf, getDb, saveDb, broadcast, newId, PORTRAIT_DIR, imageExt })
-sheetApi = registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players: allPlayers, getDb, broadcast })
+// вещь из листа уходит в вики «Предметы» (мастер): картинка переезжает из картинок листов в картинки вики
+function copyImg(name, fromDir, toDir) {
+  if (!/^[a-f0-9]{16,64}\.(png|jpe?g|gif|webp)$/i.test(name || '')) return ''
+  try {
+    fs.mkdirSync(toDir, { recursive: true })
+    const dst = path.join(toDir, name)
+    if (!fs.existsSync(dst)) fs.copyFileSync(path.join(fromDir, name), dst)
+    return name
+  } catch { return '' }
+}
+const itemToWiki = (e, u, note) => {
+  const img = copyImg(e.ImageFile, SHEET_IMG_DIR, RULES_IMG_DIR)
+  const notes = e.Notes ? `<p><i>${e.Notes}</i></p>` : ''
+  return rulesApi.putItem({ name: e.Name, rarity: e.Rarity, img: img ? '/rules-img/' + img : '', html: (e.Description || '') + notes, card: e.Card, shared: false }, u, note)
+}
+sheetApi = registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players: allPlayers, getDb, broadcast,
+  notifyUser: (...a) => { notify(...a); saveDb(); broadcast() }, toWiki: itemToWiki })
 // лист главнее карточки: уровень, БМ и выносливость героя с листом всегда из листа. Сайд-кики и компаньоны — из своего
 // листа НПС (вики → НПС, привязан к карточке): «Уровень» и «БМ». Без листа — карточка как есть
 const npcNum = v => { const m = String(v ?? '').match(/^\s*\+?(-?\d+)\s*$/); return m ? Number(m[1]) : null }
@@ -1305,6 +1321,21 @@ registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })
 // правила: расы, классы, механики (отдельный файл, в состоянии — только номер версии)
 rulesApi = registerRulesRoutes(app, { express, requireMaster, requireUser, userOf, broadcast, imageExt })
 app.use('/rules-img', express.static(RULES_IMG_DIR, STATIC_IMG))
+// уникальные предметы из таблицы — один раз: в листы хозяев, «Общее» — в вики
+sheetApi.seedItems(rulesApi.putItem)
+// выдать предмет из вики герою (мастер): вещь переезжает в инвентарь листа, из вики пропадает (в журнале вики — «выдан»)
+app.post('/api/rules/items/:id/give', requireMaster, (req, res) => {
+  const it = rulesApi.getItem(req.params.id)
+  if (!it) return res.status(404).json({ error: 'Предмет не найден' })
+  const img = it.img?.startsWith('/rules-img/') ? copyImg(it.img.slice('/rules-img/'.length), RULES_IMG_DIR, SHEET_IMG_DIR) : ''
+  const entry = { Name: it.name, Rarity: it.rarity, Description: it.html || '', ImageFile: img, Quantity: 1, Card: it.card || null }
+  const to = String(req.body?.sheetId || '')
+  const name = sheetApi.nameOf(to)
+  if (!name) return res.status(400).json({ error: 'Лист не найден' })
+  if (!sheetApi.giveFromWiki(to, entry, req.user, `получен «${it.name}» из вики «Предметы»`)) return res.status(400).json({ error: 'Не получилось положить в лист' })
+  rulesApi.takeItem(it.id, req.user, `выдан: ${name}`)
+  res.json({ ok: true })
+})
 // фото в описании деятельности: сайт уже сжал (webp до 1600 px); имя — по содержимому, одинаковые не копятся
 const ACT_IMG_DIR = path.join(path.dirname(PORTRAIT_DIR), 'act-img')
 app.post('/api/activities-img', requireUser, express.raw({ type: () => true, limit: '4mb' }), (req, res) => {

@@ -81,6 +81,7 @@ import WikiSearch from './WikiSearch.vue'
 import SpellsPage from './rules/SpellsPage.vue'
 import WikiAmbience from '../components/fx/WikiAmbience.vue'
 import EffectsPage from './rules/EffectsPage.vue'
+import ItemsPage from './rules/ItemsPage.vue'
 import RulesHistory from './rules/RulesHistory.vue'
 import PartyStatus from '../activity/PartyStatus.vue'
 import BestiaryPage from './bestiary/BestiaryPage.vue'
@@ -113,6 +114,7 @@ const ALL_CATEGORIES = [
   { id: 'workplaces', title: 'Рабочие места', description: 'Столы и мастерские для крафта', component: RulesArticles, group: 'workplaces' },
   { id: 'holdings', title: 'Владения и поселения', description: 'Жильё, поселения, градостроительство', component: RulesArticles, group: 'holdings' },
   { id: 'effects', title: 'Эффекты', description: 'Положительные, отрицательные и особые — с иконками', component: EffectsPage },
+  { id: 'items', title: 'Предметы', description: 'Уникальные вещи без хозяина и общие вещи группы', component: ItemsPage },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: RulesArticles, group: 'magic' },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: SpellsPage },
   { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SpellsPage },

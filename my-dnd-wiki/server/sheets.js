@@ -8,6 +8,7 @@ import crypto from 'node:crypto'
 import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS, hpMax, trainStatus, setRichCleaner } from '../src/shared/sheet.js'
 import { cleanRich } from './richtext.js'
 import { htmlToText } from '../src/shared/rules.js'
+import { slotToInv } from '../src/shared/items.js'
 
 // текст с оформлением в любом поле листа — через очистку сервера
 setRichCleaner(cleanRich)
@@ -229,7 +230,7 @@ let onHeroSheet = null
 let onHeroCard = null
 
 /* ---------- маршруты ---------- */
-export function registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players, getDb, broadcast }) {
+export function registerSheetRoutes(app, { express, requireUser, requireMaster, imageExt, clients, getPlayer, players, getDb, broadcast, notifyUser, toWiki }) {
   load()
   seedCharacters()
   sweepImages()
@@ -608,8 +609,130 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     if (applied.length) { touch(sh); notify(sh, applied, null) }
     return Object.keys(done).length ? done : null
   }
+  /* ---------- передача вещей: из листа в лист сразу (получателю — уведомление), мастер — ещё и в вики «Предметы» ---------- */
+  const SYS = { id: 'system', name: 'Передача', role: 'master' }
+  // кому можно передать: все живые листы (имя, портрет, герой)
+  app.get('/api/sheets-targets', requireUser, (req, res) => {
+    res.json(store.sheets.filter(sh => !sh.deletedAt).map(sh => ({ id: sh.id, name: sh.data.CharacterName || '', photo: sh.data.PhotoFile || '', hero: heroName(sh.heroId), mine: canSee(req.user, sh) })))
+  })
+  // положить вещь в инвентарь листа (передача, выдача из вики); в истории — откуда
+  function receiveItem(sh, entry, who, note) {
+    const inv = (sh.data.Inventory || []).slice()
+    inv.unshift(entry)
+    const op = applyOp(sh, { p: 'Inventory', v: inv }, who, note)
+    if (op) { touch(sh); notify(sh, [op], null) }
+    if (sh.ownerId && who.id !== sh.ownerId) notifyUser?.(sh.ownerId, 'item', `${sh.data.CharacterName}: ${note}`, { sheetId: sh.id })
+    return !!op
+  }
+  app.post('/api/sheets/:id/give', requireUser, (req, res) => {
+    const sh = get(req, res)
+    if (!sh) return
+    if (sh.deletedAt) return res.status(400).json({ error: 'Лист в корзине' })
+    const p = String(req.body?.path || '')
+    const to = String(req.body?.to || '')
+    const slot = EQUIP_SLOTS.find(s => s.key === p)
+    const m = p.match(/^Inventory\.(\d+)$/)
+    const src = slot ? sh.data[p] : m ? sh.data.Inventory?.[Number(m[1])] : null
+    if (!src) return res.status(400).json({ error: 'Вещь не найдена — лист поменялся, открой заново' })
+    if (slot && sh.data.SlotLocks?.[p]) return res.status(400).json({ error: 'Слот заперт' })
+    const all = slot ? 1 : Math.max(1, Number(src.Quantity) || 1)
+    const qty = Math.max(1, Math.min(all, Math.round(Number(req.body?.qty)) || all))
+    const entry = cleanBy(schemaAt('Inventory.0'), { ...(slot ? slotToInv(src) : src), Quantity: slot ? 1 : qty, Equipped: false, Stored: false, Pack: false, Pocket: 0 })
+    const fromName = sh.data.CharacterName || 'герой'
+    const what = `«${entry.Name || 'предмет'}»${qty > 1 ? ` ×${qty}` : ''}`
+    let target = null
+    if (to === 'wiki') {
+      if (req.user.role !== 'master') return res.status(403).json({ error: 'Вернуть вещь в вики может только мастер' })
+      if (!toWiki) return res.status(500).json({ error: 'Вики недоступна' })
+    } else {
+      target = find(to)
+      if (!target || target.deletedAt || target === sh) return res.status(400).json({ error: 'Кому передать — не найдено' })
+    }
+    // сначала забираем у отдавшего
+    let op
+    if (slot) op = applyOp(sh, { p, v: null }, by(req), `передан: ${what} → ${target ? target.data.CharacterName : 'вики «Предметы»'}`)
+    else {
+      const inv = sh.data.Inventory.slice()
+      const i = Number(m[1])
+      if (qty < all) inv[i] = { ...inv[i], Quantity: all - qty }
+      else inv.splice(i, 1)
+      op = applyOp(sh, { p: 'Inventory', v: inv }, by(req), `передан: ${what} → ${target ? target.data.CharacterName : 'вики «Предметы»'}`)
+    }
+    if (op) { touch(sh); notify(sh, [op], null) }
+    if (target) receiveItem(target, entry, { ...by(req), name: `${req.user.name} (от ${fromName})` }, `получен ${what} от ${fromName}`)
+    else toWiki(entry, req.user, `из листа «${fromName}»`)
+    res.json({ ok: true })
+  })
+
+  /* ---------- уникальные предметы из таблицы (server/seed/items.json, tools/items-sheet-to-json.py) ----------
+     Каждая вещь вписывается один раз: в лист хозяина. Если вещь там уже лежит (в инвентаре или слоте, под тем же
+     или похожим названием: «полуноч шип» = «Полуночный шип») — ей добавляется карточка, а редкость — если пустая
+     или «Обычный»; название остаётся как в листе. Нет — кладётся новая в инвентарь. «Общее» — в вики «Предметы». */
+  const normName = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\([^)]*\)/g, ' ').replace(/[^a-zа-я0-9\s]+/gi, '').split(/\s+/).filter(Boolean)
+  function sameItem(site, want) {
+    const a = normName(site), b = normName(want)
+    const [s, l] = a.length <= b.length ? [a, b] : [b, a]
+    if (!s.length || (s.length === 1 && s[0].length < 4)) return false
+    const like = (x, y) => Math.min(x.length, y.length) >= 3 && (x.startsWith(y) || y.startsWith(x))
+    let j = 0
+    for (const t of s) {
+      while (j < l.length && !like(t, l[j])) j++
+      if (j++ >= l.length) return false
+    }
+    return true
+  }
+  function seedItems(putWiki) {
+    let seed
+    try { seed = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, 'seed', 'items.json'), 'utf8')) } catch { return }
+    const applied = (store.itemsApplied ||= [])
+    const who = { id: 'system', name: 'Перенос предметов', role: 'master' }
+    const note = 'карточка из таблицы предметов'
+    let n = 0
+    for (const e of seed) {
+      if (applied.includes(e.key)) continue
+      if (!e.to) {
+        applied.push(e.key)
+        putWiki({ name: e.item.Name, rarity: e.item.Rarity, card: e.item.Card, shared: !!e.shared, html: '' }, who, 'из таблицы предметов')
+        n++
+        continue
+      }
+      const sh = store.sheets.find(x => !x.deletedAt && String(x.data?.CharacterName || '').trim() === e.to)
+      if (!sh) continue // листа ещё нет — впишется, когда появится
+      applied.push(e.key)
+      const d = sh.data
+      const hits = [
+        ...EQUIP_SLOTS.filter(s => d[s.key] && sameItem(d[s.key].Name, e.match)).map(s => s.key),
+        ...(d.Inventory || []).map((it, i) => (sameItem(it.Name, e.match) ? `Inventory.${i}` : null)).filter(Boolean)
+      ]
+      const done = []
+      for (const p of hits) {
+        const it = getAt(d, p)
+        done.push(applyOp(sh, { p: p + '.Card', v: e.item.Card }, who, note))
+        if (e.item.Rarity && (!it.Rarity || /^обычн/i.test(it.Rarity))) done.push(applyOp(sh, { p: p + '.Rarity', v: e.item.Rarity }, who, note))
+      }
+      if (!hits.length) {
+        const inv = (d.Inventory || []).slice()
+        inv.unshift({ Name: e.item.Name, Rarity: e.item.Rarity, Quantity: 1, Card: e.item.Card })
+        done.push(applyOp(sh, { p: 'Inventory', v: inv }, who, `новая вещь из таблицы предметов: «${e.item.Name}»`))
+      }
+      const ok = done.filter(Boolean)
+      if (ok.length) { touch(sh); notify(sh, ok, null) }
+      console.log(`[sheets] предмет «${e.item.Name}» → ${e.to}: ${hits.length ? 'карточка к ' + hits.join(', ') : 'новый в инвентаре'}`)
+      n++
+    }
+    if (n) save()
+  }
+
   return {
     applyDelta,
+    seedItems,
+    nameOf: id => { const sh = find(id); return sh && !sh.deletedAt ? sh.data.CharacterName || 'герой' : '' },
+    // выдача из вики «Предметы»: вещь кладётся в инвентарь листа
+    giveFromWiki(sheetId, entry, u, note) {
+      const sh = find(sheetId)
+      if (!sh || sh.deletedAt) return false
+      return receiveItem(sh, cleanBy(schemaAt('Inventory.0'), entry), { id: u.id, name: u.name, role: u.role }, note)
+    },
     // кто хочет знать, что в листе героя поменялось то, что видно в журнале деятельностей
     watchHeroSheets(fn) { onHeroSheet = fn },
     watchHeroCard(fn) { onHeroCard = fn },

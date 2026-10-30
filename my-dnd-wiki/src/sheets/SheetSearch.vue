@@ -18,6 +18,7 @@ import { computed, ref, watch } from 'vue'
 import Fuse from 'fuse.js'
 import { sheet } from './sheetState.js'
 import { SKILLS, ATTRS, EQUIP_SLOTS } from '../shared/sheet.js'
+import { cardText } from '../shared/items.js'
 
 const props = defineProps({ sections: { type: Array, required: true } })
 const emit = defineEmits(['go'])
@@ -43,8 +44,8 @@ const index = computed(() => {
   d.HumanoidTraits.forEach((t, i) => add('traits', `HumanoidTraits-${i}`, t.Name || 'Черта гуманоида', t.Description))
   d.Proficiencies.forEach((p, i) => add('traits', `Proficiencies-${i}`, p.Description, p.TypeIndex ? 'язык' : 'владение'))
   ;(d.Trainings || []).forEach((t, i) => add('train', `Trainings-${i}`, t.Name, `тренировка ${t.Stage} ${t.Cur}/${t.Max} ${t.Note} ${t.ProgNote}`))
-  for (const s of EQUIP_SLOTS) if (d[s.key]) add('equip', s.key, d[s.key].Name || s.name, `${s.name} ${d[s.key].Rarity} ${d[s.key].Stats} ${d[s.key].Effects}`)
-  d.Inventory.forEach((it, i) => add('inv', `Inventory-${i}`, it.Name, `${it.Stored ? 'склад ' : ''}${it.Rarity} ${it.Description} ${it.Notes}`))
+  for (const s of EQUIP_SLOTS) if (d[s.key]) add('equip', s.key, d[s.key].Name || s.name, `${s.name} ${d[s.key].Rarity} ${d[s.key].Stats} ${d[s.key].Effects} ${cardText(d[s.key].Card)}`)
+  d.Inventory.forEach((it, i) => add('inv', `Inventory-${i}`, it.Name, `${it.Stored ? 'склад ' : it.Pack ? 'вьюк ' : it.Pocket > 0 ? 'карман ' : ''}${it.Rarity} ${it.Description} ${it.Notes} ${cardText(it.Card)}`))
   d.Resources.forEach((r, i) => add('res', `Resources-${i}`, `${r.Icon} ${r.Name}`, r.Notes))
   d.JournalEntries.forEach((e, i) => add('journal', `JournalEntries-${i}`, e.Title, `${e.Tags} ${e.Content}`))
   d.CustomSheets.forEach((t, i) => add('custom', `CustomSheets-${i}`, t.Name, t.Rows.map(r => r.Cells.join(' ')).join(' ')))

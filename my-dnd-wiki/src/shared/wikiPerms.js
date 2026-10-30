@@ -9,15 +9,16 @@ export const WIKI_SECTIONS = [
   { id: 'activities', name: 'Деятельности' },
   { id: 'holdings', name: 'Владения и поселения' },
   { id: 'magic', name: 'Магия' },
-  { id: 'effects', name: 'Эффекты' }
+  { id: 'effects', name: 'Эффекты' },
+  { id: 'items', name: 'Предметы' }
 ]
-export const RULE_LISTS = ['articles', 'races', 'classes', 'schools', 'spells', 'effects']
+export const RULE_LISTS = ['articles', 'races', 'classes', 'schools', 'spells', 'effects', 'items']
 const SECTION_IDS = new Set(WIKI_SECTIONS.map(s => s.id))
 
 export function sectionOf(list, item) {
   if (list === 'articles') return item?.group || ''
   if (list === 'spells' || list === 'schools') return 'magic'
-  return list // races, classes, effects
+  return list // races, classes, effects, items
 }
 // страница, право на которую даёт править запись (заклинание — по своей школе)
 export function pageOf(list, item) {
@@ -28,7 +29,7 @@ export function pageOf(list, item) {
 export function cleanWikiPerms(w) {
   const sections = [...new Set((Array.isArray(w?.sections) ? w.sections : []).map(String).filter(s => SECTION_IDS.has(s)))]
   const pages = [...new Set((Array.isArray(w?.pages) ? w.pages : []).map(String)
-    .filter(p => /^(articles|races|classes|schools|effects):[\w-]{1,40}$/.test(p)))].slice(0, 300)
+    .filter(p => /^(articles|races|classes|schools|effects|items):[\w-]{1,40}$/.test(p)))].slice(0, 300)
   return sections.length || pages.length ? { sections, pages } : null
 }
 
