@@ -10,7 +10,7 @@ const FILES = {
   bookOpen: 'book-open', bookClose: 'book-close', pageFlip: ['book-flip-1', 'book-flip-2', 'book-flip-3'], bookPlace: 'book-place',
   coins: ['coins-1', 'coins-2'],
   // карточка героя (мини-лист в деятельностях) — Kenney Casino Audio, CC0
-  cardTakeOut: 'card-take-out', cardShuffleSplit: 'card-shuffle-1', cardShuffleJoin: 'card-shuffle-2', cardFan: ['card-fan-1', 'card-fan-2'],
+  cardTakeOut: 'card-take-out', cardShuffleSplit: 'card-shuffle-1', cardShuffleJoin: 'card-shuffle-2', cardFan: 'card-fan-1',
   cardSlide: ['card-slide-1', 'card-slide-2', 'card-slide-3', 'card-slide-4'], cardPlace: ['card-place-1', 'card-place-2', 'card-place-3', 'card-place-4'],
   cardShove: ['card-shove-1', 'card-shove-2', 'card-shove-3', 'card-shove-4'],
   // порыв ветра (из записи amb/wind) — переход на Карту, облака расходятся
@@ -38,6 +38,12 @@ function pickFor(key, f) {
   while (f.length > 1 && i === lastPick[key])
   lastPick[key] = i
   return f[i]
+}
+
+// подгрузить звуки заранее: иначе файл начинает качаться только при первом проигрыше и звук опаздывает
+export function preloadSfx(keys) {
+  if (!store.sound) return
+  try { for (const k of keys) for (const f of [].concat(FILES[k] || [])) howl(`/sounds/${f}.ogg`) } catch { /* нет звука */ }
 }
 
 // короткий звук; из списка — случайный вариант (не тот же, что в прошлый раз)

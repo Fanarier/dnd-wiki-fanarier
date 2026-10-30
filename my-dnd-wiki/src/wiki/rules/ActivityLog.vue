@@ -129,7 +129,7 @@ import SessionBar from './SessionBar.vue'
 import LottieFx from './LottieFx.vue'
 import { hourglass } from './lottie.js'
 import { celebrate, shake } from './actFx.js'
-import { sfx } from '../../sound/sound.js'
+import { sfx, preloadSfx } from '../../sound/sound.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,8 +166,11 @@ const view = ref('log')
 const wide = ref(innerWidth >= 640)
 const onWide = () => { wide.value = innerWidth >= 640 }
 onMounted(() => addEventListener('resize', onWide))
+// звуки карточки — заранее, чтобы при призыве не опаздывали
+const CARD_SFX = ['cardTakeOut', 'cardShuffleSplit', 'cardShuffleJoin', 'cardFan', 'cardSlide', 'cardPlace', 'cardShove']
 onBeforeUnmount(() => removeEventListener('resize', onWide))
 const sheetOf = id => (store.data.sheetLinks || []).find(l => l.heroId === id)?.sheetId || ''
+watch(() => wide.value && store.sound && !!sheetOf(heroId.value), on => { if (on) preloadSfx(CARD_SFX) }, { immediate: true })
 const miniHero = ref('')
 const miniRef = ref(null)
 const miniSheet = computed(() => sheetOf(miniHero.value))
