@@ -93,9 +93,9 @@
           <button type="button" :disabled="ro" @click="set(idx(it), 'Quantity', it.Quantity + 1)">＋</button>
         </div>
         <button v-if="tab === 'carry'" type="button" class="pi-eq" :class="{ on: it.Equipped }" :disabled="ro" :title="it.Equipped ? 'Надет (не занимает ячейку)' : 'Не надет'" @click="set(idx(it), 'Equipped', !it.Equipped)">⚔</button>
-        <button v-if="!ro" type="button" class="pi-move" title="Куда положить, передать герою" @click.stop="menuFor = menuFor === it ? null : it">⇄</button>
+        <button v-if="!ro" type="button" class="pi-move" title="Куда положить, передать герою" @click.stop="openMenu(it, $event)">⇄</button>
         <button v-if="!ro" type="button" class="sb-x" title="Удалить" @click="del(idx(it))">✕</button>
-        <div v-if="menuFor === it" class="pi-menu" @pointerdown.stop>
+        <div v-if="menuFor === it" class="pi-menu" :class="{ up: menuUp }" @pointerdown.stop>
           <button v-if="placeOf(it) !== 'bag' && placeOf(it) !== 'worn'" type="button" @click="moveTo(it, 'bag')">🎒 В сумку</button>
           <template v-if="st.pockets">
             <small>👝 В карман:</small>
@@ -105,6 +105,13 @@
           </template>
           <button v-if="placeOf(it) !== 'pack'" type="button" :title="st.hasPack ? '' : 'Поклажи нет — надень её в «Снаряжении»'" @click="moveTo(it, 'pack')">🐎 Во вьюк</button>
           <button v-if="placeOf(it) !== 'store'" type="button" @click="moveTo(it, 'store')">🏛 На склад</button>
+          <!-- надеть в слот снаряжения: подходящие слоты — сразу, остальные — по «другой слот» -->
+          <small>⚔ Надеть:</small>
+          <div class="pi-menu-sl">
+            <button v-for="s in slotsFor(it)" :key="s.key" type="button" :class="{ busy: !!sheet.data[s.key] }" :disabled="!!sheet.data.SlotLocks?.[s.key]"
+                    :title="sheet.data.SlotLocks?.[s.key] ? 'Слот заперт' : sheet.data[s.key] ? `занят: ${sheet.data[s.key].Name} (уйдёт в инвентарь)` : 'свободен'" @click="wear(it, s.key)">{{ s.icon }} {{ s.name }}</button>
+            <button v-if="!allSlots && slotsFor(it).length < EQUIP_SLOTS.length" type="button" class="more" @click="allSlots = true">другой слот…</button>
+          </div>
           <button type="button" class="give" @click="give = idx(it); menuFor = null">🤝 Передать герою…</button>
         </div>
       </article>
@@ -129,8 +136,9 @@ import ItemEditor from '../ui/ItemEditor.vue'
 import GiveDialog from '../ui/GiveDialog.vue'
 import HeroGalleryViewer from '../../wiki/HeroGalleryViewer.vue'
 import { sheet, edit, keyOf, listOps, sheetImg } from '../sheetState.js'
-import { RARITIES, rarityOf } from '../../shared/sheet.js'
-import { carryState, placeOf, cardFilled, cardText, DEFAULT_BASE_CELLS } from '../../shared/items.js'
+import { RARITIES, rarityOf, EQUIP_SLOTS } from '../../shared/sheet.js'
+import { equipFromInv } from '../equipMove.js'
+import { carryState, placeOf, cardFilled, cardText, fitsSlot, DEFAULT_BASE_CELLS } from '../../shared/items.js'
 import { rulesState } from '../../map/store.js'
 
 const ro = inject('sheetReadOnly', ref(false))
@@ -213,6 +221,16 @@ const visible = it => {
 const shown = computed(() => model.value.filter(visible))
 // меню «куда положить»: закрывается щелчком мимо
 const menuFor = ref(null)
+// меню у нижнего края страницы раскрывается вверх (иначе его обрезает страница книги)
+const menuUp = ref(false)
+function openMenu(it, ev) {
+  if (menuFor.value === it) { menuFor.value = null; return }
+  let box = ev.currentTarget.parentElement
+  while (box && !/(auto|scroll|hidden)/.test(getComputedStyle(box).overflowY)) box = box.parentElement
+  const bottom = Math.min(innerHeight, box ? box.getBoundingClientRect().bottom : innerHeight)
+  menuUp.value = ev.currentTarget.getBoundingClientRect().bottom + 310 > bottom
+  menuFor.value = it
+}
 const pickPocket = ref(0)
 const closeMenus = () => { menuFor.value = null; pickPocket.value = 0 }
 onMounted(() => addEventListener('pointerdown', closeMenus))
@@ -240,6 +258,18 @@ function moveTo(it, place, n = 0) {
   if (!out) return go()
   moving.value = it
   setTimeout(() => { moving.value = null; go() }, 220)
+}
+// слоты для «Надеть»: подходящие вещи (по названию и типу); нет подходящих или попросили — все
+const allSlots = ref(false)
+watch(menuFor, () => { allSlots.value = false })
+function slotsFor(it) {
+  const fit = EQUIP_SLOTS.filter(s => fitsSlot(it, s.key))
+  return allSlots.value || !fit.length ? EQUIP_SLOTS : fit
+}
+function wear(it, slot) {
+  const i = idx(it)
+  closeMenus()
+  if (i >= 0 && !ro.value) equipFromInv(i, slot)
 }
 function add() {
   q.value = ''; rar.value = ''; onlyEq.value = false
@@ -309,6 +339,7 @@ function del(i, fromEditor) {
 /* меню «куда положить» */
 .pi-item { position: relative; }
 .pi-item.menu { z-index: 5; }
+.pi-menu.up { top: auto; bottom: calc(100% - 4px); }
 .pi-menu { position: absolute; right: 8px; top: calc(100% - 4px); z-index: 30; display: grid; gap: 3px; min-width: 190px; max-height: 300px; overflow-y: auto; padding: 6px; border-radius: 12px; background: #1f1810; border: 1px solid color-mix(in srgb, var(--acc) 45%, #3b2a1a); box-shadow: 0 14px 34px rgba(0, 0, 0, .6); animation: pi-pop .16s ease-out; }
 .pi-menu.pk { left: 0; right: auto; top: calc(100% + 4px); }
 .pi-menu > button { padding: 6px 9px; border: 0; border-radius: 8px; background: none; color: var(--ink); font: 700 13px 'Manrope', sans-serif; text-align: left; cursor: pointer; }
@@ -320,6 +351,12 @@ function del(i, fromEditor) {
 .pi-menu-pk button { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); color: var(--ink); font: 800 12px 'Manrope', sans-serif; cursor: pointer; }
 .pi-menu-pk button.busy { border-style: dashed; color: var(--muted); }
 .pi-menu-pk button:hover { border-color: var(--acc); }
+.pi-menu-sl { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 6px 4px; max-width: 280px; }
+.pi-menu-sl button { padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); color: var(--ink); font: 700 12px 'Manrope', sans-serif; cursor: pointer; }
+.pi-menu-sl button.busy { border-style: dashed; color: var(--muted); }
+.pi-menu-sl button.more { border-style: dashed; color: var(--muted); }
+.pi-menu-sl button:hover:not(:disabled) { border-color: var(--acc); color: var(--ink); }
+.pi-menu-sl button:disabled { opacity: .4; cursor: not-allowed; }
 @keyframes pi-pop { from { opacity: 0; transform: translateY(-4px) scale(.97); } }
 /* вещь: метки */
 .pi-img { position: relative; }

@@ -29,8 +29,10 @@
         <button v-if="!ro" type="button" class="sb-btn" :title="locked(sel) ? 'Отпереть слот' : 'Запереть слот'" @click="edit(`SlotLocks.${sel}`, !locked(sel), { now: true })">
           <SheetIcon :name="locked(sel) ? 'lock' : 'unlock'" :on="locked(sel)" tone="#ffc15e" class="pe-lk" /> {{ locked(sel) ? 'Заперт' : 'Открыт' }}
         </button>
+        <button v-if="!ro && !locked(sel) && d[sel]" type="button" class="sb-btn" title="Снять и положить в сумку" @click="unequipToInv(sel)">↩ В инвентарь</button>
+        <button v-if="!ro && !locked(sel) && d[sel] && invCount" type="button" class="sb-btn" :class="{ on: pickOpen }" title="Надеть другую вещь из инвентаря (эта уйдёт в инвентарь)" @click="pickOpen = !pickOpen">⇄ Из инвентаря</button>
         <button v-if="!ro && !locked(sel) && d[sel]" type="button" class="sb-btn" title="Отдать вещь другому герою (сразу, ему придёт уведомление)" @click="giveOpen = true">🤝 Передать</button>
-        <button v-if="!ro && !locked(sel)" type="button" class="sb-btn" @click="editOpen = true">✎ {{ d[sel] ? 'Править' : 'Положить предмет' }}</button>
+        <button v-if="!ro && !locked(sel)" type="button" class="sb-btn" :title="d[sel] ? '' : 'Новая вещь прямо в слот (не из инвентаря)'" @click="editOpen = true">✎ {{ d[sel] ? 'Править' : 'Новый предмет' }}</button>
       </header>
       <template v-if="d[sel]">
         <!-- и у простой вещи — шапка с большой картинкой (щелчок — на весь экран) -->
@@ -39,7 +41,9 @@
         <p v-if="d[sel].Effects" class="pe-txt"><b>Эффекты:</b> <DiceText :text="d[sel].Effects" :label="d[sel].Name" /></p>
         <p v-if="capLabel(sel)" class="pe-txt pe-capline">{{ capLabel(sel).title }}</p>
       </template>
-      <p v-else class="pe-txt muted">Слот пуст.{{ SLOT_HINT[sel] ? ' ' + SLOT_HINT[sel] : '' }}</p>
+      <p v-else class="pe-txt muted">Слот пуст.{{ SLOT_HINT[sel] ? ' ' + SLOT_HINT[sel] : '' }}<template v-if="!ro && !locked(sel) && invCount"> Выбери вещь из инвентаря — она наденется:</template></p>
+      <!-- быстро надеть из инвентаря: у пустого слота — сразу, у занятого — по кнопке «Из инвентаря» -->
+      <InvPicker v-if="!ro && !locked(sel) && invCount && (!d[sel] || pickOpen)" :key="sel" :slot="sel" :occupied="!!d[sel]" @pick="i => { equipFromInv(i, sel); pickOpen = false }" />
     </section>
 
     <GiveDialog v-if="giveOpen && sel && d[sel]" :path="sel" :item="d[sel]" @close="giveOpen = false" @done="giveOpen = false" />
@@ -48,12 +52,14 @@
 </template>
 
 <script setup>
-import { computed, inject, ref } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import DiceText from '../ui/DiceText.vue'
 import ItemEditor from '../ui/ItemEditor.vue'
 import SheetIcon from '../ui/SheetIcon.vue'
 import ItemCard from '../../components/items/ItemCard.vue'
 import GiveDialog from '../ui/GiveDialog.vue'
+import InvPicker from '../ui/InvPicker.vue'
+import { equipFromInv, unequipToInv } from '../equipMove.js'
 import { capOf, cardFilled, MAX_POCKETS } from '../../shared/items.js'
 import { sheet, edit, sheetImg } from '../sheetState.js'
 import { EQUIP_SLOTS, rarityOf } from '../../shared/sheet.js'
@@ -82,6 +88,9 @@ const slotOf = k => EQUIP_SLOTS.find(s => s.key === k)
 const locked = k => !!d.value.SlotLocks?.[k]
 const rarOf = k => rarityOf(d.value[k]?.Rarity)
 const sel = ref('')
+const pickOpen = ref(false)
+watch(sel, () => { pickOpen.value = false })
+const invCount = computed(() => d.value.Inventory?.length || 0)
 const selRar = computed(() => (sel.value ? rarOf(sel.value) : null))
 const editOpen = ref(false)
 const giveOpen = ref(false)

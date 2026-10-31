@@ -94,6 +94,38 @@ export function carryState(d, baseCells = DEFAULT_BASE_CELLS) {
   }
 }
 
+// какие вещи подходят слоту — по названию и типам карточки (подсказка при выборе, не запрет)
+const SLOT_RE = {
+  HeadItem: /шлем|шляп|капюш|корон|маск|тиар|обруч|монокл|очки|венец|диадем|голов/,
+  AmuletItem: /амулет|кулон|ожерел|колье|подвес|медальон|ладанк/,
+  BodyItem: /брон|доспех|нагрудн|кирас|роба|мант|плащ|хаори|кимоно|рубах|куртк|одежд|комплект|кольчуг|камзол|жилет/,
+  HandsItem: /перчат|рукавиц|наруч|когт/,
+  BeltItem: /пояс|ремень|кушак|разгрузк/,
+  LegsItem: /сапог|ботин|понож|штан|брюк|обув|сандал|гэта|таби|вараджи|бабуш|туфл/,
+  Ring1Item: /кольц|перстен/, Ring2Item: /кольц|перстен/,
+  Ornament1Item: /серьг|брош|браслет|украш|заколк|подвеск|для волос/, Ornament2Item: /серьг|брош|браслет|украш|заколк|подвеск|для волос/,
+  Artifact1Item: /артефакт|сфера|том\b|книг|кристалл|око\b|реликв|талисман|тотем|орб|гримуар/, Artifact2Item: /артефакт|сфера|том\b|книг|кристалл|око\b|реликв|талисман|тотем|орб|гримуар/,
+  Weapon1Item: /оруж|меч|клин|кинжал|нож|топор|секир|лук\b|арбалет|пистол|ружь|винтов|копь|посох|жезл|палочк|молот|булав|катан|тачи|вакидзаси|кастет|коса\b|глеф|алебард|древков|паров|шпаг|рапир|сабл|цеп|трезуб|сюрикен|кунай/,
+  ShieldItem: /щит/,
+  BackpackItem: /рюкзак|сумк|мешок|котомк|ранец/,
+  PackItem: /вьюк|поклаж|седельн|повозк|телег/
+}
+SLOT_RE.Weapon2Item = SLOT_RE.Weapon1Item
+export const fitsSlot = (it, slot) => !!it && !!SLOT_RE[slot]?.test([it.Name, it.Card?.Type1, it.Card?.Type2, it.Card?.Kind].filter(Boolean).join(' ').toLowerCase())
+
+// вещь из инвентаря → в слот снаряжения: обратное slotToInv — «Статы:» и «Эффекты:» из описания снова в свои поля,
+// остальное описание и заметки — в эффекты
+const isHtml = s => /<[a-z][^>]*>/i.test(s)
+const asHtml = s => (isHtml(s) ? s : `<p>${s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p>`)
+export function invToSlot(it) {
+  let desc = String(it.Description || '')
+  let stats = '', eff = ''
+  desc = desc.replace(/<p><b>Статы:<\/b>\s*([\s\S]*?)<\/p>/, (_, s) => { stats = s.trim(); return '' })
+  desc = desc.replace(/<p><b>Эффекты:<\/b>\s*([\s\S]*?)<\/p>/, (_, s) => { eff = s.trim(); return '' })
+  const parts = [eff, desc.trim(), String(it.Notes || '').trim()].filter(s => s && s.replace(/<[^>]+>/g, '').trim())
+  return { Name: it.Name || '', ImageFile: it.ImageFile || '', Rarity: it.Rarity || '', Stats: stats, Effects: parts.length > 1 ? parts.map(asHtml).join('') : parts[0] || '', Card: it.Card || null }
+}
+
 // вещь из слота экипировки → строка инвентаря (передача, снятие): статы и эффекты уходят в описание
 export function slotToInv(s) {
   const desc = [s.Stats && `<p><b>Статы:</b> ${s.Stats}</p>`, s.Effects && `<p><b>Эффекты:</b> ${s.Effects}</p>`].filter(Boolean).join('')
