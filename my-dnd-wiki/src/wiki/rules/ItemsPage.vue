@@ -109,7 +109,7 @@ import RuneLoader from '../../components/fx/RuneLoader.vue'
 import ItemCard from '../../components/items/ItemCard.vue'
 import CardEdit from '../../components/items/CardEdit.vue'
 import RulesEditor from './RulesEditor.vue'
-import { store, rulesState, loadRules, api, toast, wikiUser, postBlob } from '../../map/store.js'
+import { store, rulesState, loadRules, api, toast, wikiUser, postBlob, shrink } from '../../map/store.js'
 import { canEditRule, canManageRule } from '../../shared/wikiPerms.js'
 import { RARITIES, rarityOf } from '../../shared/sheet.js'
 import { cardText } from '../../shared/items.js'
@@ -152,7 +152,8 @@ async function upload(ev) {
   const f = ev.target.files?.[0]
   ev.target.value = ''
   if (!f) return
-  try { edit.value.img = (await postBlob('/api/rules/icon', f)).icon } catch (e) { toast(e.message, 'error') }
+  // картинка предмета смотрится на весь экран — храним до 1200 точек (webp), не больше лимита загрузки
+  try { edit.value.img = (await postBlob('/api/rules/icon', (await shrink(f, 1200, 0.9)).blob)).icon } catch (e) { toast(e.message, 'error') }
 }
 
 /* ---------- мастер: ячейки без рюкзака, выдать герою ---------- */
@@ -195,7 +196,7 @@ async function giveTo(t) {
 .itp-btn.small { padding: 3px 8px; font-size: 11.5px; }
 .itp-btn:disabled { opacity: .45; cursor: default; }
 .itp-empty { color: #a8936c; font-weight: 600; }
-.itp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 12px; align-items: start; }
+.itp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 540px), 1fr)); gap: 12px; align-items: start; }
 .itp-card { animation: itp-in .35s ease backwards; animation-delay: calc(var(--i, 0) * 25ms); transition: transform .2s, box-shadow .2s; }
 .itp-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0, 0, 0, .45), 0 0 20px color-mix(in srgb, var(--rc) 22%, transparent); }
 .itp-card.hid { opacity: .6; }
@@ -206,7 +207,7 @@ async function giveTo(t) {
 @keyframes itp-in { from { opacity: 0; transform: translateY(10px); } }
 /* окна */
 .itp-back { position: fixed; inset: 0; z-index: 650; display: grid; place-items: center; padding: 16px; background: rgba(5, 4, 3, .72); backdrop-filter: blur(3px); }
-.itp-ed { --acc: #c9a24f; width: min(720px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: linear-gradient(180deg, #221b13, #17130e); border: 1px solid #5a4426; box-shadow: 0 30px 80px rgba(0, 0, 0, .7); color: #efe3c8; }
+.itp-ed { --acc: #c9a24f; width: min(900px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: linear-gradient(180deg, #221b13, #17130e); border: 1px solid #5a4426; box-shadow: 0 30px 80px rgba(0, 0, 0, .7); color: #efe3c8; }
 .itp-ed.small { width: min(440px, 100%); }
 .itp-ed header, .itp-ed footer { display: flex; align-items: center; gap: 8px; }
 .itp-ed header b { flex: 1; font: 700 22px 'Cormorant Garamond', serif; color: #f3dfb2; }

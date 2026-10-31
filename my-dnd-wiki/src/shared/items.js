@@ -16,23 +16,35 @@ export const CARD_LISTS = [
   { k: 'Passive', name: 'Пассивные эффекты', icon: '✧' },
   { k: 'Active', name: 'Активные эффекты', icon: '⚡' }
 ]
-export const blankCard = () => ({ Type1: '', Type2: '', Attune: '', Kind: '', Origin: '', Chars: [], Comps: [], Reqs: [], Passive: [], Active: [] })
-
-// характеристики ↔ строки текста: «Физический урон: 3к12», без двоеточия — свойство («Одноручное»)
-export const charsToText = list => (list || []).map(c => (c.V ? `${c.K}: ${c.V}` : c.K)).join('\n')
-export function textToChars(t) {
-  return String(t || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 40).map(s => {
-    const i = s.indexOf(':')
-    return i > 0 ? { K: s.slice(0, i).trim().slice(0, 80), V: s.slice(i + 1).trim().slice(0, 200) } : { K: s.slice(0, 80), V: '' }
-  })
+export const blankCard = () => ({ Type1: '', Type2: '', Attune: '', Kind: '', Origin: '', Note: '', Chars: [], Comps: [], Reqs: [], Passive: [], Active: [] })
+// пункт списка: T — текст, N — примечание (в таблице — комментарий к ячейке), M — отметка. Старые пункты — строки
+export const liOf = x => (typeof x === 'string' ? { T: x, N: '', M: '' } : { T: '', N: '', M: '', ...x })
+// отметки пунктов (в таблице — заливка ячейки): что значат, решает мастер — сайт только показывает цвет
+export const MARKS = [
+  { k: '', name: 'Без отметки', color: '' },
+  { k: 'green', name: 'Зелёная', color: '#5cc77a' },
+  { k: 'yellow', name: 'Жёлтая', color: '#f0c040' },
+  { k: 'red', name: 'Красная', color: '#e8574a' },
+  { k: 'blue', name: 'Синяя', color: '#5b9cf0' },
+  { k: 'gone', name: 'Зачёркнуто (утрачено)', color: '#cc3a2e' }
+]
+export const markOf = k => MARKS.find(m => m.k === k) || MARKS[0]
+// сложность настройки — цветом, как в таблице: нет — серая, низкая — синяя, средняя — жёлтая, высокая — оранжевая, очень высокая — красная
+export function attuneColor(v) {
+  const t = String(v || '').toLowerCase()
+  if (!t || /^нет/.test(t)) return '#9a9a9a'
+  if (/очень\s*выс|максим|запред/.test(t)) return '#e8574a'
+  if (/выс/.test(t)) return '#f08a3c'
+  if (/сред/.test(t)) return '#f0c040'
+  if (/низ|лёг|лег/.test(t)) return '#5b9cf0'
+  return '#c9a24f'
 }
-export const listToText = list => (list || []).join('\n')
-export const textToList = (t, max = 40, n = 300) => String(t || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, max).map(s => s.slice(0, n))
 
 // карточка как строка для поиска
-export const cardText = c => (c ? [c.Type1, c.Type2, c.Kind, c.Origin, charsToText(c.Chars), ...(c.Comps || []), ...(c.Reqs || []), ...(c.Passive || []), ...(c.Active || [])].join(' ') : '')
+export const cardText = c => (c ? [c.Type1, c.Type2, c.Kind, c.Origin, c.Note, ...(c.Chars || []).map(x => `${x.K} ${x.V} ${x.N || ''}`),
+  ...CARD_LISTS.flatMap(l => (c[l.k] || []).map(x => { const e = liOf(x); return `${e.T} ${e.N}` }))].join(' ') : '')
 // у карточки есть что показать (пустую не рисуем)
-export const cardFilled = c => !!c && !!(c.Type1 || c.Type2 || c.Kind || c.Attune || c.Origin || c.Chars?.length || c.Comps?.length || c.Reqs?.length || c.Passive?.length || c.Active?.length)
+export const cardFilled = c => !!c && !!(c.Type1 || c.Type2 || c.Kind || c.Attune || c.Origin || c.Note || c.Chars?.length || c.Comps?.length || c.Reqs?.length || c.Passive?.length || c.Active?.length)
 
 /* ---------- карманы и ячейки ---------- */
 const plain = s => String(s || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ')

@@ -9,7 +9,7 @@
         </header>
         <div class="ie-body">
           <div class="ie-img" :style="rar ? { '--rc': rar.color } : null">
-            <img v-if="item?.ImageFile" :src="sheetImg(item.ImageFile)" alt="" />
+            <button v-if="item?.ImageFile" type="button" class="ie-zoom" title="Посмотреть картинку" @click="view = true"><img :src="sheetImg(item.ImageFile)" alt="" /></button>
             <span v-else class="ie-ph">{{ icon || '🖼' }}</span>
             <div class="ie-img-acts">
               <button type="button" class="sb-btn" @click="setImg">📷 {{ item?.ImageFile ? 'Сменить' : 'Картинка' }}</button>
@@ -41,6 +41,7 @@
         <!-- уникальный предмет: карточка из таблицы предметов (типы, характеристики, требования, эффекты) -->
         <ItemCard v-if="ro && cardFilled(item?.Card)" :name="item.Name" :rarity="item.Rarity" :img="sheetImg(item.ImageFile)" :card="item.Card" :icon="icon || '✦'" compact />
         <CardEdit v-else-if="!ro" :model-value="item?.Card ?? null" @update:model-value="v => edit(`${path}.Card`, v, { now: v === null || !item?.Card })" />
+        <HeroGalleryViewer :z="2000" v-if="view && item?.ImageFile" :arts="[{ id: 'img', file: item.ImageFile }]" :name="item.Name" :url="sheetImg" @close="view = false" />
         <footer>
           <button v-if="removable" type="button" class="sb-btn danger" @click="$emit('remove')">🗑 {{ kind === 'equip' ? 'Снять и удалить' : 'Удалить' }}</button>
           <span class="grow" />
@@ -56,6 +57,7 @@ import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
 import Fld from './Fld.vue'
 import CardEdit from '../../components/items/CardEdit.vue'
 import ItemCard from '../../components/items/ItemCard.vue'
+import HeroGalleryViewer from '../../wiki/HeroGalleryViewer.vue'
 import { cardFilled } from '../../shared/items.js'
 import { sheet, val, edit, sheetImg, pickImage } from '../sheetState.js'
 import { RARITIES, rarityOf } from '../../shared/sheet.js'
@@ -66,18 +68,19 @@ const emit = defineEmits(['close', 'remove'])
 const ro = inject('sheetReadOnly', ref(false))
 const item = computed(() => val(props.path))
 const rar = computed(() => rarityOf(item.value?.Rarity))
+const view = ref(false)
 const vars = computed(() => ({ '--acc': sheet.data?.Accent || '#C9A24F' }))
 async function setImg() {
-  try { await pickImage(`${props.path}.ImageFile`, { title: 'Картинка предмета', size: 256 }) } catch (e) { toast(e.message, 'error') }
+  try { await pickImage(`${props.path}.ImageFile`, { title: 'Картинка предмета', crop: false, max: 1200 }) } catch (e) { toast(e.message, 'error') }
 }
-const esc = e => { if (e.key === 'Escape') emit('close') }
+const esc = e => { if (e.key === 'Escape' && !view.value) emit('close') }
 onMounted(() => addEventListener('keydown', esc))
 onBeforeUnmount(() => removeEventListener('keydown', esc))
 </script>
 
 <style scoped>
 .ie-back { --ink: #efe3c8; --muted: #a8936c; --line: color-mix(in srgb, var(--acc) 22%, transparent); position: fixed; inset: 0; z-index: 650; display: grid; place-items: center; padding: 16px; background: rgba(5, 4, 3, .72); backdrop-filter: blur(3px); animation: ie-fade .2s; }
-.ie { width: min(640px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: linear-gradient(180deg, #221b13, #17130e); border: 1px solid color-mix(in srgb, var(--acc) 45%, #3b2a1a); box-shadow: 0 30px 80px rgba(0, 0, 0, .7); color: var(--ink); animation: ie-in .28s cubic-bezier(.2, 1.2, .4, 1); }
+.ie { width: min(860px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; display: grid; gap: 12px; padding: 16px; border-radius: 16px; background: linear-gradient(180deg, #221b13, #17130e); border: 1px solid color-mix(in srgb, var(--acc) 45%, #3b2a1a); box-shadow: 0 30px 80px rgba(0, 0, 0, .7); color: var(--ink); animation: ie-in .28s cubic-bezier(.2, 1.2, .4, 1); }
 .ie header, .ie footer { display: flex; align-items: center; gap: 8px; }
 .ie header b { flex: 1; font: 700 22px 'Cormorant Garamond', serif; color: color-mix(in srgb, var(--acc) 60%, #fff3d6); }
 .grow { flex: 1; }
@@ -85,6 +88,9 @@ onBeforeUnmount(() => removeEventListener('keydown', esc))
 .ie-img { display: grid; gap: 8px; align-content: start; }
 .ie-img img, .ie-ph { width: 170px; height: 170px; border-radius: 14px; object-fit: contain; background: radial-gradient(circle, color-mix(in srgb, var(--rc, var(--acc)) 25%, transparent), rgba(0, 0, 0, .4) 70%); border: 2px solid color-mix(in srgb, var(--rc, var(--acc)) 60%, transparent); box-shadow: 0 0 24px color-mix(in srgb, var(--rc, var(--acc)) 30%, transparent); image-rendering: auto; }
 .ie-ph { display: grid; place-items: center; font-size: 54px; opacity: .6; }
+.ie-zoom { display: block; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.ie-zoom img { height: 210px; transition: transform .3s; }
+.ie-zoom:hover img { transform: scale(1.03); }
 .ie-img-acts { display: flex; gap: 6px; }
 .ie-fields { display: grid; gap: 10px; min-width: 0; }
 .fld-like { display: grid; gap: 4px; }
@@ -99,7 +105,7 @@ onBeforeUnmount(() => removeEventListener('keydown', esc))
 @media (max-width: 560px) {
   .ie-body { grid-template-columns: minmax(0, 1fr); }
   .ie-img { grid-template-columns: 110px minmax(0, 1fr); align-items: end; }
-  .ie-img img, .ie-ph { width: 110px; height: 110px; }
+  .ie-img img, .ie-ph, .ie-zoom img { width: 110px; height: 110px; }
   .ie-img-acts { flex-direction: column; align-items: start; }
 }
 </style>

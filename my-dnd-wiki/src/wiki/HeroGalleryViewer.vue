@@ -1,9 +1,9 @@
 <template>
   <teleport to="body">
-    <div class="gv" :class="theme && 'themed'" :style="themeVars(theme)" @click.self="$emit('close')" @touchstart.passive="tStart" @touchend="tEnd">
+    <div class="gv" :class="theme && 'themed'" :style="[themeVars(theme), z ? { zIndex: z } : null]" @click.self="$emit('close')" @touchstart.passive="tStart" @touchend="tEnd">
       <!-- размытая подложка из текущего арта -->
       <transition name="gv-bg">
-        <div :key="cur.id" class="gv-bg" :style="{ backgroundImage: `url(${heroPortraitUrl(cur.thumb || cur.file)})` }" />
+        <div :key="cur.id" class="gv-bg" :style="{ backgroundImage: `url(${src(cur.thumb || cur.file)})` }" />
       </transition>
       <!-- эффекты темы героя фоном: пар, снег, лучи… -->
       <HeroFx v-if="theme" :theme="theme" mode="ambient" />
@@ -12,8 +12,8 @@
         <transition :name="dir > 0 ? 'gv-next' : 'gv-prev'">
           <div :key="cur.id" class="gv-slide" @click.self="$emit('close')">
             <!-- пока большой файл грузится, показываем лёгкую копию с карточки -->
-            <img v-if="!loaded[cur.id]" :src="heroPortraitUrl(cur.thumb || cur.file)" class="gv-ph" alt="" />
-            <img :data-aid="cur.id" :src="failed[cur.id] ? heroPortraitUrl(cur.thumb) : heroPortraitUrl(cur.file)" class="gv-img" :class="{ ready: loaded[cur.id], zoomed }" alt=""
+            <img v-if="!loaded[cur.id]" :src="src(cur.thumb || cur.file)" class="gv-ph" alt="" />
+            <img :data-aid="cur.id" :src="failed[cur.id] ? src(cur.thumb) : src(cur.file)" class="gv-img" :class="{ ready: loaded[cur.id], zoomed }" alt=""
                  @load="loaded[cur.id] = true" @error="onFail(cur)" @click.stop="imgClick" @dblclick.stop="toggleZoom" />
             <div v-if="!loaded[cur.id]" class="gv-spin" />
           </div>
@@ -30,7 +30,7 @@
           <button type="button" class="lvl" title="Сбросить масштаб" @click="pz?.reset()">{{ zoomed ? Math.round(scale * 100) + '%' : '1:1' }}</button>
           <button type="button" title="Приблизить" @click="pz?.zoomIn()">＋</button>
         </span>
-        <a :href="heroPortraitUrl(cur.file)" :download="`${name || 'art'}-${i + 1}${cur.file.slice(cur.file.lastIndexOf('.'))}`" class="gv-dl" @click.stop>Скачать</a>
+        <a :href="src(cur.file)" :download="`${name || 'art'}-${i + 1}${cur.file.slice(cur.file.lastIndexOf('.'))}`" class="gv-dl" @click.stop>Скачать</a>
         <button class="gv-x" aria-label="Закрыть" @click="$emit('close')">×</button>
       </div>
 
@@ -39,7 +39,7 @@
         <button class="gv-nav next" aria-label="Следующий" @click.stop="step(1)">›</button>
         <div ref="strip" class="gv-strip" @click.stop>
           <button v-for="(a, n) in arts" :key="a.id" class="gv-th" :class="{ on: n === i }" @click="go(n)">
-            <img :src="heroPortraitUrl(a.thumb || a.file)" alt="" />
+            <img :src="src(a.thumb || a.file)" alt="" />
           </button>
         </div>
       </template>
@@ -59,9 +59,14 @@ const props = defineProps({
   arts: { type: Array, required: true },
   start: { type: Number, default: 0 },
   name: { type: String, default: '' },
-  theme: { type: String, default: null }
+  theme: { type: String, default: null },
+  // имя файла → адрес картинки (по умолчанию — арты героев; для предметов — свой)
+  url: { type: Function, default: null },
+  // поверх окон (лист героя, редактор предмета) — свой слой
+  z: { type: Number, default: 0 }
 })
 const emit = defineEmits(['close', 'index'])
+const src = f => (props.url ? props.url(f) : heroPortraitUrl(f))
 
 const i = ref(Math.min(props.start, props.arts.length - 1))
 const dir = ref(1)
@@ -89,7 +94,7 @@ watch(i, n => {
   emit('index', n)
   for (const d of [1, -1]) {
     const a = props.arts[(n + d + props.arts.length) % props.arts.length]
-    if (a) new Image().src = heroPortraitUrl(a.file)
+    if (a) new Image().src = src(a.file)
   }
 }, { immediate: true })
 const go = n => { dir.value = n >= i.value ? 1 : -1; show(n) }

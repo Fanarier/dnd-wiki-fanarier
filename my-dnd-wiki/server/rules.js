@@ -398,5 +398,15 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
     return item
   }
   const getItem = id => store.items.find(x => x.id === id) || null
-  return { rev: () => store.rev, takeItem, putItem, getItem, baseCells: () => store.settings.baseCells ?? DEFAULT_BASE_CELLS }
+  // правка записи сервером (перенос из таблицы): в журнал — с пометкой
+  function patchItem(id, body, u, note) {
+    const it = getItem(id)
+    if (!it) return null
+    const before = copy(it)
+    Object.assign(it, cleanItem(body, it))
+    record(u, 'items', 'update', before, copy(it), note)
+    changed()
+    return it
+  }
+  return { rev: () => store.rev, takeItem, putItem, getItem, patchItem, allItems: () => store.items.map(copy), baseCells: () => store.settings.baseCells ?? DEFAULT_BASE_CELLS }
 }

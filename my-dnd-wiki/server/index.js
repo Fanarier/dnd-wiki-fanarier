@@ -1322,7 +1322,7 @@ registerCampaignRoutes(app, { requireMaster, getDb, saveDb, broadcast, newId })
 rulesApi = registerRulesRoutes(app, { express, requireMaster, requireUser, userOf, broadcast, imageExt })
 app.use('/rules-img', express.static(RULES_IMG_DIR, STATIC_IMG))
 // уникальные предметы из таблицы — один раз: в листы хозяев, «Общее» — в вики
-sheetApi.seedItems(rulesApi.putItem)
+sheetApi.seedItems({ put: rulesApi.putItem, all: rulesApi.allItems, patch: rulesApi.patchItem, imgDir: RULES_IMG_DIR })
 // выдать предмет из вики герою (мастер): вещь переезжает в инвентарь листа, из вики пропадает (в журнале вики — «выдан»)
 app.post('/api/rules/items/:id/give', requireMaster, (req, res) => {
   const it = rulesApi.getItem(req.params.id)

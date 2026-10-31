@@ -33,8 +33,8 @@
         <button v-if="!ro && !locked(sel)" type="button" class="sb-btn" @click="editOpen = true">✎ {{ d[sel] ? 'Править' : 'Положить предмет' }}</button>
       </header>
       <template v-if="d[sel]">
-        <ItemCard v-if="cardFilled(d[sel].Card)" :name="d[sel].Name" :rarity="d[sel].Rarity" :img="sheetImg(d[sel].ImageFile)" :card="d[sel].Card" :icon="slotOf(sel).icon" />
-        <h3 v-else class="pe-name">{{ d[sel].Name || 'Без названия' }} <em v-if="d[sel].Rarity" class="pe-rar">{{ d[sel].Rarity }}</em></h3>
+        <!-- и у простой вещи — шапка с большой картинкой (щелчок — на весь экран) -->
+        <ItemCard :name="d[sel].Name" :rarity="d[sel].Rarity" :img="sheetImg(d[sel].ImageFile)" :card="cardFilled(d[sel].Card) ? d[sel].Card : null" :icon="slotOf(sel).icon" />
         <p v-if="d[sel].Stats" class="pe-txt"><b>Статы:</b> <DiceText :text="d[sel].Stats" :label="d[sel].Name" /></p>
         <p v-if="d[sel].Effects" class="pe-txt"><b>Эффекты:</b> <DiceText :text="d[sel].Effects" :label="d[sel].Name" /></p>
         <p v-if="capLabel(sel)" class="pe-txt pe-capline">{{ capLabel(sel).title }}</p>
@@ -128,8 +128,6 @@ function clearSlot() {
 .pe-detail header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .pe-dslot { font: 800 12px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .pe-lk { width: 16px; height: 16px; }
-.pe-name { margin: 2px 0; font: 700 21px 'Cormorant Garamond', serif; color: var(--rc, var(--ink)); }
-.pe-rar { margin-left: 6px; font: 800 11px 'Manrope', sans-serif; font-style: normal; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; border: 1px solid color-mix(in srgb, var(--rc, var(--acc)) 50%, transparent); vertical-align: middle; }
 .pe-txt { margin: 0; font: 500 13.5px/1.55 'Manrope', sans-serif; }
 .pe-txt b { color: var(--muted); font-weight: 800; }
 .muted { color: var(--muted); }

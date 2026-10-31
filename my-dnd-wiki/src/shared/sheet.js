@@ -96,10 +96,14 @@ const TRAIT = O({ Name: S(120), Description: S(4000), IsAcquired: B })
 // категория навыка: 0 — классовый (К), 1 — расовый (Р), 2 — магия (М; только на сайте, в приложение уходит как классовый)
 const SKILL = O({ SkillName: S(160), CategoryIndex: I(0, 2), Description: S(20000), IsActiveSymbol: B })
 // карточка уникального предмета (поле сайта): типы, настройка, вид, характеристики «название — значение»,
-// компоненты, требования, пассивные и активные эффекты, происхождение (народ-мастер). Нет карточки — null
+// компоненты, требования, пассивные и активные эффекты, происхождение (народ-мастер), примечание. Нет карточки — null.
+// У пункта списка и характеристики — примечание N (комментарий из таблицы) и отметка M (цвет заливки в таблице;
+// «gone» — зачёркнуто, утрачено). Старые пункты-строки читаются как { T: строка }
+export const ITEM_MARKS = ['', 'green', 'yellow', 'red', 'blue', 'gone']
+const LI = n => ({ ...O({ T: S(n), N: S(3000), M: E(...ITEM_MARKS) }), str: 'T' })
 const CARD = N(O({
-  Type1: S(80), Type2: S(80), Attune: S(40), Kind: S(80), Origin: S(80),
-  Chars: A(O({ K: S(80), V: S(200) }), 40), Comps: A(S(120), 20), Reqs: A(S(120), 20), Passive: A(S(300), 40), Active: A(S(300), 40)
+  Type1: S(80), Type2: S(80), Attune: S(40), Kind: S(80), Origin: S(80), Note: S(3000),
+  Chars: A(O({ K: S(80), V: S(200), N: S(3000), M: E(...ITEM_MARKS) }), 40), Comps: A(LI(120), 20), Reqs: A(LI(120), 20), Passive: A(LI(300), 40), Active: A(LI(300), 40)
 }))
 export const CARD_SCHEMA = CARD
 const ITEM = N(O({ Name: S(160), ImageFile: IMG, Rarity: S(40), Stats: S(4000), Effects: S(8000), Card: CARD }))
@@ -194,6 +198,7 @@ export function cleanBy(s, v) {
       return out
     }
     case 'o': {
+      if (s.str && typeof v === 'string') v = { [s.str]: v } // объект, который раньше был строкой
       if (typeof v !== 'object' || Array.isArray(v)) return blankOf(s)
       const out = {}
       for (const [k, sub] of Object.entries(s.f)) out[k] = cleanBy(sub, v[k])

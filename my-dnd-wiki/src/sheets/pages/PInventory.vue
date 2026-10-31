@@ -71,7 +71,7 @@
     <VueDraggable v-model="model" handle=".sb-handle" :animation="200" :disabled="filtered || ro" class="pi-list">
       <article v-for="it in model" v-show="visible(it)" :key="keyOf(it)" class="pi-item sb-anim" :class="{ eq: it.Equipped, moving: moving === it, over: isOver(it), menu: menuFor === it }" :style="rarityOf(it.Rarity) ? { '--rc': rarityOf(it.Rarity).color } : null" :data-find="`Inventory-${idx(it)}`">
         <span v-if="!filtered && !ro" class="sb-handle">⠿</span>
-        <button type="button" class="pi-img" title="Открыть предмет" @click="open = idx(it)">
+        <button type="button" class="pi-img" :class="{ zoom: it.ImageFile }" :title="it.ImageFile ? 'Посмотреть картинку' : 'Открыть предмет'" @click="it.ImageFile ? (viewImg = it) : (open = idx(it))">
           <img v-if="it.ImageFile" :src="sheetImg(it.ImageFile)" alt="" />
           <span v-else>📦</span>
           <i v-if="cardFilled(it.Card)" class="pi-uniq" title="Уникальный предмет — с карточкой">✦</i>
@@ -111,6 +111,7 @@
     </VueDraggable>
 
     <ItemEditor v-if="open !== null && items[open]" :path="`Inventory.${open}`" kind="inv" title="Предмет" icon="📦" @close="open = null" @remove="del(open, true)" />
+    <HeroGalleryViewer :z="2000" v-if="viewImg?.ImageFile" :arts="[{ id: 'img', file: viewImg.ImageFile }]" :name="viewImg.Name" :url="sheetImg" @close="viewImg = null" />
     <GiveDialog v-if="give !== null && items[give]" :path="`Inventory.${give}`" :item="items[give]" @close="give = null" @done="give = null" />
   </div>
 </template>
@@ -126,6 +127,7 @@ import Fld from '../ui/Fld.vue'
 import Num from '../ui/Num.vue'
 import ItemEditor from '../ui/ItemEditor.vue'
 import GiveDialog from '../ui/GiveDialog.vue'
+import HeroGalleryViewer from '../../wiki/HeroGalleryViewer.vue'
 import { sheet, edit, keyOf, listOps, sheetImg } from '../sheetState.js'
 import { RARITIES, rarityOf } from '../../shared/sheet.js'
 import { carryState, placeOf, cardFilled, cardText, DEFAULT_BASE_CELLS } from '../../shared/items.js'
@@ -200,7 +202,7 @@ const isOver = it => {
 }
 const pkRar = n => { const i = st.value.pocketAt[n]; const r = i != null ? rarityOf(items.value[i].Rarity) : null; return r ? { '--rc': r.color } : null }
 const typeLine = it => (cardFilled(it.Card) ? [[it.Card.Type1, it.Card.Type2].filter(Boolean).join(' · '), it.Card.Kind].filter(Boolean).join(' — ') : '')
-const q = ref(''), rar = ref(''), onlyEq = ref(false), onlyUniq = ref(false), open = ref(null), give = ref(null)
+const q = ref(''), rar = ref(''), onlyEq = ref(false), onlyUniq = ref(false), open = ref(null), give = ref(null), viewImg = ref(null)
 watch(tab, () => { onlyEq.value = false; menuFor.value = null })
 const filtered = computed(() => !!q.value.trim() || !!rar.value || onlyEq.value || onlyUniq.value)
 const visible = it => {
@@ -334,6 +336,7 @@ function del(i, fromEditor) {
 .pi-item.eq { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--acc) 40%, transparent); }
 .pi-img { flex: none; display: grid; place-items: center; width: 48px; height: 48px; padding: 0; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--rc, var(--acc)) 40%, transparent); background: radial-gradient(circle, color-mix(in srgb, var(--rc, var(--acc)) 18%, transparent), rgba(0, 0, 0, .3)); cursor: pointer; font-size: 20px; }
 .pi-img img { width: 44px; height: 44px; object-fit: contain; }
+.pi-img.zoom { cursor: zoom-in; }
 .pi-main { flex: 1; min-width: 0; display: grid; cursor: pointer; }
 .pi-main b { font: 700 15px 'Manrope', sans-serif; color: var(--rc, var(--ink)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pi-main small { display: flex; gap: 6px; min-width: 0; color: var(--muted); font: 600 12px 'Manrope', sans-serif; }

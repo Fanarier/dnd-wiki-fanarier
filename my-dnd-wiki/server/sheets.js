@@ -667,7 +667,8 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   /* ---------- уникальные предметы из таблицы (server/seed/items.json, tools/items-sheet-to-json.py) ----------
      Каждая вещь вписывается один раз: в лист хозяина. Если вещь там уже лежит (в инвентаре или слоте, под тем же
      или похожим названием: «полуноч шип» = «Полуночный шип») — ей добавляется карточка, а редкость — если пустая
-     или «Обычный»; название остаётся как в листе. Нет — кладётся новая в инвентарь. «Общее» — в вики «Предметы». */
+     или «Обычный»; название остаётся как в листе. Нет — кладётся новая в инвентарь. «Общее» — в вики «Предметы».
+     Картинки — server/seed/items-img (копируются к картинкам листов или вики). */
   const normName = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/\([^)]*\)/g, ' ').replace(/[^a-zа-я0-9\s]+/gi, '').split(/\s+/).filter(Boolean)
   function sameItem(site, want) {
     const a = normName(site), b = normName(want)
@@ -681,24 +682,62 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     }
     return true
   }
-  function seedItems(putWiki) {
+  const SEED_DIR = path.resolve(import.meta.dirname, 'seed')
+  // картинка из seed/items-img → в папку картинок (листов или вики); имя файла то же
+  function seedImg(name, dir) {
+    if (!/^[a-f0-9]{16,64}\.webp$/.test(name || '')) return ''
+    try {
+      const dst = path.join(dir, name)
+      if (!fs.existsSync(dst)) { fs.mkdirSync(dir, { recursive: true }); fs.copyFileSync(path.join(SEED_DIR, 'items-img', name), dst) }
+      return name
+    } catch { return '' }
+  }
+  // карточка в листе + та же из таблицы: пунктам с тем же текстом добавляются примечания и отметки (свои не трогаем),
+  // старые пункты-строки становятся { T }. Что игрок дописал или переписал — остаётся как есть
+  function mergeCard(site, seed) {
+    const key = s => String(s ?? '').trim().toLowerCase()
+    const out = { ...site, Note: site.Note || seed.Note || '' }
+    for (const k of ['Comps', 'Reqs', 'Passive', 'Active']) {
+      const pool = (seed[k] || []).slice()
+      out[k] = (site[k] || []).map(x => {
+        const e = typeof x === 'string' ? { T: x } : { ...x }
+        const j = pool.findIndex(p => key(p.T) === key(e.T))
+        if (j < 0) return e
+        const [p] = pool.splice(j, 1)
+        return { ...e, N: e.N || p.N || '', M: e.M || p.M || '' }
+      })
+    }
+    const pool = (seed.Chars || []).slice()
+    out.Chars = (site.Chars || []).map(c => {
+      const j = pool.findIndex(p => key(p.K) === key(c.K) && key(p.V) === key(c.V))
+      if (j < 0) return c
+      const [p] = pool.splice(j, 1)
+      return { ...c, N: c.N || p.N || '', M: c.M || p.M || '' }
+    })
+    return out
+  }
+  // wiki: { put, all, patch, imgDir } — вики «Предметы»
+  function seedItems(wiki) {
     let seed
-    try { seed = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, 'seed', 'items.json'), 'utf8')) } catch { return }
+    try { seed = JSON.parse(fs.readFileSync(path.join(SEED_DIR, 'items.json'), 'utf8')) } catch { return }
     const applied = (store.itemsApplied ||= [])
     const who = { id: 'system', name: 'Перенос предметов', role: 'master' }
     const note = 'карточка из таблицы предметов'
-    let n = 0
+    let n = enrichItems(seed, wiki, who)
     for (const e of seed) {
       if (applied.includes(e.key)) continue
       if (!e.to) {
         applied.push(e.key)
-        putWiki({ name: e.item.Name, rarity: e.item.Rarity, card: e.item.Card, shared: !!e.shared, html: '' }, who, 'из таблицы предметов')
+        store.itemsEnriched.push(e.key) // вписывается уже с картинкой и примечаниями
+        const img = seedImg(e.img, wiki.imgDir)
+        wiki.put({ name: e.item.Name, rarity: e.item.Rarity, card: e.item.Card, shared: !!e.shared, html: '', img: img ? '/rules-img/' + img : '' }, who, 'из таблицы предметов')
         n++
         continue
       }
       const sh = store.sheets.find(x => !x.deletedAt && String(x.data?.CharacterName || '').trim() === e.to)
       if (!sh) continue // листа ещё нет — впишется, когда появится
       applied.push(e.key)
+      store.itemsEnriched.push(e.key)
       const d = sh.data
       const hits = [
         ...EQUIP_SLOTS.filter(s => d[s.key] && sameItem(d[s.key].Name, e.match)).map(s => s.key),
@@ -709,10 +748,11 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
         const it = getAt(d, p)
         done.push(applyOp(sh, { p: p + '.Card', v: e.item.Card }, who, note))
         if (e.item.Rarity && (!it.Rarity || /^обычн/i.test(it.Rarity))) done.push(applyOp(sh, { p: p + '.Rarity', v: e.item.Rarity }, who, note))
+        if (!it.ImageFile && seedImg(e.img, SHEET_IMG_DIR)) done.push(applyOp(sh, { p: p + '.ImageFile', v: e.img }, who, note))
       }
       if (!hits.length) {
         const inv = (d.Inventory || []).slice()
-        inv.unshift({ Name: e.item.Name, Rarity: e.item.Rarity, Quantity: 1, Card: e.item.Card })
+        inv.unshift({ Name: e.item.Name, Rarity: e.item.Rarity, Quantity: 1, Card: e.item.Card, ImageFile: seedImg(e.img, SHEET_IMG_DIR) })
         done.push(applyOp(sh, { p: 'Inventory', v: inv }, who, `новая вещь из таблицы предметов: «${e.item.Name}»`))
       }
       const ok = done.filter(Boolean)
@@ -721,6 +761,43 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       n++
     }
     if (n) save()
+  }
+  // вписанным раньше (без картинок и примечаний) — один раз дописать: картинку, если её нет, и примечания с отметками.
+  // Вещь ищется по названию во всех листах (её могли передать) — только с карточкой; общие — в вики
+  function enrichItems(seed, wiki, who) {
+    const done = (store.itemsEnriched ||= [])
+    const note = 'картинка и примечания из таблицы предметов'
+    let n = 0
+    for (const e of seed) {
+      if (done.includes(e.key) || !(store.itemsApplied || []).includes(e.key)) continue
+      done.push(e.key)
+      n++
+      const like = name => sameItem(name, e.match) || sameItem(name, e.item.Name)
+      if (!e.to) {
+        for (const w of wiki.all().filter(w => w.card && like(w.name))) {
+          const img = !w.img && seedImg(e.img, wiki.imgDir)
+          wiki.patch(w.id, { ...w, card: mergeCard(w.card, e.item.Card), img: img ? '/rules-img/' + img : w.img }, who, note)
+          console.log(`[sheets] предмет «${e.item.Name}» (вики): дописаны примечания${img ? ' и картинка' : ''}`)
+        }
+        continue
+      }
+      for (const sh of store.sheets.filter(x => !x.deletedAt)) {
+        const d = sh.data
+        const paths = [...EQUIP_SLOTS.map(s => s.key), ...(d.Inventory || []).map((_, i) => `Inventory.${i}`)]
+        const ops = []
+        for (const p of paths) {
+          const it = getAt(d, p)
+          if (!it?.Card || !like(it.Name)) continue
+          ops.push(applyOp(sh, { p: p + '.Card', v: mergeCard(it.Card, e.item.Card) }, who, note))
+          const img = !it.ImageFile && seedImg(e.img, SHEET_IMG_DIR)
+          if (img) ops.push(applyOp(sh, { p: p + '.ImageFile', v: img }, who, note))
+          console.log(`[sheets] предмет «${e.item.Name}» → ${d.CharacterName} ${p}: дописаны примечания${img ? ' и картинка' : ''}`)
+        }
+        const ok = ops.filter(Boolean)
+        if (ok.length) { touch(sh); notify(sh, ok, null) }
+      }
+    }
+    return n
   }
 
   return {

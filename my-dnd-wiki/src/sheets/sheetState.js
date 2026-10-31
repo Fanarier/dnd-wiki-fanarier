@@ -190,7 +190,8 @@ export const revertEntry = (id, entryId) => api('POST', `/api/sheets/${id}/rever
 /* ---------- картинки ---------- */
 export const sheetImg = f => (f ? `/sheet-img/${f}` : '')
 // выбрать картинку → (обрезать) → на сервер → имя файла в поле листа
-export async function pickImage(path, { crop = true, title = 'Картинка', size = 512 } = {}) {
+// crop: false — без обрезки в квадрат (картинка предмета целиком), max — уменьшить до стольких точек по длинной стороне
+export async function pickImage(path, { crop = true, title = 'Картинка', size = 512, max = 0 } = {}) {
   const file = await new Promise(res => {
     const inp = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/png,image/jpeg,image/webp,image/gif' })
     inp.onchange = () => res(inp.files?.[0] || null)
@@ -201,7 +202,7 @@ export async function pickImage(path, { crop = true, title = 'Картинка',
   if (crop) {
     blob = await cropImage(file, { title, size })
     if (!blob) return
-  } else if (file.size > 3e6) blob = (await shrink(file, 1600, 0.9)).blob
+  } else if (max || file.size > 3e6) blob = (await shrink(file, max || 1600, 0.9)).blob
   const { file: name } = await postBlob(`/api/sheets/${sheet.id}/image`, blob)
   edit(path, name, { now: true })
 }
