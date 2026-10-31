@@ -1,6 +1,7 @@
 <template>
-  <!-- калькулятор тренировки: моды, место, наставник, кубик, повторение — средний итог обычной и длительной (×N)
-       за одно и то же время, очки в час и на выносливость. Средние значения: к20 с учётом натуральных 1 и 20 -->
+  <!-- калькулятор тренировки: моды, место, наставник, кубик, повторение (только у повторяемых), моды к каждому кубику —
+       средний итог обычных и длительной ×N за одно и то же время (N суток длительной против обычных по 8 ч на то же время),
+       очки в час и на выносливость. Средние значения: к20 с учётом натуральных 1 и 20 -->
   <div class="ac">
     <div class="ac-in">
       <label>Моды броска<input v-model.number="f.flat" type="number" /></label>
@@ -10,7 +11,9 @@
       <label>Наставник<input v-model.number="f.mentor" type="number" placeholder="+0" /></label>
       <label>Кубик<select v-model.number="f.die"><option v-for="d in ACT_DICE" :key="d" :value="d">к{{ d }}</option></select></label>
       <label>Повторение с<input v-model.number="f.rep" type="number" min="0" max="10" /></label>
-      <label>Длительных ×<input v-model.number="f.times" type="number" min="1" max="10" /></label>
+      <label>Раз подряд ×N<input v-model.number="f.times" type="number" min="1" :max="MAX_TIMES" /></label>
+      <label class="chk" title="Бонус повторения — только у повторяемых деятельностей (и у длительной тоже)"><input v-model="f.repeat" type="checkbox" /> ↻ повторяемая</label>
+      <label class="chk" title="Модификаторы прибавляются к каждому кубику броска (у длительной 2к20 — дважды, кубик места — тоже), а не один раз"><input v-model="f.perDie" type="checkbox" /> ➕ моды к каждому кубику</label>
       <label class="chk"><input v-model="f.elf" type="checkbox" /> 🧝 эльф (20 ч)</label>
     </div>
 
@@ -20,7 +23,7 @@
         <tr v-for="r in rows" :key="r.id" :class="r.id">
           <td><b>{{ r.name }}</b><small>{{ r.formula }}</small></td>
           <td>{{ r.n }}</td><td>{{ r.hours }}</td><td>{{ fmt(r.stamina) }}</td>
-          <td><b>{{ r.total }}</b><small v-if="r.each.length > 1">{{ r.each.join(' + ') }}</small></td>
+          <td><b>{{ r.total }}</b><small v-if="r.each.length > 1">{{ r.each.length > 8 ? r.each.slice(0, 3).join(' + ') + ' + … + ' + r.each[r.each.length - 1] : r.each.join(' + ') }}</small></td>
           <td :class="{ win: r.perH >= other(r).perH }">{{ fmt(r.perH) }}</td>
           <td :class="{ win: r.perSt >= other(r).perSt }">{{ fmt(r.perSt) }}</td>
         </tr>
@@ -38,10 +41,10 @@
 <script setup>
 import { computed, reactive } from 'vue'
 import { rulesState, loadRules } from '../../map/store.js'
-import { ACT_DICE, LONG_MULT, LONG_STAMINA, activityMods } from '../../shared/activities.js'
+import { ACT_DICE, LONG_MULT, LONG_STAMINA, MAX_TIMES, activityMods } from '../../shared/activities.js'
 
 loadRules()
-const f = reactive({ flat: 13, place: '1d20', mentor: 0, die: 20, rep: 0, times: 1, elf: false })
+const f = reactive({ flat: 13, place: '1d20', mentor: 0, die: 20, rep: 0, times: 1, elf: false, repeat: true, perDie: false })
 const places = computed(() => activityMods(rulesState.articles))
 const fmt = n => (Math.round(n * 10) / 10).toLocaleString('ru-RU')
 const SHORT_H = 8, SHORT_ST = 1.6
@@ -49,24 +52,29 @@ const SHORT_H = 8, SHORT_ST = 1.6
 // среднее «кубиков + модов» одной попытки: базовые кубики (с натуральными на к20), место, моды и наставник
 const avgDice = s => [...String(s || '').matchAll(/(\d+)d(\d+)/g)].reduce((a, [, n, d]) => a + (Number(n) * (Number(d) + 1)) / 2, 0)
 const base = n => n * ((f.die + 1) / 2 + (f.die === 20 ? 0.95 : 0))
-const mods = computed(() => avgDice(f.place) + (Number(f.flat) || 0) + (Number(f.mentor) || 0))
-const adds = n => Array.from({ length: n }, (_, i) => Math.min(10, (Number(f.rep) || 0) + i))
+// кубиков места в броске (к каждому из них — моды, если «к каждому кубику»)
+const placeDice = computed(() => [...String(f.place || '').matchAll(/(\d*)d\d+/g)].reduce((a, x) => a + (Number(x[1]) || 1), 0))
+const flatOf = n => ((Number(f.flat) || 0) + (Number(f.mentor) || 0)) * (f.perDie ? n + placeDice.value : 1)
+const mods = n => avgDice(f.place) + flatOf(n)
+// бонус повторения — только у повторяемых
+const adds = n => Array.from({ length: n }, (_, i) => (f.repeat ? Math.min(10, (Number(f.rep) || 0) + i) : 0))
 
 const rows = computed(() => {
-  const times = Math.max(1, Math.min(10, Number(f.times) || 1))
+  const times = Math.max(1, Math.min(MAX_TIMES, Number(f.times) || 1))
   const hours = (f.elf ? 20 : 24) * times
-  const longEach = adds(times).map(a => Math.floor((base(2) + mods.value) * LONG_MULT) + a)
+  const longEach = adds(times).map(a => Math.floor((base(2) + mods(2)) * LONG_MULT) + a)
   const nShort = Math.max(1, Math.floor(hours / SHORT_H))
-  const shortEach = adds(nShort).map(a => Math.floor(base(1) + mods.value + a))
+  const shortEach = adds(nShort).map(a => Math.floor(base(1) + mods(1) + a))
   const flat = (Number(f.flat) || 0) + (Number(f.mentor) || 0)
-  const extra = `${f.place ? ' + ' + f.place.replace(/d/g, 'к') : ''}${flat ? (flat > 0 ? ' + ' : ' − ') + Math.abs(flat) : ''}`
+  const extra = n => `${f.place ? ' + ' + f.place.replace(/d/g, 'к') : ''}${flat ? (flat > 0 ? ' + ' : ' − ') + Math.abs(flat) + (f.perDie && n + placeDice.value > 1 ? '×' + (n + placeDice.value) : '') : ''}`
+  const rep = f.repeat ? ' + повт.' : ''
   const row = (id, name, formula, each, h, st) => {
     const total = each.reduce((a, b) => a + b, 0)
     return { id, name, formula, each, n: each.length, hours: h, stamina: st, total, perH: total / h, perSt: total / st }
   }
   return [
-    row('short', 'Обычная', `1к${f.die}${extra} + повт.`, shortEach, nShort * SHORT_H, nShort * SHORT_ST),
-    row('long', `Длительная${times > 1 ? ' ×' + times : ''}`, `(2к${f.die}${extra}) × ${LONG_MULT} + повт.`, longEach, hours, LONG_STAMINA * times)
+    row('short', `Обычная${nShort > 1 ? ' ×' + nShort : ''}`, `1к${f.die}${extra(1)}${rep}`, shortEach, nShort * SHORT_H, nShort * SHORT_ST),
+    row('long', `Длительная${times > 1 ? ' ×' + times : ''}`, `(2к${f.die}${extra(2)}) × ${LONG_MULT}${rep}`, longEach, hours, LONG_STAMINA * times)
   ]
 })
 const other = r => rows.value.find(x => x !== r)

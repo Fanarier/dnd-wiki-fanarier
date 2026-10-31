@@ -30,9 +30,16 @@
           <button v-for="o in ADV_OPTS" :key="o.v" type="button" :class="[o.cls, { on: (m.adv || '') === o.v }]" @click="m.adv = o.v">{{ o.t }}</button>
         </div>
       </div>
+      <!-- кубиков в броске больше одного и есть моды: спросить, прибавлять их один раз или к каждому кубику -->
+      <div v-if="plan.perDieAsk" class="af-f adv-f" :title="`В броске ${plan.nDice} кубика: модификаторы (${plan.modSum > 0 ? '+' : ''}${plan.modSum}) прибавить один раз или к каждому кубику`">Модификаторы
+        <div class="af-adv" role="group" aria-label="Модификаторы один раз или к каждому кубику" :class="{ ask: m.perDie == null }">
+          <button type="button" class="m-plain" :class="{ on: m.perDie === false }" @click="m.perDie = false">Один раз</button>
+          <button type="button" class="m-hi" :class="{ on: m.perDie === true }" @click="m.perDie = true">К каждому кубику ×{{ plan.nDice }}</button>
+        </div>
+      </div>
       <label v-if="planDays" class="af-f sm">День<select v-model.number="m.day" class="af-in"><option :value="0">—</option><option v-for="d in planDays" :key="d" :value="d">{{ d }}</option></select></label>
       <label class="af-chk af-multi" title="Несколько раз подряд одной записью: часы и выносливость ×N, кубики кидаются N раз, бонус повторения растёт"><input v-model="multi" type="checkbox" /> несколько</label>
-      <label v-if="multi" class="af-f xs">Сколько раз<span class="af-x-in">×<input v-model.number="m.times" type="number" min="2" max="10" class="af-in" /></span></label>
+      <label v-if="multi" class="af-f xs">Сколько раз<span class="af-x-in">×<input v-model.number="m.times" type="number" min="2" :max="MAX_TIMES" class="af-in" /></span></label>
       <label v-if="master" class="af-f sm">Статус
         <select v-model="m.status" class="af-in"><option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option></select>
       </label>
@@ -44,9 +51,13 @@
       <span v-if="dblOffer" class="af-dbl">😵 У героя {{ hero.exh }} изнур. — выносливость удваивается: <b>{{ dblOffer.from }} → {{ dblOffer.to }}</b>
         <button type="button" class="af-dbl-yes" @click="applyDbl">Пересчитать</button><button type="button" class="af-dbl-no" @click="keepSt = true">Оставить</button></span>
       <template v-if="long">🌙 Длительная — сутки вместе {{ cfg.elf ? 'с трансом' : 'со сном' }}: {{ longH }} ч, {{ LONG_STAMINA }} выносливости, без изнурения<template v-if="plan.times > 1"> — ×{{ plan.times }}: {{ longH * plan.times }} ч, {{ LONG_STAMINA * plan.times }} выносливости</template>. </template>
-      <template v-if="!long && plan.times > 1">🔁 ×{{ plan.times }} подряд: часы и выносливость — за все {{ plan.times }} раза, кубики кидаются {{ plan.times }} раза, бонус повторения растёт с каждым. </template>
+      <template v-if="!long && plan.times > 1">🔁 ×{{ plan.times }} подряд: часы и выносливость — за все {{ plan.times }} {{ timesWord(plan.times) }}, кубики кидаются {{ plan.times }} {{ timesWord(plan.times) }}<template v-if="m.type === 'repeat'">, бонус повторения растёт с каждым</template>. </template>
+      <template v-if="plan.times > 1 && m.type !== 'repeat'">↻ Бонус повторения — только у повторяемых: здесь у всех бросков +0 (тип «↻ Повторяемая» — и он будет расти). </template>
+      <b v-if="plan.repNo" class="af-sleep">«Бонус повторения» в описании не действует — деятельность не повторяемая. </b>
+      <template v-if="plan.perDie">➕ Модификаторы {{ plan.modSum > 0 ? '+' : '' }}{{ plan.modSum }} — к каждому из {{ plan.nDice }} кубиков: {{ plan.sum > 0 ? '+' : '' }}{{ plan.sum }}. </template>
+      <b v-else-if="plan.perDieAsk && m.perDie == null" class="af-ask">❓ В броске {{ plan.nDice }} кубика — модификаторы прибавить один раз или к каждому? Выбери выше (пока — один раз). </b>
       <template v-if="advNote"><span class="af-advnote" :class="advNote.cls">{{ advNote.text }}</span> </template>
-      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b><em v-if="plan.adv" class="af-mode" :class="plan.adv === 'adv' ? 'm-hi' : 'm-lo'">{{ ADV_SIGN[plan.adv] }} {{ ADV_NAME[plan.adv].toLowerCase() }}</em><template v-if="plan.times > 1"> — {{ plan.times }} раза</template>, в среднем ≈ {{ avg.each.length > 1 ? avg.each.join(' + ') + ' = ' + avg.total : avg.total }} — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
+      <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b><em v-if="plan.adv" class="af-mode" :class="plan.adv === 'adv' ? 'm-hi' : 'm-lo'">{{ ADV_SIGN[plan.adv] }} {{ ADV_NAME[plan.adv].toLowerCase() }}</em><template v-if="plan.times > 1"> — {{ plan.times }} {{ timesWord(plan.times) }}</template>, в среднем ≈ {{ avgText(avg) }} — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
     <div class="af-f">Результат<RichInput v-model="m.result" class="af-rich" images :snippets="ACT_SNIPPETS" placeholder="Броски, очки, что получилось… «!Мод» + Tab — «Модификаторы броска: »" :min-height="44" /></div>
 
@@ -138,7 +149,7 @@ import RichInput from '../../components/rich/RichInput.vue'
 import ActNameInput from './ActNameInput.vue'
 import ItemQuick from './ItemQuick.vue'
 import { api, toast } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, repChain, seriesInfo, ACT_DICE, planText, advText, ADV_NAME, ADV_SIGN, planAvg, isLongTraining, longHours, LONG_STAMINA, ACT_SNIPPETS, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
+import { MAX_TIMES, avgText, timesWord, ACT_STATUS, ACT_TYPES, num, ptsOf, round, catalogMatch, normAct, rewardOf, rollPlan, repChain, seriesInfo, ACT_DICE, planText, advText, ADV_NAME, ADV_SIGN, planAvg, isLongTraining, longHours, LONG_STAMINA, ACT_SNIPPETS, restExh, isRestRec, EXH_MAX, exhStaminaK, staminaDouble, moneyCheck, fmtCoins, coinsCopper, invCount, invHas } from '../../shared/activities.js'
 import { mentorHints as allMentors, mentorLink } from './mentor.js'
 
 const m = defineModel({ type: Object, required: true })
@@ -198,12 +209,12 @@ const multi = ref(m.value.times > 1)
 watch(multi, on => { m.value.times = on ? Math.max(2, m.value.times || 0) : 0 })
 watch([long, () => m.value.times, longH], ([l], old) => {
   if (!l || (!props.isNew && !old)) return
-  const n = Math.max(1, Math.min(10, Number(m.value.times) || 1))
+  const n = Math.max(1, Math.min(MAX_TIMES, Number(m.value.times) || 1))
   m.value.hours = String(longH.value * n)
   if (!manualSt.value || old) m.value.stamina = String(LONG_STAMINA * n)
 }, { immediate: true })
 // остальные «несколько»: часы (и выносливость, если вписана своя) — ×N от одного раза; снял ×N — обратно
-watch(() => Math.max(1, Math.min(10, Number(m.value.times) || 1)), (n, o) => {
+watch(() => Math.max(1, Math.min(MAX_TIMES, Number(m.value.times) || 1)), (n, o) => {
   if (long.value || n === o) return
   const sc = v => { const x = num(v); return x > 0 ? String(round((x / o) * n, 3)).replace('.', ',') : v }
   m.value.hours = sc(m.value.hours)
@@ -339,6 +350,9 @@ async function saveQuick(v) {
 .af-adv button.on.m-hi { background: rgba(124, 207, 139, .2); color: #8fe09c; box-shadow: inset 0 0 0 1px rgba(124, 207, 139, .55); }
 .af-adv button.on.m-lo { background: rgba(255, 122, 107, .18); color: #ff9b8f; box-shadow: inset 0 0 0 1px rgba(255, 122, 107, .5); }
 .af-adv.lock { opacity: .5; }
+.af-adv.ask { border-color: rgba(240, 184, 96, .7); animation: af-ask 1.6s ease-in-out infinite; }
+@keyframes af-ask { 50% { box-shadow: 0 0 0 3px rgba(240, 184, 96, .18); } }
+.af-ask { color: #f0b860; }
 .af-mode { margin-left: 6px; padding: 1px 7px; border-radius: 99px; font: 800 11px 'Manrope', sans-serif; font-style: normal; }
 .af-mode.m-hi { background: rgba(124, 207, 139, .16); color: #8fe09c; }
 .af-mode.m-lo { background: rgba(255, 122, 107, .14); color: #ff9b8f; }

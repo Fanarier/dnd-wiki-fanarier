@@ -258,8 +258,9 @@ export function rollMods(text) {
 // базовый кубик записи: по умолчанию к20, можно выбрать другой (к12, к10…)
 export const ACT_DICE = [4, 6, 8, 10, 12, 20, 100]
 export const dieOf = rec => (ACT_DICE.includes(Number(rec?.die)) ? Number(rec.die) : 20)
-// сколько попыток в записи: «несколько» (×N, у любой деятельности) — N бросков, иначе один
-export const attemptsOf = rec => Math.max(1, Math.min(10, Number(rec?.times) || 1))
+// сколько попыток в записи: «несколько» (×N, у любой деятельности, до MAX_TIMES) — N бросков, иначе один
+export const MAX_TIMES = 50
+export const attemptsOf = rec => Math.max(1, Math.min(MAX_TIMES, Number(rec?.times) || 1))
 // броски последней серии: «перебросил» — новая серия, старые остаются в записи, но не считаются.
 // У одиночной каждый бросок — своя серия (считается последний); броски без номера серии (старые) — серия 0
 export function seriesInfo(rec) {
@@ -270,16 +271,20 @@ export function seriesInfo(rec) {
   const need = attemptsOf(rec)
   return { cur, last, done: last.length, need, full: last.length >= need, old: rolls.filter(r => !last.includes(r)) }
 }
-// бонус повторения по цепочке попыток сессии (те же деятельности в той же сессии, по порядку журнала):
-// каждая попытка (у длительной ×N — каждый бросок) +1, до +10. Натуральная 1 на базовом к20 сбрасывает: эта попытка +0,
-// следующая снова +1. «Бонус повторения: +N» в тексте записи ставит счёт с неё. Вернёт бонусы попыток записи target
+// бонус повторения — только у повторяемых (↻, и у длительной тоже): по цепочке попыток сессии (те же деятельности
+// в той же сессии, по порядку журнала) каждая попытка (у ×N — каждый бросок) +1, до +10. Натуральная 1 на базовом к20
+// сбрасывает: эта попытка +0, следующая снова +1. «Бонус повторения: +N» в тексте записи ставит счёт с неё.
+// Неповторяемая — у всех её бросков +0, цепочку не двигает. Вернёт бонусы попыток записи target
 export function repChain(recs, target) {
   let c = 0
   const i = recs.findIndex(r => r.id === target.id)
   for (const x of i >= 0 ? [...recs.slice(0, i), target] : [...recs, target]) {
+    if (x.type !== 'repeat') {
+      if (x === target) return Array(attemptsOf(x)).fill(0)
+      continue
+    }
     const text = rollMods(x.result).rep
     if (text != null) c = text
-    else if (x === target && target.type !== 'repeat') c = 0
     const { last } = seriesInfo(x)
     const out = []
     for (let j = 0; j < attemptsOf(x); j++) {
@@ -290,7 +295,9 @@ export function repChain(recs, target) {
   }
   return [0]
 }
-// что бросать за запись. Модификаторы — из строки «Модификаторы броска: …», место из вики (кубик), наставник (фикс) — все один раз.
+// что бросать за запись. Модификаторы — из строки «Модификаторы броска: …», место из вики (кубик), наставник (фикс) — один раз,
+// а если в записи выбрано «к каждому кубику» (perDie) — число модов прибавляется к каждому кубику броска (2к20 — дважды,
+// кубик места и кубики-модификаторы тоже считаются). Кубиков один или модов нет — спрашивать не о чем.
 // Короткая: 1кX + модификаторы, потом + повторение. Длительная: (2кX + модификаторы) × LONG_MULT вниз, потом + повторение.
 // Итог считает сервер (rollOutcome): 1 на базовом к20 — кубик не в счёт и повторение сброшено, 20 — кубик ×2.
 // adds — бонусы повторения попыток (repChain); «несколько» (times) — столько бросков
@@ -298,8 +305,9 @@ export function rollPlan(rec, placeMod, adds = [0]) {
   const m = rollMods(rec.result)
   const mentor = Number(rec.mentorBonus) || 0
   if (mentor) m.items.push({ name: 'Наставник' + (rec.mentor ? ' ' + rec.mentor : ''), v: mentor })
-  const sum = Math.round((m.sum + mentor) * 100) / 100
+  const modSum = Math.round((m.sum + mentor) * 100) / 100
   const repSet = m.rep != null // бонус повторения написан в тексте
+  const repNo = repSet && rec.type !== 'repeat' // написан, но деятельность не повторяемая — не действует
   const sign = v => (v ? (v > 0 ? '+' : '') + v : '')
   const place = placeMod?.formula ? `+${placeMod.formula}` : ''
   const dice = m.dice.map(d => `+${d.n}d${d.sides}`).join('')
@@ -308,6 +316,11 @@ export function rollPlan(rec, placeMod, adds = [0]) {
   const times = attemptsOf(rec)
   const all = Array.from({ length: times }, (_, i) => adds[i] ?? Math.min(10, (adds[adds.length - 1] ?? 0) + i - adds.length + 1))
   const base = { n: long ? 2 : 1, sides: die }
+  // сколько кубиков в броске: базовые, кубик места, кубики-модификаторы
+  const nDice = base.n + m.dice.reduce((a, d) => a + d.n, 0) + [...String(placeMod?.formula || '').matchAll(/(\d*)d\d+/g)].reduce((a, x) => a + (Number(x[1]) || 1), 0)
+  const perDieAsk = nDice > 1 && modSum !== 0
+  const perDie = perDieAsk && !!rec.perDie
+  const sum = perDie ? Math.round(modSum * nDice * 100) / 100 : modSum
   // преимущество / помеха: выбранное в записи (rec.adv), а у старых записей без выбора — по тексту.
   // Работает только на одиночном к20: у длительной (2к20) и на других кубиках — нет
   const picked = ['adv', 'dis', ''].includes(rec.adv)
@@ -317,9 +330,11 @@ export function rollPlan(rec, placeMod, adds = [0]) {
       : m.dice.some(d => d.sides === 20) || /d20/i.test(placeMod?.formula || '') ? 'в броске уже есть другой к20' : ''
   const adv = want && !advNo ? want : ''
   return {
-    ...m, sum, rep: all[0], repSet, long, times, adds: all, add: all[0], die, base,
+    ...m, sum, modSum, nDice, perDie, perDieAsk, rep: all[0], repSet, repNo, long, times, adds: all, add: all[0], die, base,
     adv, advWant: want, advSrc: picked ? 'pick' : m.adv ? 'text' : '', advNo, advBoth: !picked && m.advBoth,
-    formula: `${base.n}d${die}${place}${dice}${sign(sum)}${adv ? ' ' + ADV_NAME[adv].toLowerCase() : ''}`
+    formula: `${base.n}d${die}${place}${dice}${sign(sum)}${adv ? ' ' + ADV_NAME[adv].toLowerCase() : ''}`,
+    // как показать: моды к каждому кубику — «+5×2»
+    shown: `${base.n}d${die}${place}${dice}${perDie ? `${sign(modSum)}×${nDice}` : sign(sum)}`
   }
 }
 // итог броска: натуральные на базовых кубиках (только к20) — 1 не в счёт (и сброс повторения), 20 — ×2;
@@ -350,11 +365,15 @@ export const ACT_SNIPPETS = ['Модификаторы броска: ', 'Пре�
 export function planText(p) {
   const add = p.add || p.adds[p.adds.length - 1] ? ' + ' + (p.times > 1 ? `${p.adds[0]}…${p.adds[p.adds.length - 1]}` : p.add) + ' повт.' : ''
   // преимущество / помеха показываются отдельной меткой, в тексте формулы их нет
-  const f = p.formula.replace(/ (преимущество|помеха)$/, '')
+  const f = p.shown || p.formula.replace(/ (преимущество|помеха)$/, '')
   const n = p.times > 1 ? ` · ×${p.times}` : ''
   return p.long ? `(${f}) × ${LONG_MULT}${add}${n}` : `${f}${add}${n}`
 }
 export const longFinal = (total, add, mult = LONG_MULT) => Math.floor(total * mult) + (add || 0)
+// средний итог словами: один бросок — число, несколько — «59 + 60 + … = 2015» (длинный список сокращается)
+export const avgText = a => (a.each.length < 2 ? String(a.total) : `${a.each.length > 6 ? `${a.each.slice(0, 3).join(' + ')} + … + ${a.each[a.each.length - 1]}` : a.each.join(' + ')} = ${a.total}`)
+// «2 раза», «5 раз», «22 раза»
+export const timesWord = n => (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'раза' : 'раз')
 
 // Обязательный отдых вычитается из периода сразу: 336 ч − 14 дней × 8 ч сна = 224 ч свободно (дроу в трансе 4 ч — 280).
 // Поэтому записанный на сайте сон (транс, подзарядка…) — дополнительный отдых и идёт в счёт целиком. Исключение — сессии,

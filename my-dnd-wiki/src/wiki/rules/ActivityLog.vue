@@ -382,7 +382,7 @@ function rollRec(h, r) {
     const lb = p.times > 1 ? `${label} ${i + 1}/${p.times}` : label
     requestRoll({ formula: p.formula, label: lb, adv: p.adv, onDone: async roll => {
       await send(h.heroId, r, { ...roll, label: lb, long: p.long, add: p.adds[i] ?? 0, base: p.base, series, miss: p.unknown.join(', ') })
-      if (i + 1 < p.times) setTimeout(() => one(i + 1), 900)
+      if (i + 1 < p.times) setTimeout(() => one(i + 1), p.times > 10 ? 450 : 900) // много бросков — побыстрее
     } })
   }
   one(si.full ? 0 : si.done)

@@ -54,7 +54,10 @@
         <!-- ещё не брошено — что будет брошено (проверить, подхватились ли модификаторы) -->
         <!-- преимущество / помеха: видно, что подтянулось (и откуда) -->
         <span v-if="advTag" class="ar-tag mode" :class="advTag.cls" :title="advTag.title">{{ advTag.text }}</span>
-        <span v-if="preview" class="ar-tag plan" :title="`Ещё не брошено. В среднем ≈ ${preview.avg}${plan.unknown.length ? '. Без числа, не войдут: ' + plan.unknown.join(', ') : ''}`">🎲 {{ preview.text }} = <b>?</b><template v-if="preview.left > 1"> · ещё {{ preview.left }} раза</template></span>
+        <span v-if="plan?.perDieAsk" class="ar-tag mode" :class="rec.perDie ? 'm-hi' : rec.perDie == null ? 'warn' : ''"
+              :title="`В броске ${plan.nDice} кубика, модификаторы ${plan.modSum > 0 ? '+' : ''}${plan.modSum}: ${rec.perDie ? 'к каждому кубику — всего ' + plan.sum : rec.perDie == null ? 'не выбрано, считается один раз — выбери в записи (✎)' : 'один раз'}`">{{ rec.perDie ? `➕ моды к каждому кубику ×${plan.nDice}` : rec.perDie == null ? '❓ моды: один раз или к каждому?' : '➕ моды один раз' }}</span>
+        <span v-if="plan?.repNo" class="ar-tag mode off" title="В описании написан «Бонус повторения», но деятельность не повторяемая (↻) — он не прибавляется">↻ бонус не действует</span>
+        <span v-if="preview" class="ar-tag plan" :title="`Ещё не брошено. В среднем ≈ ${preview.avg}${plan.unknown.length ? '. Без числа, не войдут: ' + plan.unknown.join(', ') : ''}`">🎲 {{ preview.text }} = <b>?</b><template v-if="preview.left > 1"> · ещё {{ preview.left }} {{ timesWord(preview.left) }}</template></span>
         <template v-for="v in vod || []" :key="'vr' + v.heroId">
           <span v-if="v.rolls.length" class="ar-vodrolls"><i>Броски {{ v.name }}:</i>
             <span v-for="r in v.rolls" :key="r.i" class="ar-tag roll vodr" :class="{ crit: r.twenties, fumble: r.ones }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.notation }}<span v-if="advDice(r)" class="ar-mode" :class="advDice(r).cls">{{ advDice(r).sign }}</span> = <b>{{ r.final ?? r.total }}</b></span>
@@ -107,7 +110,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg, seriesInfo, ADV_NAME, ADV_SIGN } from '../../shared/activities.js'
+import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg, avgText, timesWord, seriesInfo, ADV_NAME, ADV_SIGN } from '../../shared/activities.js'
 import { mentorLink } from './mentor.js'
 import LottieFx from './LottieFx.vue'
 import RichText from '../../components/RichText.vue'
@@ -190,7 +193,7 @@ const preview = computed(() => {
   const left = series.value.full ? 0 : series.value.need - series.value.done
   if (left <= 0) return null
   const a = planAvg(p)
-  return { text: planText(p), left, avg: a.each.length > 1 ? `${a.each.join(' + ')} = ${a.total}` : a.total }
+  return { text: planText(p), left, avg: avgText(a) }
 })
 // «несколько» (×N, у любой деятельности) — сумма брошенного
 const multiSum = computed(() => {

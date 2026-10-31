@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
-import { isLongTraining, longFinal, rollOutcome, ACT_DICE, LONG_MULT, LONG_EXH, exhOf, longExhNet } from '../src/shared/activities.js'
+import { isLongTraining, longFinal, rollOutcome, ACT_DICE, LONG_MULT, LONG_EXH, exhOf, longExhNet, MAX_TIMES } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -84,7 +84,9 @@ function clean(b = {}, old = {}, heroIds = []) {
     place: S(pick('place'), 40), // город на карте
     mod: S(pick('mod'), 80), // место-модификатор из вики («Библиотека»…)
     mentor: S(pick('mentor'), 80), mentorBonus: I(pick('mentorBonus'), -100, 100), // наставник и его фиксированный бонус к броску
-    times: I(pick('times'), 0, 10), // «несколько»: сколько раз подряд в одной записи (у длительной — суток)
+    times: I(pick('times'), 0, MAX_TIMES), // «несколько»: сколько раз подряд в одной записи (у длительной — суток)
+    // модификаторы к каждому кубику броска (true) или один раз (false); нет поля — ещё не выбрано (один раз)
+    perDie: pick('perDie') == null ? undefined : !!pick('perDie'),
     with: [...new Set((Array.isArray(pick('with')) ? pick('with') : []).map(String).filter(id => heroIds.includes(id)))].slice(0, 8),
     gold: I(pick('gold'), -1e7, 1e7), silver: I(pick('silver'), -1e7, 1e7), copper: I(pick('copper'), -1e7, 1e7),
     exp: I(pick('exp'), -1e7, 1e7), exh: I(pick('exh'), -5, 5), // минус — отдых снимает изнурение
@@ -279,7 +281,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (list.length >= PER_HERO) return fail(res, 400, 'Журнал переполнен')
     const master = req.user.role === 'master'
     const status = master ? a.status : a.status === 'plan' ? 'plan' : 'pending'
-    const pick = ['date', 'day', 'name', 'hours', 'stamina', 'type', 'result', 'die', 'mod', 'place', 'times']
+    const pick = ['date', 'day', 'name', 'hours', 'stamina', 'type', 'result', 'die', 'mod', 'place', 'times', 'perDie']
     const b = { id: 'a' + crypto.randomBytes(5).toString('hex'), ...clean({ ...Object.fromEntries(pick.map(k => [k, a[k]])), with: [src.id] }, {}, heroes().map(x => x.id)), status, by: req.user.name, at: Date.now() }
     if (!master) { const why = playerBlock(h, b, { creating: true }); if (why) return fail(res, 403, why) }
     a.vod ||= 'v' + crypto.randomBytes(5).toString('hex')
@@ -416,7 +418,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
       ...(out ? { base, add: out.add, ones: out.ones, twenties: out.twenties, sum: out.sum, reset: out.reset, final: out.final, ...(long ? { long: true, mult: LONG_MULT } : {}) }
         : long ? { long: true, add, mult: LONG_MULT, final: longFinal(r.total, add) } : {}),
       miss: S(req.body?.miss, 200)
-    }].slice(-40)
+    }].slice(-150) // ×50 с перебросами
     const lr = rec.rolls[rec.rolls.length - 1]
     hist(rec, req.user.name, `🎲 ${lr.label ? lr.label + ': ' : ''}${lr.notation} = ${lr.total}${lr.final != null && lr.final !== lr.total ? ` → итог ${lr.final}` : ''}${lr.twenties ? ' · натуральная 20' : ''}${lr.ones ? ' · натуральная 1' : ''}`)
     changed()
