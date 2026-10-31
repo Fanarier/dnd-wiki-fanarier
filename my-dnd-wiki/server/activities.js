@@ -84,7 +84,7 @@ function clean(b = {}, old = {}, heroIds = []) {
     place: S(pick('place'), 40), // город на карте
     mod: S(pick('mod'), 80), // место-модификатор из вики («Библиотека»…)
     mentor: S(pick('mentor'), 80), mentorBonus: I(pick('mentorBonus'), -100, 100), // наставник и его фиксированный бонус к броску
-    times: I(pick('times'), 0, 10), // длительная тренировка: сколько суток подряд в одной записи
+    times: I(pick('times'), 0, 10), // «несколько»: сколько раз подряд в одной записи (у длительной — суток)
     with: [...new Set((Array.isArray(pick('with')) ? pick('with') : []).map(String).filter(id => heroIds.includes(id)))].slice(0, 8),
     gold: I(pick('gold'), -1e7, 1e7), silver: I(pick('silver'), -1e7, 1e7), copper: I(pick('copper'), -1e7, 1e7),
     exp: I(pick('exp'), -1e7, 1e7), exh: I(pick('exh'), -5, 5), // минус — отдых снимает изнурение

@@ -31,8 +31,8 @@
         </div>
       </div>
       <label v-if="planDays" class="af-f sm">День<select v-model.number="m.day" class="af-in"><option :value="0">—</option><option v-for="d in planDays" :key="d" :value="d">{{ d }}</option></select></label>
-      <label v-if="long" class="af-chk af-multi" title="Несколько длительных подряд одной записью: всё ×N, кубики кидаются N раз, бонус повторения растёт"><input v-model="multi" type="checkbox" /> несколько</label>
-      <label v-if="long && multi" class="af-f xs">Сколько раз<span class="af-x-in">×<input v-model.number="m.times" type="number" min="2" max="10" class="af-in" /></span></label>
+      <label class="af-chk af-multi" title="Несколько раз подряд одной записью: часы и выносливость ×N, кубики кидаются N раз, бонус повторения растёт"><input v-model="multi" type="checkbox" /> несколько</label>
+      <label v-if="multi" class="af-f xs">Сколько раз<span class="af-x-in">×<input v-model.number="m.times" type="number" min="2" max="10" class="af-in" /></span></label>
       <label v-if="master" class="af-f sm">Статус
         <select v-model="m.status" class="af-in"><option v-for="(s, k) in ACT_STATUS" :key="k" :value="k">{{ s.name }}</option></select>
       </label>
@@ -44,6 +44,7 @@
       <span v-if="dblOffer" class="af-dbl">😵 У героя {{ hero.exh }} изнур. — выносливость удваивается: <b>{{ dblOffer.from }} → {{ dblOffer.to }}</b>
         <button type="button" class="af-dbl-yes" @click="applyDbl">Пересчитать</button><button type="button" class="af-dbl-no" @click="keepSt = true">Оставить</button></span>
       <template v-if="long">🌙 Длительная — сутки вместе {{ cfg.elf ? 'с трансом' : 'со сном' }}: {{ longH }} ч, {{ LONG_STAMINA }} выносливости, без изнурения<template v-if="plan.times > 1"> — ×{{ plan.times }}: {{ longH * plan.times }} ч, {{ LONG_STAMINA * plan.times }} выносливости</template>. </template>
+      <template v-if="!long && plan.times > 1">🔁 ×{{ plan.times }} подряд: часы и выносливость — за все {{ plan.times }} раза, кубики кидаются {{ plan.times }} раза, бонус повторения растёт с каждым. </template>
       <template v-if="advNote"><span class="af-advnote" :class="advNote.cls">{{ advNote.text }}</span> </template>
       <template v-if="formula">🎲 Бросок: <b>{{ formula }}</b><em v-if="plan.adv" class="af-mode" :class="plan.adv === 'adv' ? 'm-hi' : 'm-lo'">{{ ADV_SIGN[plan.adv] }} {{ ADV_NAME[plan.adv].toLowerCase() }}</em><template v-if="plan.times > 1"> — {{ plan.times }} раза</template>, в среднем ≈ {{ avg.each.length > 1 ? avg.each.join(' + ') + ' = ' + avg.total : avg.total }} — кнопкой 🎲 у записи.<template v-if="plan.unknown.length"> Без числа, не войдут: {{ plan.unknown.join(', ') }}.</template></template>
     </p>
@@ -201,6 +202,13 @@ watch([long, () => m.value.times, longH], ([l], old) => {
   m.value.hours = String(longH.value * n)
   if (!manualSt.value || old) m.value.stamina = String(LONG_STAMINA * n)
 }, { immediate: true })
+// остальные «несколько»: часы (и выносливость, если вписана своя) — ×N от одного раза; снял ×N — обратно
+watch(() => Math.max(1, Math.min(10, Number(m.value.times) || 1)), (n, o) => {
+  if (long.value || n === o) return
+  const sc = v => { const x = num(v); return x > 0 ? String(round((x / o) * n, 3)).replace('.', ',') : v }
+  m.value.hours = sc(m.value.hours)
+  if (manualSt.value) m.value.stamina = sc(m.value.stamina)
+})
 watch([() => m.value.result, () => m.value.trainId], () => {
   if (m.value.trainId && !manualPts.value) m.value.pts = ptsOf(m.value.result)
 })
@@ -224,7 +232,7 @@ const hadReset = computed(() => log.value.some(r => r.date === m.value.date && r
 const plan = computed(() => rollPlan(m.value, mod.value, adds.value))
 const formula = computed(() => {
   const p = plan.value
-  if (!(m.value.type === 'repeat' || mod.value || p.items.length || p.dice.length || p.long || p.repSet)) return ''
+  if (!(m.value.type === 'repeat' || mod.value || p.items.length || p.dice.length || p.long || p.repSet || p.times > 1)) return ''
   return planText(p)
 })
 const avg = computed(() => planAvg(plan.value))

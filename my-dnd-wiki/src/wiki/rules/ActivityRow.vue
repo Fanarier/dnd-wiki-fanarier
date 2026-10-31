@@ -35,7 +35,7 @@
         <router-link v-if="city" class="ar-tag place" :to="{ path: '/', query: { focus: 'cities:' + city.id } }" title="Показать на карте">📍 {{ city.name }}</router-link>
         <span v-if="rec.mod" class="ar-tag" title="Место — модификатор из вики">🏛 {{ rec.mod }}</span>
         <span v-if="rec.mentor || rec.mentorBonus" class="ar-tag mentor" title="Наставник — фиксированный бонус к броску">🎓 <router-link v-if="mentor" :to="mentor.to" :title="`${mentor.kind}: ${mentor.name}`">{{ rec.mentor }}</router-link><template v-else>{{ rec.mentor || 'наставник' }}</template><b v-if="rec.mentorBonus">&nbsp;{{ rec.mentorBonus > 0 ? '+' : '' }}{{ rec.mentorBonus }}</b></span>
-        <span v-if="long && rec.times > 1" class="ar-tag" title="Несколько длительных подряд одной записью">×{{ rec.times }}</span>
+        <span v-if="rec.times > 1" class="ar-tag" :title="long ? 'Несколько длительных подряд одной записью' : 'Несколько раз подряд одной записью'">×{{ rec.times }}</span>
         <span v-if="rec.trainId" ref="trainTag" class="ar-tag train" :class="{ ok: rec.applied }" :title="rec.applied ? 'Очки уже в прогрессе тренировки' : 'Очки прибавятся, когда мастер учтёт запись'">
           🏋 {{ trainName || 'тренировка' }} <b>+{{ rec.pts }}</b>{{ rec.applied ? ' ✓' : '' }}
         </span>
@@ -60,7 +60,7 @@
             <span v-for="r in v.rolls" :key="r.i" class="ar-tag roll vodr" :class="{ crit: r.twenties, fumble: r.ones }" :title="rollTitle(r)">{{ r.twenties ? '✨' : r.ones ? '💀' : '🎲' }} {{ r.notation }}<span v-if="advDice(r)" class="ar-mode" :class="advDice(r).cls">{{ advDice(r).sign }}</span> = <b>{{ r.final ?? r.total }}</b></span>
           </span>
         </template>
-        <span v-if="longSum" class="ar-tag sum" :title="`Сумма длительных: ${longSum.list.join(' + ')}`">Σ {{ longSum.total }}<template v-if="longSum.left"> + ? ({{ longSum.left }})</template></span>
+        <span v-if="multiSum" class="ar-tag sum" :title="`Сумма бросков: ${multiSum.list.join(' + ')}`">Σ {{ multiSum.total }}<template v-if="multiSum.left"> + ? ({{ multiSum.left }})</template></span>
         <span v-if="rec.coin" class="ar-tag coin" :class="{ win: rec.coin.win }" :title="rec.coin.win ? 'Выносливость на эту деятельность не потрачена' : 'Монетка не помогла'">🍀 {{ rec.coin.win ? 'выносливость сохранена' : 'не повезло' }}</span>
       </div>
       <ol v-if="showHist" class="ar-hist">
@@ -186,16 +186,16 @@ watch(() => props.rec.rolls?.length || 0, (n, o) => {
 // план броска, пока не брошено (у «несколько» — пока брошены не все)
 const preview = computed(() => {
   const p = props.plan
-  if (!p || props.rec.status === 'done' || props.mirror || !(p.long || p.items.length || p.dice.length || props.rec.mod || p.rep || p.die !== 20)) return null
+  if (!p || props.rec.status === 'done' || props.mirror || !(p.long || p.items.length || p.dice.length || props.rec.mod || p.rep || p.die !== 20 || p.times > 1)) return null
   const left = series.value.full ? 0 : series.value.need - series.value.done
   if (left <= 0) return null
   const a = planAvg(p)
   return { text: planText(p), left, avg: a.each.length > 1 ? `${a.each.join(' + ')} = ${a.total}` : a.total }
 })
-// несколько длительных — сумма брошенного
-const longSum = computed(() => {
+// «несколько» (×N, у любой деятельности) — сумма брошенного
+const multiSum = computed(() => {
   const last = series.value.last
-  if (!long.value || !(props.rec.times > 1) || !last.length) return null
+  if (!(props.rec.times > 1) || !last.length) return null
   const list = last.slice(0, props.rec.times).map(r => r.final ?? r.total)
   return { list, total: list.reduce((a, b) => a + b, 0), left: Math.max(0, props.rec.times - list.length) }
 })

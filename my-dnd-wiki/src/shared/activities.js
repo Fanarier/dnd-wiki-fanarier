@@ -258,15 +258,15 @@ export function rollMods(text) {
 // базовый кубик записи: по умолчанию к20, можно выбрать другой (к12, к10…)
 export const ACT_DICE = [4, 6, 8, 10, 12, 20, 100]
 export const dieOf = rec => (ACT_DICE.includes(Number(rec?.die)) ? Number(rec.die) : 20)
-// сколько попыток в записи: у длительной «несколько» — N бросков, у остальных — один
-export const attemptsOf = rec => (isLongTraining(rec?.name) ? Math.max(1, Math.min(10, Number(rec?.times) || 1)) : 1)
+// сколько попыток в записи: «несколько» (×N, у любой деятельности) — N бросков, иначе один
+export const attemptsOf = rec => Math.max(1, Math.min(10, Number(rec?.times) || 1))
 // броски последней серии: «перебросил» — новая серия, старые остаются в записи, но не считаются.
-// У короткой каждый бросок — своя серия (считается последний); броски без номера серии (старые) — серия 0
+// У одиночной каждый бросок — своя серия (считается последний); броски без номера серии (старые) — серия 0
 export function seriesInfo(rec) {
   const rolls = (rec?.rolls || []).map((r, i) => ({ ...r, i, series: r.series ?? 0 }))
   const cur = rolls.reduce((m, r) => Math.max(m, r.series), 0)
   let last = rolls.filter(r => r.series === cur)
-  if (!isLongTraining(rec?.name)) last = last.slice(-1)
+  if (!isLongTraining(rec?.name) && attemptsOf(rec) < 2) last = last.slice(-1)
   const need = attemptsOf(rec)
   return { cur, last, done: last.length, need, full: last.length >= need, old: rolls.filter(r => !last.includes(r)) }
 }
@@ -351,7 +351,8 @@ export function planText(p) {
   const add = p.add || p.adds[p.adds.length - 1] ? ' + ' + (p.times > 1 ? `${p.adds[0]}…${p.adds[p.adds.length - 1]}` : p.add) + ' повт.' : ''
   // преимущество / помеха показываются отдельной меткой, в тексте формулы их нет
   const f = p.formula.replace(/ (преимущество|помеха)$/, '')
-  return p.long ? `(${f}) × ${LONG_MULT}${add}${p.times > 1 ? ` · ×${p.times}` : ''}` : `${f}${add}`
+  const n = p.times > 1 ? ` · ×${p.times}` : ''
+  return p.long ? `(${f}) × ${LONG_MULT}${add}${n}` : `${f}${add}${n}`
 }
 export const longFinal = (total, add, mult = LONG_MULT) => Math.floor(total * mult) + (add || 0)
 
