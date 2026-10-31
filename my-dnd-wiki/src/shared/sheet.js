@@ -76,13 +76,14 @@ export const RARITIES = [
   { name: 'Эпический', color: '#A060E0', bg: '#4A1A80' },
   { name: 'Эпический+', color: '#C070F0', bg: '#55209A' },
   { name: 'Легендарный', color: '#E08020', bg: '#703010', note: 'Не продаётся' },
-  { name: 'Мифический', color: '#F0C030', bg: '#6A5008' },
-  { name: 'Артефакт', color: '#E04060', bg: '#6E1020', note: 'Копий не существует' }
+  // «Мифический» (так в таблице предметов) — то же, что «Артефакт»: красная редкость
+  { name: 'Артефакт', color: '#E04060', bg: '#6E1020', note: 'Он же Мифический. Копий не существует' }
 ]
 export function rarityOf(name) {
   const s = String(name || '').trim().toLowerCase()
   if (!s) return null
   if (s.endsWith('+') && s.startsWith('эпич')) return RARITIES.find(r => r.name === 'Эпический+')
+  if (s.startsWith('мифич')) return RARITIES.find(r => r.name === 'Артефакт')
   return RARITIES.find(r => s.startsWith(r.name.toLowerCase().slice(0, 5))) || null
 }
 export const RES_STYLES = [
