@@ -145,11 +145,18 @@ function toAppFile(d) {
 function sweepImages() {
   let files
   try { files = fs.readdirSync(SHEET_IMG_DIR) } catch { return }
-  const used = new Set(JSON.stringify(store).match(/[a-f0-9]{32}\.(?:png|jpe?g|gif|webp)/g) || [])
+  // имена: свои — 32 знака, картинки предметов из таблицы (seed/items-img) — 24
+  const used = new Set(JSON.stringify(store).match(/\b[a-f0-9]{16,64}\.(?:png|jpe?g|gif|webp)/g) || [])
   const dayAgo = Date.now() - 24 * 3600 * 1000
   for (const f of files) {
     if (used.has(f)) continue
     try { if (fs.statSync(path.join(SHEET_IMG_DIR, f)).mtimeMs < dayAgo) fs.unlinkSync(path.join(SHEET_IMG_DIR, f)) } catch { /* занято */ }
+  }
+  // картинка из таблицы, на которую лист ссылается, а файла нет — вернуть из seed
+  const seedDir = path.resolve(import.meta.dirname, 'seed', 'items-img')
+  for (const f of used) {
+    const dst = path.join(SHEET_IMG_DIR, f)
+    if (!fs.existsSync(dst) && fs.existsSync(path.join(seedDir, f))) try { fs.copyFileSync(path.join(seedDir, f), dst) } catch { /* нет места */ }
   }
 }
 
