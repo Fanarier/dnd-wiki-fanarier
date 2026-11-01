@@ -9,7 +9,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { cleanRich } from './richtext.js'
-import { isLongTraining, longFinal, rollOutcome, ACT_DICE, LONG_MULT, LONG_EXH, exhOf, longExhNet, MAX_TIMES } from '../src/shared/activities.js'
+import { isLongTraining, longFinal, rollOutcome, ACT_DICE, LONG_MULT, LONG_EXH, exhOf, longExhNet, MAX_TIMES, coinFits, isRestRec, num } from '../src/shared/activities.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'activities.json')
@@ -153,6 +153,20 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
       for (const r of log) if (isLongTraining(r.name) && r.exh === LONG_EXH && ['plan', 'pending'].includes(r.status)) r.exh = longExhNet(cfgOf(hid).sleep)
     }
     store.longExhFix2 = true
+    save()
+  }
+  // один раз: монетку бросили у отдыха (выносливость с минусом) — она обнуляла восстановление. Снимаем её с отдыха:
+  // отдых снова возвращает выносливость, а монетку в этой сессии можно бросить у деятельности, которая тратит
+  if (!store.coinRestFix) {
+    for (const log of Object.values(store.logs)) {
+      for (const r of log) {
+        if (!r.coin || (num(r.stamina) > 0 && !isRestRec(r))) continue
+        console.log(`[activities] монетка снята с отдыха: ${r.name} (${r.date}, было: ${r.coin.win ? 'повезло' : 'не повезло'})`)
+        delete r.coin
+        r.hist = [...(r.hist || []), { at: Date.now(), by: 'сайт', t: '🍀 монетка снята: у отдыха она не действует — выносливость снова возвращается, монетку можно бросить у другой деятельности' }].slice(-40)
+      }
+    }
+    store.coinRestFix = true
     save()
   }
   const fail = (res, code, error) => res.status(code).json({ error })
@@ -430,6 +444,7 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     if (!h) return
     if (!canWrite(req.user, h)) return fail(res, 403, 'Это не твой герой')
     if (rec.type !== 'unique') return fail(res, 400, 'Монетка — только для уникальной деятельности')
+    if (!coinFits(rec)) return fail(res, 400, 'Монетка — только если деятельность тратит выносливость (отдых её возвращает)')
     if (!PLAYER_STATUS.includes(rec.status)) return fail(res, 400, 'Монетку бросают до проверки мастером')
     if (store.logs[h.id].some(x => x.date === rec.date && x.coin)) return fail(res, 400, 'В этой сессии монетку уже бросали')
     rec.coin = { win: crypto.randomInt(2) === 1, at: Date.now() }

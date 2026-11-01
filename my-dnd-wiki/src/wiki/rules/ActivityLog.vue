@@ -116,7 +116,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { vAutoAnimate } from '@formkit/auto-animate/vue'
 import { store, actState, loadActivities, rulesState, api, toast, heroPortraitUrl, heroCover, requestRoll, loadNpcs } from '../../map/store.js'
-import { ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, repChain, seriesInfo, restBudget, freeRows, exhOf, staminaDouble } from '../../shared/activities.js'
+import { coinFits, staminaOf, ACT_STATUS, num, round, activityCatalog, activityMods, catalogMatch, normAct, rollPlan, repChain, seriesInfo, restBudget, freeRows, exhOf, staminaDouble } from '../../shared/activities.js'
 import ActivityRow from './ActivityRow.vue'
 import { VueDraggable } from 'vue-draggable-plus'
 import ActivityForm from './ActivityForm.vue'
@@ -222,7 +222,7 @@ const sessions = computed(() => {
     return {
       date, rows: rs, own, free: fr.rows, covered: fr.covered,
       hours: fr.rows.reduce((n, r) => n + num(r.hours), 0),
-      stamina: own.reduce((n, r) => n + (r.coin?.win ? 0 : num(r.stamina)), 0),
+      stamina: own.reduce((n, r) => n + staminaOf(r), 0),
       exhUp: own.reduce((n, r) => n + Math.max(0, exhRec(r)), 0), exhDown: own.reduce((n, r) => n - Math.min(0, exhRec(r)), 0),
       pending: rs.filter(r => r.status === 'pending' && !r.mirror).length, plans: rs.filter(r => r.status === 'plan' && !r.mirror).length
     }
@@ -270,7 +270,8 @@ const plural = n => (n % 10 === 1 && n % 100 !== 11 ? 'запись' : n % 10 >=
 const EMPTY = ['Герой смотрел в стену. Стена смотрела в ответ.', 'Тишина. Даже сверчки отдыхают.', 'Пусто — то ли отпуск, то ли всё ещё впереди.', 'Свиток чист, перо ждёт.']
 const emptyLine = EMPTY[Math.floor(Math.random() * EMPTY.length)]
 // монетка — у первой уникальной деятельности сессии, если ещё не бросали
-const coinable = (s, r) => !!hero.value?.canWrite && r.type === 'unique' && ['plan', 'pending'].includes(r.status) && !r.mirror && !s.rows.some(x => x.coin) && s.rows.filter(x => !x.mirror && x.type === 'unique')[0]?.id === r.id
+// монетка — у первой уникальной деятельности сессии, которая тратит выносливость (отдых и свидания её возвращают — не в счёт)
+const coinable = (s, r) => !!hero.value?.canWrite && coinFits(r) && ['plan', 'pending'].includes(r.status) && !r.mirror && !s.rows.some(x => x.coin) && s.rows.filter(x => !x.mirror && coinFits(x))[0]?.id === r.id
 
 /* ---------- план по дням ---------- */
 const today = () => new Date().toISOString().slice(0, 10)

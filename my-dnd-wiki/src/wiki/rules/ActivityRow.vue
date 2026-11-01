@@ -11,7 +11,7 @@
     <span class="ar-sealslot" :class="{ on: seal }"><LottieFx v-if="seal" :key="seal.key" class="ar-seal" :data="seal.data" :size="80" @done="seal = null" /></span>
     <div class="ar-nums">
       <span class="ar-num" title="Часы">⏱ {{ rec.hours || '—' }}<small v-if="rec.hours && /^[\d.,]+$/.test(rec.hours)"> ч</small></span>
-      <span class="ar-num st" :class="{ free: rec.coin?.win }" title="Выносливость">⚡ {{ rec.stamina || '—' }}</span>
+      <span class="ar-num st" :class="{ free: rec.coin?.win && coinFits(rec) }" title="Выносливость">⚡ {{ rec.stamina || '—' }}</span>
     </div>
     <div class="ar-st">
       <select v-if="master && !mirror" :value="rec.status" class="ar-sel" :class="{ hit }" title="Статус" @change="$emit('status', $event.target.value)">
@@ -110,7 +110,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { store, actState } from '../../map/store.js'
-import { ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg, avgText, timesWord, seriesInfo, ADV_NAME, ADV_SIGN } from '../../shared/activities.js'
+import { coinFits, ACT_STATUS, ACT_TYPES, ACT_CATS, categoryOf, exhOf, isLongTraining, EXH_MAX, moneyCheck, fmtCoins, planText, planAvg, avgText, timesWord, seriesInfo, ADV_NAME, ADV_SIGN } from '../../shared/activities.js'
 import { mentorLink } from './mentor.js'
 import LottieFx from './LottieFx.vue'
 import RichText from '../../components/RichText.vue'

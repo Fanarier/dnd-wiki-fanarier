@@ -162,6 +162,10 @@ export const invHas = (inv, name) => (inv || []).some(x => String(x.name || '').
 // любой отдых из вики (раздел «Отдых»: отдых, сон, транс, медитация, свидания) или запись, что возвращает выносливость
 const REST_RE = /^(отдых|свидани|сон\b|транс\b|медитац|день отдыха)|восстановительный сон/i
 export const isRestRec = rec => REST_RE.test(String(rec?.name || '').trim()) || num(rec?.stamina) < 0
+// монетка «не потратить выносливость» — только у деятельности, которая выносливость тратит (не у отдыха: он её возвращает)
+export const coinFits = rec => rec?.type === 'unique' && num(rec?.stamina) > 0 && !isRestRec(rec)
+// выносливость записи с учётом монетки: выиграл — трата не считается; отдых считается всегда
+export const staminaOf = rec => (rec?.coin?.win && num(rec?.stamina) > 0 ? 0 : num(rec?.stamina))
 // ночной сон (не пишется деятельностью) снимает по тому же правилу: сон 8 ч — 2, транс 4 ч — 1
 export const nightExh = sleepH => restExh(sleepH ?? 8)
 // длительная тренировка — сутки вместе со сном: изнурения не даёт и не снимает
