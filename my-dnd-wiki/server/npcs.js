@@ -79,10 +79,11 @@ export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, 
   const find = id => db().npcs.find(n => n.id === id)
   const dropFile = f => { if (f) try { fs.unlinkSync(path.join(PORTRAIT_DIR, path.basename(f))) } catch { /* нет файла */ } }
 
-  // всё сразу: листы (скрытые — только мастеру) и оба справочника
+  // всё сразу: листы (скрытые — только мастеру) и оба справочника. Скрытые арты (свадьба, пока до неё не дошли) — тоже только мастеру
   app.get('/api/npcs', (req, res) => {
     const master = userOf(req)?.role === 'master'
-    res.json({ rev: db().npcsRev || 0, npcs: db().npcs.filter(n => master || !n.hidden), skills: db().npcSkills, effects: db().npcEffects })
+    const npcs = master ? db().npcs : db().npcs.filter(n => !n.hidden).map(n => (n.arts?.some(a => a.hidden) ? { ...n, arts: n.arts.filter(a => !a.hidden) } : n))
+    res.json({ rev: db().npcsRev || 0, npcs, skills: db().npcSkills, effects: db().npcEffects })
   })
 
   app.post('/api/npcs', requireMaster, (req, res) => {
@@ -155,6 +156,7 @@ export function registerNpcRoutes(app, { express, requireMaster, userOf, getDb, 
     const b = req.body || {}
     if (b.label !== undefined) a.label = S(b.label, 60)
     if (b.group !== undefined) a.group = S(b.group, 40)
+    if (b.hidden !== undefined) a.hidden = !!b.hidden // скрыт от игроков (виден только мастеру)
     if (b.pos) a.pos = { x: Math.max(0, Math.min(100, +b.pos.x || 0)), y: Math.max(0, Math.min(100, +b.pos.y || 0)), zoom: Math.max(1, Math.min(4, +b.pos.zoom || 1)) }
     changed()
     res.json(a)
@@ -239,7 +241,7 @@ export function npcPins(db, master) {
     if (n.hidden && !master) continue
     const cityId = findPlace(n.home, db.cities, db.settlements)?.city?.id
     if (!cityId) continue
-    const a = n.arts?.[0]
+    const a = (master ? n.arts : n.arts?.filter(x => !x.hidden))?.[0]
     const role = n.info?.find(x => x.k === 'Профессия')?.v || n.info?.find(x => x.k === 'Принадлежность')?.v || ''
     out.push({ id: n.id, name: n.name, cityId, img: n.avatar || a?.thumb || a?.file || '', square: !!n.avatar, y: a?.pos?.y ?? 20, group: n.group, role: role.slice(0, 60) })
   }

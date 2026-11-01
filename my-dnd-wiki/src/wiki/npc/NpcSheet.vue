@@ -14,9 +14,11 @@
         <div v-if="shown.length > 1" class="ns-thumbs">
           <button v-for="a in shown" :key="a.id" type="button" :class="{ on: a.id === cur?.id }" :title="a.label || ''" @click="artId = a.id">
             <img :src="heroPortraitUrl(a.thumb || a.file)" alt="" />
+            <i v-if="a.hidden" class="ns-thid" title="Скрыт от игроков">☾</i>
           </button>
         </div>
         <div v-if="cur?.label" class="ns-label">{{ cur.label }}</div>
+        <div v-if="cur?.hidden" class="ns-arthid" title="Этот арт видишь только ты — игрокам он не приходит">☾ арт скрыт от игроков</div>
       </div>
 
       <div class="ns-main">
@@ -268,6 +270,9 @@ const focus = a => ({ objectPosition: `${a.pos?.x ?? 50}% ${a.pos?.y ?? 20}%` })
 .ns-thumbs button { flex: none; width: 52px; height: 64px; padding: 0; border-radius: 8px; overflow: hidden; border: 2px solid transparent; background: #120e09; cursor: pointer; opacity: .65; }
 .ns-thumbs button.on { border-color: #e7c56f; opacity: 1; }
 .ns-thumbs img { width: 100%; height: 100%; object-fit: cover; }
+.ns-thumbs button { position: relative; }
+.ns-thid { position: absolute; right: 2px; top: 2px; padding: 0 4px; border-radius: 6px; background: rgba(20, 14, 40, .85); color: #d2c8ff; font: 800 11px 'Manrope', sans-serif; font-style: normal; }
+.ns-arthid { justify-self: center; padding: 2px 10px; border-radius: 99px; border: 1px dashed rgba(170, 150, 255, .55); color: #d2c8ff; font: 800 11.5px 'Manrope', sans-serif; }
 .ns-label { color: #a8936c; font-size: 12.5px; font-style: italic; text-align: center; }
 
 .ns-main { min-width: 0; }

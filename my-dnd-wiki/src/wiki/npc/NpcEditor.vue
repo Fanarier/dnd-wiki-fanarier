@@ -205,15 +205,19 @@
             </div>
           </div>
           <div class="ne-sub">Арты</div>
-          <p class="ne-hint">Перетаскивай арты мышью или пальцем — первый становится обложкой. «Форма» объединяет арты в переключатели (у Луны — две формы и наряды). Изменения здесь сохраняются сразу.</p>
+          <p class="ne-hint">Перетаскивай арты мышью или пальцем — первый становится обложкой. «Форма» объединяет арты в переключатели (у Луны — две формы и наряды). 👁 — скрыть арт от игроков (например, свадебный наряд, пока до свадьбы не дошли): его видишь только ты. Изменения здесь сохраняются сразу.</p>
           <div class="ne-arts">
             <VueDraggable v-model="artsList" :animation="200" ghost-class="ne-ghost" filter="input,button" :prevent-on-filter="false" class="ne-arts-in" @end="saveArtOrder">
-            <div v-for="a in artsList" :key="a.id" class="ne-art" title="Перетащи, чтобы поменять порядок; первый — обложка">
-              <img :src="heroPortraitUrl(a.thumb || a.file)" alt="" />
+            <div v-for="a in artsList" :key="a.id" class="ne-art" :class="{ hid: a.hidden }" title="Перетащи, чтобы поменять порядок; первый — обложка">
+              <div class="ne-art-img">
+                <img :src="heroPortraitUrl(a.thumb || a.file)" alt="" />
+                <span v-if="a.hidden" class="ne-art-hid">☾ скрыт от игроков</span>
+              </div>
               <input :value="a.label" placeholder="Подпись" maxlength="60" @change="patchArt(a, { label: $event.target.value })" />
               <input :value="a.group" placeholder="Форма / наряд" list="ne-forms" maxlength="40" @change="patchArt(a, { group: $event.target.value })" />
               <div class="ne-art-btns">
                 <span class="ne-art-hint">⠿ тяни</span>
+                <button type="button" class="eye" :class="{ on: a.hidden }" :title="a.hidden ? 'Скрыт от игроков — показать' : 'Скрыть от игроков'" @click="patchArt(a, { hidden: !a.hidden })">{{ a.hidden ? '🙈' : '👁' }}</button>
                 <button type="button" class="no" title="Удалить арт" @click="dropArt(a)">✕</button>
               </div>
             </div>
@@ -467,6 +471,11 @@ async function resetAvatar() {
 .ne-art-btns button { flex: 1; padding: 4px 0; border-radius: 6px; border: 1px solid rgba(231, 197, 111, .3); background: none; color: #f3d99a; cursor: pointer; }
 .ne-art-btns button:disabled { opacity: .3; }
 .ne-art-btns .no { color: #ff9b8f; border-color: rgba(255, 107, 91, .35); }
+.ne-art-btns .eye.on { background: rgba(150, 130, 255, .18); border-color: rgba(170, 150, 255, .55); }
+.ne-art-img { position: relative; }
+.ne-art.hid img { filter: grayscale(.6) brightness(.6); }
+.ne-art.hid { border-style: dashed; border-color: rgba(170, 150, 255, .45); }
+.ne-art-hid { position: absolute; left: 4px; right: 4px; bottom: 6px; padding: 2px 6px; border-radius: 99px; background: rgba(20, 14, 40, .8); color: #d2c8ff; font: 800 10.5px 'Manrope', sans-serif; text-align: center; }
 .ne-art.add { display: grid !important; place-items: center; min-height: 180px; border-style: dashed; color: #e6c27a !important; font-size: 14px !important; cursor: pointer; }
 .ne footer { border-top: 1px solid rgba(201, 162, 79, .2); flex-wrap: wrap; }
 .ne-dirty { color: #ffb36b; font-size: 12px; font-weight: 700; }
