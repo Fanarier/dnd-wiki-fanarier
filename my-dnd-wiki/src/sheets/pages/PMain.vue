@@ -13,7 +13,17 @@
       </div>
       <div class="pm-id">
         <Fld path="CharacterName" big placeholder="Имя персонажа" data-find="CharacterName" />
-        <div class="pm-cls">
+        <!-- у кованых класса нет — вместо него платформа (поле то же — «Класс») -->
+        <div v-if="forged" class="pm-cls one" data-find="Class">
+          <label class="pm-plat"><span>Платформа</span>
+            <select :value="plat?.name || d.Class" :disabled="ro" @change="edit('Class', $event.target.value, { now: true })">
+              <option value="">— выбрать —</option>
+              <option v-if="d.Class && !plat" :value="d.Class">{{ d.Class }} (не из вики)</option>
+              <option v-for="p in PLATFORMS" :key="p.name" :value="p.name">{{ p.name }} · мини-модулей +{{ p.mini }}/ур.</option>
+            </select>
+          </label>
+        </div>
+        <div v-else class="pm-cls">
           <Fld path="Class" label="Класс" data-find="Class" />
           <Fld path="Subclass" label="Подкласс" data-find="Subclass" />
         </div>
@@ -37,7 +47,7 @@
     </div>
 
     <div class="pm-pools sb-anim">
-      <Fld path="Mana" label="Мана" center data-find="Mana" class="pool mana" />
+      <Fld path="Mana" :label="forged ? 'Энергия' : 'Мана'" center data-find="Mana" class="pool mana" :class="{ energy: forged }" />
       <Fld path="Stamina" label="Выносливость" center data-find="Stamina" class="pool sta" />
       <Fld path="Hits" label="Хиты" center data-find="Hits" class="pool hp" />
     </div>
@@ -112,10 +122,13 @@ import { sheet, sheetImg, pickImage, edit } from '../sheetState.js'
 import { toast, npcState, loadNpcs, heroPortraitUrl } from '../../map/store.js'
 import { companionsOf } from '../../shared/npc.js'
 import { hpMax } from '../../shared/sheet.js'
+import { isForged, platformOf, PLATFORMS } from '../../shared/forged.js'
 
 defineEmits(['go'])
 const d = computed(() => sheet.data)
 const ro = inject('sheetReadOnly', ref(false))
+const forged = computed(() => isForged(d.value))
+const plat = computed(() => platformOf(d.value))
 const viewOpen = ref(false)
 // компаньоны из вики (листы НПС подгружаются один раз и кэшируются)
 loadNpcs()
@@ -204,6 +217,12 @@ async function setPhoto() {
 .pm-pools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
 .pool { padding: 6px 6px 4px; border-radius: 10px; background: rgba(0, 0, 0, .2); border: 1px solid var(--line); }
 .pool.mana { border-color: rgba(124, 156, 255, .35); }
+.pool.energy { border-color: rgba(47, 214, 195, .5); background: rgba(47, 214, 195, .07); }
+.pool.energy :deep(.fld-l), .pool.energy :deep(input) { color: #2fd6c3; }
+.pm-cls.one { grid-template-columns: minmax(0, 1fr); }
+.pm-plat { display: grid; gap: 2px; }
+.pm-plat span { font: 700 10.5px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pm-plat select { padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(0, 0, 0, .25); color: var(--ink); font: 700 14px 'Manrope', sans-serif; color-scheme: dark; }
 .pool.sta { border-color: rgba(255, 209, 102, .3); }
 .pool.hp { border-color: rgba(126, 224, 106, .3); }
 .pool :deep(input) { font-size: 18px; font-weight: 800; }

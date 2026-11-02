@@ -1,15 +1,17 @@
 <template>
   <!-- владения: черты 4/9/18 уровня, черты гуманоидов (до 5), владения и языки с уровнем 0–3 -->
   <div class="pt">
-    <h2 class="sb-h sb-anim"><SheetIcon name="traits" class="ic" />Черты</h2>
-    <div class="pt-traits sb-anim">
+    <h2 class="sb-h sb-anim"><SheetIcon name="traits" class="ic" />{{ forged ? 'Загадочные модули' : 'Черты' }}</h2>
+    <p v-if="forged" class="pt-hint sb-anim">Вместо черт на 4, 9 и 18 уровне кованый может установить загадочный модуль — он даёт эффекты черт, равносильные обычным расам.</p>
+    <div class="pt-traits sb-anim" :class="{ forged }">
       <div v-for="t in LEVEL_TRAITS" :key="t.p" class="pt-trait" :class="{ got: d[t.p].IsAcquired }" :data-find="t.p">
-        <span class="pt-lv">{{ t.lv }}<small>ур.</small></span>
-        <Fld :path="`${t.p}.Description`" type="rich" :rows="1" :placeholder="`Черта ${t.lv} уровня`" />
+        <span class="pt-lv"><i v-if="forged" class="pt-mod">💠</i>{{ t.lv }}<small>ур.</small></span>
+        <Fld :path="`${t.p}.Description`" type="rich" :rows="1" :placeholder="forged ? `Загадочный модуль ${t.lv} уровня` : `Черта ${t.lv} уровня`" />
         <button type="button" class="pt-got" :class="{ on: d[t.p].IsAcquired }" :title="d[t.p].IsAcquired ? 'Получена' : 'Ещё не получена'" @click="set(`${t.p}.IsAcquired`, !d[t.p].IsAcquired)">✓</button>
       </div>
     </div>
 
+    <template v-if="!forged">
     <h3 class="sb-h2 sb-anim">Черты гуманоидов <small>{{ d.HumanoidTraits.length }} / 5</small></h3>
     <div class="pt-hum sb-anim">
       <div v-for="(t, i) in d.HumanoidTraits" :key="keyOf(t)" class="pt-trait hum" :class="{ got: t.IsAcquired }" :data-find="`HumanoidTraits-${i}`">
@@ -20,6 +22,7 @@
       </div>
       <button v-if="!ro && d.HumanoidTraits.length < 5" type="button" class="sb-btn" @click="hum.add({ Name: '', Description: '', IsAcquired: false })">＋ Черта гуманоида</button>
     </div>
+    </template>
 
     <h2 class="sb-h sb-anim" style="margin-top: 22px"><SheetIcon name="traits" class="ic" />Владения и языки</h2>
     <div class="sb-tools sb-anim">
@@ -50,9 +53,11 @@ import { VueDraggable } from 'vue-draggable-plus'
 import Fld from '../ui/Fld.vue'
 import IconRating from '../ui/IconRating.vue'
 import { sheet, edit, keyOf, listOps } from '../sheetState.js'
+import { isForged } from '../../shared/forged.js'
 
 const ro = inject('sheetReadOnly', ref(false))
 const d = computed(() => sheet.data)
+const forged = computed(() => isForged(d.value))
 const LEVEL_TRAITS = [{ p: 'Trait4', lv: 4 }, { p: 'Trait9', lv: 9 }, { p: 'Trait18', lv: 18 }]
 const FILTERS = [{ v: -1, t: 'Все' }, { v: 0, t: 'Владения' }, { v: 1, t: 'Языки' }]
 const kind = ref(-1)
@@ -65,6 +70,9 @@ const addProf = t => { kind.value = -1; prof.add({ TypeIndex: t, Description: ''
 
 <style scoped>
 .pt-traits, .pt-hum { display: grid; gap: 8px; }
+.pt-hint { margin: -4px 0 10px; color: var(--muted); font: 600 12px 'Manrope', sans-serif; }
+.pt-traits.forged .pt-lv { position: relative; background: rgba(47, 214, 195, .14); color: #2fd6c3; }
+.pt-mod { position: absolute; top: -7px; right: -6px; font-size: 13px; font-style: normal; }
 .pt-trait { display: grid; grid-template-columns: 54px minmax(0, 1fr) 30px; gap: 8px; align-items: center; padding: 8px 10px; border-radius: 12px; background: rgba(0, 0, 0, .18); border: 1px solid var(--line); transition: border-color .2s, background .2s; }
 .pt-trait.hum { grid-template-columns: minmax(0, 160px) minmax(0, 1fr) 30px 26px; }
 .pt-trait.got { border-color: color-mix(in srgb, var(--acc) 50%, transparent); background: color-mix(in srgb, var(--acc) 6%, rgba(0, 0, 0, .18)); }

@@ -5,7 +5,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, EQUIP_SLOTS, hpMax, trainStatus, setRichCleaner } from '../src/shared/sheet.js'
+import { isForged } from '../src/shared/forged.js'
+import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, ALL_SLOTS, hpMax, trainStatus, setRichCleaner } from '../src/shared/sheet.js'
 import { cleanRich } from './richtext.js'
 import { htmlToText } from '../src/shared/rules.js'
 import { slotToInv } from '../src/shared/items.js'
@@ -119,7 +120,7 @@ function fromAppFile(raw, imageExt) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('Это не лист персонажа')
   const src = { ...raw }
   if (!src.PhotoFile) src.PhotoFile = b64img(src.PhotoBase64, imageExt)
-  for (const s of EQUIP_SLOTS) if (src[s.key] && !src[s.key].ImageFile) src[s.key] = { ...src[s.key], ImageFile: b64img(src[s.key].ImageBase64, imageExt) }
+  for (const s of ALL_SLOTS) if (src[s.key] && !src[s.key].ImageFile) src[s.key] = { ...src[s.key], ImageFile: b64img(src[s.key].ImageBase64, imageExt) }
   if (Array.isArray(src.Inventory)) src.Inventory = src.Inventory.map(it => (it && !it.ImageFile ? { ...it, ImageFile: b64img(it.ImageBase64, imageExt) } : it))
   const looksLike = ['CharacterName', 'Stats', 'HpData', 'Skills', 'Inventory'].some(k => k in src)
   if (!looksLike) throw new Error('В файле нет листа персонажа (нет имени, характеристик, навыков…)')
@@ -134,7 +135,7 @@ function toAppFile(d) {
   const out = plainForApp(structuredClone(d))
   out.PhotoBase64 = fileB64(d.PhotoFile)
   out.PhotoPath = ''
-  for (const s of EQUIP_SLOTS) if (out[s.key]) { out[s.key].ImageBase64 = fileB64(out[s.key].ImageFile); out[s.key].ImagePath = '' }
+  for (const s of ALL_SLOTS) if (out[s.key]) { out[s.key].ImageBase64 = fileB64(out[s.key].ImageFile); out[s.key].ImagePath = '' }
   out.Inventory = (out.Inventory || []).map(it => ({ ...it, ImageBase64: fileB64(it.ImageFile) }))
   // «М — магия» есть только на сайте: приложение знает классовые (0) и расовые (1)
   for (const k of ['Skills', 'PassiveSkills']) out[k] = (out[k] || []).map(s => (s.CategoryIndex > 1 ? { ...s, CategoryIndex: 0 } : s))
@@ -287,7 +288,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       name: d.CharacterName, cls: d.Class, sub: d.Subclass, race: d.Race, level: d.Level, photo: d.PhotoFile, accent: d.Accent,
       hp: { cur: d.HpData.Current, max: hpMax(d), temp: d.HpData.Temp, hits: d.Hits },
       ds: ['S1', 'S2', 'S3', 'F1', 'F2', 'F3'].map(k => d.HpData['DS_' + k]),
-      mana: d.Mana, stamina: d.Stamina, defense: d.Defense, evasion: d.Evasion, superHits: d.SuperHits, exhaustion: d.Exhaustion,
+      mana: d.Mana, energy: isForged(d), stamina: d.Stamina, defense: d.Defense, evasion: d.Evasion, superHits: d.SuperHits, exhaustion: d.Exhaustion,
       res: d.Resources.map(r => ({ id: r.Id, name: r.Name, icon: r.Icon, cur: r.Current, max: r.Max, color: r.Color, style: r.Style })),
       fx: d.ActiveEffects || [], // эффекты на персонаже — значки в сводке отряда
       // для сводки отряда: что сейчас тренирует (ближе всего к завершению — первым)
@@ -637,7 +638,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     if (sh.deletedAt) return res.status(400).json({ error: 'Лист в корзине' })
     const p = String(req.body?.path || '')
     const to = String(req.body?.to || '')
-    const slot = EQUIP_SLOTS.find(s => s.key === p)
+    const slot = ALL_SLOTS.find(s => s.key === p)
     const m = p.match(/^Inventory\.(\d+)$/)
     const src = slot ? sh.data[p] : m ? sh.data.Inventory?.[Number(m[1])] : null
     if (!src) return res.status(400).json({ error: 'Вещь не найдена — лист поменялся, открой заново' })
@@ -747,7 +748,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       store.itemsEnriched.push(e.key)
       const d = sh.data
       const hits = [
-        ...EQUIP_SLOTS.filter(s => d[s.key] && sameItem(d[s.key].Name, e.match)).map(s => s.key),
+        ...ALL_SLOTS.filter(s => d[s.key] && sameItem(d[s.key].Name, e.match)).map(s => s.key),
         ...(d.Inventory || []).map((it, i) => (sameItem(it.Name, e.match) ? `Inventory.${i}` : null)).filter(Boolean)
       ]
       const done = []
@@ -790,7 +791,7 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       }
       for (const sh of store.sheets.filter(x => !x.deletedAt)) {
         const d = sh.data
-        const paths = [...EQUIP_SLOTS.map(s => s.key), ...(d.Inventory || []).map((_, i) => `Inventory.${i}`)]
+        const paths = [...ALL_SLOTS.map(s => s.key), ...(d.Inventory || []).map((_, i) => `Inventory.${i}`)]
         const ops = []
         for (const p of paths) {
           const it = getAt(d, p)

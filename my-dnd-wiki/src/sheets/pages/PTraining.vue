@@ -1,6 +1,10 @@
 <template>
   <!-- тренировки и обучение: в процессе (с полосками и «+ очки»), запланированные, свёрнутый архив завершённых -->
-  <div class="ptr">
+  <div v-if="forged" class="ptr">
+    <h2 class="sb-h sb-anim"><SheetIcon name="train" class="ic" />Модернизация</h2>
+    <p class="ptr-wip sb-anim">Характеристики и навыки кованых не растут от тренировок — вместо них модернизация. Ещё в работе.</p>
+  </div>
+  <div v-else class="ptr">
     <h2 class="sb-h sb-anim"><SheetIcon name="train" class="ic" />Тренировки и обучение</h2>
     <div class="sb-tools sb-anim">
       <span class="ptr-sum">
@@ -104,8 +108,10 @@ import Fld from '../ui/Fld.vue'
 import { sheet, edit, keyOf, listOps } from '../sheetState.js'
 import { TRAIN_STATUS, TRAIN_STAGES, TRAIN_TEMPLATES, trainStatus } from '../../shared/sheet.js'
 import { sfx } from '../../sound/sound.js'
+import { isForged } from '../../shared/forged.js'
 
 const ro = inject('sheetReadOnly', ref(false))
+const forged = computed(() => isForged(sheet.data))
 const list = computed(() => sheet.data.Trainings || [])
 const ops = listOps('Trainings')
 const SHOWN = ['active', 'planned']
@@ -196,6 +202,7 @@ function add(p, focus) {
 </script>
 
 <style scoped>
+.ptr-wip { margin: 0; color: var(--muted); font: 600 12px 'Manrope', sans-serif; font-style: italic; }
 .ptr { display: grid; gap: 4px; }
 .ptr-sum { color: var(--muted); font: 700 12.5px 'Manrope', sans-serif; }
 .ptr-sum b { font-weight: 900; }

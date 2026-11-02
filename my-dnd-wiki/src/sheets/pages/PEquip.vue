@@ -1,121 +1,111 @@
 <template>
-  <!-- снаряжение: 17 слотов вокруг персонажа (рюкзак и поклажа — снизу); перетащи предмет на другой слот — поменяются местами -->
-  <div class="pe">
-    <h2 class="sb-h sb-anim"><SheetIcon name="equip" class="ic" />Снаряжение</h2>
-    <p class="pe-hint sb-anim">Щёлкни по слоту — посмотреть и править. Перетащи предмет на другой слот — поменяются местами. 🔒 — слот заперт от случайных правок.</p>
-    <div class="pe-doll sb-anim">
-      <div class="pe-sil" aria-hidden="true">
-        <img v-if="d.PhotoFile" :src="sheetImg(d.PhotoFile)" alt="" />
+  <!-- снаряжение: 17 слотов вокруг персонажа (рюкзак и поклажа — снизу); перетащи предмет на другой слот — поменяются местами.
+       У кованого вместо снаряжения — слоты модулей платформы (вооружение, защита, общие) и мини-модули (src/shared/forged.js) -->
+  <div class="pe" :class="{ forged }">
+    <h2 class="sb-h sb-anim"><SheetIcon name="equip" class="ic" />{{ forged ? 'Модули' : 'Снаряжение' }}</h2>
+    <template v-if="forged">
+      <p class="pe-hint sb-anim">Снаряжение кованый не носит — вместо него модули в слотах платформы{{ plat ? ` «${plat.name}»` : '' }}. Щёлкни по слоту — посмотреть и править, перетащи модуль на другой слот того же вида — поменяются местами. Рюкзак и поклажа — в «Инвентаре».</p>
+      <p v-if="!plat" class="pe-hint warn sb-anim">Платформа не выбрана (поле «Платформа» на главной) — слоты пока как у Сентинела.</p>
+      <p v-else-if="plat.guess" class="pe-hint warn sb-anim">Сколько слотов у платформы «{{ plat.name }}», в вики не расписано — пока как у Сентинела.</p>
+      <div v-for="g in groups" :key="g.k" class="pe-mg sb-anim">
+        <div class="pe-mg-h"><span>{{ g.icon }} {{ g.name }}</span><small>{{ g.slots.filter(s => d[s.key]).length }} / {{ g.slots.length }}</small></div>
+        <div class="pe-mods">
+          <button v-for="s in g.slots" :key="s.key" type="button" class="pe-slot" :style="rarOf(s.key) ? { '--rc': rarOf(s.key).color } : null"
+                  :class="{ filled: !!d[s.key], locked: locked(s.key), sel: sel === s.key, over: over === s.key }" :data-find="s.key"
+                  :draggable="!!d[s.key] && !locked(s.key) && !ro" @click="sel = s.key"
+                  @dragstart="dragStart($event, s.key)" @dragover.prevent="over = s.key" @dragleave="over === s.key && (over = '')" @drop.prevent="drop(s.key)" @dragend="over = ''">
+            <span class="pe-img">
+              <img v-if="d[s.key]?.ImageFile" :src="sheetImg(d[s.key].ImageFile)" alt="" draggable="false" />
+              <span v-else class="pe-ph">{{ s.icon }}</span>
+            </span>
+            <small class="pe-nm">{{ d[s.key]?.Name || s.name }}</small>
+            <i v-if="locked(s.key)" class="pe-lock">🔒</i>
+          </button>
+        </div>
       </div>
-      <button v-for="s in EQUIP_SLOTS" :key="s.key" type="button" class="pe-slot" :style="{ gridArea: AREA[s.key], ...(rarOf(s.key) ? { '--rc': rarOf(s.key).color } : {}) }"
-              :class="{ filled: !!d[s.key], locked: locked(s.key), sel: sel === s.key, over: over === s.key }" :data-find="s.key"
-              :draggable="!!d[s.key] && !locked(s.key) && !ro" @click="sel = s.key"
-              @dragstart="dragStart($event, s.key)" @dragover.prevent="over = s.key" @dragleave="over === s.key && (over = '')" @drop.prevent="drop(s.key)" @dragend="over = ''">
-        <span class="pe-img">
-          <img v-if="d[s.key]?.ImageFile" :src="sheetImg(d[s.key].ImageFile)" alt="" draggable="false" />
-          <span v-else class="pe-ph">{{ s.icon }}</span>
-        </span>
-        <small class="pe-nm">{{ d[s.key]?.Name || s.name }}</small>
-        <i v-if="capLabel(s.key)" class="pe-cap" :title="capLabel(s.key).title">{{ capLabel(s.key).short }}</i>
-        <i v-if="locked(s.key)" class="pe-lock">🔒</i>
-      </button>
-    </div>
+    </template>
+    <template v-else>
+      <p class="pe-hint sb-anim">Щёлкни по слоту — посмотреть и править. Перетащи предмет на другой слот — поменяются местами. 🔒 — слот заперт от случайных правок.</p>
+      <div class="pe-doll sb-anim">
+        <div class="pe-sil" aria-hidden="true">
+          <img v-if="d.PhotoFile" :src="sheetImg(d.PhotoFile)" alt="" />
+        </div>
+        <button v-for="s in EQUIP_SLOTS" :key="s.key" type="button" class="pe-slot" :style="{ gridArea: AREA[s.key], ...(rarOf(s.key) ? { '--rc': rarOf(s.key).color } : {}) }"
+                :class="{ filled: !!d[s.key], locked: locked(s.key), sel: sel === s.key, over: over === s.key }" :data-find="s.key"
+                :draggable="!!d[s.key] && !locked(s.key) && !ro" @click="sel = s.key"
+                @dragstart="dragStart($event, s.key)" @dragover.prevent="over = s.key" @dragleave="over === s.key && (over = '')" @drop.prevent="drop(s.key)" @dragend="over = ''">
+          <span class="pe-img">
+            <img v-if="d[s.key]?.ImageFile" :src="sheetImg(d[s.key].ImageFile)" alt="" draggable="false" />
+            <span v-else class="pe-ph">{{ s.icon }}</span>
+          </span>
+          <small class="pe-nm">{{ d[s.key]?.Name || s.name }}</small>
+          <i v-if="capLabel(s.key)" class="pe-cap" :title="capLabel(s.key).title">{{ capLabel(s.key).short }}</i>
+          <i v-if="locked(s.key)" class="pe-lock">🔒</i>
+        </button>
+      </div>
+    </template>
 
     <!-- выбранный слот -->
-    <section v-if="sel" class="pe-detail sb-card" :style="selRar ? { '--rc': selRar.color } : null">
-      <header>
-        <span class="pe-dslot">{{ slotOf(sel).icon }} {{ slotOf(sel).name }}</span>
-        <span class="grow" />
-        <button v-if="!ro" type="button" class="sb-btn" :title="locked(sel) ? 'Отпереть слот' : 'Запереть слот'" @click="edit(`SlotLocks.${sel}`, !locked(sel), { now: true })">
-          <SheetIcon :name="locked(sel) ? 'lock' : 'unlock'" :on="locked(sel)" tone="#ffc15e" class="pe-lk" /> {{ locked(sel) ? 'Заперт' : 'Открыт' }}
-        </button>
-        <button v-if="!ro && !locked(sel) && d[sel]" type="button" class="sb-btn" title="Снять и положить в сумку" @click="unequipToInv(sel)">↩ В инвентарь</button>
-        <button v-if="!ro && !locked(sel) && d[sel] && invCount" type="button" class="sb-btn" :class="{ on: pickOpen }" title="Надеть другую вещь из инвентаря (эта уйдёт в инвентарь)" @click="pickOpen = !pickOpen">⇄ Из инвентаря</button>
-        <button v-if="!ro && !locked(sel) && d[sel]" type="button" class="sb-btn" title="Отдать вещь другому герою (сразу, ему придёт уведомление)" @click="giveOpen = true">🤝 Передать</button>
-        <button v-if="!ro && !locked(sel)" type="button" class="sb-btn" :title="d[sel] ? '' : 'Новая вещь прямо в слот (не из инвентаря)'" @click="editOpen = true">✎ {{ d[sel] ? 'Править' : 'Новый предмет' }}</button>
-      </header>
-      <template v-if="d[sel]">
-        <!-- и у простой вещи — шапка с большой картинкой (щелчок — на весь экран) -->
-        <ItemCard :name="d[sel].Name" :rarity="d[sel].Rarity" :img="sheetImg(d[sel].ImageFile)" :card="cardFilled(d[sel].Card) ? d[sel].Card : null" :icon="slotOf(sel).icon" />
-        <p v-if="d[sel].Stats" class="pe-txt"><b>Статы:</b> <DiceText :text="d[sel].Stats" :label="d[sel].Name" /></p>
-        <p v-if="d[sel].Effects" class="pe-txt"><b>Эффекты:</b> <DiceText :text="d[sel].Effects" :label="d[sel].Name" /></p>
-        <p v-if="capLabel(sel)" class="pe-txt pe-capline">{{ capLabel(sel).title }}</p>
-      </template>
-      <p v-else class="pe-txt muted">Слот пуст.{{ SLOT_HINT[sel] ? ' ' + SLOT_HINT[sel] : '' }}<template v-if="!ro && !locked(sel) && invCount"> Выбери вещь из инвентаря — она наденется:</template></p>
-      <!-- быстро надеть из инвентаря: у пустого слота — сразу, у занятого — по кнопке «Из инвентаря» -->
-      <InvPicker v-if="!ro && !locked(sel) && invCount && (!d[sel] || pickOpen)" :key="sel" :slot="sel" :occupied="!!d[sel]" @pick="i => { equipFromInv(i, sel); pickOpen = false }" />
-    </section>
+    <SlotDetail v-if="sel" :key="sel" :slot="sel" :cap="capLabel(sel)" :hint="SLOT_HINT[sel] || ''" />
 
-    <GiveDialog v-if="giveOpen && sel && d[sel]" :path="sel" :item="d[sel]" @close="giveOpen = false" @done="giveOpen = false" />
-    <ItemEditor v-if="editOpen && sel" :path="sel" kind="equip" :title="`${slotOf(sel).name}: предмет`" :icon="slotOf(sel).icon" :removable="!!d[sel]" @close="editOpen = false" @remove="clearSlot" />
+    <MiniModules v-if="forged" />
   </div>
 </template>
 
 <script setup>
 import { computed, inject, ref, watch } from 'vue'
-import DiceText from '../ui/DiceText.vue'
-import ItemEditor from '../ui/ItemEditor.vue'
 import SheetIcon from '../ui/SheetIcon.vue'
-import ItemCard from '../../components/items/ItemCard.vue'
-import GiveDialog from '../ui/GiveDialog.vue'
-import InvPicker from '../ui/InvPicker.vue'
-import { equipFromInv, unequipToInv } from '../equipMove.js'
-import { capOf, cardFilled, MAX_POCKETS } from '../../shared/items.js'
+import SlotDetail from '../ui/SlotDetail.vue'
+import MiniModules from '../ui/MiniModules.vue'
+import { capLabel } from '../ui/slotCap.js'
 import { sheet, edit, sheetImg } from '../sheetState.js'
 import { EQUIP_SLOTS, rarityOf } from '../../shared/sheet.js'
+import { isForged, platformOf, moduleSlotsOf } from '../../shared/forged.js'
 
 const ro = inject('sheetReadOnly', ref(false))
 const d = computed(() => sheet.data)
+const forged = computed(() => isForged(d.value))
+const plat = computed(() => platformOf(d.value))
+const groups = computed(() => moduleSlotsOf(d.value).filter(g => g.slots.length))
 const AREA = {
   Ring1Item: 'r1', HeadItem: 'hd', AmuletItem: 'am', Ring2Item: 'r2', BodyItem: 'bd', Ornament1Item: 'o1', HandsItem: 'hn', BeltItem: 'bl',
   Ornament2Item: 'o2', Weapon1Item: 'w1', LegsItem: 'lg', Weapon2Item: 'w2', Artifact1Item: 'a1', ShieldItem: 'sh', Artifact2Item: 'a2',
   BackpackItem: 'bp', PackItem: 'pk'
 }
-// пояс даёт карманы, рюкзак — ячейки сумки, поклажа — ячейки вьюка: число пишется у вещи («Карманы: 4», «Ячейки: 12»)
 const SLOT_HINT = {
   BeltItem: 'Пояс даёт карманы быстрого доступа (до 8): напиши у него «Карманы: 4».',
   BackpackItem: 'Рюкзак даёт ячейки сумки: напиши у него «Ячейки: 10». Без рюкзака — только базовые ячейки.',
   PackItem: 'Поклажа — вьюк на коне или в повозке, свои ячейки («Ячейки: 20»). В бою недоступна.'
 }
-function capLabel(k) {
-  const it = d.value[k]
-  if (!it) return null
-  if (k === 'BeltItem') { const n = Math.min(MAX_POCKETS, capOf(it, 'pockets')); return { short: `👝 ${n}`, title: n ? `Карманов: ${n}` : 'Карманов нет — напиши у пояса «Карманы: N»' } }
-  if (k === 'BackpackItem' || k === 'PackItem') { const n = capOf(it, 'cells'); return { short: `▦ ${n}`, title: n ? `Ячеек: ${n}` : 'Ячеек не указано — напиши «Ячейки: N»' } }
-  return null
-}
-const slotOf = k => EQUIP_SLOTS.find(s => s.key === k)
 const locked = k => !!d.value.SlotLocks?.[k]
 const rarOf = k => rarityOf(d.value[k]?.Rarity)
 const sel = ref('')
-const pickOpen = ref(false)
-watch(sel, () => { pickOpen.value = false })
-const invCount = computed(() => d.value.Inventory?.length || 0)
-const selRar = computed(() => (sel.value ? rarOf(sel.value) : null))
-const editOpen = ref(false)
-const giveOpen = ref(false)
+watch(forged, () => { sel.value = '' })
 const over = ref('')
 let dragFrom = ''
 function dragStart(e, k) { dragFrom = k; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', k) }
+// модули меняются местами только в слотах того же вида (вооружение ↔ вооружение)
+const kindOf = k => k.replace(/\d+$/, '')
 function drop(to) {
   over.value = ''
   const from = dragFrom
   dragFrom = ''
   if (!from || from === to || ro.value || locked(to) || locked(from)) return
+  if (forged.value && kindOf(from) !== kindOf(to)) return
   const a = d.value[from], b = d.value[to]
   edit(from, b ? JSON.parse(JSON.stringify(b)) : null)
   edit(to, a ? JSON.parse(JSON.stringify(a)) : null, { now: true })
   sel.value = to
 }
-function clearSlot() {
-  if (!confirm(`Убрать «${d.value[sel.value]?.Name || 'предмет'}» из слота? Картинка и описание пропадут (мастер сможет вернуть из истории).`)) return
-  edit(sel.value, null, { now: true })
-  editOpen.value = false
-}
 </script>
 
 <style scoped>
 .pe-hint { margin: -4px 0 10px; color: var(--muted); font: 600 12px 'Manrope', sans-serif; }
+.pe-hint.warn { color: #ffb36b; }
+.pe-mg { margin-bottom: 12px; }
+.pe-mg-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; font: 800 12px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.pe-mg-h small { letter-spacing: 0; }
+.pe-mods { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
 .pe-doll { position: relative; display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-areas: 'r1 hd am' 'r2 bd o1' 'hn bl o2' 'w1 lg w2' 'a1 sh a2' 'bp . pk'; max-width: 520px; margin: 0 auto; }
 .pe-sil { position: absolute; left: 33.3%; right: 33.3%; top: 0; bottom: 0; border-radius: 50% 50% 18px 18px / 30% 30% 18px 18px; background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--acc) 14%, transparent), transparent 70%); overflow: hidden; opacity: .5; pointer-events: none; }
 .pe-sil img { width: 100%; height: 100%; object-fit: cover; opacity: .18; filter: grayscale(.6) blur(1px); mask-image: linear-gradient(transparent, #000 25%, #000 70%, transparent); }
@@ -132,15 +122,5 @@ function clearSlot() {
 .pe-slot.filled .pe-nm { color: var(--ink); }
 .pe-lock { position: absolute; right: 6px; top: 4px; font-size: 12px; font-style: normal; }
 .pe-cap { position: absolute; left: 6px; top: 4px; padding: 1px 6px; border-radius: 99px; font: 800 10.5px 'Manrope', sans-serif; font-style: normal; color: var(--ink); background: color-mix(in srgb, var(--acc) 25%, rgba(0, 0, 0, .5)); }
-.pe-capline { color: var(--muted); font-weight: 700; }
-.pe-detail { margin-top: 14px; display: grid; gap: 6px; border-color: color-mix(in srgb, var(--rc, var(--acc)) 45%, transparent); animation: pe-in .25s ease-out; }
-.pe-detail header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.pe-dslot { font: 800 12px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-.pe-lk { width: 16px; height: 16px; }
-.pe-txt { margin: 0; font: 500 13.5px/1.55 'Manrope', sans-serif; }
-.pe-txt b { color: var(--muted); font-weight: 800; }
-.muted { color: var(--muted); }
-.grow { flex: 1; }
-@keyframes pe-in { from { opacity: 0; transform: translateY(8px); } }
 @media (max-width: 560px) { .pe-img, .pe-img img { width: 48px; height: 48px; } }
 </style>

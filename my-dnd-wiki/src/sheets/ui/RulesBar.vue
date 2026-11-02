@@ -10,14 +10,16 @@
           <option v-for="r in rulesState.races" :key="r.id" :value="r.name">{{ r.name }}</option>
         </select>
       </label>
-      <label class="rb-f" :class="{ miss: !cls }">
+      <!-- у кованых класса нет (вместо него платформа — на главной) -->
+      <span v-if="forged" class="rb-plat">⚙ Платформа: {{ d.Class || 'не выбрана' }}</span>
+      <label v-else class="rb-f" :class="{ miss: !cls }">
         <span>Класс</span>
         <select :value="cls?.name || ''" :disabled="ro" @change="edit('RulesClass', $event.target.value, { now: true }); edit('RulesArch', '', { now: true })">
           <option value="">{{ d.Class ? `не нашёлся «${d.Class}»` : '— выбрать —' }}</option>
           <option v-for="k in rulesState.classes" :key="k.id" :value="k.name">{{ k.name }}</option>
         </select>
       </label>
-      <label v-if="cls?.archetypes.length" class="rb-f" :class="{ miss: !arch && d.Level >= 3 }">
+      <label v-if="!forged && cls?.archetypes.length" class="rb-f" :class="{ miss: !arch && d.Level >= 3 }">
         <span>Архетип</span>
         <select :value="arch?.name || ''" :disabled="ro" @change="edit('RulesArch', $event.target.value, { now: true })">
           <option value="">{{ d.Subclass ? `не нашёлся «${d.Subclass}»` : '— выбрать —' }}</option>
@@ -26,7 +28,7 @@
       </label>
       <span class="grow" />
       <router-link v-if="race" class="rb-link" :to="{ path: '/wiki', query: { race: race.id } }">раса в вики →</router-link>
-      <router-link v-if="cls" class="rb-link" :to="{ path: '/wiki', query: { cls: cls.id, arch: arch?.name } }">класс в вики →</router-link>
+      <router-link v-if="cls && !forged" class="rb-link" :to="{ path: '/wiki', query: { cls: cls.id, arch: arch?.name } }">класс в вики →</router-link>
     </div>
     <p class="rb-hint">Навыки расы, класса и архетипа на {{ d.Level || 0 }} уровне добавляются сами; удалённый вручную не вернётся.</p>
 
@@ -60,12 +62,14 @@
 import { computed, inject, ref } from 'vue'
 import { rulesState } from '../../map/store.js'
 import { sheet, edit } from '../sheetState.js'
+import { isForged } from '../../shared/forged.js'
 import { findRace, findClass, findArch, pendingChoices, htmlToText, choicesAt, joinChoices, pickOf, normName, profOf, profsAt, profLevels } from '../../shared/rules.js'
 import { SKILLS } from '../../shared/sheet.js'
 import { sfx } from '../../sound/sound.js'
 
 const ro = inject('sheetReadOnly', ref(false))
 const d = computed(() => sheet.data)
+const forged = computed(() => isForged(d.value))
 const race = computed(() => findRace(rulesState.races, d.value))
 const cls = computed(() => findClass(rulesState.classes, d.value))
 const arch = computed(() => findArch(cls.value, d.value))
@@ -102,6 +106,7 @@ function setProf(l, i, key) {
 </script>
 
 <style scoped>
+.rb-plat { color: #2fd6c3; font: 700 12.5px 'Manrope', sans-serif; }
 .rb { display: grid; gap: 8px; margin-bottom: 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--acc) 6%, rgba(0, 0, 0, .2)); border: 1px solid var(--line); }
 .rb-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .rb-h { font: 800 12px 'Manrope', sans-serif; letter-spacing: .06em; color: color-mix(in srgb, var(--acc) 60%, #fff3d6); }

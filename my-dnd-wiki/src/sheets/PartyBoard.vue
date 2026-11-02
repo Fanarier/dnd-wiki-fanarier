@@ -34,7 +34,7 @@
         <EffectChips class="pb-fx" compact :editable="s.canEdit" :model-value="s.fx" @update:model-value="setFx(s, $event)" />
 
         <div class="pb-pools">
-          <span v-if="s.mana" class="mana">✦ Мана {{ s.mana }}</span>
+          <span v-if="s.mana" class="mana" :class="{ energy: s.energy }">{{ s.energy ? '🔋 Энергия' : '✦ Мана' }} {{ s.mana }}</span>
           <span v-if="s.stamina" class="sta">⚡ Выносл. {{ s.stamina }}</span>
           <span v-if="s.superHits && s.superHits !== '0'" class="sup">💠 {{ s.superHits }}</span>
           <span v-if="s.exhaustion" class="exh">Изнурение {{ s.exhaustion }}</span>
@@ -181,6 +181,7 @@ function setRes(s, ri, v) {
 .pb-pools { display: flex; flex-wrap: wrap; gap: 5px; }
 .pb-pools > span { padding: 2px 8px; border-radius: 99px; background: rgba(0, 0, 0, .3); font: 700 11.5px 'Manrope', sans-serif; color: #d9c9a6; }
 .pb-pools .mana { color: #9fb4ff; }
+.pb-pools .mana.energy { color: #2fd6c3; }
 .pb-pools .sta { color: #ffd166; }
 .pb-pools .exh { color: #ff9b8f; }
 .pb-pools .ds { display: inline-flex; align-items: center; gap: 3px; }

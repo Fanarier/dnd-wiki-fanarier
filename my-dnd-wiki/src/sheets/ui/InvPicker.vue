@@ -22,14 +22,14 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { sheet, sheetImg } from '../sheetState.js'
-import { EQUIP_SLOTS, rarityOf } from '../../shared/sheet.js'
+import { ALL_SLOTS, rarityOf } from '../../shared/sheet.js'
 import { fitsSlot } from '../../shared/items.js'
 
 const props = defineProps({ slot: { type: String, required: true }, occupied: Boolean })
 const emit = defineEmits(['pick'])
 const q = ref('')
 const all = ref(false)
-const slotName = computed(() => EQUIP_SLOTS.find(s => s.key === props.slot)?.name || '')
+const slotName = computed(() => ALL_SLOTS.find(s => s.key === props.slot)?.name || '')
 const items = computed(() => (sheet.data?.Inventory || []).map((it, i) => ({ it, i, fits: fitsSlot(it, props.slot) })))
 const plain = s => String(s || '').toLowerCase().replace(/ё/g, 'е')
 // подходящие — первыми; по поиску — все; без поиска — подходящие (или все, если подходящих нет / попросили)

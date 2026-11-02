@@ -2,6 +2,7 @@
 // Данные хранятся в формате файлов приложения (те же имена полей), чтобы старые .json импортировались как есть.
 // Отличия от приложения: картинки лежат файлами на сервере (PhotoFile / ImageFile вместо base64),
 // плюс поля сайта — Accent (цвет листа) и SlotLocks (замки слотов экипировки).
+import { MODULE_SLOTS, MAX_MINI, MAX_BAYS } from './forged.js'
 
 /* ---------- схема: из чего состоит лист ---------- */
 const S = n => ({ t: 's', n }) // строка до n символов
@@ -68,6 +69,8 @@ export const EQUIP_SLOTS = [
   { key: 'BackpackItem', name: 'Рюкзак', icon: '🎒' },
   { key: 'PackItem', name: 'Поклажа', icon: '🐎' }
 ]
+// все слоты листа: снаряжение и слоты модулей кованых (src/shared/forged.js)
+export const ALL_SLOTS = [...EQUIP_SLOTS, ...MODULE_SLOTS]
 // редкость: цвет текста и плашки (как в приложении, тёмная тема); в файлах встречается и «Эпическое/Эпические»
 export const RARITIES = [
   { name: 'Обычный', color: '#C8C8D0', bg: '#555560' },
@@ -140,7 +143,7 @@ const main = {
   HumanoidTraits: A(TRAIT, 5),
   Proficiencies: A(O({ TypeIndex: I(0, 1), Description: S(400), Rating: I(0, 3) }), 120),
   // поля сайта: Stored — на личном складе, Pack — во вьюке (поклажа), Pocket — в кармане пояса №1–8, Card — карточка уникального
-  Inventory: A(O({ ImageFile: IMG, Name: S(160), Description: S(8000), Rarity: S(40), Quantity: I(0, 1e6), Notes: S(4000), Equipped: B, Stored: B, Pack: B, Pocket: I(0, 8), Card: CARD }), 600),
+  Inventory: A(O({ ImageFile: IMG, Name: S(160), Description: S(8000), Rarity: S(40), Quantity: I(0, 1e6), Notes: S(4000), Equipped: B, Stored: B, Pack: B, Pocket: I(0, MAX_BAYS), Card: CARD }), 600),
   GoldCoins: I(0, 2e9), SilverCoins: I(0, 2e9), CopperCoins: I(0, 2e9),
   // связь с правилами вики (поля сайта): раса, класс и архетип из вики (пусто — узнаются по полям «Раса», «Класс», «Подкласс»),
   // выбранные расовые навыки по уровням и какие навыки из вики уже добавлялись (удалённый вручную не вернётся)
@@ -150,10 +153,13 @@ const main = {
   WikiAdded: M(B, 800),
   FieldColors: M(COLOR, 400),
   Accent: COLOR,
-  SlotLocks: M(B, 20)
+  SlotLocks: M(B, 60),
+  // кованые: мини-модули (название, эффект, иконка — значок или картинка) и дополнительные отсеки сверх платформы
+  MiniModules: A(O({ Id: S(40), Name: S(120), Effect: S(4000), Icon: S(16), ImageFile: IMG }), MAX_MINI),
+  ExtraBays: I(0, MAX_BAYS)
 }
 for (let i = 1; i <= 4; i++) { main[`CustomField${i}Label`] = S(60); main[`CustomField${i}Value`] = S(200) }
-for (const s of EQUIP_SLOTS) main[s.key] = ITEM
+for (const s of ALL_SLOTS) main[s.key] = ITEM
 export const SCHEMA = O(main)
 
 /* ---------- очистка значения по схеме ---------- */
@@ -305,7 +311,7 @@ const LABELS = {
   MindDev: 'Разум', SpiritDev: 'Дух', Awakening: 'Пробуждение', Buff: 'Бафф', Debuff: 'Дебафф', Stats: 'Характеристики',
   Skills: 'Активные навыки', PassiveSkills: 'Пассивные навыки', Attacks: 'Атаки', CustomSheets: 'Свои листы',
   JournalEntries: 'Журнал', Trainings: 'Тренировки', HpData: 'Хиты (трекер)', Resources: 'Ресурсы', Trait4: 'Черта 4 ур.', Trait9: 'Черта 9 ур.',
-  Trait18: 'Черта 18 ур.', HumanoidTraits: 'Черты гуманоидов', Proficiencies: 'Владения', Inventory: 'Инвентарь',
+  Trait18: 'Черта 18 ур.', HumanoidTraits: 'Черты гуманоидов', MiniModules: 'Мини-модули', ExtraBays: 'Доп. отсеки', Effect: 'Эффект', Icon: 'Значок', Proficiencies: 'Владения', Inventory: 'Инвентарь',
   GoldCoins: 'Золото', SilverCoins: 'Серебро', CopperCoins: 'Медь', FieldColors: 'Цвет поля', Accent: 'Цвет листа', SlotLocks: 'Замок слота',
   Current: 'текущие', Max: 'максимум', Temp: 'временные', Name: 'название', Description: 'описание', SkillName: 'название',
   IsAcquired: 'получена', Stored: 'на складе', Pack: 'во вьюке', Pocket: 'карман', Card: 'карточка предмета', Type1: 'тип основной',
@@ -324,7 +330,7 @@ const VALUE_WORDS = { planned: 'запланировано', active: 'в про�
 for (const a of ATTRS) { LABELS[a.key + 'Base'] = a.name; LABELS[a.key + 'SaveProf'] = `Спасбросок: ${a.name}` }
 for (const s of SKILLS) { LABELS[s.key + 'T'] = `${s.name}: тренировка`; LABELS[s.key + 'P'] = `${s.name}: владение` }
 for (let i = 1; i <= 4; i++) { LABELS[`CustomField${i}Label`] = `Своё поле ${i}: название`; LABELS[`CustomField${i}Value`] = `Своё поле ${i}` }
-for (const s of EQUIP_SLOTS) LABELS[s.key] = `Слот «${s.name}»`
+for (const s of ALL_SLOTS) LABELS[s.key] = `Слот «${s.name}»`
 export function pathLabel(path, data) {
   const parts = String(path).split('.')
   const out = []

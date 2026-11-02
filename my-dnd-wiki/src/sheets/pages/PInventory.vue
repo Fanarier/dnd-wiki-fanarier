@@ -18,6 +18,16 @@
       <button type="button" role="tab" :class="{ on: tab === 'store' }" :aria-selected="tab === 'store'" @click="tab = 'store'">🏛 Склад <small>{{ st.store.length }}</small></button>
     </div>
 
+    <!-- кованый: рюкзак и поклажа — здесь (снаряжения у него нет, только модули) -->
+    <div v-if="forged" class="pi-keep sb-anim">
+      <button v-for="s in KEEP" :key="s.key" type="button" class="pi-ks" :class="{ filled: !!sheet.data[s.key], on: slotSel === s.key }" :data-find="s.key" @click="slotSel = slotSel === s.key ? '' : s.key">
+        <span class="pi-ks-img"><img v-if="sheet.data[s.key]?.ImageFile" :src="sheetImg(sheet.data[s.key].ImageFile)" alt="" /><span v-else>{{ s.icon }}</span></span>
+        <span class="pi-ks-t"><small>{{ s.name }}</small><b>{{ sheet.data[s.key]?.Name || 'пусто' }}</b></span>
+        <i v-if="capLabel(s.key)" class="pi-ks-cap">{{ capLabel(s.key).short }}</i>
+      </button>
+    </div>
+    <SlotDetail v-if="forged && slotSel" :key="slotSel" :slot="slotSel" :cap="capLabel(slotSel)" :hint="KEEP_HINT[slotSel]" class="pi-kd" />
+
     <!-- сколько места: ячейки сумки (база + рюкзак) или вьюка; стопка одинаковых — одна ячейка -->
     <div v-if="tab !== 'store'" class="pi-cap sb-anim" :class="{ over: capOver }" data-find="cells">
       <div class="pi-cap-h">
@@ -33,7 +43,9 @@
 
     <!-- карманы пояса: быстрый доступ в бою; вещь в кармане не занимает ячейку -->
     <div v-if="tab === 'carry'" class="pi-pockets sb-anim" data-find="pockets">
-      <div class="pi-cap-h"><b>👝 Карманы</b><small class="pi-cap-src">{{ pocketNote }}</small></div>
+      <div class="pi-cap-h"><b>{{ forged ? '🗄 Отсеки' : '👝 Карманы' }}</b><small class="pi-cap-src">{{ pocketNote }}</small>
+        <span v-if="forged" class="pi-bays" title="Отсеки сверх платформы: мини-модули, модуль «Отсеки» (+2)">+ доп. <Fld path="ExtraBays" type="num" center /></span>
+      </div>
       <div v-if="st.pockets" class="pi-pk-row">
         <div v-for="n in st.pockets" :key="n" class="pi-pk" :class="{ full: st.pocketAt[n] != null }" :style="pkRar(n)">
           <template v-if="st.pocketAt[n] != null">
@@ -110,7 +122,7 @@
           <div class="pi-menu-sl">
             <button v-for="s in slotsFor(it)" :key="s.key" type="button" :class="{ busy: !!sheet.data[s.key] }" :disabled="!!sheet.data.SlotLocks?.[s.key]"
                     :title="sheet.data.SlotLocks?.[s.key] ? 'Слот заперт' : sheet.data[s.key] ? `занят: ${sheet.data[s.key].Name} (уйдёт в инвентарь)` : 'свободен'" @click="wear(it, s.key)">{{ s.icon }} {{ s.name }}</button>
-            <button v-if="!allSlots && slotsFor(it).length < EQUIP_SLOTS.length" type="button" class="more" @click="allSlots = true">другой слот…</button>
+            <button v-if="!allSlots && slotsFor(it).length < mySlots.length" type="button" class="more" @click="allSlots = true">другой слот…</button>
           </div>
           <button type="button" class="give" @click="give = idx(it); menuFor = null">🤝 Передать герою…</button>
         </div>
@@ -136,7 +148,10 @@ import ItemEditor from '../ui/ItemEditor.vue'
 import GiveDialog from '../ui/GiveDialog.vue'
 import HeroGalleryViewer from '../../wiki/HeroGalleryViewer.vue'
 import { sheet, edit, keyOf, listOps, sheetImg } from '../sheetState.js'
-import { RARITIES, rarityOf, EQUIP_SLOTS } from '../../shared/sheet.js'
+import { RARITIES, rarityOf, EQUIP_SLOTS, ALL_SLOTS } from '../../shared/sheet.js'
+import { isForged, moduleSlotsOf, FORGED_KEEP } from '../../shared/forged.js'
+import SlotDetail from '../ui/SlotDetail.vue'
+import { capLabel } from '../ui/slotCap.js'
 import { equipFromInv } from '../equipMove.js'
 import { carryState, placeOf, cardFilled, cardText, fitsSlot, DEFAULT_BASE_CELLS } from '../../shared/items.js'
 import { rulesState } from '../../map/store.js'
@@ -168,6 +183,11 @@ watch(() => COINS.map(c => sheet.data[c.p]), (n, o) => {
 const items = computed(() => sheet.data.Inventory)
 const ops = listOps('Inventory')
 const tab = ref('carry')
+// кованый: рюкзак и поклажа — на этой странице; вместо карманов пояса — отсеки
+const forged = computed(() => isForged(sheet.data))
+const KEEP = ALL_SLOTS.filter(s => FORGED_KEEP.includes(s.key))
+const KEEP_HINT = { BackpackItem: 'Рюкзак даёт ячейки сумки: напиши у него «Ячейки: 10».', PackItem: 'Поклажа — вьюк на транспорте, свои ячейки («Ячейки: 20»).' }
+const slotSel = ref('')
 // раскладка: ячейки сумки (база из вики + рюкзак), карманы пояса, вьюк поклажи
 const st = computed(() => carryState(sheet.data, rulesState.settings?.baseCells ?? DEFAULT_BASE_CELLS))
 // вкладка вещи: склад, вьюк или «при себе» (сумка, надетое, вещь из пропавшего кармана); в кармане — в ряду карманов, не в списке
@@ -192,11 +212,13 @@ const capOver = computed(() => Math.max(0, capUsed.value - capMax.value))
 const cellsShown = computed(() => Math.max(capMax.value, capUsed.value))
 const capSrc = computed(() => {
   const d = sheet.data
-  if (tab.value === 'pack') return d.PackItem ? `поклажа «${d.PackItem.Name || 'вьюк'}»${st.value.packCells ? '' : ' — напиши у неё «Ячейки: N» в снаряжении'}` : 'поклажи нет — надень её в «Снаряжении» (слот «Поклажа»)'
-  const back = d.BackpackItem ? `рюкзак «${d.BackpackItem.Name || 'рюкзак'}» +${st.value.backCells}${st.value.backCells ? '' : ' (напиши у него «Ячейки: N»)'}` : 'без рюкзака — надень его в «Снаряжении»'
+  const where = forged.value ? 'выше на этой странице' : 'в «Снаряжении»'
+  if (tab.value === 'pack') return d.PackItem ? `поклажа «${d.PackItem.Name || 'вьюк'}»${st.value.packCells ? '' : ` — напиши у неё «Ячейки: N» ${where}`}` : `поклажи нет — надень её ${where} (слот «Поклажа»)`
+  const back = d.BackpackItem ? `рюкзак «${d.BackpackItem.Name || 'рюкзак'}» +${st.value.backCells}${st.value.backCells ? '' : ' (напиши у него «Ячейки: N»)'}` : `без рюкзака — надень его ${where}`
   return `${st.value.baseCells} базовых · ${back} · надетое и карманы ячеек не занимают`
 })
 const pocketNote = computed(() => {
+  if (forged.value) return `быстрые слоты платформы · быстрый доступ в бою, ячеек не занимают`
   const b = sheet.data.BeltItem
   if (!b) return 'нет пояса — карманы даёт пояс (надень его в «Снаряжении»)'
   return st.value.pockets ? `пояс «${b.Name || 'пояс'}» · быстрый доступ в бою, ячеек не занимают` : `у пояса «${b.Name || 'пояс'}» не указаны карманы — напиши у него «Карманы: N» в «Снаряжении»`
@@ -262,9 +284,11 @@ function moveTo(it, place, n = 0) {
 // слоты для «Надеть»: подходящие вещи (по названию и типу); нет подходящих или попросили — все
 const allSlots = ref(false)
 watch(menuFor, () => { allSlots.value = false })
+// у кованого — слоты модулей платформы, рюкзак и поклажа
+const mySlots = computed(() => (forged.value ? [...moduleSlotsOf(sheet.data).flatMap(g => g.slots), ...KEEP] : EQUIP_SLOTS))
 function slotsFor(it) {
-  const fit = EQUIP_SLOTS.filter(s => fitsSlot(it, s.key))
-  return allSlots.value || !fit.length ? EQUIP_SLOTS : fit
+  const fit = mySlots.value.filter(s => fitsSlot(it, s.key))
+  return allSlots.value || !fit.length ? mySlots.value : fit
 }
 function wear(it, slot) {
   const i = idx(it)
@@ -311,6 +335,19 @@ function del(i, fromEditor) {
 .pi-move { color: var(--ink); font-weight: 800; }
 .pi-warn { display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; border-radius: 50%; background: #d9534f; color: #fff; font: 900 10px 'Manrope', sans-serif; font-style: normal; vertical-align: 1px; }
 /* место: ячейки сумки и вьюка */
+.pi-keep { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 8px; margin-bottom: 10px; }
+.pi-ks { position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; border: 1px dashed var(--line); background: rgba(0, 0, 0, .2); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s; }
+.pi-ks.filled { border-style: solid; border-color: color-mix(in srgb, var(--acc) 40%, transparent); }
+.pi-ks.on { box-shadow: 0 0 0 2px var(--acc); }
+.pi-ks-img { display: grid; place-items: center; flex: none; width: 40px; height: 40px; font-size: 22px; }
+.pi-ks-img img { width: 40px; height: 40px; object-fit: contain; }
+.pi-ks-t { display: grid; min-width: 0; }
+.pi-ks-t small { color: var(--muted); font: 800 10.5px 'Manrope', sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.pi-ks-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13.5px 'Manrope', sans-serif; }
+.pi-ks-cap { margin-left: auto; padding: 1px 7px; border-radius: 99px; font: 800 11px 'Manrope', sans-serif; font-style: normal; background: color-mix(in srgb, var(--acc) 20%, rgba(0, 0, 0, .4)); }
+.pi-kd { margin: 0 0 10px; }
+.pi-bays { display: flex; align-items: center; gap: 4px; margin-left: auto; color: var(--muted); font: 700 11.5px 'Manrope', sans-serif; }
+.pi-bays :deep(.fld) { width: 52px; }
 .pi-cap, .pi-pockets { display: grid; gap: 7px; margin-bottom: 10px; padding: 9px 11px; border-radius: 12px; background: rgba(0, 0, 0, .2); border: 1px solid var(--line); }
 .pi-cap.over { border-color: rgba(217, 83, 79, .6); box-shadow: inset 0 0 18px rgba(217, 83, 79, .12); }
 .pi-cap-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font: 700 13px 'Manrope', sans-serif; }

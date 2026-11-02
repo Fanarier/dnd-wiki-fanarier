@@ -138,7 +138,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, reactive, ref, shallowReactive, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import gsap from 'gsap'
 import UserMenu from '../components/UserMenu.vue'
@@ -150,7 +150,10 @@ import BookFx from './ui/BookFx.vue'
 import { sfx } from '../sound/sound.js'
 import { dice } from '../map/store.js'
 import { natural } from '../shared/dice.js'
-import { hpMax } from '../shared/sheet.js'
+import { hpMax, EQUIP_SLOTS } from '../shared/sheet.js'
+import { isForged, FORGED_KEEP } from '../shared/forged.js'
+import { slotToInv } from '../shared/items.js'
+import { edit as editSheet, val as valSheet } from './sheetState.js'
 import { openColorMenu } from './ui/colorMenu.js'
 import ColorMenu from './ui/ColorMenu.vue'
 import SheetIcon from './ui/SheetIcon.vue'
@@ -188,7 +191,10 @@ const SECTIONS = [
   { key: 'res', name: 'Ресурсы', icon: '❤', comp: PResources },
   { key: 'journal', name: 'Журнал', icon: '📝', comp: PJournal },
   { key: 'custom', name: 'Свои листы', icon: '📋', comp: PCustom, mini: 'Свои' }
-]
+].map(s => shallowReactive(s))
+// у кованых закладки другие: вместо тренировок — модернизация, вместо снаряжения — модули (src/shared/forged.js)
+const FORGED_NAMES = { train: { name: 'Модернизация', tab: 'Модернизация', icon: '🔧', mini: 'Модерн.' }, equip: { name: 'Модули', icon: '⚙', mini: 'Модули' } }
+const BASE_NAMES = Object.fromEntries(SECTIONS.map(s => [s.key, { name: s.name, tab: s.tab, icon: s.icon, mini: s.mini }]))
 // цвета шёлковых закладок
 const SILK = ['#8e2f3a', '#2f5a8e', '#6d3f9a', '#2f7a64', '#a0662a', '#8a2f68', '#4f6e2a', '#7a5a9e', '#a0822a', '#b2433a', '#3f528a', '#6a4632', '#2f6a7a']
 // пылинки: место, размер, скорость — случайные, но постоянные
@@ -203,7 +209,7 @@ const ready = computed(() => sheet.status !== 'loading' && sheet.status !== 'idl
 const isMaster = computed(() => store.role === 'master')
 const subtitle = computed(() => {
   const d = sheet.data, m = sheet.meta
-  return [d.Race, d.Class && (d.Subclass ? `${d.Class} (${d.Subclass})` : d.Class), d.Level ? `${d.Level} уровень` : '', isMaster.value ? (m.ownerName || 'без игрока') : ''].filter(Boolean).join(' · ')
+  return [d.Race, d.Class && (d.Subclass && !isForged(d) ? `${d.Class} (${d.Subclass})` : d.Class), d.Level ? `${d.Level} уровень` : '', isMaster.value ? (m.ownerName || 'без игрока') : ''].filter(Boolean).join(' · ')
 })
 const themeVars = computed(() => {
   const acc = sheet.data?.Accent || '#C9A24F'
@@ -213,6 +219,17 @@ const themeVars = computed(() => {
 const canEdit = computed(() => sheet.meta?.canEdit !== false)
 const readOnly = computed(() => !!sheet.meta?.deletedAt || !canEdit.value)
 provide('sheetReadOnly', readOnly)
+const forged = computed(() => !!sheet.data && isForged(sheet.data))
+watch(forged, f => { for (const s of SECTIONS) Object.assign(s, BASE_NAMES[s.key], (f && FORGED_NAMES[s.key]) || {}) }, { immediate: true })
+// стал кованым (или открыли лист кованого) — вещи из слотов, которых у него нет, перекладываются в инвентарь
+watch(() => [ready.value, forged.value, readOnly.value], ([ok, f, ro]) => {
+  if (!ok || !f || ro) return
+  const stray = EQUIP_SLOTS.filter(s => !FORGED_KEEP.includes(s.key) && valSheet(s.key) && !valSheet(`SlotLocks.${s.key}`))
+  if (!stray.length) return
+  editSheet('Inventory', [...stray.map(s => slotToInv(valSheet(s.key))), ...(valSheet('Inventory') || [])])
+  stray.forEach((s, i) => editSheet(s.key, null, i === stray.length - 1 ? { now: true } : {}))
+  toast(`Кованый не носит снаряжение — в инвентарь переложено: ${stray.map(s => s.name).join(", ")}`)
+}, { immediate: true })
 const opening = ref(false)
 provide('bookOpening', opening)
 provide('openDelay', 1.3) // числа и паутина ждут, пока обложка откроется

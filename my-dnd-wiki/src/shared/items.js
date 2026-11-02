@@ -2,6 +2,8 @@
 // Сколько карманов и ячеек — пишется у самой вещи: строка характеристики «Карманы: 4» / «Ячейки: 12»
 // или просто в тексте статов («Карманы - 4 шт», «Слоты 0/4» — берётся число после косой черты).
 
+import { MODULE_SLOTS, isForged, baysOf } from './forged.js'
+
 // поля карточки: строки и списки (в редакторе список — «по строке на пункт»)
 export const CARD_TEXT = [
   { k: 'Type1', name: 'Тип основной' },
@@ -76,7 +78,8 @@ export function placeOf(it) {
 // раскладка: сколько ячеек сумки и вьюка, сколько карманов, что где лежит. Стопка одинаковых — одна ячейка
 export function carryState(d, baseCells = DEFAULT_BASE_CELLS) {
   const inv = d?.Inventory || []
-  const pockets = Math.min(MAX_POCKETS, capOf(d?.BeltItem, 'pockets'))
+  // у кованого вместо карманов пояса — отсеки платформы (src/shared/forged.js)
+  const pockets = isForged(d) ? baysOf(d) : Math.min(MAX_POCKETS, capOf(d?.BeltItem, 'pockets'))
   const backCells = capOf(d?.BackpackItem, 'cells')
   const packCells = capOf(d?.PackItem, 'cells')
   const by = { bag: [], pack: [], pocket: [], store: [], worn: [] }
@@ -111,7 +114,10 @@ const SLOT_RE = {
   PackItem: /вьюк|поклаж|седельн|повозк|телег/
 }
 SLOT_RE.Weapon2Item = SLOT_RE.Weapon1Item
-export const fitsSlot = (it, slot) => !!it && !!SLOT_RE[slot]?.test([it.Name, it.Card?.Type1, it.Card?.Type2, it.Card?.Kind].filter(Boolean).join(' ').toLowerCase())
+// модули кованых: в описании «занимает слот (Защита)» / «(Общий)» / «(Вооружение)»
+const MOD_RE = { weap: /слот\W*вооруж|модул.*(пушк|турел|оруж)/, def: /слот\W*защит|модул.*(брон|щит|демпф)/, gen: /слот\W*общ|модул/ }
+for (const s of MODULE_SLOTS) SLOT_RE[s.key] = MOD_RE[s.kind]
+export const fitsSlot = (it, slot) => !!it && !!SLOT_RE[slot]?.test([it.Name, it.Card?.Type1, it.Card?.Type2, it.Card?.Kind, /^Mod/.test(slot) ? plain(it.Description) : ''].filter(Boolean).join(' ').toLowerCase())
 
 // вещь из инвентаря → в слот снаряжения: обратное slotToInv — «Статы:» и «Эффекты:» из описания снова в свои поля,
 // остальное описание и заметки — в эффекты
