@@ -328,6 +328,30 @@ export function registerActivityRoutes(app, { requireUser, requireMaster, getDb,
     res.json({ ok: true })
   })
 
+  // перенести сессию на другую дату: все записи героя с этой датой (мастер — можно сразу у всех героев).
+  // Игрок — только если в сессии одни черновики и «на проверке», и ни одна из дат не закрыта мастером
+  app.post('/api/activities-date/:hero', requireUser, (req, res) => {
+    const h = heroOf(req.params.hero)
+    if (!h) return fail(res, 404, 'Нет такого героя')
+    if (!canWrite(req.user, h)) return fail(res, 403, 'Это не твой герой')
+    const master = req.user.role === 'master'
+    const from = String(req.body?.from || ''), to = String(req.body?.to || '')
+    if (!DATE_RE.test(from) || !DATE_RE.test(to)) return fail(res, 400, 'Неверная дата')
+    if (from === to) return fail(res, 400, 'Дата та же')
+    const ids = master && req.body?.all ? Object.keys(store.logs) : [h.id]
+    const moving = ids.flatMap(id => (store.logs[id] || []).filter(r => r.date === from).map(r => [id, r]))
+    if (!moving.length) return fail(res, 404, 'В этой сессии нет записей')
+    if (!master) {
+      if (store.lock.until && (from <= store.lock.until || to <= store.lock.until)) return fail(res, 403, `Период до ${store.lock.until.split('-').reverse().join('.')} закрыт мастером`)
+      if (moving.some(([, r]) => !PLAYER_STATUS.includes(r.status))) return fail(res, 403, 'В сессии есть проверенные записи — перенести её может мастер')
+      if (moving.some(([, r]) => r.coin) && (store.logs[h.id] || []).some(r => r.date === to && r.coin)) return fail(res, 400, 'Монетку бросали в обеих сессиях — перенести может мастер')
+    }
+    const note = `дата ${from.split('-').reverse().join('.')} → ${to.split('-').reverse().join('.')} (перенос сессии)`
+    for (const [, r] of moving) { r.date = to; hist(r, req.user.name, note) }
+    changed()
+    res.json({ moved: moving.length, heroes: new Set(moving.map(([id]) => id)).size })
+  })
+
   app.put('/api/activities/:hero/:id', requireUser, (req, res) => {
     const [h, rec] = findRec(req, res)
     if (!h) return

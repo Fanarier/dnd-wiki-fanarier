@@ -72,13 +72,13 @@ const items = computed(() => {
   for (const k of rulesState.classes) add('Классы', { key: k.id, title: k.name, sub: k.archetypes.map(a => a.name).join(', '), icon: '🛡', to: { path: '/wiki', query: { cls: k.id } } })
   const schools = new Map(rulesState.schools.map(s => [s.id, s]))
   for (const x of rulesState.spells) { const sc = schools.get(x.school); add('Заклинания', { key: x.id, title: x.name, sub: [sc?.name, x.circle ? (x.circle === 'Б' ? 'базовое' : x.circle + ' круг') : ''].filter(Boolean).join(' · '), icon: '✺', color: '#b9a6ff', to: { path: '/wiki', query: { section: sc?.page || 'utility' } } }) }
-  for (const e of rulesState.effects) add('Эффекты', { key: e.id, title: e.name, sub: KIND[e.kind]?.one + ' эффект', img: e.icon, to: { path: '/wiki', query: { section: 'effects' } } })
+  for (const e of rulesState.effects) add('Эффекты', { key: e.id, title: e.name, sub: KIND[e.kind]?.one + ' эффект', img: e.icon, to: { path: '/wiki', query: { section: 'effects', fx: e.id } } })
   for (const a of rulesState.articles) add('Статьи правил', { key: a.id, title: a.title, icon: '📜', to: { path: '/wiki', query: { section: a.group === 'magic' ? 'general' : a.group, a: a.id } } })
   for (const n of npcState.npcs) { const a = n.arts?.[0]; add('НПС', { key: n.id, title: n.name, sub: n.home, img: a ? heroPortraitUrl(a.thumb || a.file) : '', icon: '🜲', to: { path: '/wiki', query: { npc: n.id } } }) }
   for (const h of store.data.heroes || []) { const c = heroCover(h); add('Герои', { key: h.id, title: h.name, sub: h.location, img: c ? heroPortraitUrl(c.thumb || c.file) : '', icon: '⚔', to: { path: '/wiki', query: { hero: h.id } } }) }
   for (const c of store.data.cities || []) add('Места', { key: c.id, title: c.name, sub: 'город на карте', icon: '🏰', to: { path: '/', query: { focus: 'cities:' + c.id } } })
   for (const s of store.data.settlements || []) add('Места', { key: s.id, title: s.name, sub: 'поселение', icon: '🏘', to: '/settlement/' + s.id })
-  for (const x of store.data.quests || []) add('Заказы гильдий', { key: x.id, title: x.type, sub: x.guild, icon: '📜', to: { path: '/wiki', query: { quest: x.id } } })
+  for (const x of store.data.quests || []) add('Заказы гильдий', { key: x.id, title: x.type, sub: x.guild, icon: '📜', to: { path: '/activity', query: { quest: x.id } } })
   // бестиарий — только открытые герою существа
   for (const b of beastState.beasts) if (!b.unknown) add('Бестиарий', { key: b.id, title: b.name, sub: [b.type, b.danger].filter(Boolean).join(' · '), icon: '🐉', to: { path: '/wiki', query: { section: 'bestiary', beast: b.id } } })
   // навыки из листов (свои и открытые)

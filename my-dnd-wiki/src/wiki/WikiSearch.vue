@@ -87,9 +87,9 @@ const docs = computed(() => {
       img: c ? heroPortraitUrl(c.thumb || c.file) : '', to: { path: '/wiki', query: { hero: h.id } } })
   }
   // квесты кампании и главы сюжета — на страницу «Квесты»
-  for (const q of store.data.campaign?.quests || []) d.push({ g: 'campaign', key: 'cq' + q.id, title: q.name, sub: [q.status, q.difficulty, q.region, q.location].filter(Boolean).join(' · '), text: [q.desc, q.source, q.taker].join(' '), to: { path: '/wiki', query: { section: 'campaign' } } })
-  for (const c of store.data.campaign?.chapters || []) d.push({ g: 'campaign', key: 'ch' + c.id, title: c.title, sub: ['сюжет', c.act, c.dateWorld].filter(Boolean).join(' · '), text: c.result, to: { path: '/wiki', query: { section: 'campaign' } } })
-  for (const q of store.data.quests || []) d.push({ g: 'quests', key: 'q' + q.id, title: q.type, sub: [q.guild, q.rank, q.status === 'open' ? 'открыт' : ''].filter(Boolean).join(' · '), text: [strip(q.description), q.reward, ...(q.tasks || []).map(t => t.text || t)].join(' '), to: { path: '/wiki', query: { quest: q.id } } })
+  for (const q of store.data.campaign?.quests || []) d.push({ g: 'campaign', key: 'cq' + q.id, title: q.name, sub: [q.status, q.difficulty, q.region, q.location].filter(Boolean).join(' · '), text: [q.desc, q.source, q.taker].join(' '), to: { path: '/activity', query: { section: 'campaign', cq: q.id } } })
+  for (const c of store.data.campaign?.chapters || []) d.push({ g: 'campaign', key: 'ch' + c.id, title: c.title, sub: ['сюжет', c.act, c.dateWorld].filter(Boolean).join(' · '), text: c.result, to: { path: '/activity', query: { section: 'campaign' } } })
+  for (const q of store.data.quests || []) d.push({ g: 'quests', key: 'q' + q.id, title: q.type, sub: [q.guild, q.rank, q.status === 'open' ? 'открыт' : ''].filter(Boolean).join(' · '), text: [strip(q.description), q.reward, ...(q.tasks || []).map(t => t.text || t)].join(' '), to: { path: '/activity', query: { quest: q.id } } })
   // правила: расы, классы, их навыки и статьи (механики, рабочие места, деятельности)
   const GROUP_SEC = { mechanics: 'Механики', workplaces: 'Рабочие места', activities: 'Деятельности', races: 'Расы', classes: 'Классы', magic: 'Магия' }
   const SECTION_OF = { magic: 'general' } // статьи магии — в разделе «Общее»
@@ -111,7 +111,7 @@ const docs = computed(() => {
     const sc = schools.get(x.school)
     d.push({ g: 'spells', key: 'sp' + x.id, title: x.name, sub: [sc?.name, x.circle === 'Б' ? 'базовое' : x.circle ? x.circle + ' круг' : '', x.cost, x.cd].filter(Boolean).join(' · '), text: strip(x.html), to: { path: '/wiki', query: { section: sc?.page || 'utility' } } })
   }
-  for (const e of rulesState.effects) d.push({ g: 'effects', key: 'fx' + e.id, title: e.name, sub: [EFFECT_KINDS.find(k => k.id === e.kind)?.one + ' эффект', e.tag].filter(Boolean).join(' · '), text: strip(e.html), img: e.icon, to: { path: '/wiki', query: { section: 'effects' } } })
+  for (const e of rulesState.effects) d.push({ g: 'effects', key: 'fx' + e.id, title: e.name, sub: [EFFECT_KINDS.find(k => k.id === e.kind)?.one + ' эффект', e.tag].filter(Boolean).join(' · '), text: strip(e.html), img: e.icon, to: { path: '/wiki', query: { section: 'effects', fx: e.id } } })
   for (const s of store.data.settlements || []) d.push({ g: 'places', key: 'st' + s.id, title: s.name, sub: 'поселение', text: '', to: { path: '/settlement/' + s.id } })
   for (const c of store.data.cities || []) d.push({ g: 'places', key: 'c' + c.id, title: c.name, sub: 'на карте мира', text: strip(c.description), to: { path: '/', query: { focus: 'cities:' + c.id } } })
   return d

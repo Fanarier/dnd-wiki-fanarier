@@ -41,7 +41,7 @@
               <button type="button" class="fx-btn primary" :disabled="busy" @click="save">Сохранить</button>
             </div>
           </article>
-          <article v-else v-tilt="4" class="fx-card" :class="[e.kind, { hid: e.hidden }]" :style="{ '--i': Math.min(i, 24) }">
+          <article v-else v-tilt="4" class="fx-card" :data-fx="e.id" :class="[e.kind, { hid: e.hidden, flash: flash === e.id }]" :style="{ '--i': Math.min(i, 24) }">
             <span class="fx-icon" :class="e.kind"><img v-if="e.icon" :src="e.icon" alt="" loading="lazy" /><span v-else>{{ e.name[0] }}</span></span>
             <div class="fx-body">
               <h3>{{ e.name }}<small v-if="e.tag">{{ e.tag }}</small><em v-if="e.hidden">скрыт</em></h3>
@@ -58,7 +58,8 @@
 
 <script setup>
 import RuneLoader from '../../components/fx/RuneLoader.vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { store, rulesState, loadRules, api, toast, wikiUser, postBlob } from '../../map/store.js'
 import { canEditRule, canManageRule } from '../../shared/wikiPerms.js'
 import { EFFECT_KINDS } from '../../shared/rules.js'
@@ -80,6 +81,21 @@ const shown = computed(() => {
   const t = norm(q.value.trim())
   return all.value.filter(e => (t ? norm(e.name + ' ' + e.tag).includes(t) || norm(e.html.replace(/<[^>]+>/g, ' ')).includes(t) : e.kind === kind.value))
 })
+// пришли по ссылке на эффект (?fx=id) — его вкладка, прокрутка к нему и подсветка
+const route = useRoute()
+const flash = ref('')
+let flashT = 0
+watch(() => [route.query.fx, rulesState.loaded], async ([id]) => {
+  const e = id && all.value.find(x => x.id === id)
+  if (!e) return
+  q.value = ''
+  kind.value = e.kind
+  await nextTick()
+  document.querySelector(`.fx-card[data-fx="${e.id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  flash.value = e.id
+  clearTimeout(flashT)
+  flashT = setTimeout(() => { flash.value = '' }, 3000)
+}, { immediate: true })
 const icons = computed(() => [...new Set(all.value.map(e => e.icon).filter(Boolean))])
 
 /* ---------- правка (src/shared/wikiPerms.js) ---------- */
@@ -136,6 +152,8 @@ async function upload(ev) {
 .fx-card.debuff { --fc: #ff6b5e; }
 .fx-card.special { --fc: #b9a6ff; }
 .fx-card.hid { border-style: dashed; opacity: .75; }
+.fx-card.flash { border-color: var(--fc); animation: fx-flash 1s ease-in-out 3; }
+@keyframes fx-flash { 50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--fc) 45%, transparent), 0 0 28px color-mix(in srgb, var(--fc) 50%, transparent); } }
 .fx-card.editing { grid-column: 1 / -1; display: grid; gap: 8px; animation: none; transform: none; }
 @keyframes fx-in { from { opacity: 0; transform: translateY(6px); } }
 .fx-icon { --fc: #7ed07a; display: grid; place-items: center; flex: none; width: 54px; height: 54px; border-radius: 12px; background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--fc) 30%, #1a140c), #0e0b07); border: 1px solid color-mix(in srgb, var(--fc) 55%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--fc) 25%, transparent); overflow: hidden; color: #fff; font: 800 20px 'Cormorant Garamond', serif; }

@@ -34,8 +34,8 @@
               <div v-for="f in diff" :key="f.k" class="rl-f">
                 <b>{{ f.label }}</b>
                 <div class="rl-cols">
-                  <div class="was"><small>было</small><p>{{ f.was || '—' }}</p></div>
-                  <div class="now"><small>стало</small><p>{{ f.now || '—' }}</p></div>
+                  <div class="was"><small>было</small><img v-if="f.pic && f.was" class="rl-pic" :src="f.was" alt="" /><p v-else>{{ f.was || '—' }}</p></div>
+                  <div class="now"><small>стало</small><img v-if="f.pic && f.now" class="rl-pic" :src="f.now" alt="" /><p v-else>{{ f.now || '—' }}</p></div>
                 </div>
               </div>
               <p v-if="!diff.length" class="rl-empty">Видимых отличий нет (порядок, служебные поля).</p>
@@ -56,6 +56,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { store, api, toast, loadRules } from '../../map/store.js'
 import { htmlToText } from '../../shared/rules.js'
+import { CARD_LISTS, liOf } from '../../shared/items.js'
 
 defineProps({ content: { type: Object, default: () => ({}) } })
 const LIST_NAMES = { articles: 'Статьи', races: 'Расы', classes: 'Классы', schools: 'Школы магии', spells: 'Заклинания', effects: 'Эффекты', items: 'Предметы' }
@@ -86,9 +87,19 @@ async function toggle(r) {
 // «было → стало» по полям, понятным человеку: текст без разметки; навыки и уровни — списком названий
 const LABELS = { title: 'Название', name: 'Название', html: 'Текст', intro: 'Вступление', outro: 'Текст после', about: 'Описание', hidden: 'Скрыто',
   circle: 'Круг', cost: 'Расход', cd: 'Перезарядка', school: 'Школа', kind: 'Вид', tag: 'Чей', icon: 'Иконка', group: 'Раздел', page: 'Страница',
-  base: 'Базовые навыки', levels: 'Уровни', skills: 'Навыки', archetypes: 'Архетипы' }
-const show = v => {
+  base: 'Базовые навыки', levels: 'Уровни', skills: 'Навыки', archetypes: 'Архетипы',
+  img: 'Картинка', rarity: 'Редкость', shared: 'Общий для группы', card: 'Карточка предмета' }
+const PICS = ['img', 'icon'] // картинки — показываем саму картинку, а не адрес
+// карточка предмета — построчно: типы, характеристики, списки с примечаниями и отметками
+const MARK_NAMES = { green: 'зелёный', yellow: 'жёлтый', red: 'красный', blue: 'синий', gone: 'зачёркнуто' }
+const cardLines = c => (!c ? '' : [
+  ['Тип', [c.Type1, c.Type2].filter(Boolean).join(' · ')], ['Настройка', c.Attune], ['Вид', c.Kind], ['Происхождение', c.Origin], ['Примечание', c.Note],
+  ...(c.Chars || []).map(x => [x.K, x.V + (x.N ? ` (${x.N})` : '') + (x.M ? ` [${MARK_NAMES[x.M] || x.M}]` : '')]),
+  ...CARD_LISTS.flatMap(l => (c[l.k] || []).map(liOf).map(e => [l.name, e.T + (e.N ? ` (${e.N})` : '') + (e.M ? ` [${MARK_NAMES[e.M] || e.M}]` : '')]))
+].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n'))
+const show = (v, k) => {
   if (v == null) return ''
+  if (k === 'card') return cardLines(v)
   if (typeof v === 'boolean') return v ? 'да' : 'нет'
   if (typeof v === 'string') return /<[a-z]/i.test(v) ? htmlToText(v) : v
   if (Array.isArray(v)) return v.map(x => (x && typeof x === 'object' ? [x.lv != null ? x.lv + ' ур.' : '', x.name || x.auto?.name || '', ...(x.options || []).map(o => o.name)].filter(Boolean).join(' ') : String(x))).join('\n')
@@ -97,7 +108,7 @@ const show = v => {
 const diff = computed(() => {
   const b = detail.value?.before || {}, a = detail.value?.after || {}
   const keys = [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(k => LABELS[k])
-  return keys.map(k => ({ k, label: LABELS[k], was: show(b[k]), now: show(a[k]), same: JSON.stringify(b[k]) === JSON.stringify(a[k]) }))
+  return keys.map(k => ({ k, label: LABELS[k], pic: PICS.includes(k), was: show(b[k], k), now: show(a[k], k), same: JSON.stringify(b[k] ?? '') === JSON.stringify(a[k] ?? '') }))
     .filter(f => !f.same)
 })
 
@@ -150,6 +161,7 @@ const ago = t => {
 .rl-cols > div { min-width: 0; padding: 8px 10px; border-radius: 10px; }
 .rl-cols small { color: #a8936c; font: 800 10px 'Manrope', sans-serif; text-transform: uppercase; }
 .rl-cols p { margin: 2px 0 0; max-height: 220px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: 500 12.5px/1.5 'Manrope', sans-serif; color: #e6dcc4; }
+.rl-pic { display: block; max-width: 100%; max-height: 180px; margin-top: 4px; border-radius: 8px; object-fit: contain; }
 .was { background: rgba(255, 107, 94, .07); border: 1px solid rgba(255, 107, 94, .2); }
 .now { background: rgba(126, 208, 122, .07); border: 1px solid rgba(126, 208, 122, .2); }
 .rl-acts { display: flex; align-items: center; gap: 8px; margin-top: 10px; }

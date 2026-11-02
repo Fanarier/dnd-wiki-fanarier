@@ -387,12 +387,13 @@ function notificationsFor(user) {
 }
 
 const RANK_ORDER = RANKS.map(r => r.key)
+// новый заказ — всем игрокам: доску видят и откликаются все, ранг этого не ограничивает (раньше слали только
+// тем, чей ранг в профиле не ниже ранга заказа, — бронза не узнавала о заказах серебра и выше). Ранг — в тексте
 function notifyNewQuest(q) {
   if (q.hidden || q.status !== 'available') return
+  const rank = RANKS.find(r => r.key === q.rank)?.label
   for (const p of allPlayers()) {
-    if (p.status === 'active' && RANK_ORDER.indexOf(p.rank) >= RANK_ORDER.indexOf(q.rank)) {
-      notify(p.id, 'newQuest', `Новый заказ на доске: «${q.type}» (${q.guild})`, { questId: q.id })
-    }
+    if (p.status === 'active') notify(p.id, 'newQuest', `Новый заказ на доске: «${q.type}» (${q.guild}${rank ? ', ранг ' + rank : ''})`, { questId: q.id })
   }
 }
 

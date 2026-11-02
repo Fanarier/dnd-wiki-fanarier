@@ -168,7 +168,7 @@ function openArticle(id) {
 
 // раздел — в адресе: обновил страницу или поделился ссылкой — открылось то же место.
 // Подробности чужих разделов (открытая раса, НПС, заказ, статья, журнал) при переходе убираем
-const DETAILS = { quests: ['quest'], campaign: ['cq'], bestiary: ['beast'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'] }
+const DETAILS = { quests: ['quest'], campaign: ['cq'], bestiary: ['beast'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'], effects: ['fx'] }
 const DETAIL_KEYS = [...new Set(Object.values(DETAILS).flat())]
 watch(currentCategory, c => {
   search.value = ''
@@ -201,7 +201,11 @@ onMounted(() => {
   if (main) { tableObs = new MutationObserver(labelTables); tableObs.observe(main, { childList: true, subtree: true }) }
 })
 onBeforeUnmount(() => tableObs?.disconnect())
-// ссылка с карты на заказ открывает доску заказов, на квест — страницу квестов
+// ссылка с карты на заказ открывает доску заказов, на квест — страницу квестов.
+// Заказы, квесты и прочее из «Активности» по старой ссылке в вики (/wiki?quest=…) — туда же, в «Активность»
+watch(() => route.query, qy => {
+  if (!isActivity.value && (qy.quest || qy.cq || ACTIVITY_SECTIONS.includes(qy.section))) router.replace({ path: '/activity', query: qy })
+}, { immediate: true })
 watch(() => route.query.quest, q => { if (q && isActivity.value) currentCategory.value = 'quests' }, { immediate: true })
 watch(() => route.query.cq, q => { if (q && isActivity.value) currentCategory.value = 'campaign' }, { immediate: true })
 // ссылки на карточку героя и на новые арты (из колокольчика, профиля)

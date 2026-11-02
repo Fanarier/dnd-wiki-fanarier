@@ -45,10 +45,15 @@
           <option value="">Все места</option>
           <option v-for="h in homes" :key="h" :value="h">{{ h }}</option>
         </select>
+        <select v-if="races.length > 1" v-model="race" class="np-sel" title="Раса (Кицунэ — и Инари, и Кумихо)">
+          <option value="">Все расы</option>
+          <option v-for="r in races" :key="r.name" :value="r.name">{{ r.name }} · {{ r.n }}</option>
+        </select>
         <select v-model="sort" class="np-sel" title="Порядок">
           <option value="order">По порядку</option>
           <option value="name">По имени</option>
           <option value="level">По уровню</option>
+          <option value="race">По расе</option>
         </select>
       </div>
       <div v-if="statuses.length" class="np-status">
@@ -126,6 +131,7 @@ const setGroup = g => router.replace({ query: { ...route.query, g: g === 'all' ?
 const q = ref('')
 const home = ref('')
 const sort = ref('order')
+const race = ref('')
 const status = ref([])
 const toggleStatus = t => { status.value = status.value.includes(t) ? status.value.filter(x => x !== t) : [...status.value, t] }
 
@@ -133,6 +139,15 @@ const visible = computed(() => npcState.npcs)
 const count = g => visible.value.filter(n => n.group === g).length
 const inGroup = computed(() => (group.value === 'all' ? visible.value : visible.value.filter(n => n.group === group.value)))
 const homes = computed(() => [...new Set(inGroup.value.map(n => n.home).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ru')))
+// раса: «Кицунэ (Инари)» и «Кицунэ (Кумихо)» — одна раса «Кицунэ» в фильтре
+const raceOf = n => infoOf(n, 'Раса').trim()
+const baseRace = n => raceOf(n).replace(/\s*\(.*$/, '').trim()
+const races = computed(() => {
+  const m = new Map()
+  for (const n of inGroup.value) { const r = baseRace(n); if (r) m.set(r, (m.get(r) || 0) + 1) }
+  return [...m].map(([name, n]) => ({ name, n })).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+})
+watch(races, rs => { if (race.value && !rs.some(r => r.name === race.value)) race.value = '' })
 const statuses = computed(() => {
   const m = new Map()
   for (const n of inGroup.value) if (n.status?.text) { const s = m.get(n.status.text) || { text: n.status.text, color: n.status.color, n: 0 }; s.n++; m.set(s.text, s) }
@@ -142,9 +157,10 @@ const hay = n => [n.name, n.home, n.status?.text, ...n.info.map(x => x.v), ...n.
 const gIndex = g => NPC_GROUPS.findIndex(x => x.key === g)
 const list = computed(() => {
   const words = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean)
-  const out = inGroup.value.filter(n => (!home.value || n.home === home.value) && (!status.value.length || status.value.includes(n.status?.text)) && words.every(w => hay(n).includes(w)))
+  const out = inGroup.value.filter(n => (!home.value || n.home === home.value) && (!race.value || baseRace(n) === race.value) && (!status.value.length || status.value.includes(n.status?.text)) && words.every(w => hay(n).includes(w)))
   const lvl = n => parseFloat(infoOf(n, 'Уровень')) || 0
-  const by = { order: (a, b) => gIndex(a.group) - gIndex(b.group) || (a.order || 0) - (b.order || 0), name: (a, b) => a.name.localeCompare(b.name, 'ru'), level: (a, b) => lvl(b) - lvl(a) || a.name.localeCompare(b.name, 'ru') }
+  const by = { order: (a, b) => gIndex(a.group) - gIndex(b.group) || (a.order || 0) - (b.order || 0), name: (a, b) => a.name.localeCompare(b.name, 'ru'), level: (a, b) => lvl(b) - lvl(a) || a.name.localeCompare(b.name, 'ru'),
+    race: (a, b) => (!raceOf(a) - !raceOf(b)) || raceOf(a).localeCompare(raceOf(b), 'ru') || a.name.localeCompare(b.name, 'ru') }
   return out.sort(by[sort.value])
 })
 
@@ -156,7 +172,7 @@ const prev = computed(() => (pos.value > 0 ? nav.value[pos.value - 1] : null))
 const next = computed(() => (pos.value >= 0 && pos.value < nav.value.length - 1 ? nav.value[pos.value + 1] : null))
 // куда уехать листу: вперёд по списку — влево, назад — вправо, из списка — всплыть
 const sheetAnim = ref('np-open')
-const dealKey = computed(() => [group.value, sort.value, home.value, status.value.join()].join('|'))
+const dealKey = computed(() => [group.value, sort.value, home.value, race.value, status.value.join()].join('|'))
 function go(n) {
   if (!n) return
   const from = list.value.findIndex(x => x.id === open.value?.id), to = list.value.findIndex(x => x.id === n.id)

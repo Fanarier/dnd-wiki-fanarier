@@ -79,6 +79,7 @@
           <section v-for="s in shownSessions" :key="s.date" class="al-sess">
             <header class="al-sh">
               <b>{{ fmtDate(s.date) }}</b>
+              <button v-if="hero.canWrite && s.own.length" type="button" class="al-dt" :class="{ on: mv?.from === s.date }" title="Перенести сессию на другую дату — все записи разом" @click="openMove(s)">📅</button>
               <span class="al-sum" :class="{ over: s.hours > budget.free }" :title="leftText(s)">⏱ {{ round(s.hours, 2) }}<small> / {{ budget.free }} ч</small></span>
               <span class="al-sum" :class="{ over: hero.stamina != null && s.stamina > hero.stamina }" :title="hero.stamina != null && s.stamina > hero.stamina ? `Потрачено больше выносливости, чем есть в листе — по правилам 1 изнурение за каждые −2 (≈ ${Math.ceil((s.stamina - hero.stamina) / 2)})` : 'Выносливость за сессию (отдых — со знаком минус)'">⚡ {{ round(s.stamina, 2) }}</span>
               <span v-if="s.exhUp || s.exhDown" class="al-sum" title="Изнурение за сессию: получено / снято отдыхом">😵 <template v-if="s.exhUp">+{{ s.exhUp }}</template><template v-if="s.exhUp && s.exhDown"> / </template><template v-if="s.exhDown">−{{ s.exhDown }}</template></span>
@@ -89,6 +90,15 @@
               <button v-if="hero.canWrite && s.plans" type="button" class="al-btn" @click="sendPlans(s.rows.filter(r => r.status === 'plan' && !r.mirror))">📨 Отправить черновики</button>
               <button v-if="master && s.pending" type="button" class="al-btn ok" @click="setAll(hero, s.rows.filter(r => r.status === 'pending' && !r.mirror), 'done', $event)">✓ Учесть все</button>
             </header>
+            <!-- перенос сессии: все записи этой даты — на другую (мастер — можно у всех героев сразу) -->
+            <div v-if="mv?.from === s.date" class="al-mv">
+              <span>Перенести все записи этой сессии на</span>
+              <input v-model="mv.to" type="date" class="al-in" />
+              <label v-if="master" class="al-mvall" :title="`Записи с датой ${fmtShort(s.date)} у всех героев`"><input v-model="mv.all" type="checkbox" /> у всех героев ({{ mvCount }} {{ plural(mvCount) }})</label>
+              <span class="grow" />
+              <button type="button" class="al-btn" @click="mv = null">Отмена</button>
+              <button type="button" class="al-btn primary" :disabled="busy || !mv.to || mv.to === s.date" @click="moveSession">Перенести</button>
+            </div>
             <SessionBar :rows="s.free" :limit="budget.free" />
             <!-- порядок записей — перетаскиванием за значок слева (совместные из чужих журналов не двигаются) -->
             <VueDraggable :model-value="s.rows" class="al-rows" :disabled="!canSort" handle=".ar-type" draggable=".ar:not(.mirror)" :animation="200" ghost-class="al-ghost"
@@ -255,10 +265,21 @@ async function reorder(date, list) {
   slots.forEach((slot, i) => { log[slot] = byId.get(ids[i]) }) // сразу на экране, сервер — следом
   try { await api('POST', `/api/activities-order/${heroId.value}`, { date, ids }) } catch (e) { toast(e.message, 'error'); loadActivities(true) }
 }
+// перенос сессии на другую дату (ошиблись с датой — поправить разом, а не каждую запись)
+const mv = ref(null)
+const openMove = s => { mv.value = mv.value?.from === s.date ? null : { from: s.date, to: '', all: false } }
+const fmtShort = d => d.split('-').reverse().join('.')
+const mvCount = computed(() => (mv.value ? (mv.value.all ? Object.values(actState.logs) : [logOf(heroId.value)]).reduce((n, l) => n + l.filter(r => r.date === mv.value.from).length, 0) : 0))
+async function moveSession() {
+  const m = mv.value
+  const r = await call(() => api('POST', `/api/activities-date/${heroId.value}`, { from: m.from, to: m.to, all: m.all }))
+  if (!r) return
+  toast(`📅 ${fmtShort(m.from)} → ${fmtShort(m.to)}: ${r.moved} ${plural(r.moved)}${r.heroes > 1 ? ` у ${r.heroes} героев` : ''}`)
+  mv.value = null
+}
 const shownSessions = computed(() => (q.value || stFilter.value ? sessions.value : sessions.value.slice(0, more.value)))
 const queueGroups = computed(() => actState.heroes.map(h => ({ hero: h, rows: logOf(h.heroId).filter(r => r.status === 'pending') })).filter(g => g.rows.length))
 const fmtDate = d => { const t = new Date(d + 'T12:00').toLocaleDateString('ru', { day: 'numeric', month: 'long', year: 'numeric', weekday: 'short' }); return t.charAt(0).toUpperCase() + t.slice(1) }
-const fmtShort = d => d.split('-').reverse().join('.')
 // подсказка к часам сессии: сколько свободных часов осталось из скольких
 function leftText(s) {
   const left = round(budget.value.free - s.hours, 1)
@@ -469,6 +490,11 @@ watch(() => [route.query.new, hero.value?.canWrite], ([n, can]) => {
 .al-rows { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .al-rows :deep(.al-ghost) { opacity: .35; outline: 2px dashed rgba(231, 197, 111, .6); outline-offset: -2px; }
 .al-sh { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 4px; }
+.al-dt { padding: 2px 6px; border-radius: 8px; border: 1px solid transparent; background: none; cursor: pointer; font-size: 14px; opacity: .55; transition: opacity .15s; }
+.al-dt:hover, .al-dt.on { opacity: 1; border-color: rgba(231, 197, 111, .35); }
+.al-mv { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: rgba(231, 197, 111, .07); border: 1px dashed rgba(231, 197, 111, .35); color: #cdbf9f; font: 600 13px 'Manrope', sans-serif; }
+.al-mv .al-in { padding: 5px 8px; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .3); background: rgba(0, 0, 0, .3); color: #efe3c8; font: 600 13px 'Manrope', sans-serif; color-scheme: dark; }
+.al-mvall { display: flex; align-items: center; gap: 5px; }
 .al-sh > b { font: 700 18px 'Cormorant Garamond', serif; color: #f3dc9e; }
 .al-sum { padding: 2px 8px; border-radius: 99px; background: rgba(255, 255, 255, .04); color: #cdbf9f; font: 800 12px 'Manrope', sans-serif; }
 .al-sum small { color: #a8936c; }

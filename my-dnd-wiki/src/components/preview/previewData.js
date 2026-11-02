@@ -39,7 +39,7 @@ export function resolve(ref) {
   }
   if (kind === 'fx') {
     const e = rulesState.effects.find(x => x.id === id)
-    return e && { kind: (KIND[e.kind]?.one || '') + ' эффект', title: e.name, sub: e.tag, text: short(e.html), img: e.icon, color: e.kind === 'debuff' ? '#ff6b5e' : e.kind === 'special' ? '#b9a6ff' : '#7ed07a', to: { path: '/wiki', query: { section: 'effects' } } }
+    return e && { kind: (KIND[e.kind]?.one || '') + ' эффект', title: e.name, sub: e.tag, text: short(e.html), img: e.icon, color: e.kind === 'debuff' ? '#ff6b5e' : e.kind === 'special' ? '#b9a6ff' : '#7ed07a', to: { path: '/wiki', query: { section: 'effects', fx: e.id } } }
   }
   if (kind === 'spell') {
     const x = rulesState.spells.find(s => s.id === id)

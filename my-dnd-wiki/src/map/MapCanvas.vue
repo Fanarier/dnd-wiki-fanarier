@@ -1036,7 +1036,7 @@ async function onClick(w, hit) {
       // сразу кладём обновлённый заказ — иначе редактор откроется со старой копией без места и сотрёт его при сохранении
       const i = store.data.quests.findIndex(x => x.id === id)
       if (i !== -1) store.data.quests[i] = { ...store.data.quests[i], ...q }
-      router.push({ path: '/wiki', query: { quest: id } })
+      router.push({ path: '/activity', query: { quest: id } })
     } catch { /* тост */ }
     return
   }

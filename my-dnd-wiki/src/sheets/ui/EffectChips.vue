@@ -24,6 +24,7 @@
           <button type="button" class="ec-x" aria-label="Закрыть" @click="close">✕</button>
         </header>
         <p v-if="desc(cur)" class="ec-desc">{{ desc(cur) }}</p>
+        <router-link v-if="wiki(cur)" class="ec-wiki" :to="{ path: '/wiki', query: { section: 'effects', fx: wiki(cur).id } }" @click="close">В вики →</router-link>
         <template v-if="editable">
           <div class="ec-row">
             <span>Стаки</span>
@@ -190,6 +191,8 @@ const addFirst = () => (found.value.length && q.value.trim() ? add(found.value[0
 .ec-pop header small { color: #a8936c; font: 700 11px 'Manrope', sans-serif; }
 .ec-big { display: grid; place-items: center; width: 46px; height: 46px; flex: none; border-radius: 11px; border: 1.5px solid var(--fc); overflow: hidden; background: #0e0b07; color: #fff; font: 800 20px 'Cormorant Garamond', serif; }
 .ec-big img { width: 100%; height: 100%; }
+.ec-wiki { justify-self: start; color: #e7c56f; font: 700 12px 'Manrope', sans-serif; text-decoration: none; }
+.ec-wiki:hover { text-decoration: underline; }
 .ec-x { width: 28px; height: 28px; flex: none; border-radius: 8px; border: 1px solid rgba(231, 197, 111, .25); background: none; color: #cdbf9f; cursor: pointer; }
 .ec-desc { margin: 0; color: #ddd0b3; font: 500 13px/1.5 'Manrope', sans-serif; }
 .ec-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; color: #cdbf9f; font: 700 12px 'Manrope', sans-serif; }

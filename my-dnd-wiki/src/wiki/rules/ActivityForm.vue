@@ -69,9 +69,13 @@
         </div>
       </div>
       <div class="af-row">
-        <label class="af-f name">Где (город на карте)
-          <select v-model="m.place" class="af-in"><option value="">—</option><option v-for="c in cities" :key="c.id" :value="c.id">{{ c.name }}</option></select>
-        </label>
+        <div class="af-f name">Где (город на карте)
+          <ActNameInput v-model="cityText" :recent="cityRecent" :catalog="cityCatalog" :required="false" :maxlength="80" mine-title="Недавно" catalog-title="Города" placeholder="Начни писать название…" />
+          <span v-if="cityText.trim() && !m.place" class="af-cityno">Такого города на карте нет — выбери из подсказок</span>
+          <div v-else-if="cityRecent.length" class="af-chips">
+            <button v-for="c in cityRecent.slice(0, 4)" :key="c.id" type="button" :class="{ on: m.place === c.id }" :title="c.sub" @click="setCity(c)">{{ c.here ? '📍 ' : '' }}{{ c.name }}</button>
+          </div>
+        </div>
         <label v-if="mods.length" class="af-f name">Место-модификатор из вики
           <select v-model="m.mod" class="af-in"><option value="">—</option><option v-for="x in mods" :key="x.name" :value="x.name">{{ x.name }} · {{ x.what }} · {{ x.die }}</option></select>
         </label>
@@ -268,6 +272,23 @@ const mentorTo = computed(() => mentorLink(m.value.mentor))
 const others = computed(() => actState.heroes.filter(h => h.heroId !== props.hero?.heroId))
 const toggleWith = id => { const w = m.value.with; const i = w.indexOf(id); i >= 0 ? w.splice(i, 1) : w.push(id) }
 const cities = computed(() => (store.data.cities || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'ru')))
+// город: поиск по названию с подсказками; сверху — где герой сейчас (на карте) и города из его прошлых записей
+const cityById = computed(() => new Map(cities.value.map(c => [c.id, c])))
+const normCity = s => String(s || '').toLowerCase().replace(/ё/g, 'е').trim()
+const cityText = ref(cityById.value.get(m.value.place)?.name || '')
+watch(cityText, t => { const c = cities.value.find(x => normCity(x.name) === normCity(t)); m.value.place = c ? c.id : '' })
+const setCity = c => { cityText.value = c.name }
+const cityRecent = computed(() => {
+  const out = [], seen = new Set()
+  const add = (c, sub, here) => { if (c && !seen.has(c.id)) { seen.add(c.id); out.push({ id: c.id, name: c.name, sub, here }) } }
+  const loc = normCity((store.data.heroes || []).find(h => h.id === props.hero?.heroId)?.location)
+  add(loc && cities.value.find(c => normCity(c.name) === loc), 'герой сейчас здесь', true)
+  for (const r of [...log.value].reverse()) if (r.place) add(cityById.value.get(r.place), 'был в записях')
+  return out.slice(0, 8)
+})
+const stateName = id => (store.data.states || []).find(s => s.id === id)?.name
+const cityCatalog = computed(() => cities.value.map(c => ({ name: c.name, sub: c.type === 'capital' ? 'столица' : '', section: stateName(c.stateId) || 'Города' }))
+  .sort((a, b) => a.section.localeCompare(b.section, 'ru')))
 const quests = computed(() => (store.data.quests || []).filter(q => ['taken', 'done', 'available'].includes(q.status)).slice().sort((a, b) => (b.postedAt || 0) - (a.postedAt || 0)).slice(0, 30))
 const sheetTouch = computed(() => !!(m.value.gold || m.value.silver || m.value.copper || m.value.exp || m.value.exh || m.value.items.length || m.value.trainId))
 const extras = computed(() => [m.value.with.length && 'с кем', m.value.place && 'где', m.value.mod && 'место', m.value.mentor && 'наставник', m.value.trainId && 'тренировка', (m.value.gold || m.value.silver || m.value.copper) && 'монеты', m.value.exp && 'опыт', m.value.exh && 'изнурение', m.value.items.length && 'вещи'].filter(Boolean).join(', '))
@@ -275,6 +296,7 @@ const more = ref(!!extras.value)
 
 function useFav(f) {
   Object.assign(m.value, { name: f.name, hours: f.hours, stamina: f.stamina, type: f.type, trainId: f.trainId, mod: f.mod, place: f.place, mentor: f.mentor || '', mentorBonus: f.mentorBonus || 0 })
+  cityText.value = cityById.value.get(f.place)?.name || ''
   manualSt.value = !!f.stamina
   if (f.trainId || f.mod || f.place || f.mentor) more.value = true
 }
@@ -362,6 +384,7 @@ async function saveQuick(v) {
 .af-more small { color: #a8936c; }
 .af-extra { display: grid; gap: 8px; padding: 10px; border-radius: 12px; background: rgba(0, 0, 0, .2); border: 1px solid rgba(231, 197, 111, .12); }
 .af-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.af-cityno { color: #f0b860; font: 600 11.5px 'Manrope', sans-serif; letter-spacing: 0; text-transform: none; }
 .af-chips button { padding: 3px 10px; border-radius: 99px; border: 1px solid rgba(239, 127, 176, .3); background: none; color: #e9c4d6; font: 700 12px 'Manrope', sans-serif; letter-spacing: 0; text-transform: none; cursor: pointer; }
 .af-chips button.on { background: rgba(239, 127, 176, .2); border-color: #ef7fb0; color: #fff; }
 .af-item { display: flex; gap: 6px; align-items: center; }

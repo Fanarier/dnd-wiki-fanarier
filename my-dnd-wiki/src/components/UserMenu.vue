@@ -28,7 +28,7 @@
                   <button class="mini no" @click="act2(`/api/quests/${n.data.questId}/applicants/${n.data.applicantId}/reject`, 'Отклик отклонён')">Отклонить</button>
                 </template>
               </div>
-              <router-link v-if="n.data?.questId" class="n-link" :to="{ path: '/wiki', query: { quest: n.data.questId } }" @click="open = false">к заказу →</router-link>
+              <router-link v-if="n.data?.questId" class="n-link" :to="{ path: '/activity', query: { quest: n.data.questId } }" @click="open = false">к заказу →</router-link>
               <router-link v-else-if="n.data?.logHero" class="n-link" :to="{ path: '/wiki', query: { section: 'activities', log: n.data.logHero } }" @click="open = false">к журналу →</router-link>
               <router-link v-else-if="n.data?.heroId" class="n-link" :to="{ path: '/wiki', query: { hero: n.data.heroId } }" @click="open = false">к карточке →</router-link>
               <router-link v-else-if="n.data?.arts" class="n-link" :to="{ path: '/wiki', query: { heroes: 'arts' } }" @click="open = false">смотреть арты →</router-link>

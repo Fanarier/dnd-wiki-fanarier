@@ -185,7 +185,7 @@
           <li v-for="(t, i) in item.tasks" :key="i" :class="{ main: t.main }">{{ t.text }}</li>
         </ul>
         <div class="ui-row q-btns">
-          <router-link :to="{ path: '/wiki', query: { quest: item.id } }" class="ui-btn small primary">Открыть на доске заказов</router-link>
+          <router-link :to="{ path: '/activity', query: { quest: item.id } }" class="ui-btn small primary">Открыть на доске заказов</router-link>
           <button v-if="master" class="ui-btn small" @click="unpinQuest">Убрать с карты</button>
         </div>
       </div>

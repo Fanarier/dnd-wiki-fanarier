@@ -23,7 +23,7 @@ import { computed, ref, watch } from 'vue'
 const props = defineProps({
   modelValue: { type: String, default: '' }, recent: { type: Array, default: () => [] }, catalog: { type: Array, default: () => [] },
   placeholder: { type: String, default: '' }, required: { type: Boolean, default: true }, maxlength: { type: Number, default: 600 },
-  mineTitle: { type: String, default: 'Твои записи' }
+  mineTitle: { type: String, default: 'Твои записи' }, catalogTitle: { type: String, default: 'Из вики' }
 })
 const emit = defineEmits(['update:modelValue'])
 const root = ref(null)
@@ -64,11 +64,11 @@ const groups = computed(() => {
   const take = (list, n) => list.map(x => ({ ...x, sc: score(x.name, q) })).filter(x => x.sc >= 0 && norm(x.name) !== q).sort((a, b) => a.sc - b.sc).slice(0, n)
   const mine = take(props.recent.map(x => (typeof x === 'string' ? { name: x, sub: '' } : x)), q ? 8 : 12)
   const known = new Set(mine.map(x => norm(x.name)))
-  const wiki = take(props.catalog.filter(c => !known.has(norm(c.name))).map(c => ({ name: c.name, sub: `${c.dur} · ${c.rate} / ч`, section: c.section || 'Из вики' })), q ? 14 : 60)
+  const wiki = take(props.catalog.filter(c => !known.has(norm(c.name))).map(c => ({ name: c.name, sub: c.sub ?? `${c.dur} · ${c.rate} / ч`, section: c.section || 'Из вики' })), q ? 14 : 60)
   const out = []
   if (mine.length) out.push({ title: props.mineTitle, items: mine })
   // справочник — по разделам вики (без запроса — в порядке вики, с запросом — лучшие сверху одним списком)
-  if (q && wiki.length) out.push({ title: 'Из вики', items: wiki.map(x => ({ ...x, sub: `${x.section} · ${x.sub}` })) })
+  if (q && wiki.length) out.push({ title: props.catalogTitle, items: wiki.map(x => ({ ...x, sub: `${x.section} · ${x.sub}` })) })
   else for (const x of wiki) { const g = out.find(g => g.title === x.section) || (out.push({ title: x.section, items: [] }), out[out.length - 1]); g.items.push(x) }
   let i = 0
   for (const g of out) g.items = g.items.map(x => ({ ...x, i: i++, parts: partsOf(x.name, q) }))
