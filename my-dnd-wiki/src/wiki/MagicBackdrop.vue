@@ -8,7 +8,7 @@
 </template>
 
 <script setup>
-// Огонь, магма и вода — свой WebGL-шейдер (идея — «Elements» из ThreeUI, MIT), остальное — canvas 2D:
+// Огонь и вода — свой WebGL-шейдер (идея — «Elements» из ThreeUI, MIT), остальное — canvas 2D:
 // ледяные кристаллы (лёд), гроза с молниями (молнии), растущие деревья (природа) — здесь, прочие школы —
 // в magicScenes.js. Не чаще 30 кадров/с, на скрытой вкладке — пауза, «меньше анимаций» — один неподвижный кадр.
 import { onBeforeUnmount, onMounted, ref } from 'vue'
@@ -43,24 +43,6 @@ const SHADERS = {
     vec2 g = vec2(uv.x * asp * 16., uv.y * 16. - uT * 2.2); vec2 id = floor(g), fr = fract(g) - .5; float r = hash(id);
     float em = r > .94 ? smoothstep(.14, 0., length(fr + vec2(sin(uT * 2. + r * 9.) * .25, 0.))) * (1. - uv.y) : 0.;
     gl_FragColor = pm(col * f * .8 + vec3(1., .6, .2) * em, f * .8 + em * .9);
-  }`,
-  // лава: тёмная корка с раскалёнными трещинами снизу, медленное течение, искры
-  magma: `void main(){
-    vec2 uv = gl_FragCoord.xy / uRes; float asp = uRes.x / uRes.y;
-    vec2 p = vec2(uv.x * asp * 3., uv.y * 3.) + vec2(uT * .05, -uT * .03);
-    float n = fbm(p), r = 1. - abs(fbm(p * 1.7 + vec2(-uT * .08, uT * .04)) * 2. - 1.);
-    float crack = pow(r, 6.);
-    float h = .3 + .05 * sin(uv.x * 6. + uT * .3);
-    float band = smoothstep(h + .12, h - .08, uv.y);
-    vec3 crust = vec3(.12, .03, .02) * (.6 + n);
-    vec3 lava = mix(vec3(.9, .2, .03), vec3(1., .75, .25), crack);
-    float glow = crack * (.7 + .3 * sin(uT * 1.5 + n * 6.));
-    vec3 col = mix(crust, lava, glow);
-    float heat = smoothstep(.0, .5, h - uv.y) * .25;
-    vec2 g = vec2(uv.x * asp * 12., uv.y * 12. - uT * 1.4); vec2 id = floor(g), fr = fract(g) - .5; float rr = hash(id);
-    float em = rr > .95 ? smoothstep(.12, 0., length(fr)) * (1. - uv.y) : 0.;
-    float a = band * (.55 + glow * .4) + em * .8;
-    gl_FragColor = pm(col * band + vec3(1., .5, .15) * (em + heat * (1. - band)), a + heat * (1. - band));
   }`,
   // вода внизу с бликами-каустикой
   water: `void main(){
@@ -411,6 +393,13 @@ function onClick(e) {
   if (e.clientY < r.top || e.clientX < m.left) return
   strike((e.clientX - r.left) * K, (e.clientY - r.top) * K, true)
 }
+// мышь над страницей — для сцен, которые за ней следят (щупальца тьмы); ушла со страницы — забываем
+function onMove(e) {
+  if (!box.value) return
+  const r = box.value.getBoundingClientRect()
+  scene.mouse = { x: (e.clientX - r.left) * K, y: (e.clientY - r.top) * K }
+}
+const onOut = e => { if (!e.relatedTarget) scene.mouse = null }
 const onVis = () => { if (document.hidden) { cancelAnimationFrame(raf); raf = 0 } else if (!raf && !still) { last = 0; raf = requestAnimationFrame(frame) } }
 
 onMounted(() => {
@@ -422,12 +411,16 @@ onMounted(() => {
   if (still) requestAnimationFrame(n => { last = 0; frame(n + 100) })
   window.addEventListener('resize', size)
   window.addEventListener('pointerdown', onClick)
+  window.addEventListener('pointermove', onMove, { passive: true })
+  document.addEventListener('pointerout', onOut)
   document.addEventListener('visibilitychange', onVis)
 })
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
   window.removeEventListener('resize', size)
   window.removeEventListener('pointerdown', onClick)
+  window.removeEventListener('pointermove', onMove)
+  document.removeEventListener('pointerout', onOut)
   document.removeEventListener('visibilitychange', onVis)
   gl?.getExtension('WEBGL_lose_context')?.loseContext()
 })

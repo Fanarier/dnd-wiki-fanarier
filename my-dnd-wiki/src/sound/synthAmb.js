@@ -10,15 +10,24 @@ const hz = (base, semi) => base * Math.pow(2, semi / 12)
 const pick = a => a[Math.floor(Math.random() * a.length)]
 const rand = (a, b) => a + Math.random() * (b - a)
 
-function noiseBuf(ctx, kind = 'white', sec = 4) {
-  const n = ctx.sampleRate * sec, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0)
+// шум для петли: длинный и без шва — конец плавно перетекает в начало (иначе на стыке щелчок и слышно повтор)
+function noiseBuf(ctx, kind = 'white', sec = 9) {
+  const n = Math.round(ctx.sampleRate * sec), F = Math.round(ctx.sampleRate * 0.5)
+  const x = new Float32Array(n + F)
   let last = 0, p0 = 0, p1 = 0, p2 = 0
-  for (let i = 0; i < n; i++) {
+  for (let i = 0; i < n + F; i++) {
     const w = Math.random() * 2 - 1
-    if (kind === 'brown') { last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5 } else if (kind === 'pink') {
+    if (kind === 'brown') { last = (last + 0.02 * w) / 1.02; x[i] = last * 3.5 } else if (kind === 'pink') {
       p0 = 0.997 * p0 + w * 0.029591; p1 = 0.985 * p1 + w * 0.032534; p2 = 0.95 * p2 + w * 0.048056
-      d[i] = (p0 + p1 + p2 + w * 0.05) * 0.9
-    } else d[i] = w
+      x[i] = (p0 + p1 + p2 + w * 0.05) * 0.9
+    } else x[i] = w
+  }
+  const b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0)
+  for (let i = 0; i < n; i++) {
+    if (i >= F) { d[i] = x[i]; continue }
+    // начало = смесь начала и «продолжения» конца: сыграв последний отсчёт, петля попадает ровно в его продолжение
+    const k = i / F, a = Math.sin(k * Math.PI / 2), bb = Math.cos(k * Math.PI / 2)
+    d[i] = x[i] * a + x[n + i] * bb
   }
   return b
 }

@@ -42,10 +42,17 @@ const PORT = Number(process.env.PORT) || 3001
 // На сервере за туннелем ставим HOST=127.0.0.1, чтобы порт не был виден снаружи
 const HOST = process.env.HOST || undefined
 const DIST = path.resolve(import.meta.dirname, '..', 'dist')
-// номер текущей сборки сайта: браузер со старой вкладкой увидит, что вышла новая версия
-const BUILD_ID = (() => {
-  try { return JSON.parse(fs.readFileSync(path.join(DIST, 'build.json'), 'utf8')).build } catch { return null }
-})()
+// номер текущей сборки сайта: браузер со старой вкладкой увидит, что вышла новая версия.
+// Читаем при каждом подключении (по времени файла): пересобрали без перезапуска сервера — номер всё равно свежий,
+// иначе новая страница видит старый номер и плашка «обновить» не уходит
+let buildCache = { at: 0, id: null }
+function buildId() {
+  try {
+    const f = path.join(DIST, 'build.json'), at = fs.statSync(f).mtimeMs
+    if (at !== buildCache.at) buildCache = { at, id: JSON.parse(fs.readFileSync(f, 'utf8')).build }
+  } catch { /* сборки нет — разработка */ }
+  return buildCache.id
+}
 
 loadDb()
 backupDb()
@@ -2347,7 +2354,7 @@ wss.on('connection', (ws, req) => {
   const client = { ws, role: 'guest', user: null, id, name: 'Гость', color: CURSOR_COLORS[id % CURSOR_COLORS.length], pings: [] }
   clients.add(client)
   send(client, viewFor(null))
-  ws.send(JSON.stringify({ type: 'hello', id, color: client.color, build: BUILD_ID }))
+  ws.send(JSON.stringify({ type: 'hello', id, color: client.color, build: buildId() }))
   // новому клиенту — текущие курсоры и линейки мастеров
   for (const c of clients) {
     if (c === client || !c.user) continue
