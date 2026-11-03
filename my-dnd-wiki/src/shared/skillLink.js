@@ -5,7 +5,9 @@
 // Общее для сервера (обновление всех листов, когда меняется вики) и листа в браузере.
 import { normName, htmlToText, findRace, findClass, findArch } from './rules.js'
 
-export const CAT_UNIQUE = 3
+// категорию (К/Р/М) выбирает игрок — привязка её не трогает; «уникальный» — это не привязанный к вики навык
+export const CAT_UNIQUE = 3 // было: категория «уникальный» (2026-11-03), осталась только в старых историях
+export const isUnique = s => !s?.Wiki
 export const FRESH_MS = 24 * 3600 * 1000 // сколько висит «обновлено из вики»
 
 // заклинание: строка «школа · круг · расход · перезарядка» и текст
@@ -119,13 +121,13 @@ export function restyle(oldHtml, text) {
 export function bindTo(s, e, { now = Date.now(), keep = true } = {}) {
   const same = sameText(s.Description, e.text)
   const extra = keep && !same ? keepOf(s.Description, e.text) : ''
-  const out = { ...s, SkillName: e.name, CategoryIndex: e.cat, Description: same ? s.Description : restyle(s.Description, e.text), Wiki: e.ref, WikiOff: false }
+  const out = { ...s, SkillName: e.name, Description: same ? s.Description : restyle(s.Description, e.text), Wiki: e.ref, WikiOff: false }
   if (extra && !String(s.Note || '').includes(extra)) out.Note = [s.Note, extra].filter(Boolean).join('\n\n').slice(0, 4000)
   if (!same) out.WikiAt = now
   return out
 }
 // отвязать (игрок меняет навык сам): дальше он уникальный и сам не привяжется
-export const unbind = s => ({ ...s, Wiki: '', WikiOff: true, CategoryIndex: CAT_UNIQUE })
+export const unbind = s => ({ ...s, Wiki: '', WikiOff: true })
 
 // пройтись по навыкам листа: привязанные — обновить из вики; непривязанные — привязать по точному названию (auto);
 // не нашлись — уникальные. Вернёт новые списки, если что-то поменялось, и что именно
@@ -142,20 +144,20 @@ export function linkSkills(d, rules, { now = Date.now(), auto = true } = {}) {
         if (e) {
           // текст в вики поменялся — заменить (общее оформление игрока переносится, выделенные слова — нет; старое — в истории)
           const fresh = !sameText(s.Description, e.text)
-          if (fresh || s.SkillName !== e.name || s.CategoryIndex !== e.cat) {
-            x = { ...s, SkillName: e.name, CategoryIndex: e.cat, Description: fresh ? restyle(s.Description, e.text) : s.Description, ...(fresh ? { WikiAt: now } : {}) }
+          if (fresh || s.SkillName !== e.name) {
+            x = { ...s, SkillName: e.name, Description: fresh ? restyle(s.Description, e.text) : s.Description, ...(fresh ? { WikiAt: now } : {}) }
             if (fresh) stat.updated++
           }
         } else {
           // навык пропал из вики (удалён, переименован) — ищем по названию, иначе уникальный (текст остаётся)
           const alt = pick(ix.byName.get(normName(s.SkillName)), d, rules, s)
-          x = alt ? bindTo(s, alt, { now, keep: false }) : { ...s, Wiki: '', CategoryIndex: CAT_UNIQUE }
+          x = alt ? bindTo(s, alt, { now, keep: false }) : { ...s, Wiki: '' }
           alt ? stat.bound++ : stat.lost++
         }
       } else if (!s.WikiOff && auto) {
         const e = pick(ix.byName.get(normName(s.SkillName)), d, rules, s)
-        if (e) { x = bindTo(s, e, { now }); stat.bound++ } else if (s.CategoryIndex !== CAT_UNIQUE) { x = { ...s, CategoryIndex: CAT_UNIQUE }; stat.unique++ }
-      } else if (s.CategoryIndex !== CAT_UNIQUE) x = { ...s, CategoryIndex: CAT_UNIQUE }
+        if (e) { x = bindTo(s, e, { now }); stat.bound++ } else stat.unique++
+      }
       if (x !== s) changed = true
       return x
     })

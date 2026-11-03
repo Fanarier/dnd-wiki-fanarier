@@ -21,7 +21,7 @@
           <button type="button" class="sb-dot" :class="{ on: it.IsActiveSymbol }" title="Отметка ● (например, «готов к использованию»)" @click="set(it, 'IsActiveSymbol', !it.IsActiveSymbol)" />
           <b v-if="wikiOf(it)" class="pk-nm">{{ it.SkillName }}</b>
           <Fld v-else :path="`${list}.${model.indexOf(it)}.SkillName`" placeholder="Название навыка" class="pk-name" />
-          <span class="pk-cat" :class="catOf(it).cls" :title="wikiOf(it) ? `${catOf(it).name} — из вики` : catOf(it).name">{{ catOf(it).ch }}</span>
+          <button type="button" class="pk-cat" :class="catOf(it).cls" :disabled="ro" :title="`${catOf(it).name} — щёлкни: ${CAT_INFO[(catOf(it).v + 1) % 3].name.toLowerCase()}`" @click="set(it, 'CategoryIndex', (catOf(it).v + 1) % 3)">{{ catOf(it).ch }}</button>
           <router-link v-if="wikiOf(it)" class="pk-wiki" :to="wikiOf(it).to" :title="`Привязан к вики: ${wikiOf(it).src}. Текст обновляется сам, своё — в заметку 📝`">📖 <span>{{ wikiOf(it).src }}</span></router-link>
           <span v-if="isFresh(it, now)" class="pk-fresh" :title="`Текст обновился из вики ${new Date(it.WikiAt).toLocaleString('ru')}`">↻ обновлено</span>
           <button v-if="!wikiOf(it)" type="button" class="pk-ask" :class="{ on: askAt === keyOf(it) }" :title="askTitle(it)" @click="openAsk(it)">❓</button>
@@ -68,14 +68,14 @@ import DiceText from '../ui/DiceText.vue'
 import { sheet, edit, keyOf, listOps } from '../sheetState.js'
 import { rulesState } from '../../map/store.js'
 import { normName } from '../../shared/rules.js'
-import { wikiIndex, bindTo, unbind, searchWiki, isFresh, sameText, CAT_UNIQUE } from '../../shared/skillLink.js'
+import { wikiIndex, bindTo, unbind, searchWiki, isFresh, sameText } from '../../shared/skillLink.js'
 
 const props = defineProps({ list: { type: String, default: 'Skills' } })
 const ro = inject('sheetReadOnly', ref(false))
 const title = computed(() => (props.list === 'Skills' ? 'Активные навыки' : 'Пассивные навыки'))
-const CATS = [{ v: -1, t: 'Все' }, { v: 0, t: 'Классовые (К)' }, { v: 1, t: 'Расовые (Р)' }, { v: 2, t: 'Магия (М)' }, { v: 3, t: 'Уникальные (У)' }]
-// категория — из вики (привязанный) или «уникальный» (в вики нет)
-const CAT_INFO = [{ v: 0, ch: 'К', cls: 'k', name: 'Классовый' }, { v: 1, ch: 'Р', cls: 'r', name: 'Расовый' }, { v: 2, ch: 'М', cls: 'm', name: 'Магия' }, { v: 3, ch: 'У', cls: 'u', name: 'Уникальный' }]
+const CATS = [{ v: -1, t: 'Все' }, { v: 0, t: 'Классовые (К)' }, { v: 1, t: 'Расовые (Р)' }, { v: 2, t: 'Магия (М)' }, { v: 3, t: 'Уникальные ❓' }]
+// категория — как удобно игроку (щелчок: К → Р → М → К); привязка к вики её не меняет. «Уникальные» — не привязанные (❓)
+const CAT_INFO = [{ v: 0, ch: 'К', cls: 'k', name: 'Классовый' }, { v: 1, ch: 'Р', cls: 'r', name: 'Расовый' }, { v: 2, ch: 'М', cls: 'm', name: 'Магия' }]
 const catOf = it => CAT_INFO[it.CategoryIndex] || CAT_INFO[0]
 const q = ref(''), cat = ref(-1), onlyMarked = ref(false)
 const items = computed(() => sheet.data[props.list] || [])
@@ -84,7 +84,7 @@ const model = computed({ get: () => items.value, set: v => ops.value.set(v) })
 const filtered = computed(() => !!q.value.trim() || cat.value !== -1 || onlyMarked.value)
 const visible = it => {
   const s = q.value.trim().toLowerCase()
-  return (!s || `${it.SkillName} ${it.Description} ${it.Note || ''}`.toLowerCase().includes(s)) && (cat.value === -1 || it.CategoryIndex === cat.value) && (!onlyMarked.value || it.IsActiveSymbol)
+  return (!s || `${it.SkillName} ${it.Description} ${it.Note || ''}`.toLowerCase().includes(s)) && (cat.value === -1 || (cat.value === 3 ? !it.Wiki : it.CategoryIndex === cat.value)) && (!onlyMarked.value || it.IsActiveSymbol)
 }
 const shown = computed(() => items.value.filter(visible))
 const editing = reactive(new Set()), expanded = reactive(new Set()), notes = reactive(new Set())
@@ -132,7 +132,7 @@ function bind(it, e) {
   if (nx?.Note && nx.Note !== it.Note) notes.add(keyOf(nx))
 }
 function addOne() {
-  ops.value.add({ SkillName: 'Новый навык', CategoryIndex: CAT_UNIQUE, Description: '', IsActiveSymbol: false }, { first: true })
+  ops.value.add({ SkillName: 'Новый навык', CategoryIndex: 0, Description: '', IsActiveSymbol: false }, { first: true })
   q.value = ''; cat.value = -1; onlyMarked.value = false
   setTimeout(() => editing.add(keyOf(items.value[0])), 0)
 }
@@ -151,11 +151,11 @@ function del(it) {
 .pk-name { flex: 1; }
 .pk-name :deep(input) { font: 700 16px 'Cormorant Garamond', serif; font-size: 17px; }
 .pk-nm { flex: 1; min-width: 0; padding: 2px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 17px 'Cormorant Garamond', serif; }
-.pk-cat { display: grid; place-items: center; flex: none; width: 26px; height: 26px; border-radius: 7px; border: 1px solid; font: 800 12px 'Manrope', sans-serif; cursor: default; }
+.pk-cat { display: grid; place-items: center; flex: none; width: 26px; height: 26px; padding: 0; border-radius: 7px; border: 1px solid; background: none; font: 800 12px 'Manrope', sans-serif; cursor: pointer; }
+.pk-cat:disabled { cursor: default; }
 .pk-cat.k { color: #7cc4ff; border-color: rgba(124, 196, 255, .45); }
 .pk-cat.r { color: #ffb36b; border-color: rgba(255, 179, 107, .45); }
 .pk-cat.m { color: #c9a6ff; border-color: rgba(201, 166, 255, .5); box-shadow: 0 0 8px rgba(170, 130, 255, .25); }
-.pk-cat.u { color: #e8e0c8; border-color: rgba(232, 224, 200, .35); border-style: dashed; }
 .pk-wiki { display: inline-flex; flex: 0 1 auto; min-width: 0; align-items: center; gap: 3px; max-width: 150px; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--acc) 12%, transparent); color: var(--acc); font: 700 11px 'Manrope', sans-serif; text-decoration: none; }
 .pk-wiki span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pk-wiki:hover { background: color-mix(in srgb, var(--acc) 22%, transparent); }

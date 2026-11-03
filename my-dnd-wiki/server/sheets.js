@@ -7,6 +7,7 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { isForged } from '../src/shared/forged.js'
 import { linkSkills } from '../src/shared/skillLink.js'
+import { normName as skillKey } from '../src/shared/rules.js'
 import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, ALL_SLOTS, hpMax, trainStatus, setRichCleaner } from '../src/shared/sheet.js'
 import { cleanRich } from './richtext.js'
 import { htmlToText } from '../src/shared/rules.js'
@@ -826,10 +827,43 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     }
     if (tot.sheets) console.log(`[sheets] навыки ↔ вики (${note}):`, JSON.stringify(tot))
   }
+  // первая привязка (03.11.2026) ставила свою категорию (из вики или «У — уникальный»), а игроки свои метки выбирали
+  // сами (М на удобных навыках). Один раз вернуть их из истории — там, где категорию с тех пор не меняли
+  function restoreCats() {
+    const who = { id: 'wiki', name: 'Вики', role: 'master' }
+    let n = 0
+    for (const sh of store.sheets.filter(x => !x.deletedAt)) {
+      const ops = []
+      for (const list of ['Skills', 'PassiveSkills']) {
+        const rec = (sh.history || []).find(h => h.p === list && h.note === 'привязка навыков к вики' && Array.isArray(h.from) && Array.isArray(h.to))
+        if (!rec) continue
+        const was = new Map(rec.from.map(s => [skillKey(s.SkillName), s.CategoryIndex]))
+        const set = new Map(rec.to.map(s => [skillKey(s.SkillName), s.CategoryIndex]))
+        let changed = false
+        const next = (sh.data[list] || []).map(s => {
+          const k = skillKey(s.SkillName)
+          const old = was.get(k)
+          // категория та же, что поставила привязка, — вернуть прежнюю; «У» без прежней — классовый
+          if (s.CategoryIndex === set.get(k) && old != null && old !== s.CategoryIndex) { changed = true; n++; return { ...s, CategoryIndex: Math.min(2, old) } }
+          if (s.CategoryIndex > 2) { changed = true; n++; return { ...s, CategoryIndex: 0 } }
+          return s
+        })
+        if (changed) ops.push(applyOp(sh, { p: list, v: next }, who, 'категории навыков — как были до привязки к вики'))
+      }
+      const ok = ops.filter(Boolean)
+      if (ok.length) { touch(sh); notify(sh, ok, null) }
+    }
+    console.log(`[sheets] категории навыков возвращены: ${n}`)
+  }
   function linkWiki(api) {
     if (!store.skillsLinked) {
       linkAll(api.skillRules(), 'привязка навыков к вики')
       store.skillsLinked = Date.now()
+      save()
+    }
+    if (!store.skillCatsBack) {
+      restoreCats()
+      store.skillCatsBack = Date.now()
       save()
     }
     let t = 0
