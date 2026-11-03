@@ -409,12 +409,21 @@ const arcana = {
   }
 }
 
-/* ---------- гримуар: парящие страницы, свечи в нижних углах, тлеющие знаки ---------- */
+/* ---------- гримуар: парящие страницы, спокойные свечи с потёками воска и дымком в нижних углах ---------- */
 const grimoire = {
   build(s) {
     const { rnd, W, H, K } = s
     const e = s.edges()
-    s.candles = [e.treeL - 40 * K, e.treeL + 30 * K, e.treeR - 30 * K, e.treeR + 40 * K].map((x, i) => ({ x, h: (40 + rnd() * 50) * K, ph: rnd() * TAU, i }))
+    // по три свечи в каждом нижнем углу: разной толщины и высоты, с потёками воска
+    s.candles = []
+    for (const ax of [e.treeL, e.treeR]) {
+      for (const [dx, hh, ww] of [[-34, 62, 13], [0, 96, 16], [30, 44, 11]]) {
+        const w = ww * K * (0.9 + rnd() * 0.2), h = hh * K * (0.85 + rnd() * 0.3)
+        s.candles.push({ x: ax + dx * K, w, h, ph: rnd() * TAU, drips: Array.from({ length: 2 + Math.floor(rnd() * 2) }, () => ({ u: rnd() * 1.6 - 0.8, l: (6 + rnd() * 18) * K })), next: 3 + rnd() * 6 })
+      }
+    }
+    s.pools = [e.treeL, e.treeR]
+    s.smoke = []
     s.pages = Array.from({ length: 9 }, () => ({ x: rnd() * W, y: rnd() * H, w: (40 + rnd() * 30) * K, rot: rnd() * TAU, sp: (rnd() - 0.5) * 0.4, vy: -(6 + rnd() * 10) * K, ph: rnd() * TAU }))
   },
   draw(s, t, dt) {
@@ -431,14 +440,47 @@ const grimoire = {
       g.beginPath(); for (let i = 1; i < 7; i++) { const y = -h / 2 + (h * i) / 7; g.moveTo(-w / 2 * flap + 5 * K, y); g.lineTo(w / 2 * flap - 5 * K, y) } g.stroke()
       g.restore()
     }
+    // тёплое пятно света на «столе» под свечами — дышит медленно
+    for (const x of s.pools) glow(g, x, H, 170 * K, '255, 170, 80', 0.09 + 0.015 * Math.sin(t * 0.7 + x))
+    // дымок: изредка тонкая струйка поднимается и тает
+    g.lineCap = 'round'
+    for (const m of s.smoke) {
+      m.age += dt
+      const u = m.age / m.life
+      g.strokeStyle = `rgba(200, 190, 180, ${0.1 * Math.sin(Math.min(1, u) * Math.PI)})`; g.lineWidth = (1 + u * 3) * K
+      g.beginPath()
+      for (let i = 0; i <= 10; i++) { const k = i / 10, y = m.y - k * 70 * K * Math.min(1, u * 1.6), x = m.x + Math.sin(k * 5 + t * 0.8 + m.ph) * 6 * K * k; i ? g.lineTo(x, y) : g.moveTo(x, y) }
+      g.stroke()
+    }
+    s.smoke = s.smoke.filter(m => m.age < m.life)
     for (const c of s.candles) {
-      const top = H - c.h
-      g.fillStyle = 'rgba(220, 205, 170, .75)'; g.fillRect(c.x - 7 * K, top, 14 * K, c.h)
-      const fl = 0.85 + 0.15 * Math.sin(t * 13 + c.ph) + 0.08 * Math.sin(t * 29 + c.ph * 2)
-      glow(g, c.x, top - 10 * K, 70 * K * fl, '255, 170, 70', 0.22)
-      g.fillStyle = `rgba(255, 210, 120, ${0.85})`
-      g.beginPath(); g.ellipse(c.x + Math.sin(t * 3 + c.ph) * 1.5 * K, top - 9 * K, 4 * K, 10 * K * fl, 0, 0, TAU); g.fill()
-      g.fillStyle = 'rgba(255, 250, 220, .9)'; g.beginPath(); g.ellipse(c.x, top - 6 * K, 1.8 * K, 4.5 * K * fl, 0, 0, TAU); g.fill()
+      const top = H - c.h, hw = c.w / 2
+      // воск: объём — тень по краям, свет посередине; оплывший край и потёки
+      const wax = g.createLinearGradient(c.x - hw, 0, c.x + hw, 0)
+      wax.addColorStop(0, 'rgba(120, 92, 66, .95)'); wax.addColorStop(0.45, 'rgba(236, 222, 190, .97)'); wax.addColorStop(1, 'rgba(150, 118, 86, .95)')
+      g.fillStyle = wax
+      g.beginPath(); g.roundRect(c.x - hw, top, c.w, c.h + 4 * K, [hw * 0.5, hw * 0.5, 0, 0]); g.fill()
+      for (const d of c.drips) { g.beginPath(); g.roundRect(c.x + d.u * hw * 0.8 - 1.6 * K, top, 3.2 * K, d.l, 1.6 * K); g.fill() }
+      g.fillStyle = 'rgba(250, 238, 205, .6)'
+      g.beginPath(); g.ellipse(c.x, top + 1.5 * K, hw * 0.92, 2.6 * K, 0, 0, TAU); g.fill()
+      // фитиль
+      g.strokeStyle = 'rgba(40, 28, 20, .95)'; g.lineWidth = 1.4 * K
+      g.beginPath(); g.moveTo(c.x, top + 1 * K); g.lineTo(c.x, top - 4 * K); g.stroke()
+      // пламя: капля, медленно колышется и дышит (без частого мерцания)
+      const sway = (Math.sin(t * 0.9 + c.ph) * 0.7 + Math.sin(t * 1.7 + c.ph * 1.3) * 0.3) * 2.2 * K
+      const fh = (16 + 6 * (c.w / (16 * K))) * K * (1 + 0.05 * Math.sin(t * 1.1 + c.ph) + 0.03 * Math.sin(t * 2.3 + c.ph * 2))
+      const fw = fh * 0.32, bx = c.x, by = top - 3 * K
+      glow(g, bx + sway * 0.4, by - fh * 0.45, fh * 3.2, '255, 180, 90', 0.16 + 0.02 * Math.sin(t * 0.8 + c.ph))
+      const fg = g.createRadialGradient(bx + sway * 0.3, by - fh * 0.28, 0, bx + sway * 0.3, by - fh * 0.35, fh)
+      fg.addColorStop(0, 'rgba(255, 252, 235, .97)'); fg.addColorStop(0.28, 'rgba(255, 226, 150, .92)'); fg.addColorStop(0.62, 'rgba(255, 150, 55, .55)'); fg.addColorStop(1, 'rgba(255, 100, 30, 0)')
+      g.fillStyle = fg
+      g.beginPath(); g.moveTo(bx, by + fw * 0.35)
+      g.bezierCurveTo(bx - fw * 1.1, by - fh * 0.12, bx - fw * 0.55 + sway * 0.5, by - fh * 0.62, bx + sway, by - fh)
+      g.bezierCurveTo(bx + fw * 0.55 + sway * 0.5, by - fh * 0.62, bx + fw * 1.1, by - fh * 0.12, bx, by + fw * 0.35)
+      g.fill()
+      g.fillStyle = 'rgba(120, 160, 255, .22)' // синеватое основание пламени
+      g.beginPath(); g.ellipse(bx, by - fh * 0.05, fw * 0.45, fh * 0.12, 0, 0, TAU); g.fill()
+      if (!s.still && t > c.next) { s.smoke.push({ x: bx + sway, y: by - fh, age: 0, life: 3 + Math.random() * 2, ph: Math.random() * TAU }); c.next = t + 6 + Math.random() * 8 }
     }
   }
 }
