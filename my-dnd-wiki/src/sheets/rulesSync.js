@@ -4,6 +4,7 @@
 import { sheet, edit } from './sheetState.js'
 import { rulesState } from '../map/store.js'
 import { expectedSkills, findRace, normName, choicesAt, joinChoices, pickOf } from '../shared/rules.js'
+import { linkSkills } from '../shared/skillLink.js'
 
 // заготовка описания из переноса Excel или пустое — можно дописать
 const thin = s => { const t = String(s || '').trim(); return t.length < 60 || /^(Расовый навык \d+ уровня|Досягаемость:|Заклинание\.)/.test(t) }
@@ -52,10 +53,13 @@ export function syncWikiSkills() {
     added[e.key] = true
     n++
   }
-  if (n || filled) {
-    edit('Skills', skills, { now: true })
-    edit('PassiveSkills', passive, { now: true })
+  // привязка к вики (src/shared/skillLink.js): привязанные — текст из вики, новые — по точному названию, прочие — уникальные
+  const link = linkSkills({ ...d, Skills: skills, PassiveSkills: passive }, rulesState)
+  const fin = { Skills: link.lists?.Skills || skills, PassiveSkills: link.lists?.PassiveSkills || passive }
+  if (n || filled || link.lists) {
+    edit('Skills', fin.Skills, { now: true })
+    edit('PassiveSkills', fin.PassiveSkills, { now: true })
   }
   if (JSON.stringify(added) !== JSON.stringify(d.WikiAdded || {})) edit('WikiAdded', added, { now: true })
-  return { added: n, filled }
+  return { added: n, filled, ...link.stat }
 }

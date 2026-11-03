@@ -261,7 +261,9 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
   backup()
   setInterval(backup, 6 * 3600 * 1000)
   const CLEAN = { articles: [cleanArticle, 'a-'], races: [cleanRace, 'r-'], classes: [cleanClass, 'k-'], schools: [cleanSchool, 'm-'], spells: [cleanSpell, 's-'], effects: [cleanEffect, 'fx-'], items: [cleanItem, 'it-'] }
-  const changed = () => { save(); broadcast() }
+  // кто ждёт правок вики (листы: навыки, привязанные к вики, обновляются сами)
+  const listeners = []
+  const changed = () => { save(); broadcast(); for (const f of listeners) try { f() } catch (e) { console.warn('[rules] слушатель', e) } }
   const deny = res => res.status(403).json({ error: 'Эту страницу вики тебе править нельзя — права даёт мастер' })
   const copy = x => (x ? JSON.parse(JSON.stringify(x)) : null)
   const noSchool = (list, x) => list === 'spells' && !store.schools.some(s => s.id === x.school)
@@ -408,5 +410,5 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
     changed()
     return it
   }
-  return { rev: () => store.rev, takeItem, putItem, getItem, patchItem, allItems: () => store.items.map(copy), baseCells: () => store.settings.baseCells ?? DEFAULT_BASE_CELLS }
+  return { rev: () => store.rev, onChange: f => listeners.push(f), skillRules: () => ({ rev: store.rev, races: store.races, classes: store.classes, schools: store.schools, spells: store.spells }), takeItem, putItem, getItem, patchItem, allItems: () => store.items.map(copy), baseCells: () => store.settings.baseCells ?? DEFAULT_BASE_CELLS }
 }

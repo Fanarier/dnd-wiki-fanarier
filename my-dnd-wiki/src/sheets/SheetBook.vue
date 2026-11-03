@@ -832,6 +832,7 @@ function wikiSync() {
     const r = syncWikiSkills()
     if (r.added) toast(`Из вики добавлено навыков: ${r.added}`)
     else if (r.filled) toast(`Описания навыков дописаны из вики: ${r.filled}`)
+    if (r.updated) toast(`📖 Обновлено из вики: ${r.updated} ${r.updated === 1 ? 'навык' : 'навыков'}`)
   }, 1200)
 }
 watch(() => [ready.value, rulesState.rev, sheet.data?.Level, sheet.data?.Race, sheet.data?.Class, sheet.data?.Subclass, sheet.data?.RulesRace, sheet.data?.RulesClass, sheet.data?.RulesArch, JSON.stringify(sheet.data?.RaceChoices || {})],

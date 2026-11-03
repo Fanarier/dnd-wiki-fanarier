@@ -6,6 +6,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
 import { isForged } from '../src/shared/forged.js'
+import { linkSkills } from '../src/shared/skillLink.js'
 import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, ALL_SLOTS, hpMax, trainStatus, setRichCleaner } from '../src/shared/sheet.js'
 import { cleanRich } from './richtext.js'
 import { htmlToText } from '../src/shared/rules.js'
@@ -808,8 +809,36 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     return n
   }
 
+  // навыки ↔ вики (src/shared/skillLink.js): один раз привязать навыки всех листов, дальше — после каждой правки вики
+  // привязанные обновляются сами (у закрытых листов тоже), новые с тем же названием — привязываются
+  function linkAll(rules, note) {
+    const who = { id: 'wiki', name: 'Вики', role: 'master' }
+    const tot = { sheets: 0, bound: 0, updated: 0, unique: 0, lost: 0 }
+    for (const sh of store.sheets.filter(x => !x.deletedAt)) {
+      const { lists, stat } = linkSkills(sh.data, rules)
+      if (!lists) continue
+      const ok = Object.entries(lists).map(([p, v]) => applyOp(sh, { p, v }, who, note)).filter(Boolean)
+      if (!ok.length) continue
+      touch(sh)
+      notify(sh, ok, null)
+      tot.sheets++
+      for (const k in stat) tot[k] += stat[k]
+    }
+    if (tot.sheets) console.log(`[sheets] навыки ↔ вики (${note}):`, JSON.stringify(tot))
+  }
+  function linkWiki(api) {
+    if (!store.skillsLinked) {
+      linkAll(api.skillRules(), 'привязка навыков к вики')
+      store.skillsLinked = Date.now()
+      save()
+    }
+    let t = 0
+    api.onChange(() => { clearTimeout(t); t = setTimeout(() => linkAll(api.skillRules(), 'навык обновлён из вики'), 2000) })
+  }
+
   return {
     applyDelta,
+    linkWiki,
     seedItems,
     nameOf: id => { const sh = find(id); return sh && !sh.deletedAt ? sh.data.CharacterName || 'герой' : '' },
     // выдача из вики «Предметы»: вещь кладётся в инвентарь листа
