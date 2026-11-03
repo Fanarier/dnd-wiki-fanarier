@@ -242,8 +242,9 @@ function toggleWide() {
   wide.value = !wide.value
   try { localStorage.setItem(WIDE_KEY, wide.value ? '1' : '0') } catch { /* приватный режим */ }
 }
-// решать могут выбранные мастером игроки
-const decider = computed(() => !!store.me && store.me.role === 'player' && !!s.value?.deciders?.includes(store.me.id))
+// решать могут игрок главы поселения и выбранные мастером игроки
+const decider = computed(() => !!store.me && store.me.role === 'player' && (!!s.value?.deciders?.includes(store.me.id)
+  || store.data.heroes?.find(h => h.id === s.value?.headHeroId)?.ownerId === store.me.id))
 const editing = ref(null)
 const battleSide = ref(null) // 'garrison' или id отряда — открыт помощник боя
 

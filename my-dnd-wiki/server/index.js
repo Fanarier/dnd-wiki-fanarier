@@ -1545,11 +1545,13 @@ const T_TERRAIN = v => ({
   params: Object.fromEntries(Object.entries(TERRAIN_PARAMS).filter(([k]) => v?.params?.[k] != null).map(([k, d]) => [k, T.num(d.min, d.max)(v.params[k])]))
 })
 const findSettlement = id => (getDb().settlements || []).find(x => x.id === id)
-// решать по событиям и отдавать приказы могут мастер и выбранные им игроки
-const canDecide = (u, s) => u?.role === 'master' || (u?.role === 'player' && s.deciders?.includes(u.id))
+// решать по событиям и отдавать приказы могут мастер, игрок главы поселения и выбранные мастером игроки
+const headOwner = s => (getDb().heroes || []).find(h => h.id === s.headHeroId)?.ownerId || null
+const deciderIds = s => [...new Set([...(s.deciders || []), headOwner(s)].filter(Boolean))]
+const canDecide = (u, s) => u?.role === 'master' || (u?.role === 'player' && deciderIds(s).includes(u.id))
 const settleLink = (s, tab) => ({ settlementId: s.id, tab })
 function notifyDeciders(s, text, tab = 'journal') {
-  for (const id of s.deciders || []) notify(id, 'settlement', `${s.name}: ${text}`, settleLink(s, tab))
+  for (const id of deciderIds(s)) notify(id, 'settlement', `${s.name}: ${text}`, settleLink(s, tab))
 }
 const T_EVENT = v => ({
   id: v.id || newId('e'), title: T.str(120)(v.title) || 'Событие', type: EVENT_TYPES[v.type] ? v.type : 'message',

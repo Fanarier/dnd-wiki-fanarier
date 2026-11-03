@@ -266,7 +266,7 @@
         </div>
         <div v-else class="ev-dec" :class="{ none: !e.decision }">
           <small>Решение<template v-if="e.decidedBy"> · {{ e.decidedBy }}</template></small>{{ e.decision || (e.duration?.includes('decide') ? 'ждёт решения главы' : '—') }}
-          <button v-if="master || (decider && (e.decision || e.duration?.includes('decide')))" class="ev-act" @click="decEdit = e.id; decText = e.decision || ''">{{ e.decision ? 'изменить' : 'решить' }}</button>
+          <button v-if="master || decider" class="ev-act" @click="decEdit = e.id; decText = e.decision || ''">{{ e.decision ? 'изменить' : 'решить' }}</button>
           <button v-if="master" class="ev-act del" @click="removeEvent(e)">удалить событие</button>
         </div>
       </div>
