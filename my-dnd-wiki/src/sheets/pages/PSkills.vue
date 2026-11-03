@@ -26,7 +26,7 @@
           <span v-if="isFresh(it, now)" class="pk-fresh" :title="`Текст обновился из вики ${new Date(it.WikiAt).toLocaleString('ru')}`">↻ обновлено</span>
           <button v-if="!wikiOf(it)" type="button" class="pk-ask" :class="{ on: askAt === keyOf(it) }" :title="askTitle(it)" @click="openAsk(it)">❓</button>
           <button v-if="!ro" type="button" class="sb-x" :class="{ on: notes.has(keyOf(it)) }" title="Заметка — своё к навыку (вики её не трогает)" @click="flip(notes, keyOf(it))">📝</button>
-          <button v-if="!ro" type="button" class="sb-x" :title="editing.has(keyOf(it)) ? 'Готово' : wikiOf(it) ? 'Изменить навык (отвяжет от вики)' : 'Править описание'" @click="toggle(it)">{{ editing.has(keyOf(it)) ? '✓' : '✎' }}</button>
+          <button v-if="!ro" type="button" class="sb-x" :title="editing.has(keyOf(it)) ? 'Готово' : wikiOf(it) ? 'Править: оформление — можно, изменишь текст — навык отвяжется от вики' : 'Править описание'" @click="toggle(it)">{{ editing.has(keyOf(it)) ? '✓' : '✎' }}</button>
           <button v-if="!ro" type="button" class="sb-x" title="Удалить навык" @click="del(it)">✕</button>
         </header>
 
@@ -45,6 +45,7 @@
           В вики есть «{{ sameName(it).name }}» ({{ sameName(it).src }}) — <button type="button" @click="bind(it, sameName(it))">привязать</button>
         </div>
 
+        <p v-if="editing.has(keyOf(it)) && wikiOf(it)" class="pk-hint">Цвет и выделение — можно, привязка к вики останется. Изменишь сам текст — по «✓» спрошу: отвязать навык или вернуть текст вики.</p>
         <Fld v-if="editing.has(keyOf(it))" :path="`${list}.${model.indexOf(it)}.Description`" type="rich" :rows="4" placeholder="Описание: что делает, стоимость, перезарядка… Кубы вроде 2к6+3 станут кнопками броска" />
         <p v-else-if="it.Description" class="pk-desc" :class="{ clamp: !expanded.has(keyOf(it)) && it.Description.length > 320 }" @dblclick="!ro && toggle(it)">
           <DiceText :text="it.Description" :label="it.SkillName" />
@@ -67,7 +68,7 @@ import DiceText from '../ui/DiceText.vue'
 import { sheet, edit, keyOf, listOps } from '../sheetState.js'
 import { rulesState } from '../../map/store.js'
 import { normName } from '../../shared/rules.js'
-import { wikiIndex, bindTo, unbind, searchWiki, isFresh, CAT_UNIQUE } from '../../shared/skillLink.js'
+import { wikiIndex, bindTo, unbind, searchWiki, isFresh, sameText, CAT_UNIQUE } from '../../shared/skillLink.js'
 
 const props = defineProps({ list: { type: String, default: 'Skills' } })
 const ro = inject('sheetReadOnly', ref(false))
@@ -99,15 +100,14 @@ const sameName = it => ix.value?.byName.get(normName(it.SkillName))?.[0] || null
 const now = ref(Date.now())
 const tick = setInterval(() => { now.value = Date.now() }, 60000)
 onBeforeUnmount(() => clearInterval(tick))
-// изменить привязанный навык — он отвяжется от вики и станет уникальным
+// привязанный навык: оформление (цвет, выделение) — можно, привязка остаётся; изменил сам текст — по «Готово»
+// спросим: отвязать (станет уникальным) или вернуть текст вики
 function toggle(it) {
   const k = keyOf(it)
-  if (!editing.has(k) && wikiOf(it)) {
-    if (!confirm(`«${it.SkillName}» привязан к вики (${wikiOf(it).src}) — его текст обновляется сам.\n\nЕсли изменить навык, он станет уникальным и больше не будет обновляться из вики. Своё можно дописать в заметку 📝, не отвязывая.\n\nИзменить и отвязать?`)) return
-    const i = items.value.indexOf(it)
-    put(it, unbind(it))
-    editing.add(keyOf(items.value[i]))
-    return
+  const e = wikiOf(it)
+  if (editing.has(k) && e && !sameText(it.Description, e.text)) {
+    if (confirm(`Текст «${it.SkillName}» изменён — он больше не совпадает с вики (${e.src}).\n\nОК — отвязать от вики: навык станет уникальным и перестанет обновляться сам.\nОтмена — вернуть текст из вики (своё можно дописать в заметку 📝).`)) put(it, unbind(it))
+    else set(it, 'Description', e.text)
   }
   flip(editing, k)
 }

@@ -84,12 +84,44 @@ function keepOf(old, wiki) {
   return 'Было в листе до привязки к вики: ' + t
 }
 
-// привязать навык к навыку вики: название, категория и текст — из вики, старое (если ценное) — в заметку
+// тот же текст, что в вики, — без оформления: игроки красят текст, выделяют — это не правка, привязка остаётся
+// (знаки и числа сравниваются, «+3» и «−3» — разное)
+const bare = t => htmlToText(String(t || '')).replace(/\s+/g, ' ').trim()
+export const sameText = (a, b) => bare(a) === bare(b)
+
+// оформление всего текста (весь навык цветом, жирным — <span class="tx-ice"><strong>…) переносится на новый текст
+// из вики: общее оформление абзацев (≥ 70% текста), если оно есть; выделенные отдельные слова — нет
+const esc = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+function styleOf(html) {
+  const ps = String(html || '').match(/<p[^>]*>[\s\S]*?<\/p>/g)
+  if (!ps) return null
+  const w = new Map()
+  let total = 0
+  for (const p of ps) {
+    const inner = p.replace(/^<p[^>]*>/, '').replace(/<\/p>$/, '')
+    const len = htmlToText(inner).length
+    total += len
+    const m = inner.match(/^((?:<(?:span|strong|b|em|i|u|mark|s)\b[^>]*>)+)/)
+    if (m) w.set(m[1], (w.get(m[1]) || 0) + len)
+  }
+  const best = [...w].sort((a, b) => b[1] - a[1])[0]
+  return best && total && best[1] / total >= 0.7 ? best[0] : null
+}
+export function restyle(oldHtml, text) {
+  const open = styleOf(oldHtml)
+  if (!open) return text
+  const close = [...open.matchAll(/<(\w+)/g)].map(m => `</${m[1]}>`).reverse().join('')
+  return String(text).split('\n').map(l => (l.trim() ? `<p>${open}${esc(l)}${close}</p>` : '<p></p>')).join('')
+}
+
+// привязать навык к навыку вики: название, категория и текст — из вики (тот же текст с оформлением — остаётся как
+// есть, другой — с тем же общим оформлением), старое (если ценное) — в заметку
 export function bindTo(s, e, { now = Date.now(), keep = true } = {}) {
-  const extra = keep ? keepOf(s.Description, e.text) : ''
-  const out = { ...s, SkillName: e.name, CategoryIndex: e.cat, Description: e.text, Wiki: e.ref, WikiOff: false }
+  const same = sameText(s.Description, e.text)
+  const extra = keep && !same ? keepOf(s.Description, e.text) : ''
+  const out = { ...s, SkillName: e.name, CategoryIndex: e.cat, Description: same ? s.Description : restyle(s.Description, e.text), Wiki: e.ref, WikiOff: false }
   if (extra && !String(s.Note || '').includes(extra)) out.Note = [s.Note, extra].filter(Boolean).join('\n\n').slice(0, 4000)
-  if (flat(s.Description) !== flat(e.text)) out.WikiAt = now
+  if (!same) out.WikiAt = now
   return out
 }
 // отвязать (игрок меняет навык сам): дальше он уникальный и сам не привяжется
@@ -108,9 +140,11 @@ export function linkSkills(d, rules, { now = Date.now(), auto = true } = {}) {
       if (s.Wiki) {
         const e = ix.byRef.get(s.Wiki)
         if (e) {
-          if (s.Description !== e.text || s.SkillName !== e.name || s.CategoryIndex !== e.cat) {
-            x = { ...s, SkillName: e.name, CategoryIndex: e.cat, Description: e.text, ...(s.Description !== e.text ? { WikiAt: now } : {}) }
-            if (s.Description !== e.text) stat.updated++
+          // текст в вики поменялся — заменить (общее оформление игрока переносится, выделенные слова — нет; старое — в истории)
+          const fresh = !sameText(s.Description, e.text)
+          if (fresh || s.SkillName !== e.name || s.CategoryIndex !== e.cat) {
+            x = { ...s, SkillName: e.name, CategoryIndex: e.cat, Description: fresh ? restyle(s.Description, e.text) : s.Description, ...(fresh ? { WikiAt: now } : {}) }
+            if (fresh) stat.updated++
           }
         } else {
           // навык пропал из вики (удалён, переименован) — ищем по названию, иначе уникальный (текст остаётся)
