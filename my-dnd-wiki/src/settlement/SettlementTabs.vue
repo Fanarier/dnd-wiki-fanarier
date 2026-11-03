@@ -317,7 +317,7 @@
 
     <!-- ================= ВОЙСКО И ЛЕЧЕНИЕ ================= -->
     <GarrisonTab v-else-if="tab === 'garrison'" :settlement="s" :calc="c" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" />
-    <SquadsTab v-else-if="tab === 'squads'" :settlement="s" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" />
+    <SquadsTab v-else-if="tab === 'squads'" :settlement="s" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" @lead="emit('lead', $event)" />
     <HospitalTab v-else-if="tab === 'hospital'" :settlement="s" :calc="c" :master="master" :decider="decider" />
 
     <!-- ================= ИСТОРИЯ ================= -->
@@ -343,7 +343,7 @@ import SquadsTab from './SquadsTab.vue'
 import HospitalTab from './HospitalTab.vue'
 
 const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean, wide: Boolean })
-const emit = defineEmits(['pick', 'edit', 'tab', 'battle'])
+const emit = defineEmits(['pick', 'edit', 'tab', 'battle', 'lead'])
 const base = () => `/api/settlements/${props.settlement.id}`
 const s = computed(() => props.settlement)
 const c = computed(() => props.calc)

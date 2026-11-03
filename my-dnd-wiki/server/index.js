@@ -33,6 +33,7 @@ import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePric
 import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
 import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
+import { HOME as MARCH_HOME, HOME_R, marchCtx, marchTiming, marchState, msPerMeter, densify, findPath, edgePoint, atEdge } from '../src/shared/march.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { DIE_SIDES, ADV_MODES, keptIndex, rollSummary } from '../src/shared/dice.js'
@@ -647,6 +648,7 @@ setInterval(() => {
       if (p.squad && squadCameHome(p)) db.parties = db.parties.filter(x => x !== p)
     }
   }
+  if (tickMarches(db, now)) changed = true
   // метка дошла до конца пути — мастеру уведомление (один раз за отправку)
   for (const a of db.anomalies) {
     if (!a.move || a.move.arrived || a.move.startAt == null || a.move.pausedAt != null || a.move.end === 'loop') continue
@@ -672,11 +674,80 @@ function squadCameHome(p) {
   const q = st?.army?.squads?.find(x => x.id === p.squad.squadId)
   const city = st && db.cities.find(c => c.id === st.cityId)
   if (!q || !city || Math.hypot(p.x - city.x, p.y - city.y) > 3) return false
-  q.status = 'home'
   q.partyId = null
-  notify('masters', 'arrived', `${st.name}: отряд «${q.name}» вернулся домой`, settleLink(st, 'squads'))
-  logEntry(st, 'army', `Отряд «${q.name}» вернулся домой`)
+  // как в RimWorld: с карты мира — на край карты поселения, откуда уходил, и пешком домой
+  const away = st.marches?.[q.id]?.away
+  const edge = away?.edge || edgePoint(MARCH_HOME[0], SETTLE_WORLD)
+  const ctx = marchCtx(st)
+  const path = away?.path?.length > 1 ? [...away.path].reverse() : findPath(ctx, edge, MARCH_HOME) || [edge, MARCH_HOME]
+  q.status = 'local'
+  ;(st.marches ||= {})[q.id] = { x: edge[0], y: edge[1], move: startMove(ctx, densify(path), { label: 'Домой', home: true }) }
+  notify('masters', 'arrived', `${st.name}: отряд «${q.name}» вернулся в округу, идёт домой`, settleLink(st, 'squads'))
+  notifyDeciders(st, `отряд «${q.name}» вернулся в округу, идёт домой`, 'squads')
+  logEntry(st, 'army', `Отряд «${q.name}» вернулся в округу и идёт домой`)
   return true
+}
+
+/* ---------- походы по карте поселения ---------- */
+// s.marches[id отряда] = { x, y, move?, away? }: стоит в округе (x, y), идёт (move) или ушёл на карту мира (away: с какого края и каким путём)
+const startMove = (ctx, path, opt) => ({ path, cum: marchTiming(ctx, path, msPerMeter(getDb().settings)), startAt: Date.now(), ...opt })
+// отряд выходит на карту мира у своего города
+function spawnParty(s, q) {
+  const db = getDb()
+  const city = db.cities.find(c => c.id === s.cityId)
+  if (!city) return null
+  const cargo = cargoOf(q).some(c => c && c.kind !== 'other')
+  const p = {
+    id: newId('p'), name: q.name || 'Отряд', color: q.color || '#e6c27a', icon: cargo ? 'horse' : 'flag', x: city.x, y: city.y,
+    pace: null, members: [], description: `Отряд поселения «${s.name}»`, secret: '', hidden: false, journey: null, route: null,
+    squad: { settlementId: s.id, squadId: q.id }, createdAt: Date.now()
+  }
+  db.parties.push(p)
+  q.partyId = p.id
+  q.status = 'out'
+  logEntry(s, 'army', `Отряд «${q.name}» выходит из ${city.name}`)
+  return p
+}
+function tickMarches(db, now) {
+  let changed = false
+  for (const s of db.settlements || []) {
+    if (!s.marches) continue
+    for (const [id, m] of Object.entries(s.marches)) {
+      const q = s.army?.squads?.find(x => x.id === id)
+      if (!q) { delete s.marches[id]; changed = true; continue }
+      // отряд убрали с карты мира — он снова дома
+      if (m.away) {
+        if (!q.partyId || !db.parties.some(p => p.id === q.partyId)) { delete s.marches[id]; q.partyId = null; q.status = 'home'; changed = true }
+        continue
+      }
+      if (!m.move) continue
+      const st = marchState(m.move, now)
+      if (!st?.done) continue
+      const mv = m.move
+      m.x = st.x; m.y = st.y
+      m.move = null
+      changed = true
+      if (mv.exit) {
+        // дошёл до края — на карту мира; путь запоминаем, чтобы вернуться той же дорогой
+        if (!spawnParty(s, q)) { notify('masters', 'arrived', `${s.name}: отряд «${q.name}» у края округи, но поселение не привязано к городу на карте мира`, settleLink(s, 'squads')); continue }
+        s.marches[id] = { away: { edge: [st.x, st.y], path: mv.path } }
+        notify('masters', 'arrived', `${s.name}: отряд «${q.name}» вышел на карту мира — ждёт маршрута`, { partyId: q.partyId })
+        notifyDeciders(s, `отряд «${q.name}» вышел на карту мира`, 'squads')
+      } else if (mv.home && Math.hypot(st.x - MARCH_HOME[0], st.y - MARCH_HOME[1]) <= HOME_R) {
+        delete s.marches[id]
+        q.status = 'home'
+        notify('masters', 'arrived', `${s.name}: отряд «${q.name}» вернулся домой`, settleLink(s, 'squads'))
+        notifyDeciders(s, `отряд «${q.name}» вернулся домой`, 'squads')
+        logEntry(s, 'army', `Отряд «${q.name}» вернулся домой`)
+      } else {
+        const where = mv.label || 'точки'
+        notify('masters', 'arrived', `${s.name}: отряд «${q.name}» дошёл: ${where}`, settleLink(s, 'squads'))
+        notifyDeciders(s, `отряд «${q.name}» дошёл: ${where}`, 'squads')
+        logEntry(s, 'army', `Отряд «${q.name}» дошёл: ${where}`)
+      }
+    }
+  }
+  return changed
 }
 
 setInterval(backupDb, 6 * 3600 * 1000)
@@ -2087,22 +2158,66 @@ app.post('/api/settlements/:id/squads/:qid/deploy', requireMaster, (req, res) =>
   const db = getDb()
   let p = q.partyId && db.parties.find(x => x.id === q.partyId)
   if (!p) {
-    const city = db.cities.find(c => c.id === s.cityId)
-    if (!city) return res.status(400).json({ error: 'Поселение не привязано к городу на карте мира' })
-    const cargo = cargoOf(q).some(c => c && c.kind !== 'other')
-    p = {
-      id: newId('p'), name: q.name || 'Отряд', color: q.color || '#e6c27a', icon: cargo ? 'horse' : 'flag', x: city.x, y: city.y,
-      pace: null, members: [], description: `Отряд поселения «${s.name}»`, secret: '', hidden: false, journey: null, route: null,
-      squad: { settlementId: s.id, squadId: q.id }, createdAt: Date.now()
-    }
-    db.parties.push(p)
-    q.partyId = p.id
-    logEntry(s, 'army', `Отряд «${q.name}» выходит из ${city.name}`)
+    // мастер выводит сразу, минуя округу: возвращаться будет с того края, что ближе к месту, где стоял
+    const m = s.marches?.[q.id]
+    const at = m && !m.away ? (m.move ? marchState(m.move, Date.now()) : m) : null
+    p = spawnParty(s, q)
+    if (!p) return res.status(400).json({ error: 'Поселение не привязано к городу на карте мира' })
+    ;(s.marches ||= {})[q.id] = { away: { edge: at ? edgePoint(at.x, at.y) : edgePoint(MARCH_HOME[0], SETTLE_WORLD), path: null } }
   }
   q.status = 'out'
   saveDb()
   broadcast()
   res.json(p)
+})
+
+// поход по карте поселения: мастер и глава. Путь считает страница (в обход или напрямую), время — сервер по местности.
+// exit — последняя точка у края: дойдя, отряд выйдет на карту мира
+app.post('/api/settlements/:id/squads/:qid/march', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  if (!canDecide(req.user, s)) return res.status(403).json({ error: 'Водить отряды могут мастер и глава поселения' })
+  const q = s.army?.squads?.find(x => x.id === req.params.qid)
+  if (!q) return res.status(404).json({ error: 'Отряд не найден' })
+  if (!q.commander) return res.status(400).json({ error: 'Без командира отряд не выйдет' })
+  if (q.partyId && getDb().parties.some(p => p.id === q.partyId)) return res.status(400).json({ error: 'Отряд на карте мира — его ведут там' })
+  if (s.marches?.[q.id]?.away) delete s.marches[q.id]
+  const b = req.body || {}
+  const pts = (Array.isArray(b.path) ? b.path : []).slice(0, 3000)
+    .map(p => [Number(p?.[0]), Number(p?.[1])]).filter(p => p.every(Number.isFinite)).map(p => p.map(v => Math.max(0, Math.min(SETTLE_WORLD, Math.round(v * 10) / 10))))
+  if (pts.length < 2) return res.status(400).json({ error: 'Нужен путь хотя бы из двух точек' })
+  // начинаем там, где отряд сейчас (дома — в центре)
+  const m = s.marches?.[q.id]
+  const now = Date.now()
+  const at = m ? (m.move ? marchState(m.move, now) : m) : { x: MARCH_HOME[0], y: MARCH_HOME[1] }
+  pts[0] = [Math.round(at.x * 10) / 10, Math.round(at.y * 10) / 10]
+  const last = pts[pts.length - 1]
+  const exit = !!b.exit
+  if (exit && !atEdge(last[0], last[1])) return res.status(400).json({ error: 'Чтобы выйти на карту мира, путь должен кончаться у края округи' })
+  const home = !exit && Math.hypot(last[0] - MARCH_HOME[0], last[1] - MARCH_HOME[1]) <= HOME_R
+  const ctx = marchCtx(s)
+  const move = startMove(ctx, densify(pts), { label: exit ? 'на карту мира' : home ? 'Домой' : T.str(80)(b.label || '').trim() || 'точка на карте', exit, home })
+  ;(s.marches ||= {})[q.id] = { x: pts[0][0], y: pts[0][1], move }
+  q.status = 'local'
+  const hours = Math.max(0.02, move.cum[move.cum.length - 1] / 3600000)
+  logEntry(s, 'army', `${req.user.name} ведёт отряд «${q.name}»: ${move.label} (≈${hours < 1 ? Math.round(hours * 60) + ' мин' : hours.toFixed(1).replace('.', ',') + ' ч'})`)
+  if (req.user.role !== 'master') notify('masters', 'settlement', `${s.name}: ${req.user.name} ведёт отряд «${q.name}» — ${move.label}`, settleLink(s, 'squads'))
+  saveDb()
+  broadcast()
+  res.json(s.marches[q.id])
+})
+// остановиться, где идёт сейчас
+app.post('/api/settlements/:id/squads/:qid/halt', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  if (!canDecide(req.user, s)) return res.status(403).json({ error: 'Водить отряды могут мастер и глава поселения' })
+  const m = s.marches?.[req.params.qid]
+  if (!m?.move) return res.status(400).json({ error: 'Отряд и так стоит' })
+  const st = marchState(m.move, Date.now())
+  s.marches[req.params.qid] = { x: Math.round(st.x * 10) / 10, y: Math.round(st.y * 10) / 10 }
+  saveDb()
+  broadcast()
+  res.json(s.marches[req.params.qid])
 })
 
 // итог боя: потери снимаются со стеков, половина павших — раненые в лечебницу, остальные погибли

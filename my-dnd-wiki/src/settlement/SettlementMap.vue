@@ -144,7 +144,7 @@
         </g>
 
         <!-- курсор инструмента -->
-        <g v-if="cursor && toolActive && !lineTool && !tool?.wallFeature" :transform="`translate(${cursor.x} ${cursor.y})`" class="sm-cursor" :class="{ bad: cursorBad.length }">
+        <g v-if="cursor && toolActive && !lineTool && !tool?.wallFeature && !tool?.march" :transform="`translate(${cursor.x} ${cursor.y})`" class="sm-cursor" :class="{ bad: cursorBad.length }">
           <template v-if="placeType">
             <rect :x="-placeShown / 2" :y="-placeShown / 2" :width="placeShown" :height="placeShown" :rx="placeShown / 8" class="sm-ghost-plate" vector-effect="non-scaling-stroke" />
             <image :href="iconUrl(BUILDINGS[placeType]?.icon)" :x="-placeShown * 0.39" :y="-placeShown * 0.39" :width="placeShown * 0.78" :height="placeShown * 0.78" opacity=".8" />
@@ -161,6 +161,21 @@
           <rect :x="-22 * px" :y="-22 * px" :width="44 * px" :height="44 * px" :rx="7 * px" class="sm-plate outpost" vector-effect="non-scaling-stroke" />
           <image :href="iconUrl(OUTPOSTS[o.type]?.icon)" :x="-17 * px" :y="-17 * px" :width="34 * px" :height="34 * px" />
           <text :y="40 * px" class="sm-label" :style="labelStyle">{{ OUTPOSTS[o.type]?.label }}</text>
+        </g>
+
+        <!-- отряды в округе: сколько осталось пройти и сам отряд (поверх тумана — свои) -->
+        <polyline v-for="m in squadsView.filter(x => x.rest)" :key="'r' + m.id" :points="m.rest" class="sm-march-route" :stroke="m.color" vector-effect="non-scaling-stroke" />
+        <!-- прокладка пути: щёлкнутые точки, найденный путь, линия к курсору -->
+        <g v-if="tool?.march" class="sm-march-draft">
+          <polyline v-if="marchPathPts" :points="marchPathPts" class="sm-march-plan" vector-effect="non-scaling-stroke" />
+          <line v-if="marchAim" v-bind="marchAim" class="sm-march-aim" vector-effect="non-scaling-stroke" />
+          <circle v-for="(p, i) in marchDraft" :key="i" :cx="p[0]" :cy="p[1]" :r="5 * px" class="sm-draft-pt" :class="{ exit: marchExit && i === marchDraft.length - 1 }" vector-effect="non-scaling-stroke" />
+        </g>
+        <g v-for="m in squadsView" :key="m.id" class="sm-item sm-squad" :class="{ sel: isSel('squad', m.id), moving: m.moving }" :transform="`translate(${m.x} ${m.y})`"
+           @pointerenter="hover = { kind: 'squad', item: m }" @pointerleave="hover = null" @click.stop="pick('squad', m)">
+          <circle :r="15 * px" :fill="m.color" class="sm-squad-dot" vector-effect="non-scaling-stroke" />
+          <path :d="ICONS[m.icon] || ICONS.flag" :transform="`translate(${-10 * px} ${-10 * px}) scale(${(20 / 24) * px})`" fill="#1b1408" />
+          <text :y="31 * px" class="sm-label" :style="labelStyle">{{ m.name }}</text>
         </g>
 
         <!-- издалека — подпись поселения -->
@@ -205,6 +220,11 @@ import { WORLD, CENTER, makeTerrain, BIOME_LABEL } from '../shared/terrainGen.js
 import { createTileStore } from './tiles.js'
 import { TILE, MAX_Z, treeAt } from './tileRender.js'
 import { fogTexture } from '../map/fogTexture.js'
+import { store } from '../map/store.js'
+import { ICONS } from '../map/icons.js'
+import { cargoOf } from '../shared/army.js'
+import { marchCtx, planPath, marchState, marchTiming, msPerMeter, densify, edgePoint, EDGE } from '../shared/march.js'
+import { squadAt, spotLabel } from './march.js'
 
 const props = defineProps({
   settlement: { type: Object, required: true },
@@ -212,13 +232,13 @@ const props = defineProps({
   selected: { type: Object, default: null }, // { kind: building | outpost | road, id }
   // инструмент: 'move' — двигать; { place: тип } — новая постройка; { placeExisting: id, type } — из списка «не расставлены»;
   // { explore: true } — точка разведки; 'fog-add' / 'fog-erase' — туман; 'cut' / 'grow' — вырубить / вернуть лес; { road: тип } — дорога;
-  // { wall: вид } — стена; { wallFeature: gate | wicket | tower } — фрагмент на стене
+  // { wall: вид } — стена; { wallFeature: gate | wicket | tower } — фрагмент на стене; { march: id отряда, auto } — повести отряд
   tool: { type: [String, Object], default: null },
   ghosts: { type: Array, default: () => [] },
   brush: { type: Number, default: 60 }, // радиус кисти, м
   master: Boolean
 })
-const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march'])
 
 const fogUrl = fogTexture()
 const iconUrl = name => `/settlement/${name || 'help'}.png`
@@ -521,6 +541,7 @@ const roadsDraw = computed(() => {
   }).sort((a, b) => a.rank - b.rank)
 })
 const roadLen = pts => pts.reduce((n, p, i) => (i ? n + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0), 0)
+const fmtHours = ms => (ms >= 3600000 ? `${(ms / 3600000).toFixed(1).replace('.', ',')} ч` : `${Math.max(1, Math.round(ms / 60000))} мин`)
 const fmtLen = m => (m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 0 : 1).replace('.', ',')} км` : `${Math.round(m)} м`)
 // рисование новой дороги: щелчки ставят точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена
 const draft = ref([])
@@ -571,6 +592,68 @@ const editRoad = computed(() => {
 })
 const editMids = computed(() => (editRoad.value ? editRoad.value.points.slice(1).map((p, i) => [(p[0] + editRoad.value.points[i][0]) / 2, (p[1] + editRoad.value.points[i][1]) / 2]) : []))
 let handle = null
+
+/* ---------- отряды в округе ---------- */
+const squadsView = computed(() => {
+  const ms = props.settlement.marches || {}
+  return (props.settlement.army?.squads || []).flatMap(q => {
+    const m = ms[q.id]
+    if (!m || m.away) return []
+    const st = m.move ? marchState(m.move, store.now) : null
+    const x = st ? st.x : m.x, y = st ? st.y : m.y
+    const rest = st && !st.done ? [[x, y], ...m.move.path.slice(st.i)].map(p => p.join(',')).join(' ') : ''
+    return [{ id: q.id, name: q.name, color: q.color || '#e6c27a', icon: cargoOf(q).some(c => c && c.kind !== 'other') ? 'horse' : 'flag', x, y, rest, moving: !!st, move: m.move, st }]
+  })
+})
+// повести отряд: щелчки — точки пути; у края карты — выход на карту мира. Путь — в обход (поиск пути) или напрямую
+const marchDraft = ref([])
+const marchExit = ref(false)
+const marchFrom = ref(null)
+watch(() => props.tool?.march, qid => {
+  marchDraft.value = []
+  marchExit.value = false
+  const p = qid && squadAt(props.settlement, qid)
+  marchFrom.value = p ? [p.x, p.y] : null
+}, { immediate: true })
+const marchCtxNow = computed(() => (props.tool?.march ? marchCtx(props.settlement) : null))
+const marchPath = computed(() => {
+  if (!props.tool?.march || !marchFrom.value || !marchDraft.value.length) return null
+  return planPath(marchCtxNow.value, [marchFrom.value, ...marchDraft.value], props.tool.auto !== false) || 'blocked'
+})
+const marchPathPts = computed(() => (Array.isArray(marchPath.value) ? marchPath.value.map(p => p.join(',')).join(' ') : ''))
+const marchAim = computed(() => {
+  if (!props.tool?.march || marchExit.value || !cursor.value || !marchFrom.value) return null
+  const a = marchDraft.value.at(-1) || marchFrom.value
+  return { x1: a[0], y1: a[1], x2: cursor.value.x, y2: cursor.value.y }
+})
+// для подсказки на странице: сколько идти, куда, можно ли
+const marchInfo = computed(() => {
+  if (!props.tool?.march) return null
+  const p = marchPath.value
+  if (!p) return { empty: true }
+  if (p === 'blocked') return { blocked: true }
+  const cum = marchTiming(marchCtxNow.value, densify(p), msPerMeter(store.data.settings))
+  return { ms: cum.at(-1), exit: marchExit.value, label: marchExit.value ? 'на карту мира' : spotLabel(props.settlement, p.at(-1)) }
+})
+function addMarchPoint(w) {
+  if (marchExit.value) return
+  if (Math.min(w.x, w.y, WORLD - w.x, WORLD - w.y) < Math.max(EDGE * 3, 30 * px.value)) {
+    marchDraft.value = [...marchDraft.value, edgePoint(w.x, w.y)]
+    marchExit.value = true
+    return
+  }
+  const o = (props.settlement.outposts || []).find(o => Math.hypot(o.x - w.x, o.y - w.y) < 30 * px.value)
+  marchDraft.value = [...marchDraft.value, o ? [o.x, o.y] : [w.x, w.y]]
+}
+function undoMarchPoint() {
+  marchDraft.value = marchDraft.value.slice(0, -1)
+  marchExit.value = false
+}
+function finishMarch() {
+  const p = marchPath.value
+  if (!Array.isArray(p) || p.length < 2) return
+  emit('march', { qid: props.tool.march, path: p, exit: marchExit.value, label: marchInfo.value?.label || '' })
+}
 
 /* ---------- выбор, перетаскивание ---------- */
 const isSel = (kind, id) => props.selected?.kind === kind && props.selected?.id === id
@@ -706,6 +789,7 @@ function onUp(e) {
     else if (props.tool.wallFeature) { if (featureAim.value) emit('wallFeature', { wallId: featureAim.value.wallId, s: featureAim.value.s, kind: props.tool.wallFeature }) }
     else if (placeType.value && !cursorBad.value.length) emit('placed', { type: placeType.value, id: props.tool.placeExisting, ...w })
     else if (props.tool.explore) emit('explore', w)
+    else if (props.tool.march) addMarchPoint(w)
   }
   // клик по пустому месту снимает выбор
   if (!moved && primary && !toolActive.value && up && e.target.closest && !e.target.closest('.sm-item, .sm-road-hit, .sm-handle, .sm-ctrl')) emit('select', null)
@@ -719,6 +803,7 @@ function release(e) {
 }
 function onDbl(e) {
   if (lineTool.value) { finishRoad(); return }
+  if (props.tool?.march) { finishMarch(); return }
   // двойной щелчок по точке выбранной дороги — убрать точку
   const h = e.target.closest?.('[data-h]')
   if (h && editRoad.value && editRoad.value.points.length > 2) {
@@ -727,6 +812,11 @@ function onDbl(e) {
 }
 function onLeave() { hover.value = null; cursor.value = null; place.value = '' }
 function onKey(e) {
+  if (props.tool?.march && !e.target?.closest?.('input, textarea, select, [contenteditable]')) {
+    if (e.key === 'Enter') finishMarch()
+    else if (e.key === 'Backspace') { undoMarchPoint(); e.preventDefault() }
+    return
+  }
   if (!lineTool.value || e.target?.closest?.('input, textarea, select, [contenteditable]')) return
   if (e.key === 'Enter') finishRoad()
   else if (e.key === 'Backspace') { draft.value = draft.value.slice(0, -1); e.preventDefault() }
@@ -743,6 +833,10 @@ const tip = computed(() => {
   if (h.kind === 'outpost') {
     const o = h.item
     return { title: `Аванпост «${OUTPOSTS[o.type]?.label}»`, lines: [`Рабочие: ${o.workers} из ${o.places}`, Object.entries(o.yields || {}).map(([k, v]) => `${RES[k]?.label} +${v}`).join(', '), `${fmtLen(Math.hypot(o.x - CENTER, o.y - CENTER))} от поселения`] }
+  }
+  if (h.kind === 'squad') {
+    const m = h.item
+    return { title: `Отряд «${m.name}»`, lines: m.st && !m.st.done ? [`Идёт: ${m.move.label}`, `Осталось ≈ ${fmtHours(m.st.left)}`] : ['Стоит в округе'] }
   }
   if (h.kind === 'road') return { title: h.item.name || ROAD_TYPES[h.item.type]?.label, lines: [`Длина: ${fmtLen(roadLen(h.item.points))}`] }
   if (h.kind === 'needGate') return { title: 'Дорога упирается в стену', lines: ['Щёлкни — поставить ворота'] }
@@ -796,7 +890,7 @@ onBeforeUnmount(() => {
   tiles.destroy()
   window.removeEventListener('keydown', onKey)
 })
-defineExpose({ fit, fitAll, finishRoad, draft })
+defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marchInfo, marchDraft })
 </script>
 
 <style scoped>
@@ -826,6 +920,16 @@ defineExpose({ fit, fitAll, finishRoad, draft })
 .sm-needgate text { fill: #fff; font-weight: 900; text-anchor: middle; pointer-events: none; }
 @keyframes sm-ng { 50% { opacity: .55; } }
 .sm-draft-pt { fill: #f3d99a; stroke: #3a2a14; stroke-width: 1.5; }
+.sm-draft-pt.exit { fill: #6fd6e8; }
+/* отряды в округе */
+.sm-squad { cursor: pointer; }
+.sm-squad-dot { stroke: #1b1408; stroke-width: 2; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .6)); }
+.sm-squad.sel .sm-squad-dot { stroke: #fff3c4; stroke-width: 3; filter: url(#sm-glow); }
+.sm-squad.moving .sm-squad-dot { animation: sm-squad-pulse 2.4s ease-in-out infinite; }
+@keyframes sm-squad-pulse { 50% { stroke: #fff3c4; } }
+.sm-march-route { fill: none; stroke-width: 3; stroke-dasharray: 7 6; stroke-linecap: round; stroke-linejoin: round; opacity: .85; pointer-events: none; }
+.sm-march-plan { fill: none; stroke: #c7e07a; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; filter: drop-shadow(0 0 2px rgba(0, 0, 0, .8)); }
+.sm-march-aim { stroke: rgba(199, 224, 122, .6); stroke-width: 2; stroke-dasharray: 4 5; pointer-events: none; }
 .sm-item { cursor: pointer; }
 .sm-plate { fill: #d6d2c8; stroke: var(--cat, #8a7a5a); stroke-width: 2.5; }
 .sm-plate.outpost { fill: #cfc6b2; stroke: #6b5127; }

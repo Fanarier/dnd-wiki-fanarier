@@ -12,7 +12,7 @@
         <div class="sqh">
           <input v-if="master" :value="q.name" class="name-in" @change="save(q, { name: $event.target.value })" />
           <b v-else>{{ q.name }}</b>
-          <span class="pill" :class="party(q) ? 'out' : 'home'">{{ party(q) ? (trip(q) ? 'в походе' : 'на карте мира') : 'дома' }}</span>
+          <span class="pill" :class="party(q) ? 'out' : local(q) ? 'local' : 'home'">{{ party(q) ? (trip(q) ? 'в походе' : 'на карте мира') : local(q) ? (local(q).move ? 'идёт по округе' : 'в округе') : 'дома' }}</span>
           <router-link v-if="party(q)" class="maplink" :to="{ path: '/', query: { focus: 'parties:' + q.partyId } }">«{{ party(q).name }}» на карте →</router-link>
         </div>
         <!-- поход по карте мира: отряд появляется в родном городе и идёт по точкам мастера -->
@@ -25,11 +25,13 @@
           </template>
           <div v-else class="trip-n">стоит на карте мира — ждёт маршрута</div>
         </div>
+        <!-- по карте поселения: вести по точкам, домой, к краю — и на карту мира -->
+        <MarchControls v-if="!party(q) && (local(q) || master || decider)" :settlement="s" :squad="q" :can="master || decider" @lead="$emit('lead', $event)" />
         <div v-if="master" class="sq-ctl">
-          <button v-if="!party(q)" class="mini go" :disabled="!q.commander" :title="q.commander ? 'Отряд появится в родном городе на карте мира, дальше — точки маршрута' : 'Сначала назначь командира'" @click="deploy(q)">🗺 Выйти в поход</button>
+          <button v-if="!party(q)" class="mini" :disabled="!q.commander" :title="q.commander ? 'Минуя округу: отряд сразу появится в родном городе на карте мира' : 'Сначала назначь командира'" @click="deploy(q)">🗺 Сразу на карту мира</button>
           <template v-else>
             <button class="mini go" @click="deploy(q)">🗺 Новый маршрут</button>
-            <button class="mini" title="Проложить путь обратно — дома отряд сам уйдёт с карты" @click="deploy(q, true)">⌂ Домой</button>
+            <button class="mini" title="Проложить путь обратно — у города отряд вернётся в округу и пешком дойдёт домой" @click="deploy(q, true)">⌂ Домой</button>
           </template>
           <button class="mini" @click="$emit('battle', q.id)">⚔ Бой</button>
           <button class="mini danger" @click="removeSquad(q)">Распустить</button>
@@ -100,9 +102,10 @@ import { STATS, LINES, LINE_SLOTS, CARGO_SLOTS, CARGO_KINDS, cargoOf, unitOf, sq
 import { faceOf } from './armyFaces.js'
 import UnitSlot from './UnitSlot.vue'
 import SlotEditor from './SlotEditor.vue'
+import MarchControls from './MarchControls.vue'
 
 const props = defineProps({ settlement: Object, master: Boolean, decider: Boolean })
-defineEmits(['edit', 'battle'])
+defineEmits(['edit', 'battle', 'lead'])
 const s = computed(() => props.settlement)
 const base = () => `/api/settlements/${s.value.id}`
 const heroes = computed(() => store.data.heroes || [])
@@ -110,6 +113,7 @@ const parties = computed(() => store.data.parties || [])
 const squads = computed(() => s.value.army?.squads || [])
 const limit = computed(() => squadLimit(s.value))
 const party = q => q.partyId && parties.value.find(p => p.id === q.partyId)
+const local = q => (!party(q) && s.value.marches?.[q.id]) || null
 const trip = q => { const p = party(q); return p?.journey ? journeyState(p.journey, store.now) : null }
 // ближайшая непройденная точка интереса и когда отряд там будет
 function nextStop(q) {
@@ -200,6 +204,7 @@ h3 small { font: 600 12px var(--a-sans); color: var(--a-muted); }
 .pill { padding: 2px 9px; border-radius: 99px; font: 800 11px var(--a-sans); }
 .pill.home { background: rgba(155, 224, 122, .15); color: #9be07a; }
 .pill.out { background: rgba(111, 214, 232, .15); color: #6fd6e8; }
+.pill.local { background: rgba(199, 224, 122, .15); color: #c7e07a; }
 .maplink { font-size: 12px; font-weight: 700; color: var(--a-gold-2); }
 .sq-ctl { display: flex; gap: 6px; flex-wrap: wrap; }
 .sq-ctl select, .task input, .cg-edit input { min-height: 28px; padding: 2px 7px; border-radius: 7px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 600 12px var(--a-sans); }

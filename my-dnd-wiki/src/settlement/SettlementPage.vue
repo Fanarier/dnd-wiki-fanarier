@@ -28,7 +28,7 @@
       <div class="sp-mapwrap">
         <SettlementMap ref="mapRef" class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts" :brush="brush" :master="master"
                        @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog"
-                       @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" @wall="onWall" @wall-feature="onWallFeature" @need-gate="onNeedGate" />
+                       @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" @wall="onWall" @wall-feature="onWallFeature" @need-gate="onNeedGate" @march="onMarch" />
         <!-- инструменты: мастеру — правка карты, главе — приказы -->
         <div v-if="master || decider" class="sp-tools">
           <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="setTool(null)">👁 Смотреть</button>
@@ -51,6 +51,16 @@
           <span>{{ hint }}</span>
           <label v-if="brushTool" class="brush">кисть {{ brushLabel }}<input v-model.number="brush" type="range" :min="brushRange[0]" :max="brushRange[1]" :step="brushRange[2]" /></label>
           <button v-if="tool?.road || tool?.wall" class="mini" @click="mapRef?.finishRoad()">Готово</button>
+          <template v-if="tool?.march">
+            <span class="seg">
+              <button :class="{ on: tool.auto !== false }" title="Сам обходит воду и болота, тянется к дорогам" @click="tool = { ...tool, auto: true }">в обход</button>
+              <button :class="{ on: tool.auto === false }" title="По прямой между точками — через лес, болото и брод" @click="tool = { ...tool, auto: false }">напрямую</button>
+            </span>
+            <em v-if="marchInfo?.blocked" class="bad">туда не пройти — попробуй «напрямую»</em>
+            <em v-else-if="marchInfo?.ms" class="mi">≈ {{ fmtHours(marchInfo.ms) }}{{ marchInfo.label ? ' · ' + marchInfo.label : '' }}</em>
+            <button v-if="mapRef?.marchDraft?.length" class="mini" @click="mapRef?.undoMarchPoint()">↶ точку</button>
+            <button class="mini go" :disabled="!marchInfo?.ms" @click="mapRef?.finishMarch()">Идти</button>
+          </template>
         </div>
         <!-- палитра построек: сначала «не расставлены» -->
         <div v-if="pop === 'palette'" class="sp-pop palette">
@@ -176,6 +186,12 @@
           </div>
         </section>
 
+        <!-- выбранный на карте отряд: куда идёт, повести, домой, на карту мира -->
+        <section v-if="selSquad" class="sp-squad">
+          <div class="sq-top"><b>Отряд «{{ selSquad.name }}»</b><button class="x" @click="sel = null">×</button></div>
+          <MarchControls :settlement="s" :squad="selSquad" :can="master || decider" @lead="startLead" />
+          <button class="sq-more" @click="setTab('squads')">состав и обоз →</button>
+        </section>
         <!-- выбранная на карте постройка или аванпост -->
         <BuildingCard v-if="selItem" :settlement="s" :calc="calc" :sel="sel" :item="selItem" :master="master" :decider="decider" @close="sel = null" @save="saveItem" @remove="removeItem" @place="startPlaceExisting"
                       @repair="onRepair" @order-repair="onOrderRepair" />
@@ -185,7 +201,7 @@
             {{ tb.label }}<i v-if="tb.dot" class="dot" />
           </button>
         </nav>
-        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" @tab="setTab" @battle="battleSide = $event" />
+        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" @tab="setTab" @battle="battleSide = $event" @lead="startLead" />
         <p class="sp-credit">Значки: game-icons.net (CC BY 3.0)</p>
       </aside>
     </div>
@@ -204,6 +220,8 @@ import SettlementTabs from './SettlementTabs.vue'
 import BuildingCard from './BuildingCard.vue'
 import SettlementEditor from './SettlementEditor.vue'
 import BattlePanel from './BattlePanel.vue'
+import MarchControls from './MarchControls.vue'
+import { sendMarch } from './march.js'
 import { missingRaceStats } from '../shared/army.js'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
@@ -284,6 +302,7 @@ const hint = computed(() => {
   if (t?.placeExisting) { const b = s.value.buildings.find(x => x.id === t.placeExisting); return `Кликни, куда поставить «${b?.name || BUILDINGS[t.type]?.label}». Esc — отмена.` }
   if (t?.place) return `Кликни по разведанной земле, куда поставить «${BUILDINGS[t.place]?.label}». Esc — отмена.`
   if (t?.explore) return 'Кликни, какой участок разведать — мастер получит приказ.'
+  if (t?.march) return `Веди «${squadName(t.march)}»: щёлкай точки на карте. У края карты — выход на карту мира. Enter — идти, Backspace — убрать точку, Esc — отмена.`
   if (t?.road) return `${ROAD_TYPES[t.road].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Точка прилипает к другим дорогам (кольцо); начни с конца такой же дороги — продолжишь её.`
   if (t?.wall) return `${WALL_TYPES[t.wall].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Начни с конца такой же стены — продолжишь её; последнюю точку поставь на первую — кольцо.`
   if (t?.wallFeature) return `${WALL_FEATURES[t.wallFeature].label}: наведи на стену и щёлкни. Esc — отмена.`
@@ -370,6 +389,23 @@ const onRoadEdit = ({ kind, id, points }) => (kind === 'wall'
   ? patch({ walls: s.value.walls.map(w => (w.id === id ? { ...w, points } : w)) })
   : patch({ roads: s.value.roads.map(r => (r.id === id ? { ...r, points } : r)) }))
 
+/* ---------- походы отрядов по округе ---------- */
+const squadName = id => s.value?.army?.squads?.find(q => q.id === id)?.name || 'отряд'
+const marchInfo = computed(() => mapRef.value?.marchInfo || null)
+const fmtHours = ms => (ms >= 3600000 ? `${(ms / 3600000).toFixed(1).replace('.', ',')} ч` : `${Math.max(1, Math.round(ms / 60000))} мин`)
+function startLead(qid) {
+  wide.value = false
+  pop.value = null
+  tool.value = { march: qid, auto: true }
+  sel.value = { kind: 'squad', id: qid }
+}
+async function onMarch({ qid, path, exit, label }) {
+  const r = await sendMarch(s.value, qid, path, { exit, label })
+  if (!r) return
+  tool.value = null
+  sel.value = { kind: 'squad', id: qid }
+}
+
 /* ---------- ремонт построек ---------- */
 const onRepair = (id, opt) => act('POST', `${base()}/buildings/${id}/repair`, opt, opt.instant ? 'Постройка снова целая' : 'Ремонт начат — пойдёт с «Прошёл день»').catch(() => null)
 async function onOrderRepair(b) {
@@ -451,8 +487,9 @@ function onKey() {
 }
 
 const sel = ref(route.query.b ? { kind: 'building', id: String(route.query.b) } : null)
+const selSquad = computed(() => (sel.value?.kind === 'squad' && s.value?.army?.squads?.find(q => q.id === sel.value.id)) || null)
 const selItem = computed(() => {
-  if (!sel.value || !s.value) return null
+  if (!sel.value || !s.value || sel.value.kind === 'squad') return null
   const list = { outpost: s.value.outposts, road: s.value.roads, wall: s.value.walls }[sel.value.kind] || s.value.buildings
   return list?.find(x => x.id === sel.value.id) || null
 })
@@ -501,6 +538,17 @@ function setTab(id) {
 .sp-hint { position: absolute; z-index: 5; top: 62px; left: 12px; right: 60px; width: max-content; max-width: calc(100% - 72px); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 6px 10px; border-radius: 9px; background: rgba(23, 19, 14, .92); border: 1px solid #8a6630; color: #e6d6b0; font: 600 12px var(--a-sans); }
 .sp-hint .brush { display: inline-flex; align-items: center; gap: 6px; color: #f3d99a; white-space: nowrap; }
 .sp-hint .brush input { width: 120px; accent-color: #e6c27a; }
+.sp-hint .seg { display: inline-flex; border: 1px solid #8a6630; border-radius: 7px; overflow: hidden; }
+.sp-hint .seg button { padding: 3px 9px; border: 0; background: transparent; color: #cdbb92; font: 700 12px var(--a-sans); cursor: pointer; }
+.sp-hint .seg button.on { background: #c7e07a; color: #1b1408; }
+.sp-hint .mi { font-style: normal; color: #c7e07a; }
+.sp-hint .bad { font-style: normal; color: #ff9b8f; }
+.mini.go { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border: 0; }
+.mini:disabled { opacity: .45; cursor: not-allowed; }
+.sp-squad { display: grid; gap: 8px; margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: linear-gradient(170deg, #1d2214, #12150d); border: 1px solid #56682c; }
+.sp-squad .sq-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 700 17px var(--a-serif); color: #dcebb8; }
+.sp-squad .x { border: 0; background: none; color: var(--a-muted); font-size: 20px; cursor: pointer; }
+.sp-squad .sq-more { justify-self: start; border: 0; background: none; padding: 0; color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .mini { padding: 3px 9px; border-radius: 7px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .1); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .sp-tools .cnt { margin-left: 5px; padding: 0 6px; border-radius: 99px; background: #e0281e; color: #fff; font: 800 10.5px/16px var(--a-sans); font-style: normal; }
 .sp-pop.small { width: 290px; }
