@@ -11,11 +11,12 @@ try { log = JSON.parse(fs.readFileSync(FILE, 'utf8')) } catch { log = {} }
 let timer = null
 const save = () => { clearTimeout(timer); timer = setTimeout(() => fs.writeFile(FILE, JSON.stringify(log), () => {}), 2000) }
 
-// настоящий адрес: сервер стоит за своим прокси (Caddy / туннель) — тогда первый из X-Forwarded-For
+// настоящий адрес: сервер стоит за своим прокси (Caddy / туннель) — тогда последний из X-Forwarded-For: его дописал
+// наш прокси. Первые значения присылает сам посетитель, их можно подделать
 export function clientIp(req) {
   const raw = req.socket?.remoteAddress || ''
   const local = /^(::1|127\.|::ffff:127\.)/.test(raw)
-  const fwd = String(req.headers?.['x-forwarded-for'] || '').split(',')[0].trim()
+  const fwd = String(req.headers?.['x-forwarded-for'] || '').split(',').map(s => s.trim()).filter(Boolean).pop() || ''
   return (local && fwd ? fwd : raw).replace(/^::ffff:/, '')
 }
 

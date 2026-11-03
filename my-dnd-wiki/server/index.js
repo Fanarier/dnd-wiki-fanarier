@@ -8,6 +8,10 @@ import http from 'node:http'
 import express from 'express'
 import { WebSocketServer } from 'ws'
 
+// файлы, которые создаёт сервер (данные, бэкапы, картинки), — только для его пользователя: там пароли игроков (хэши),
+// ключ подписи входа, листы. Сайт раздаёт их сам, другим программам на сервере читать их незачем
+process.umask(0o077)
+
 import { loadDb, getDb, saveDb, flushDb, backupDb, newId, ICON_DIR, PORTRAIT_DIR } from './db.js'
 import { registerNpcRoutes, npcLinks, npcPins } from './npcs.js'
 import { registerBestiaryRoutes } from './bestiary.js'
@@ -704,6 +708,15 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN')
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()')
+  // окно сайта не делит процесс с чужими вкладками, файлы сайта нельзя встроить на чужой сайт
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site')
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none')
+  // HSTS: браузер год открывает сайт только по https (за прокси req.secure — по X-Forwarded-Proto от Caddy / туннеля).
+  // Без includeSubDomains: на других поддоменах домена могут быть сайты без https
+  if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000')
+  // ответы API — личные данные: не кэшировать ни браузеру, ни Cloudflare (свои картинки API ставят кэш сами)
+  if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store')
   next()
 })
 app.use(express.json({ limit: '5mb' }))
