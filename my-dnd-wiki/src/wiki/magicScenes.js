@@ -593,20 +593,24 @@ const magma = {
     for (const v of s.volcs) {
       v.flows = []
       const branch = (x, y, len, drift, w0, w1, depth) => {
-        const pts = [], n = 30
+        const pts = [], n = 60
         let px = x, py = y
-        const ph = rnd() * TAU, wav = (8 + rnd() * 8) * K * v.sc
+        const ph = rnd() * TAU, ph2 = rnd() * TAU, wav = (10 + rnd() * 10) * K * v.sc, wseed = rnd() * 40
         for (let i = 0; i <= n; i++) {
           const u = i / n
-          const qx = px + Math.sin(u * 5 + ph) * wav * u
-          pts.push([qx, Math.max(py, ridgeY(v, qx) + 3 * K), w0 + (w1 - w0) * u]) // по склону, не над ним
-          py += len / n; px += drift * (len / n) * (0.5 + u)
+          // русло петляет: две волны разной частоты, к низу размах больше
+          const qx = px + (Math.sin(u * 6 + ph) * 0.7 + Math.sin(u * 13 + ph2) * 0.3) * wav * (0.25 + u)
+          // ширина неровная: сужения и разливы, у самого истока поуже
+          const wn = 0.7 + 0.6 * v.n(u * 5 + wseed)
+          pts.push([qx, Math.max(py, ridgeY(v, qx) + 3 * K), (w0 + (w1 - w0) * u) * wn * Math.min(1, 0.55 + u * 4)])
+          py += len / n; px += drift * (len / n) * (0.4 + u * 0.9)
         }
         const fl = { pts, ph: rnd() * TAU }
         v.flows.push(fl)
         if (depth > 0) {
           for (const at of [0.38 + rnd() * 0.1, 0.62 + rnd() * 0.12]) {
             const p = pts[Math.round(at * n)]
+            if (!p) continue
             branch(p[0], p[1], (v.base - p[1]) * (0.75 + rnd() * 0.3), drift + (rnd() < 0.5 ? -1 : 1) * (0.35 + rnd() * 0.35), p[2] * 0.7, w1 * 0.6, depth - 1)
           }
         }
@@ -688,6 +692,11 @@ const magma = {
     s.steamWarm = puffSprite('255, 170, 120', 0.5)
     s.steamCool = puffSprite('215, 210, 210', 0.5)
     s.ashPuff = puffSprite('40, 32, 36', 0.8)
+    // «капли» лавы: остывший край, тело, раскалённое нутро
+    const blob = stops => { const c = document.createElement('canvas'); c.width = c.height = 64; const bg2 = c.getContext('2d'), r = bg2.createRadialGradient(32, 32, 0, 32, 32, 32); stops.forEach(([o, col]) => r.addColorStop(o, col)); bg2.fillStyle = r; bg2.fillRect(0, 0, 64, 64); return c }
+    s.lavaEdge = blob([[0, 'rgba(130, 30, 10, .9)'], [0.65, 'rgba(110, 25, 8, .6)'], [1, 'rgba(90, 20, 8, 0)']])
+    s.lavaBody = blob([[0, 'rgba(255, 140, 40, 1)'], [0.55, 'rgba(240, 90, 25, .85)'], [1, 'rgba(200, 50, 15, 0)']])
+    s.lavaHot = blob([[0, 'rgba(255, 245, 200, .9)'], [0.4, 'rgba(255, 200, 100, .5)'], [1, 'rgba(255, 150, 50, 0)']])
     s.steam = []; s.puffs = []; s.bombs = []; s.bolt = null
     s.nextBomb = 6; s.nextBolt = 4
     s.crust = Array.from({ length: Math.round(W / K / 45) }, () => ({ x: rnd() * W, w: (20 + rnd() * 60) * K, v: (4 + rnd() * 8) * K, ph: rnd() * TAU }))
@@ -763,31 +772,33 @@ const magma = {
       }
       // лава: лента переменной ширины — тёмно-красный край, оранжевое тело, светлая сердцевина; свечение медленно проходит вниз
       for (const f of v.flows) {
-        const ribbon = k => {
-          const L = [], R = []
-          f.pts.forEach(([x, y, w], i) => {
-            const [nx, ny] = f.pts[Math.min(i + 1, f.pts.length - 1)], [px, py] = f.pts[Math.max(i - 1, 0)]
-            const dx = nx - px, dy = ny - py, d = Math.hypot(dx, dy) || 1, ox = (-dy / d) * w * k / 2, oy = (dx / d) * w * k / 2
-            L.push([x + ox, y + oy]); R.push([x - ox, y - oy])
-          })
-          g.beginPath(); L.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); for (let i = R.length - 1; i >= 0; i--) g.lineTo(R[i][0], R[i][1]); g.closePath()
-        }
-        // мягкий ореол вокруг потока, потом остывший край, тело и сердцевина — без резкой обводки
-        ribbon(2.6); g.fillStyle = 'rgba(255, 90, 25, .12)'; g.fill()
+        // тёмный остывший край → тело → раскалённое нутро: мягкими «каплями» вдоль русла (картинки, это дёшево)
+        const P = f.pts, n = P.length
         g.globalCompositeOperation = 'source-over'
-        ribbon(1.35); g.fillStyle = 'rgba(150, 40, 12, .5)'; g.fill()
-        ribbon(1); g.fillStyle = 'rgba(255, 115, 32, .88)'; g.fill()
-        ribbon(0.45); g.fillStyle = 'rgba(255, 200, 110, .7)'; g.fill()
-        ribbon(0.18); g.fillStyle = 'rgba(255, 245, 200, .6)'; g.fill()
-        // тёмная корка плывёт по потоку
-        g.fillStyle = 'rgba(60, 18, 10, .55)'
-        for (let k = 0; k < 4; k++) {
-          const u = (t * 0.03 + k / 4 + f.ph) % 1, i = Math.floor(u * (f.pts.length - 1)), [x, y, w] = f.pts[i]
-          g.beginPath(); g.ellipse(x, y, w * 0.35, w * 0.22, 0.5, 0, TAU); g.fill()
+        for (let i = 0; i < n; i += 1) { const [x, y, w] = P[i]; const r = w * 1.15; g.globalAlpha = 0.55; g.drawImage(s.lavaEdge, x - r, y - r, r * 2, r * 2) }
+        for (let i = 0; i < n; i += 1) { const [x, y, w] = P[i]; const r = w * 0.8; g.globalAlpha = 0.9; g.drawImage(s.lavaBody, x - r, y - r, r * 2, r * 2) }
+        g.globalCompositeOperation = 'lighter'
+        for (let i = 0; i < n; i += 1) {
+          const [x, y, w] = P[i], u = i / (n - 1)
+          const pulse = 0.55 + 0.45 * Math.sin(u * 18 - t * 1.4 + f.ph) // волны яркости медленно бегут вниз
+          const r = w * 0.45
+          g.globalAlpha = 0.35 + 0.35 * pulse
+          g.drawImage(s.lavaHot, x - r, y - r, r * 2, r * 2)
+        }
+        g.globalAlpha = 1
+        // корка: тёмные плиты с раскалёнными краями медленно плывут по течению
+        g.globalCompositeOperation = 'source-over'
+        for (let k = 0; k < 5; k++) {
+          const u = (t * 0.018 + k / 5 + f.ph) % 1, i = Math.min(n - 2, Math.floor(u * (n - 1))), [x, y, w] = P[i], [x2, y2] = P[i + 1]
+          const ang = Math.atan2(y2 - y, x2 - x), fade = Math.min(1, u * 6, (1 - u) * 6)
+          g.save(); g.translate(x + Math.sin(k * 3 + f.ph) * w * 0.12, y); g.rotate(ang)
+          g.fillStyle = `rgba(55, 18, 10, ${0.7 * fade})`; g.strokeStyle = `rgba(255, 150, 60, ${0.45 * fade})`; g.lineWidth = 1 * K
+          g.beginPath()
+          for (let j = 0; j < 7; j++) { const a = (j / 7) * TAU, rr = w * (0.2 + 0.08 * Math.sin(j * 2.3 + k)); g.lineTo(Math.cos(a) * rr * 1.5, Math.sin(a) * rr) }
+          g.closePath(); g.fill(); g.stroke()
+          g.restore()
         }
         g.globalCompositeOperation = 'lighter'
-        const u = (t * 0.05 + f.ph) % 1, [gx, gy, gw] = f.pts[Math.floor(u * (f.pts.length - 1))]
-        glow(g, gx, gy, gw * 3, '255, 200, 120', 0.35)
         const [ex, ey, ew] = f.pts[f.pts.length - 1]
         if (ey > v.base - 6 * K) glow(g, ex, ey, ew * 4, '255, 140, 50', 0.35)
       }
