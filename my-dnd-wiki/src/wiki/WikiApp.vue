@@ -79,6 +79,7 @@ const MagicSparkles = defineAsyncComponent(() => import('./MagicSparkles.vue'))
 import Sidebar from '../components/Sidebar.vue'
 import WikiSearch from './WikiSearch.vue'
 import SpellsPage from './rules/SpellsPage.vue'
+import AtlasPage from './rules/AtlasPage.vue'
 import WikiAmbience from '../components/fx/WikiAmbience.vue'
 import EffectsPage from './rules/EffectsPage.vue'
 import ItemsPage from './rules/ItemsPage.vue'
@@ -96,6 +97,12 @@ const isActivity = computed(() => props.mode === 'activity')
   Разделы вики. Правила (расы, классы, статьи, магия, эффекты) лежат на сервере и правятся на сайте —
   мастером и редакторами, которым он дал права (src/shared/wikiPerms.js). master: true — раздел только для мастера.
 */
+const MAGIC_SCHOOLS = [
+  ['fire', 'Школа огня', 'Пламя, взрывы, жар'], ['water', 'Школа воды', 'Потоки, пар, целительные источники'], ['air', 'Школа воздуха', 'Ветер, полёт, вихри'], ['earth', 'Школа земли', 'Камень, стены, землетрясения'],
+  ['magma', 'Школа магмы', 'Лава, раскалённый камень'], ['ice', 'Школа льда', 'Холод, лёд, заморозка'], ['lightning', 'Школа молний', 'Разряды, гроза, скорость'], ['nature', 'Школа природы', 'Растения, звери, исцеление'],
+  ['light', 'Школа света', 'Сияние, защита, исцеление'], ['dark', 'Школа тьмы', 'Тени, страх, проклятия'], ['order', 'Школа порядка', 'Печати, щиты, равновесие'], ['chaos', 'Школа хаоса', 'Случайность, разрушение'],
+  ['summon', 'Школа призыва', 'Существа и призванные союзники'], ['enchant', 'Школа зачарования', 'Руны, чары на вещи'], ['mind', 'Школа разума', 'Разум, иллюзии, контроль'], ['arcana', 'Аркана', 'Звёздные карты и Арканы стихий']
+]
 const ALL_CATEGORIES = [
   // «Активность»
   { id: 'party', title: 'Статус группы', description: 'Кто в группе и в лагере, цели, местность', component: PartyStatus },
@@ -107,6 +114,7 @@ const ALL_CATEGORIES = [
   { id: 'heroes', title: 'Герои Анкарии', description: 'Персонажи, сайд-кики, компаньоны и новые арты', component: HeroesPage },
   { id: 'npcs', title: 'НПС', description: 'Полные листы: сайд-кики, компаньоны, важные НПС', component: NpcsPage },
   { id: 'bestiary', title: 'Бестиарий', description: 'Существа и монстры: что о них знают герои', component: BestiaryPage },
+  { id: 'atlas', title: 'Атлас', description: 'Народы Анкарии: власть, население, природа, ресурсы', component: AtlasPage },
   // правила Heroes & Adventures (перенесены из Google Docs, правит мастер)
   { id: 'races', title: 'Расы', description: 'Базовые навыки и навыки по уровням', component: RacesPage },
   { id: 'classes', title: 'Классы', description: 'Навыки по уровням и архетипы', component: ClassesPage },
@@ -117,10 +125,10 @@ const ALL_CATEGORIES = [
   { id: 'items', title: 'Предметы', description: 'Уникальные вещи без хозяина и общие вещи группы', component: ItemsPage },
   { id: 'general', title: 'Общее', description: 'Тренировка, ритуалы, школы магии', component: RulesArticles, group: 'magic' },
   { id: 'utility', title: 'Утилитарная магия', description: 'Бытовые и вспомогательные заклинания', component: SpellsPage },
-  { id: 'school-fire', title: 'Школа Огня (Магмы)', description: 'Заклинания школ Огня и Магмы', component: SpellsPage },
-  { id: 'school-water', title: 'Школа Воды (Льда)', description: 'Заклинания школ Воды и Льда', component: SpellsPage },
-  { id: 'school-air', title: 'Школа Воздуха (Молний)', description: 'Заклинания школ Воздуха и Молний', component: SpellsPage },
-  { id: 'school-earth', title: 'Школа Земли (Природы)', description: 'Заклинания школ Земли и Природы', component: SpellsPage },
+  // у каждой школы — своя страница, свой живой фон и звук (MagicBackdrop, src/sound/synthAmb.js); знак — из документа
+  ...MAGIC_SCHOOLS.map(([id, title, description], i) => ({ id: 'school-' + id, title, description, component: SpellsPage, icon: `/assets/magic/${id}.webp`,
+    sep: i === 0 ? 'Базовые школы' : i === 4 ? 'Продвинутые школы' : i === 8 ? 'Основные школы' : '' })),
+  { id: 'grimoire', title: 'Гримуары', description: 'Особая магия Ведьмака: Архидемон и Аспект', component: SpellsPage },
   { id: 'wiki-log', title: 'Журнал правок вики', description: 'Кто что менял в правилах; любую правку можно откатить', component: RulesHistory, master: true }
 ]
 const categories = computed(() => ALL_CATEGORIES.filter(c => (!c.master || store.role === 'master') && ACTIVITY_SECTIONS.includes(c.id) === isActivity.value).map(c =>
@@ -168,7 +176,7 @@ function openArticle(id) {
 
 // раздел — в адресе: обновил страницу или поделился ссылкой — открылось то же место.
 // Подробности чужих разделов (открытая раса, НПС, заказ, статья, журнал) при переходе убираем
-const DETAILS = { quests: ['quest'], campaign: ['cq'], bestiary: ['beast'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'], effects: ['fx'] }
+const DETAILS = { quests: ['quest'], campaign: ['cq'], bestiary: ['beast'], heroes: ['hero', 'heroes'], npcs: ['npc', 'g'], races: ['race'], classes: ['cls', 'arch'], activities: ['a', 'log'], mechanics: ['a'], workplaces: ['a'], general: ['a'], effects: ['fx'], atlas: ['n'] }
 const DETAIL_KEYS = [...new Set(Object.values(DETAILS).flat())]
 watch(currentCategory, c => {
   search.value = ''
@@ -218,13 +226,14 @@ watch(() => route.query.section, v => { if (v && categories.value.some(c => c.id
 watch(() => [route.query.race, route.query.cls], ([r, k]) => { if (r) currentCategory.value = 'races'; else if (k) currentCategory.value = 'classes' }, { immediate: true })
 
 /* -------------------- Магические страницы: свой стиль и загрузка -------------------- */
-const MAGIC = ['general', 'utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
+const MAGIC = ['general', 'utility', 'grimoire', ...MAGIC_SCHOOLS.map(([id]) => 'school-' + id)]
 const isMagic = computed(() => MAGIC.includes(currentCategory.value) && !hasQuery.value)
 const magicLoading = ref(false)
-const ELEMENTS = { 'school-fire': 'fire', 'school-water': 'water', 'school-air': 'air', 'school-earth': 'earth' }
-const element = computed(() => ELEMENTS[currentCategory.value] || null)
+// фон и звук страницы — по школе («school-ice» → ice), у гримуаров — свой
+const element = computed(() => (currentCategory.value === 'grimoire' ? 'grimoire' : currentCategory.value.startsWith('school-') ? currentCategory.value.slice(7) : null))
 // фон стихии: включается кнопкой, выбор помним; уходим со страницы школы — стихает
-const AMB_LABEL = { fire: 'огонь', water: 'вода и лёд', air: 'ветер и гром', earth: 'лес' }
+const AMB_LABEL = { fire: 'огонь', water: 'вода', air: 'ветер', earth: 'недра', magma: 'лава', ice: 'стужа', lightning: 'гроза', nature: 'лес', light: 'сияние', dark: 'мрак',
+  order: 'печати', chaos: 'хаос', summon: 'призыв', enchant: 'чары', mind: 'разум', arcana: 'звёзды', grimoire: 'гримуар' }
 const ambVol = ref(getAmbienceVolume())
 const ambOn = ref((() => { try { return localStorage.getItem('anacaria-ambience') === 'on' } catch { return false } })())
 watch([ambOn, element, () => store.sound], ([on, el, snd]) => {

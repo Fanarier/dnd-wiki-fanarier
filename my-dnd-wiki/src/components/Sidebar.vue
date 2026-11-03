@@ -1,17 +1,20 @@
 <template>
   <nav class="side" aria-label="Разделы вики">
     <div class="side-kicker">Разделы</div>
-    <button
-      v-for="cat in categories"
-      :key="cat.id"
-      class="side-item"
-      :class="{ active: cat.id === activeId }"
-      :aria-current="cat.id === activeId ? 'page' : undefined"
-      @click="select(cat.id)"
-    >
-      <span class="side-title">{{ cat.title }}<em v-if="cat.badge" class="side-badge" :title="cat.badgeTitle">{{ cat.badge }}</em></span>
-      <span v-if="cat.description" class="side-desc">{{ cat.description }}</span>
-    </button>
+    <template v-for="cat in categories" :key="cat.id">
+      <!-- подзаголовок группы (школы магии: базовые, продвинутые, основные) -->
+      <div v-if="cat.sep" class="side-sep">{{ cat.sep }}</div>
+      <button
+        class="side-item"
+        :class="{ active: cat.id === activeId, iconed: !!cat.icon }"
+        :aria-current="cat.id === activeId ? 'page' : undefined"
+        @click="select(cat.id)"
+      >
+        <img v-if="cat.icon" class="side-icon" :src="cat.icon" alt="" aria-hidden="true" loading="lazy" />
+        <span class="side-title">{{ cat.title }}<em v-if="cat.badge" class="side-badge" :title="cat.badgeTitle">{{ cat.badge }}</em></span>
+        <span v-if="cat.description" class="side-desc">{{ cat.description }}</span>
+      </button>
+    </template>
     <div class="side-foot">Статей: {{ categories.length }}</div>
   </nav>
 </template>
@@ -46,6 +49,11 @@ function select(id) {
 .side-item.active .side-title { color: var(--a-gold-2); }
 .side-title { font-weight: 700; font-size: 14px; }
 .side-desc { font-size: 12px; color: var(--a-muted); line-height: 1.35; }
+.side-sep { margin: 10px 0 2px 10px; font: 800 10.5px var(--a-sans); letter-spacing: .12em; text-transform: uppercase; color: #b9a6ff; }
+.side-item.iconed { display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 8px; align-items: center; }
+.side-item.iconed .side-desc { grid-column: 2; }
+.side-icon { grid-row: span 2; width: 30px; height: 30px; object-fit: contain; filter: drop-shadow(0 0 6px rgba(185, 166, 255, .45)); transition: transform .3s; }
+.side-item:hover .side-icon, .side-item.active .side-icon { transform: scale(1.12) rotate(-6deg); }
 .side-foot { margin: 12px 0 0 10px; font-size: 12px; color: var(--a-muted); }
 .side-item:focus-visible { outline: 2px solid var(--a-gold); outline-offset: 2px; }
 </style>

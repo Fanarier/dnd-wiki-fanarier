@@ -35,8 +35,9 @@
         </div>
         <template v-else>
           <h2>
-            <span class="sp-sig" aria-hidden="true">✦</span>{{ s.name }}
-            <small>{{ spellsOf(s).length }} {{ plural(spellsOf(s).length) }}</small>
+            <img v-if="s.sign" class="sp-sign" :src="s.sign" alt="" aria-hidden="true" /><span v-else class="sp-sig" aria-hidden="true">✦</span>{{ s.name }}
+            <span v-if="s.kind" class="sp-kind">{{ s.kind }} школа</span>
+            <small v-if="spellsOf(s).length || !s.about">{{ spellsOf(s).length }} {{ plural(spellsOf(s).length) }}</small>
             <em v-if="s.hidden">скрыта</em>
             <span class="grow" />
             <button v-if="canEdit('schools', s)" type="button" class="sp-btn" @click="schoolEdit = { ...s }">✎ Школа</button>
@@ -47,6 +48,8 @@
 
         <div class="sp-grid">
           <template v-for="(x, i) in filtered(s)" :key="x.id">
+            <!-- подзаголовок внутри школы (Аркана: звёздные карты, Арканы стихий) -->
+            <h3 v-if="x.group && x.group !== filtered(s)[i - 1]?.group" class="sp-group">{{ x.group }}</h3>
             <!-- правка заклинания -->
             <article v-if="spellEdit?.id === x.id" class="sp-card editing">
               <div class="sp-erow">
@@ -88,7 +91,7 @@
             </article>
           </template>
         </div>
-        <p v-if="!filtered(s).length" class="sp-none">{{ q || circ ? 'Ничего не нашлось.' : 'В этой школе пока нет заклинаний.' }}</p>
+        <p v-if="!filtered(s).length && !(s.about && !spellsOf(s).length)" class="sp-none">{{ q || circ ? 'Ничего не нашлось.' : 'В этой школе пока нет заклинаний.' }}</p>
       </section>
 
       <button v-if="canManageSchools" type="button" class="sp-btn sp-newschool" @click="addSchool">＋ Новая школа на этой странице</button>
@@ -110,10 +113,11 @@ onMounted(() => loadRules())
 watch(() => store.data.rulesRev, () => loadRules())
 
 // цвет школы — по стихии
-const TONES = { fire: '#ff8a4c', magma: '#ff5a36', water: '#4fb3ff', ice: '#9fe3ff', air: '#cfe8ff', lightning: '#ffe35a', earth: '#c9a066', nature: '#7ed07a', utility: '#b9a6ff' }
+const TONES = { fire: '#ff8a4c', magma: '#ff5a36', water: '#4fb3ff', ice: '#9fe3ff', air: '#cfe8ff', lightning: '#ffe35a', earth: '#c9a066', nature: '#7ed07a', utility: '#b9a6ff',
+  light: '#ffd76a', dark: '#a070ff', order: '#f2c46b', chaos: '#ff4f8a', summon: '#c58aff', enchant: '#5fe6d0', mind: '#f08cff', arcana: '#8fa8ff', grimoire: '#d9a066' }
 const tone = id => TONES[id] || '#b9a6ff'
 // значки частиц стихии (огонь, магма, вода, земля, воздух — просто точки и черты, их рисует CSS)
-const GLYPH = { ice: '❄', nature: '🍃', lightning: 'ϟ', utility: '✦' }
+const GLYPH = { ice: '❄', nature: '🍃', lightning: 'ϟ', utility: '✦', light: '✧', dark: '◆', order: '◇', chaos: '✕', summon: 'ᛉ', enchant: 'ᚱ', mind: '◌', arcana: '★' }
 const plural = n => (n % 10 === 1 && n % 100 !== 11 ? 'заклинание' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'заклинания' : 'заклинаний')
 
 const schools = computed(() => rulesState.schools.filter(s => s.page === props.content.id).sort((a, b) => a.order - b.order))
@@ -193,6 +197,11 @@ async function removeSchool(s) {
 .sp-school h2 small { color: #b3a8d6; font: 700 12.5px 'Manrope', sans-serif; text-shadow: none; }
 .sp-school h2 em { color: #ff9b8f; font: 800 11px 'Manrope', sans-serif; font-style: normal; text-shadow: none; }
 .sp-sig { color: var(--sc); }
+.sp-sign { width: 42px; height: 42px; object-fit: contain; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--sc) 70%, transparent)); animation: sp-sign 6s ease-in-out infinite; }
+@keyframes sp-sign { 50% { transform: scale(1.06) rotate(-4deg); filter: drop-shadow(0 0 18px color-mix(in srgb, var(--sc) 90%, transparent)); } }
+@media (prefers-reduced-motion: reduce) { .sp-sign { animation: none; } }
+.sp-kind { padding: 2px 9px; border-radius: 99px; background: color-mix(in srgb, var(--sc) 16%, transparent); color: var(--sc); font: 800 11px 'Manrope', sans-serif; text-shadow: none; }
+.sp .sp-group { grid-column: 1 / -1; margin: 10px 0 0; font: 700 20px 'Cormorant Garamond', serif; color: color-mix(in srgb, var(--sc) 70%, #fff) !important; border-bottom: 1px solid color-mix(in srgb, var(--sc) 30%, transparent); padding-bottom: 4px; }
 .sp-about { margin: 0 0 12px; color: #cfc6e8; }
 .sp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 10px; }
 .sp-card { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 10px; border-radius: 14px; background: linear-gradient(180deg, color-mix(in srgb, var(--sc) 9%, rgba(16, 14, 30, .82)), rgba(16, 14, 30, .82)); border: 1px solid color-mix(in srgb, var(--sc) 30%, transparent); box-shadow: 0 10px 26px rgba(0, 0, 0, .3); animation: sp-in .35s ease backwards; animation-delay: calc(var(--i, 0) * 22ms); transition: transform .2s, border-color .2s, box-shadow .2s; }
@@ -228,6 +237,16 @@ async function removeSchool(s) {
 /* природа — листья кружатся */
 .el-nature i { top: -16px; bottom: auto; font-size: 12px; animation-name: el-leaf; animation-duration: 4s; }
 /* утилитарная — искорки мерцают */
+.el-light i { color: #fff1b8; font-size: 11px; text-shadow: 0 0 8px #ffd76a; }
+.el-light { background: radial-gradient(ellipse at 50% -20%, rgba(255, 215, 106, .22), transparent 60%); }
+.el-dark i { top: -12px; bottom: auto; color: #a070ff; font-size: 8px; text-shadow: 0 0 8px #5a1fb0; animation-name: el-fall; animation-duration: 3.4s; }
+.el-dark { box-shadow: inset 0 0 26px rgba(30, 6, 50, .7); }
+.el-order i { bottom: auto; top: calc(var(--k) * 10%); color: #f2c46b; font-size: 11px; animation-name: el-twinkle; animation-duration: 2s; }
+.el-chaos i { bottom: auto; top: calc(var(--k) * 10%); color: #ff4f8a; font-size: 10px; text-shadow: 0 0 6px #ff4f8a; animation-name: el-twinkle; animation-duration: .7s; }
+.el-summon i { color: #d9b8ff; font-size: 12px; text-shadow: 0 0 8px #9b4dff; }
+.el-enchant i { color: #8ff5e4; font-size: 12px; text-shadow: 0 0 8px #2fd6c3; animation-duration: 3s; }
+.el-mind i { bottom: auto; top: calc(var(--k) * 10%); color: #f8b8ff; font-size: 12px; animation-name: el-twinkle; animation-duration: 2.6s; }
+.el-arcana i { bottom: auto; top: calc(var(--k) * 10%); color: #dfe6ff; font-size: 9px; text-shadow: 0 0 6px #8fa8ff; animation-name: el-twinkle; animation-duration: 1.5s; }
 .el-utility i { bottom: auto; top: calc(var(--k) * 10%); color: #e6deff; font-size: 10px; text-shadow: 0 0 6px #b9a6ff; animation-name: el-twinkle; animation-duration: 1.8s; }
 @keyframes el-rise { 0% { transform: translateY(0) scale(1); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(10px, -170px) scale(.3); opacity: 0; } }
 @keyframes el-fall { 0% { transform: translateY(0) rotate(0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(12px, 190px) rotate(200deg); opacity: 0; } }

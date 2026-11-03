@@ -48,8 +48,11 @@ const mySheets = ref([])
 const SECTIONS = [
   ['party', 'Статус группы', '🔥'], ['quests', 'Заказы гильдий', '📜'], ['campaign', 'Квесты', '🗺'], ['heroes', 'Герои Анкарии', '⚔'], ['npcs', 'НПС', '🜲'], ['bestiary', 'Бестиарий', '📜'], ['settlements', 'Поселения', '🏘'],
   ['races', 'Расы', '🧬'], ['classes', 'Классы', '🛡'], ['mechanics', 'Механики', '⚙'], ['workplaces', 'Рабочие места', '⚒'], ['holdings', 'Владения и поселения', '🏘'], ['activities', 'Деятельности', '📒'],
-  ['effects', 'Эффекты', '✦'], ['general', 'Магия: общее', '✺'], ['utility', 'Утилитарная магия', '✧'], ['school-fire', 'Школа Огня (Магмы)', '🔥'],
-  ['school-water', 'Школа Воды (Льда)', '💧'], ['school-air', 'Школа Воздуха (Молний)', '🌪'], ['school-earth', 'Школа Земли (Природы)', '🌿']
+  ['effects', 'Эффекты', '✦'], ['general', 'Магия: общее', '✺'], ['utility', 'Утилитарная магия', '✧'],
+  ['school-fire', 'Школа огня', '🔥'], ['school-water', 'Школа воды', '💧'], ['school-air', 'Школа воздуха', '🌪'], ['school-earth', 'Школа земли', '⛰'],
+  ['school-magma', 'Школа магмы', '🌋'], ['school-ice', 'Школа льда', '❄'], ['school-lightning', 'Школа молний', '⚡'], ['school-nature', 'Школа природы', '🌿'],
+  ['school-light', 'Школа света', '☀'], ['school-dark', 'Школа тьмы', '🌑'], ['school-order', 'Школа порядка', '⚖'], ['school-chaos', 'Школа хаоса', '🌀'],
+  ['school-summon', 'Школа призыва', '🜏'], ['school-enchant', 'Школа зачарования', 'ᚱ'], ['school-mind', 'Школа разума', '🧠'], ['school-arcana', 'Аркана', '✶'], ['grimoire', 'Гримуары', '📖']
 ]
 const KIND = Object.fromEntries(EFFECT_KINDS.map(k => [k.id, k]))
 const myHero = computed(() => actState.heroes.find(h => h.canWrite && store.role !== 'master') || null)

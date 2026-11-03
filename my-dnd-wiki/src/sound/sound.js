@@ -2,6 +2,7 @@
 // школ магии — живые записи из public/sounds/amb (зацикливаются). Всё слушается общего выключателя store.sound.
 import { Howl, Howler } from 'howler'
 import { store } from '../map/store.js'
+import { makeSynth, SYNTH_KINDS } from './synthAmb.js'
 
 const FILES = {
   diceGrab: ['dice-grab-1', 'dice-grab-2'], diceShake: 'dice-shake-1', diceThrow: ['dice-throw-1', 'dice-throw-2', 'dice-throw-3'],
@@ -63,21 +64,23 @@ export function sfx(key, volume) {
 /* ---------- фон стихий: записи по кругу; гром — отдельные записи на каждую молнию ----------
    Файлы лежат в public/sounds/amb, каждый в двух видах: .ogg (бесшовная петля) и .mp3 (для Safari).
    Петли нарезаны так, что конец плавно перетекает в начало. Пока у стихии нет файла, кнопки звука на её странице нет.
-   Для воздуха есть и просто ветер без дождя — 'wind'. */
-const AMB_FILES = { fire: 'fire', water: 'water', air: 'wind-rain', earth: 'forest' }
+   У каждой школы — своя страница и свой фон: огонь, вода, ветер (воздух), гроза (молнии), лес (природа) — записи,
+   остальные школы звучат синтезом (src/sound/synthAmb.js). */
+const AMB_FILES = { fire: 'fire', water: 'water', air: 'wind', lightning: 'wind-rain', nature: 'forest' }
 const THUNDER_FAR = ['thunder-1', 'thunder-2'] // молнии сами по себе — гром вдалеке, с задержкой
 const THUNDER_NEAR = ['thunder-near'] // молния по щелчку — близкий резкий удар
 const srcs = name => [`/sounds/amb/${name}.ogg`, `/sounds/amb/${name}.mp3`]
-export const hasAmbience = kind => !!AMB_FILES[kind]
+export const hasAmbience = kind => !!AMB_FILES[kind] || SYNTH_KINDS.includes(kind)
 
 const VOL_KEY = 'anacaria-amb-vol'
 let ambVolume = (() => { try { const v = parseFloat(localStorage.getItem(VOL_KEY)); return Number.isFinite(v) ? v : 0.5 } catch { return 0.5 } })()
 export const getAmbienceVolume = () => ambVolume
-let amb = null // { kind, h, id }
+let amb = null // { kind, h, id } — запись; { kind, synth: { g, stop } } — синтез
 export function setAmbienceVolume(v) {
   ambVolume = Math.max(0, Math.min(1, v))
   try { localStorage.setItem(VOL_KEY, String(ambVolume)) } catch { /* приватный режим */ }
-  if (amb) amb.h.volume(ambVolume, amb.id)
+  if (amb?.h) amb.h.volume(ambVolume, amb.id)
+  if (amb?.synth) amb.synth.g.gain.setTargetAtTime(ambVolume, amb.synth.g.context.currentTime, 0.1)
 }
 
 // браузер не даёт звук, пока на странице не нажали: Howler сам ждёт нажатия, а мы ещё и будим контекст
@@ -88,7 +91,8 @@ export function unlockAudio() {
 export function startAmbience(kind) {
   if (amb?.kind === kind) return
   stopAmbience()
-  if (!store.sound || !AMB_FILES[kind]) return
+  if (!store.sound || !hasAmbience(kind)) return
+  if (!AMB_FILES[kind]) return startSynth(kind)
   try {
     const h = howl(srcs(AMB_FILES[kind]), { loop: true, volume: 0 })
     const id = h.play()
@@ -96,8 +100,28 @@ export function startAmbience(kind) {
     amb = { kind, h, id }
   } catch { amb = null }
 }
+// синтез — через общий звуковой контекст Howler (тот же выключатель звука); громкость — плавно
+let ownCtx = null
+function startSynth(kind) {
+  try {
+    const ctx = Howler.ctx || (ownCtx ||= new AudioContext())
+    if (ctx.state === 'suspended') ctx.resume()
+    const g = ctx.createGain()
+    g.gain.value = 0.0001
+    g.connect(Howler.masterGain && Howler.ctx === ctx ? Howler.masterGain : ctx.destination)
+    g.gain.setTargetAtTime(ambVolume, ctx.currentTime, 0.5)
+    amb = { kind, synth: { g, stop: makeSynth(kind, ctx, g) } }
+  } catch { amb = null }
+}
 export function stopAmbience() {
   if (!amb) return
+  if (amb.synth) {
+    const { g, stop } = amb.synth
+    amb = null
+    try { g.gain.setTargetAtTime(0.0001, g.context.currentTime, 0.2) } catch { /* закрыт */ }
+    setTimeout(() => { stop(); try { g.disconnect() } catch { /* уже */ } }, 900)
+    return
+  }
   const { h, id } = amb
   amb = null
   try {
@@ -105,13 +129,13 @@ export function stopAmbience() {
     setTimeout(() => h.stop(id), 750)
   } catch { /* уже остановлен */ }
 }
-// раскат грома к молнии — пока на странице Школы Воздуха играет фон.
+// раскат грома к молнии — пока на странице Школы молний играет фон.
 // near — молния по щелчку: сразу и громче; иначе далёкая: звук догоняет вспышку, тише.
 // Далёких раскатов одновременно не больше двух — иначе каша; счётчик сбрасывается по таймеру,
 // чтобы гром не «застрял», если браузер какой-то звук не сыграл.
 let rolling = 0
 export function thunder(power = 1, near = false) {
-  if (!amb || amb.kind !== 'air') return
+  if (!amb || amb.kind !== 'lightning') return
   if (!near) {
     if (rolling >= 2) return
     rolling++

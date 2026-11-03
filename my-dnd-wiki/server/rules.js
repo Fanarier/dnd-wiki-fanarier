@@ -16,12 +16,17 @@ const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const FILE = path.join(DATA_DIR, 'rules.json')
 const SEED = path.resolve(import.meta.dirname, 'seed', 'rules.json')
 const SEED2 = path.resolve(import.meta.dirname, 'seed', 'rules-part2.json')
+const SEED_ATLAS = path.resolve(import.meta.dirname, 'seed', 'atlas.json') // «Атлас» народов (tools/atlas-sheet-to-json.py)
+const SEED_MAGIC2 = path.resolve(import.meta.dirname, 'seed', 'magic-2.json') // магия из документа 2026-11 (tools/magic-gdoc-to-json.py)
 const HISTORY = path.join(DATA_DIR, 'rules-history.json')
 export const RULES_IMG_DIR = path.join(DATA_DIR, 'rules-img')
 const BACKUP_DIR = path.join(DATA_DIR, 'backups')
 export const RULE_GROUPS = ['mechanics', 'workplaces', 'activities', 'holdings', 'classes', 'races', 'magic']
 // страницы вики со школами магии (у каждой школы — своя)
-export const MAGIC_PAGES = ['utility', 'school-fire', 'school-water', 'school-air', 'school-earth']
+// страницы магии: утилитарная, гримуары и у каждой школы своя («school-fire», «school-arcana»…)
+export const isMagicPage = p => /^(utility|grimoire|school-[a-z]{2,20})$/.test(String(p || ''))
+const SCHOOL_KINDS = ['', 'Базовая', 'Продвинутая', 'Основная']
+const SIGN_RE = /^\/(assets\/magic|rules-img)\/[\w.-]{1,80}$/
 const EFFECT_KINDS = ['buff', 'debuff', 'special']
 
 let store = null
@@ -41,6 +46,7 @@ function load() {
   store.spells ||= []
   store.effects ||= []
   store.items ||= []
+  store.atlas ||= []
   store.settings ||= {}
   store.rev ||= 1
   applyFixes()
@@ -105,6 +111,32 @@ const FIXES = {
     for (const x of seed.spells || []) if (!store.spells.some(y => y.id === x.id)) store.spells.push({ id: x.id, order: next('spells'), ...cleanSpell(x) })
     for (const x of seed.effects || []) if (!store.effects.some(y => y.id === x.id)) store.effects.push({ id: x.id, order: next('effects'), ...cleanEffect(x) })
     return (seed.articles?.length || 0) + (seed.spells?.length || 0) + (seed.effects?.length || 0)
+  },
+  // магия из нового документа (2026-11): у каждой школы своя страница, 16 школ, Аркана со звёздными картами, гримуары.
+  // Школы и заклинания заменяются целиком (на сайте их не правили); id прежних заклинаний — те же (по школе и
+  // названию, иначе по названию) — навыки листов, привязанные к ним, остаются привязанными
+  magic2: () => {
+    let seed = null
+    try { seed = JSON.parse(fs.readFileSync(SEED_MAGIC2, 'utf8')) } catch { return 0 }
+    const key = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я0-9]+/g, ' ').trim()
+    const oldBy = new Map(store.spells.map(x => [x.school + '|' + key(x.name), x.id]))
+    const nameCount = new Map()
+    for (const x of store.spells) nameCount.set(key(x.name), (nameCount.get(key(x.name)) || 0) + 1)
+    const oldByName = new Map(store.spells.filter(x => nameCount.get(key(x.name)) === 1).map(x => [key(x.name), x.id]))
+    const used = new Set()
+    store.schools = seed.schools.map((x, i) => ({ id: x.id, order: i + 1, ...cleanSchool(x) }))
+    store.spells = seed.spells.map((x, i) => {
+      let id = oldBy.get(x.school + '|' + key(x.name)) || oldByName.get(key(x.name)) || x.id
+      if (used.has(id)) id = x.id + (used.has(x.id) ? '-' + i : '')
+      used.add(id)
+      return { id, order: i + 1, ...cleanSpell(x) }
+    })
+    return store.spells.length
+  },
+  // «Атлас» народов из таблицы: сведения, политика, население, природа, ресурсы, глобальные структуры, герб
+  atlas1: () => {
+    try { store.atlas = JSON.parse(fs.readFileSync(SEED_ATLAS, 'utf8')) } catch { return 0 }
+    return store.atlas.length
   }
 }
 function applyFixes() {
@@ -187,7 +219,9 @@ const cleanArticle = (b = {}, old = {}) => ({
 const cleanSchool = (b = {}, old = {}) => ({
   ...old,
   name: S(b.name ?? old.name, 80) || 'Школа',
-  page: MAGIC_PAGES.includes(b.page) ? b.page : old.page || 'utility',
+  page: isMagicPage(b.page) ? b.page : old.page || 'utility',
+  kind: SCHOOL_KINDS.includes(b.kind) ? b.kind : old.kind || '',
+  sign: SIGN_RE.test(String(b.sign ?? old.sign ?? '')) ? String(b.sign ?? old.sign) : '',
   hidden: !!b.hidden,
   about: H(b.about ?? old.about)
 })
@@ -199,7 +233,8 @@ const cleanSpell = (b = {}, old = {}) => ({
   hidden: !!b.hidden,
   html: H(b.html ?? old.html),
   cost: S(b.cost ?? old.cost, 160),
-  cd: S(b.cd ?? old.cd, 160)
+  cd: S(b.cd ?? old.cd, 160),
+  group: S(b.group ?? old.group, 80) // подзаголовок внутри школы (звёздные карты: «Младшие Арканы воздуха»…)
 })
 // иконка — из комплекта (assets/effects) или загруженная на сайт (rules-img)
 const ICON_RE = /^\/(assets\/effects|rules-img)\/[\w.-]{1,80}$/
@@ -274,6 +309,8 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
     const out = { rev: store.rev }
     for (const list of RULE_LISTS) out[list] = store[list].filter(x => !x.hidden || canEditRule(u, list, x))
     out.settings = { baseCells: store.settings.baseCells ?? DEFAULT_BASE_CELLS }
+    // атлас народов: скрытые («???») — только мастеру
+    out.atlas = store.atlas.filter(n => !n.hidden || u?.role === 'master')
     res.json(out)
   })
 

@@ -204,6 +204,10 @@
       <!-- государство: города -->
       <div v-if="type === 'states'" class="state-cities">
         <div v-if="capital" class="link-row" @click="select('cities', capital.id)"><Icon name="crown" :size="16" /> Столица: {{ capital.name }}</div>
+        <!-- народ из «Атласа» вики (то же название) -->
+        <router-link v-if="atlasOf" class="ui-btn small atlas-btn" :to="{ path: '/wiki', query: { section: 'atlas', n: atlasOf.id } }">
+          <img v-if="atlasOf.emblem" :src="atlasOf.emblem" alt="" /> Атлас: {{ atlasOf.name }} →
+        </router-link>
         <div class="ui-muted small">Известных поселений: {{ stateCities.length }}</div>
         <div class="city-list">
           <button v-for="c in stateCities.slice(0, 14)" :key="c.id" class="ui-chip city-chip" @click="select('cities', c.id)">{{ c.name }}</button>
@@ -384,7 +388,7 @@ import IconPicker from './IconPicker.vue'
 import RichEditor from '../components/RichEditor.vue'
 import RichText from '../components/RichText.vue'
 import { groupOf } from '../shared/npc.js'
-import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km, toast, markIcon, sendFollow, avatarUrl } from './store.js'
+import { store, isMaster, act, findSelected, fmtKm, fmtDuration, fmtDateTime, km, toast, markIcon, sendFollow, avatarUrl, rulesState, loadRules } from './store.js'
 import { CITY_TYPES, ROAD_TYPES, ZONE_EFFECTS, POINT_EFFECTS, PARTY_ICONS, PARTY_COLORS, PACE_PRESETS, ROUTE_COLORS, QUEST_STATUS, RANKS, GUILDS } from '../shared/catalog.js'
 import { URGENCY, rewardText } from '../shared/quests.js'
 import { polyLength, journeyState, anomalyState } from '../shared/geo.js'
@@ -450,6 +454,10 @@ const settlePop = computed(() => (settlement.value?.races || []).reduce((n, r) =
 const state = computed(() => (type.value === 'cities' && item.value.stateId ? store.data.states.find(s => s.id === item.value.stateId) : null))
 const stateCities = computed(() => (type.value === 'states' ? store.data.cities.filter(c => c.stateId === item.value.id) : []))
 const capital = computed(() => (type.value === 'states' ? store.data.cities.find(c => c.id === item.value.capitalId) : null))
+// народ из «Атласа» вики с тем же названием (правила грузятся, когда открыли страну)
+const normNation = s => String(s || '').toLowerCase().replace(/ё/g, 'е').replace(/[^a-zа-я]/g, '')
+watch(type, t => { if (t === 'states') loadRules() }, { immediate: true })
+const atlasOf = computed(() => (type.value === 'states' ? (rulesState.atlas || []).find(n => normNation(n.name) === normNation(item.value?.name)) || null : null))
 const roadLen = computed(() => (type.value === 'roads' ? polyLength(item.value.points) : 0))
 const routeLen = computed(() => (type.value === 'routes' ? polyLength(item.value.points) : 0))
 const journey = computed(() => (type.value === 'parties' ? journeyState(item.value.journey, store.now) : null))
@@ -698,6 +706,8 @@ function replay() {
 .chips:empty { display: none; }
 .link-row { display: flex; align-items: center; gap: 8px; background: none; border: 0; color: var(--gold-2); font: 700 13.5px var(--sans); padding: 4px 0; cursor: pointer; margin-bottom: 6px; }
 .link-row:hover { text-decoration: underline; }
+.atlas-btn { display: inline-flex; align-items: center; gap: 8px; margin: 2px 0 8px; text-decoration: none; }
+.atlas-btn img { width: 26px; height: 26px; object-fit: contain; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
 .small { font-size: 12.5px; }
 .times { margin-bottom: 10px; display: grid; gap: 2px; }

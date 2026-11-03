@@ -866,6 +866,8 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
       store.skillCatsBack = Date.now()
       save()
     }
+    // при запуске — сверить с вики (её могли поменять разовые исправления правил: новый перенос магии и т. п.)
+    linkAll(api.skillRules(), 'навык обновлён из вики')
     let t = 0
     api.onChange(() => { clearTimeout(t); t = setTimeout(() => linkAll(api.skillRules(), 'навык обновлён из вики'), 2000) })
   }
