@@ -167,9 +167,12 @@
         <polyline v-for="m in squadsView.filter(x => x.rest)" :key="'r' + m.id" :points="m.rest" class="sm-march-route" :stroke="m.color" vector-effect="non-scaling-stroke" />
         <!-- прокладка пути: щёлкнутые точки, найденный путь, линия к курсору -->
         <g v-if="tool?.march" class="sm-march-draft">
-          <polyline v-if="marchPathPts" :points="marchPathPts" class="sm-march-plan" vector-effect="non-scaling-stroke" />
-          <line v-if="marchAim" v-bind="marchAim" class="sm-march-aim" vector-effect="non-scaling-stroke" />
-          <circle v-for="(p, i) in marchDraft" :key="i" :cx="p[0]" :cy="p[1]" :r="5 * px" class="sm-draft-pt" :class="{ exit: marchExit && i === marchDraft.length - 1 }" vector-effect="non-scaling-stroke" />
+          <polyline v-if="marchPathPts && !marchDrag" :points="marchPathPts" class="sm-march-plan" vector-effect="non-scaling-stroke" />
+          <polyline v-if="marchDrag" :points="[marchFrom, ...marchShown].map(p => p.join(',')).join(' ')" class="sm-march-aim" vector-effect="non-scaling-stroke" />
+          <line v-if="marchAim && !marchDrag" v-bind="marchAim" class="sm-march-aim" vector-effect="non-scaling-stroke" />
+          <!-- ручки: точки тянуть, двойной щелчок — убрать; кружок посередине — вставить точку -->
+          <circle v-for="(p, i) in marchMids" :key="'m' + i" :cx="p[0]" :cy="p[1]" :r="4 * px" class="sm-handle mid" :data-mm="i" vector-effect="non-scaling-stroke" />
+          <circle v-for="(p, i) in marchShown" :key="i" :cx="p[0]" :cy="p[1]" :r="6 * px" class="sm-draft-pt sm-march-pt" :class="{ exit: marchExit && i === marchShown.length - 1 }" :data-mp="i" vector-effect="non-scaling-stroke" />
         </g>
         <g v-for="m in squadsView" :key="m.id" class="sm-item sm-squad" :class="{ sel: isSel('squad', m.id), moving: m.moving }" :transform="`translate(${m.x} ${m.y})`"
            @pointerenter="hover = { kind: 'squad', item: m }" @pointerleave="hover = null" @click.stop="pick('squad', m)">
@@ -633,17 +636,40 @@ const marchInfo = computed(() => {
   if (!p) return { empty: true }
   if (p === 'blocked') return { blocked: true }
   const cum = marchTiming(marchCtxNow.value, densify(p), msPerMeter(store.data.settings))
-  return { ms: cum.at(-1), exit: marchExit.value, label: marchExit.value ? 'на карту мира' : spotLabel(props.settlement, p.at(-1)) }
+  return { ms: cum.at(-1) / (props.tool.speed || 1), exit: marchExit.value, label: marchExit.value ? 'на карту мира' : spotLabel(props.settlement, p.at(-1)) }
 })
+const nearEdge = w => Math.min(w.x, w.y, WORLD - w.x, WORLD - w.y) < Math.max(EDGE * 3, 30 * px.value)
+// точка прилипает к аванпосту под курсором
+const marchSnap = w => { const o = (props.settlement.outposts || []).find(o => Math.hypot(o.x - w.x, o.y - w.y) < 30 * px.value); return o ? [o.x, o.y] : [w.x, w.y] }
 function addMarchPoint(w) {
   if (marchExit.value) return
-  if (Math.min(w.x, w.y, WORLD - w.x, WORLD - w.y) < Math.max(EDGE * 3, 30 * px.value)) {
+  if (nearEdge(w)) {
     marchDraft.value = [...marchDraft.value, edgePoint(w.x, w.y)]
     marchExit.value = true
     return
   }
-  const o = (props.settlement.outposts || []).find(o => Math.hypot(o.x - w.x, o.y - w.y) < 30 * px.value)
-  marchDraft.value = [...marchDraft.value, o ? [o.x, o.y] : [w.x, w.y]]
+  marchDraft.value = [...marchDraft.value, marchSnap(w)]
+}
+// правка точек: тянуть (i) или вставить новую посередине отрезка (ins — куда вставить)
+const marchDrag = ref(null) // { i, p }
+const marchShown = computed(() => (marchDrag.value ? marchDraft.value.map((p, i) => (i === marchDrag.value.i ? marchDrag.value.p : p)) : marchDraft.value))
+const marchMids = computed(() => {
+  if (!marchFrom.value || marchDrag.value) return []
+  const pts = [marchFrom.value, ...marchDraft.value]
+  return pts.slice(1).map((p, i) => [(p[0] + pts[i][0]) / 2, (p[1] + pts[i][1]) / 2])
+})
+function commitMarchDrag() {
+  const { i, p } = marchDrag.value
+  marchDrag.value = null
+  const w = { x: p[0], y: p[1] }, last = i === marchDraft.value.length - 1
+  const list = [...marchDraft.value]
+  // последняя точка у края — выход на карту мира; увели от края — обычная точка
+  if (last && nearEdge(w)) { list[i] = edgePoint(w.x, w.y); marchExit.value = true } else { list[i] = nearEdge(w) ? list[i] : marchSnap(w); if (last) marchExit.value = false }
+  marchDraft.value = list
+}
+function removeMarchPoint(i) {
+  if (i === marchDraft.value.length - 1) marchExit.value = false
+  marchDraft.value = marchDraft.value.filter((_, k) => k !== i)
 }
 function undoMarchPoint() {
   marchDraft.value = marchDraft.value.slice(0, -1)
@@ -652,7 +678,7 @@ function undoMarchPoint() {
 function finishMarch() {
   const p = marchPath.value
   if (!Array.isArray(p) || p.length < 2) return
-  emit('march', { qid: props.tool.march, path: p, exit: marchExit.value, label: marchInfo.value?.label || '' })
+  emit('march', { qid: props.tool.march, path: p, exit: marchExit.value, label: marchInfo.value?.label || '', speed: props.tool.speed || 1 })
 }
 
 /* ---------- выбор, перетаскивание ---------- */
@@ -694,6 +720,18 @@ function onDown(e) {
     if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) } }
     return
   }
+  // точки пути отряда: тянуть или вставить новую
+  const mp = props.tool?.march && e.target.closest?.('[data-mp], [data-mm]')
+  if (mp) {
+    if (mp.dataset.mm != null) {
+      const i = +mp.dataset.mm, p = marchMids.value[i]
+      marchDraft.value = [...marchDraft.value.slice(0, i), p, ...marchDraft.value.slice(i)]
+      marchDrag.value = { i, p }
+    } else marchDrag.value = { i: +mp.dataset.mp, p: marchDraft.value[+mp.dataset.mp] }
+    pointers.get(e.pointerId).pan = false
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    return
+  }
   // ручки дороги
   const h = e.target.closest?.('[data-h], [data-m]')
   if (h && editRoad.value) {
@@ -730,6 +768,12 @@ function onMove(e) {
   if (handle && roadEdit.value) {
     const w = toWorld(e.clientX, e.clientY)
     roadEdit.value.points[handle.i] = [w.x, w.y]
+    moved = true
+    return
+  }
+  if (marchDrag.value) {
+    const w = toWorld(e.clientX, e.clientY)
+    marchDrag.value = { ...marchDrag.value, p: [w.x, w.y] }
     moved = true
     return
   }
@@ -770,6 +814,10 @@ function onUp(e) {
     roadEdit.value = null
     return release(e)
   }
+  if (marchDrag.value) {
+    commitMarchDrag()
+    return release(e)
+  }
   if (dragId.value) {
     if (up && dragPos.value && !dragBad.value.length) emit('moved', { id: dragId.value, kind: dragKind.value, ...dragPos.value })
     dragId.value = null
@@ -789,7 +837,7 @@ function onUp(e) {
     else if (props.tool.wallFeature) { if (featureAim.value) emit('wallFeature', { wallId: featureAim.value.wallId, s: featureAim.value.s, kind: props.tool.wallFeature }) }
     else if (placeType.value && !cursorBad.value.length) emit('placed', { type: placeType.value, id: props.tool.placeExisting, ...w })
     else if (props.tool.explore) emit('explore', w)
-    else if (props.tool.march) addMarchPoint(w)
+    else if (props.tool.march && !e.target.closest?.('[data-mp], [data-mm]')) addMarchPoint(w)
   }
   // клик по пустому месту снимает выбор
   if (!moved && primary && !toolActive.value && up && e.target.closest && !e.target.closest('.sm-item, .sm-road-hit, .sm-handle, .sm-ctrl')) emit('select', null)
@@ -803,7 +851,12 @@ function release(e) {
 }
 function onDbl(e) {
   if (lineTool.value) { finishRoad(); return }
-  if (props.tool?.march) { finishMarch(); return }
+  if (props.tool?.march) {
+    const mp = e.target.closest?.('[data-mp]')
+    if (mp) removeMarchPoint(+mp.dataset.mp)
+    else finishMarch()
+    return
+  }
   // двойной щелчок по точке выбранной дороги — убрать точку
   const h = e.target.closest?.('[data-h]')
   if (h && editRoad.value && editRoad.value.points.length > 2) {
@@ -921,6 +974,7 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 @keyframes sm-ng { 50% { opacity: .55; } }
 .sm-draft-pt { fill: #f3d99a; stroke: #3a2a14; stroke-width: 1.5; }
 .sm-draft-pt.exit { fill: #6fd6e8; }
+.sm-march-pt { cursor: grab; }
 /* отряды в округе */
 .sm-squad { cursor: pointer; }
 .sm-squad-dot { stroke: #1b1408; stroke-width: 2; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .6)); }

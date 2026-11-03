@@ -33,7 +33,7 @@ import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePric
 import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
 import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
-import { HOME as MARCH_HOME, HOME_R, marchCtx, marchTiming, marchState, msPerMeter, densify, findPath, edgePoint, atEdge } from '../src/shared/march.js'
+import { homeOf, isHome, marchCtx, marchTiming, marchState, msPerMeter, densify, findPath, edgePoint, atEdge } from '../src/shared/march.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { DIE_SIDES, ADV_MODES, keptIndex, rollSummary } from '../src/shared/dice.js'
@@ -677,9 +677,10 @@ function squadCameHome(p) {
   q.partyId = null
   // как в RimWorld: с карты мира — на край карты поселения, откуда уходил, и пешком домой
   const away = st.marches?.[q.id]?.away
-  const edge = away?.edge || edgePoint(MARCH_HOME[0], SETTLE_WORLD)
+  const home = homeOf(st)
+  const edge = away?.edge || edgePoint(home[0], SETTLE_WORLD)
   const ctx = marchCtx(st)
-  const path = away?.path?.length > 1 ? [...away.path].reverse() : findPath(ctx, edge, MARCH_HOME) || [edge, MARCH_HOME]
+  const path = away?.path?.length > 1 ? [...away.path].reverse() : findPath(ctx, edge, home) || [edge, home]
   q.status = 'local'
   ;(st.marches ||= {})[q.id] = { x: edge[0], y: edge[1], move: startMove(ctx, densify(path), { label: 'Домой', home: true }) }
   notify('masters', 'arrived', `${st.name}: отряд «${q.name}» вернулся в округу, идёт домой`, settleLink(st, 'squads'))
@@ -690,7 +691,7 @@ function squadCameHome(p) {
 
 /* ---------- походы по карте поселения ---------- */
 // s.marches[id отряда] = { x, y, move?, away? }: стоит в округе (x, y), идёт (move) или ушёл на карту мира (away: с какого края и каким путём)
-const startMove = (ctx, path, opt) => ({ path, cum: marchTiming(ctx, path, msPerMeter(getDb().settings)), startAt: Date.now(), ...opt })
+const startMove = (ctx, path, opt, speed = 1) => ({ path, cum: marchTiming(ctx, path, msPerMeter(getDb().settings) / speed), startAt: Date.now(), ...opt })
 // отряд выходит на карту мира у своего города
 function spawnParty(s, q) {
   const db = getDb()
@@ -733,7 +734,7 @@ function tickMarches(db, now) {
         s.marches[id] = { away: { edge: [st.x, st.y], path: mv.path } }
         notify('masters', 'arrived', `${s.name}: отряд «${q.name}» вышел на карту мира — ждёт маршрута`, { partyId: q.partyId })
         notifyDeciders(s, `отряд «${q.name}» вышел на карту мира`, 'squads')
-      } else if (mv.home && Math.hypot(st.x - MARCH_HOME[0], st.y - MARCH_HOME[1]) <= HOME_R) {
+      } else if (mv.home && isHome(s, [st.x, st.y])) {
         delete s.marches[id]
         q.status = 'home'
         notify('masters', 'arrived', `${s.name}: отряд «${q.name}» вернулся домой`, settleLink(s, 'squads'))
@@ -2163,7 +2164,8 @@ app.post('/api/settlements/:id/squads/:qid/deploy', requireMaster, (req, res) =>
     const at = m && !m.away ? (m.move ? marchState(m.move, Date.now()) : m) : null
     p = spawnParty(s, q)
     if (!p) return res.status(400).json({ error: 'Поселение не привязано к городу на карте мира' })
-    ;(s.marches ||= {})[q.id] = { away: { edge: at ? edgePoint(at.x, at.y) : edgePoint(MARCH_HOME[0], SETTLE_WORLD), path: null } }
+    const home = homeOf(s)
+    ;(s.marches ||= {})[q.id] = { away: { edge: at ? edgePoint(at.x, at.y) : edgePoint(home[0], SETTLE_WORLD), path: null } }
   }
   q.status = 'out'
   saveDb()
@@ -2186,25 +2188,40 @@ app.post('/api/settlements/:id/squads/:qid/march', requireUser, (req, res) => {
   const pts = (Array.isArray(b.path) ? b.path : []).slice(0, 3000)
     .map(p => [Number(p?.[0]), Number(p?.[1])]).filter(p => p.every(Number.isFinite)).map(p => p.map(v => Math.max(0, Math.min(SETTLE_WORLD, Math.round(v * 10) / 10))))
   if (pts.length < 2) return res.status(400).json({ error: 'Нужен путь хотя бы из двух точек' })
-  // начинаем там, где отряд сейчас (дома — в центре)
+  // начинаем там, где отряд сейчас (дома — у дома главы)
   const m = s.marches?.[q.id]
   const now = Date.now()
-  const at = m ? (m.move ? marchState(m.move, now) : m) : { x: MARCH_HOME[0], y: MARCH_HOME[1] }
+  const hm = homeOf(s)
+  const at = m ? (m.move ? marchState(m.move, now) : m) : { x: hm[0], y: hm[1] }
   pts[0] = [Math.round(at.x * 10) / 10, Math.round(at.y * 10) / 10]
   const last = pts[pts.length - 1]
   const exit = !!b.exit
   if (exit && !atEdge(last[0], last[1])) return res.status(400).json({ error: 'Чтобы выйти на карту мира, путь должен кончаться у края округи' })
-  const home = !exit && Math.hypot(last[0] - MARCH_HOME[0], last[1] - MARCH_HOME[1]) <= HOME_R
+  const home = !exit && isHome(s, last)
   const ctx = marchCtx(s)
-  const move = startMove(ctx, densify(pts), { label: exit ? 'на карту мира' : home ? 'Домой' : T.str(80)(b.label || '').trim() || 'точка на карте', exit, home })
+  // ускорять может только мастер
+  const speed = req.user.role === 'master' ? Math.max(1, Math.min(1000, Number(b.speed) || 1)) : 1
+  const move = startMove(ctx, densify(pts), { label: exit ? 'на карту мира' : home ? 'Домой' : T.str(80)(b.label || '').trim() || 'точка на карте', exit, home }, speed)
   ;(s.marches ||= {})[q.id] = { x: pts[0][0], y: pts[0][1], move }
   q.status = 'local'
+  // «сразу» — путь уже пройден, прибытие (и выход на карту мира) — тут же
+  if (speed >= 1000) { move.startAt = now - move.cum[move.cum.length - 1]; tickMarches(getDb(), now) }
   const hours = Math.max(0.02, move.cum[move.cum.length - 1] / 3600000)
   logEntry(s, 'army', `${req.user.name} ведёт отряд «${q.name}»: ${move.label} (≈${hours < 1 ? Math.round(hours * 60) + ' мин' : hours.toFixed(1).replace('.', ',') + ' ч'})`)
   if (req.user.role !== 'master') notify('masters', 'settlement', `${s.name}: ${req.user.name} ведёт отряд «${q.name}» — ${move.label}`, settleLink(s, 'squads'))
   saveDb()
   broadcast()
   res.json(s.marches[q.id])
+})
+// мастер: «прибыть сейчас» — время пути кончается сейчас, дальше всё как при обычном прибытии
+app.post('/api/settlements/:id/squads/:qid/arrive', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const m = s?.marches?.[req.params.qid]
+  if (!m?.move) return res.status(400).json({ error: 'Отряд никуда не идёт' })
+  m.move.startAt = Date.now() - m.move.cum[m.move.cum.length - 1]
+  if (tickMarches(getDb(), Date.now())) saveDb()
+  broadcast()
+  res.json({ ok: true })
 })
 // остановиться, где идёт сейчас
 app.post('/api/settlements/:id/squads/:qid/halt', requireUser, (req, res) => {

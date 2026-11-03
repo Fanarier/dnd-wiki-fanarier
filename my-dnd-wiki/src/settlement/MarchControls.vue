@@ -8,20 +8,22 @@
     <div v-else-if="m && !m.away" class="mc-n">стоит в округе{{ where ? ' — ' + where : '' }}</div>
     <div v-if="can && !world" class="mc-btns">
       <button class="mini go" :disabled="!squad.commander" :title="squad.commander ? 'Щёлкай точки на карте поселения' : 'Сначала назначь командира'" @click="$emit('lead', squad.id)">🧭 Вести по округе</button>
-      <button v-if="m && !m.away && !m.move?.home" class="mini" :disabled="busy" title="Сам найдёт путь к центру поселения" @click="run(marchHome)">⌂ Домой</button>
+      <button v-if="m && !m.away && !m.move?.home" class="mini" :disabled="busy" title="Сам найдёт путь к дому главы, по дорогам" @click="run(marchHome)">⌂ Домой</button>
       <button v-if="!m?.move?.exit" class="mini" :disabled="!squad.commander || busy" title="К ближайшему краю округи — дойдя, выйдет на карту мира (как в RimWorld)" @click="run(marchOut)">⇱ На карту мира</button>
       <button v-if="m?.move" class="mini danger" @click="haltMarch(settlement, squad.id)">⏹ Стой</button>
+      <button v-if="m?.move && master" class="mini" title="Мастеру: отряд сразу оказывается у цели" @click="arriveNow(settlement, squad.id)">⏩ Прибыть сейчас</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
-import { store, fmtDateTime, fmtDuration } from '../map/store.js'
-import { HOME } from '../shared/march.js'
-import { squadAt, spotLabel, onWorld, marchHome, marchOut, haltMarch } from './march.js'
+import { store, isMaster, fmtDateTime, fmtDuration } from '../map/store.js'
+import { homeOf } from '../shared/march.js'
+import { squadAt, spotLabel, onWorld, marchHome, marchOut, haltMarch, arriveNow } from './march.js'
 
 const props = defineProps({ settlement: Object, squad: Object, can: Boolean })
+const master = isMaster
 defineEmits(['lead'])
 const m = computed(() => props.settlement.marches?.[props.squad.id] || null)
 const st = computed(() => (m.value?.move ? squadAt(props.settlement, props.squad.id, store.now) : null))
@@ -30,8 +32,8 @@ const world = computed(() => onWorld(props.settlement, props.squad))
 const where = computed(() => {
   if (!m.value || m.value.move) return ''
   const p = [m.value.x, m.value.y]
-  const d = Math.hypot(p[0] - HOME[0], p[1] - HOME[1])
-  return spotLabel(props.settlement, p).replace('Домой', 'у дома') || `${d >= 1000 ? (d / 1000).toFixed(1).replace('.', ',') + ' км' : Math.round(d) + ' м'} от центра`
+  const h = homeOf(props.settlement), d = Math.hypot(p[0] - h[0], p[1] - h[1])
+  return spotLabel(props.settlement, p).replace('Домой', 'у дома главы') || `${d >= 1000 ? (d / 1000).toFixed(1).replace('.', ',') + ' км' : Math.round(d) + ' м'} от дома главы`
 })
 // поиск пути — пара десятков мс; кнопку на это время гасим
 const busy = ref(false)

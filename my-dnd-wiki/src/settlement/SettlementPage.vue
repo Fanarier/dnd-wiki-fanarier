@@ -56,6 +56,9 @@
               <button :class="{ on: tool.auto !== false }" title="Сам обходит воду и болота, тянется к дорогам" @click="tool = { ...tool, auto: true }">в обход</button>
               <button :class="{ on: tool.auto === false }" title="По прямой между точками — через лес, болото и брод" @click="tool = { ...tool, auto: false }">напрямую</button>
             </span>
+            <span v-if="master" class="seg" title="Мастеру: как быстро идёт отряд">
+              <button v-for="sp in SPEEDS" :key="sp.v" :class="{ on: (tool.speed || 1) === sp.v }" @click="setMarchSpeed(sp.v)">{{ sp.label }}</button>
+            </span>
             <em v-if="marchInfo?.blocked" class="bad">туда не пройти — попробуй «напрямую»</em>
             <em v-else-if="marchInfo?.ms" class="mi">≈ {{ fmtHours(marchInfo.ms) }}{{ marchInfo.label ? ' · ' + marchInfo.label : '' }}</em>
             <button v-if="mapRef?.marchDraft?.length" class="mini" @click="mapRef?.undoMarchPoint()">↶ точку</button>
@@ -221,7 +224,8 @@ import BuildingCard from './BuildingCard.vue'
 import SettlementEditor from './SettlementEditor.vue'
 import BattlePanel from './BattlePanel.vue'
 import MarchControls from './MarchControls.vue'
-import { sendMarch } from './march.js'
+import { sendMarch, marchSpeed } from './march.js'
+import { SPEEDS } from '../shared/march.js'
 import { missingRaceStats } from '../shared/army.js'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
@@ -302,7 +306,7 @@ const hint = computed(() => {
   if (t?.placeExisting) { const b = s.value.buildings.find(x => x.id === t.placeExisting); return `Кликни, куда поставить «${b?.name || BUILDINGS[t.type]?.label}». Esc — отмена.` }
   if (t?.place) return `Кликни по разведанной земле, куда поставить «${BUILDINGS[t.place]?.label}». Esc — отмена.`
   if (t?.explore) return 'Кликни, какой участок разведать — мастер получит приказ.'
-  if (t?.march) return `Веди «${squadName(t.march)}»: щёлкай точки на карте. У края карты — выход на карту мира. Enter — идти, Backspace — убрать точку, Esc — отмена.`
+  if (t?.march) return `Веди «${squadName(t.march)}» от дома главы: щёлкай точки на карте, тяни их, двойной щелчок по точке — убрать, кружок между точками — вставить. У края карты — выход на карту мира. Enter — идти, Esc — отмена.`
   if (t?.road) return `${ROAD_TYPES[t.road].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Точка прилипает к другим дорогам (кольцо); начни с конца такой же дороги — продолжишь её.`
   if (t?.wall) return `${WALL_TYPES[t.wall].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Начни с конца такой же стены — продолжишь её; последнюю точку поставь на первую — кольцо.`
   if (t?.wallFeature) return `${WALL_FEATURES[t.wallFeature].label}: наведи на стену и щёлкни. Esc — отмена.`
@@ -396,11 +400,15 @@ const fmtHours = ms => (ms >= 3600000 ? `${(ms / 3600000).toFixed(1).replace('.'
 function startLead(qid) {
   wide.value = false
   pop.value = null
-  tool.value = { march: qid, auto: true }
+  tool.value = { march: qid, auto: true, speed: master.value ? marchSpeed.value : 1 }
   sel.value = { kind: 'squad', id: qid }
 }
-async function onMarch({ qid, path, exit, label }) {
-  const r = await sendMarch(s.value, qid, path, { exit, label })
+function setMarchSpeed(v) {
+  marchSpeed.value = v
+  tool.value = { ...tool.value, speed: v }
+}
+async function onMarch({ qid, path, exit, label, speed }) {
+  const r = await sendMarch(s.value, qid, path, { exit, label, speed })
   if (!r) return
   tool.value = null
   sel.value = { kind: 'squad', id: qid }

@@ -5,7 +5,16 @@ import { roadCurve, ROAD_TYPES } from './settlement.js'
 import { segDist } from './geo.js'
 
 export const HOME = [CENTER, CENTER]
-export const HOME_R = 150 // м: ближе к центру — отряд дома
+export const HOME_R = 150 // м: ближе к дому главы — отряд дома
+// дом отряда — дом главы: постройка, где владелец — герой-глава, иначе двор старейшины, иначе центр
+export function homeOf(s) {
+  const placed = (s?.buildings || []).filter(b => b.x != null)
+  const b = (s?.headHeroId && placed.find(b => b.owner === s.headHeroId)) || placed.find(b => b.type === 'elder')
+  return b ? [b.x, b.y] : HOME
+}
+export const isHome = (s, [x, y]) => { const h = homeOf(s); return Math.hypot(x - h[0], y - h[1]) <= HOME_R }
+// темп похода: мастер может ускорить (×2 … «сразу»)
+export const SPEEDS = [{ v: 1, label: '×1' }, { v: 2, label: '×2' }, { v: 5, label: '×5' }, { v: 20, label: '×20' }, { v: 1000, label: 'сразу' }]
 export const EDGE = 60 // м от края карты — отсюда выходят на карту мира
 // скорость по местности — доля от темпа на карте мира (по дороге — полный темп). Вода — вброд и вплавь, очень медленно;
 // поиск пути её обходит
@@ -15,6 +24,7 @@ export const SPEED = {
 }
 export const ROAD_SPEED = 1
 const SLOW = 0.1 // медленнее — поиск пути туда не идёт
+const OFFROAD = 2.2 // поиск пути: вне дороги «дороже» — отряд держится дорог, как живые люди
 
 // всё, что нужно для скорости в точке: местность с вырубками и дороги (раскиданы по клеткам 100 м, чтобы искать быстро)
 export function marchCtx(s) {
@@ -41,7 +51,22 @@ export function marchCtx(s) {
     if (onRoad(x, y)) return ROAD_SPEED
     return SPEED[gen.sample(x, y, o).code] ?? 0.7
   }
-  return { speed, onRoad }
+  // ближайшая точка на оси дороги не дальше maxD (или null) — путь ложится прямо на дорогу
+  const roadPoint = (x, y, maxD) => {
+    let best = null, bd = maxD
+    const gx = Math.floor(x / CELL), gy = Math.floor(y / CELL)
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      for (const { a, b } of buckets.get((gx + i) * 4096 + gy + j) || []) {
+        const dx = b[0] - a[0], dy = b[1] - a[1], L = dx * dx + dy * dy
+        const t = L ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / L)) : 0
+        const px = a[0] + dx * t, py = a[1] + dy * t, d = Math.hypot(x - px, y - py)
+        if (d < bd) { bd = d; best = [px, py] }
+      }
+    }
+    return best
+  }
+  const segs = [...new Set([...buckets.values()].flat())]
+  return { speed, onRoad, roadPoint, segs }
 }
 
 // мс на метр при полном темпе: темп карты мира (км за игровой день) и длина игрового дня в настоящих часах
@@ -102,10 +127,17 @@ export function findPath(ctx, a, b, { cell = 50, maxIter = 250000 } = {}) {
   const N = Math.ceil(WORLD / cell), NN = N * N
   const idx = (x, y) => Math.min(N - 1, Math.max(0, Math.floor(y / cell))) * N + Math.min(N - 1, Math.max(0, Math.floor(x / cell)))
   const cost = new Float32Array(NN).fill(-1)
+  // клетки, через которые идёт дорога (хоть краем): по ним — полный темп и без «штрафа» за бездорожье
+  const road = new Uint8Array(NN)
+  for (const { a, b } of ctx.segs || []) {
+    const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / (cell / 4)))
+    for (let k = 0; k <= n; k++) road[idx(a[0] + ((b[0] - a[0]) * k) / n, a[1] + ((b[1] - a[1]) * k) / n)] = 1
+  }
   const sp = i => {
-    if (cost[i] < 0) { const v = ctx.speed(((i % N) + 0.5) * cell, (Math.floor(i / N) + 0.5) * cell); cost[i] = v < SLOW ? 0 : v }
+    if (cost[i] < 0) { const v = road[i] ? ROAD_SPEED : ctx.speed(((i % N) + 0.5) * cell, (Math.floor(i / N) + 0.5) * cell); cost[i] = v < SLOW ? 0 : v }
     return cost[i]
   }
+  const pen = i => (road[i] ? 1 : OFFROAD)
   const s0 = idx(a[0], a[1]), g0 = idx(b[0], b[1])
   cost[s0] = Math.max(sp(s0), 0.3) // из воды и болота выбраться можно
   cost[g0] = Math.max(sp(g0), 0.3)
@@ -154,7 +186,7 @@ export function findPath(ctx, a, b, { cell = 50, maxIter = 250000 } = {}) {
       const vj = sp(j)
       if (!vj) continue
       if (k >= 4 && (!sp(y * N + nx) || !sp(ny * N + x))) continue // по диагонали мимо воды не срезаем
-      const d = (k >= 4 ? Math.SQRT2 : 1) * cell * (0.5 / vi + 0.5 / vj)
+      const d = (k >= 4 ? Math.SQRT2 : 1) * cell * (0.5 * pen(i) / vi + 0.5 * pen(j) / vj)
       const ng = g[i] + d
       if (ng < g[j]) { g[j] = ng; from[j] = i; push(j, ng + h(j)) }
     }
@@ -163,16 +195,16 @@ export function findPath(ctx, a, b, { cell = 50, maxIter = 250000 } = {}) {
   const cells = []
   for (let i = g0; i >= 0; i = from[i]) { cells.push(i); if (i === s0) break }
   cells.reverse()
-  // распрямляем: прямой отрезок вместо ступенек, если по нему не дольше
+  // распрямляем бездорожье: прямой отрезок вместо ступенек, если по нему не дольше; по дороге — точки на её оси
   const lineCost = (i, j) => {
     const ax = ((cells[i] % N) + 0.5) * cell, ay = (Math.floor(cells[i] / N) + 0.5) * cell
     const bx = ((cells[j] % N) + 0.5) * cell, by = (Math.floor(cells[j] / N) + 0.5) * cell
     const d = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(d / (cell / 2)))
     let t = 0
     for (let k = 0; k < n; k++) {
-      const v = sp(idx(ax + ((bx - ax) * (k + 0.5)) / n, ay + ((by - ay) * (k + 0.5)) / n))
-      if (!v) return Infinity
-      t += d / n / v
+      const c = idx(ax + ((bx - ax) * (k + 0.5)) / n, ay + ((by - ay) * (k + 0.5)) / n), v = sp(c)
+      if (!v || road[c]) return Infinity // дорогу не срезаем
+      t += (d / n / v) * OFFROAD
     }
     return t
   }
@@ -183,7 +215,10 @@ export function findPath(ctx, a, b, { cell = 50, maxIter = 250000 } = {}) {
     keep.push(j)
     i = j
   }
-  const pts = keep.map(k => [((cells[k] % N) + 0.5) * cell, (Math.floor(cells[k] / N) + 0.5) * cell])
+  const pts = keep.map(k => {
+    const x = ((cells[k] % N) + 0.5) * cell, y = (Math.floor(cells[k] / N) + 0.5) * cell
+    return (road[cells[k]] && ctx.roadPoint?.(x, y, cell)) || [x, y]
+  })
   pts[0] = [a[0], a[1]]
   pts[pts.length - 1] = [b[0], b[1]]
   return pts.map(p => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10])
