@@ -105,7 +105,7 @@
           <template v-else>
             <rect :x="-shown(b) / 2" :y="-shown(b) / 2" :width="shown(b)" :height="shown(b)" :rx="shown(b) / 8" class="sm-plate" :class="{ personal: BUILDINGS[b.type]?.personal }"
                   :style="{ '--cat': CATEGORIES[BUILDINGS[b.type]?.cat]?.color }" vector-effect="non-scaling-stroke" />
-            <image :href="iconUrl(BUILDINGS[b.type]?.icon)" :x="-icon(b) / 2" :y="-icon(b) / 2" :width="icon(b)" :height="icon(b)" />
+            <image :href="iconUrl(tierOf(b)?.icon)" :x="-icon(b) / 2" :y="-icon(b) / 2" :width="icon(b)" :height="icon(b)" />
           </template>
           <text v-if="b.name && shown(b) * view.k > 34" :y="shown(b) / 2 + 13 * px" class="sm-label name" :style="labelStyle">{{ b.name }}</text>
           <g v-if="b.state === 'construction'" :transform="`translate(0 ${shown(b) / 2 + 5 * px})`">
@@ -217,7 +217,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, DAMAGE, repairWork, placementProblems, footprint, roadCurve, nearestRoad, roadJunctions, priceText } from '../shared/settlement.js'
+import { BUILDINGS, CATEGORIES, OUTPOSTS, SIZES, JOBS, RES, ROAD_TYPES, DAMAGE, repairWork, placementProblems, footprint, roadCurve, nearestRoad, roadJunctions, priceText, tierOf, iconSrc } from '../shared/settlement.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, wallWork, pointAt, slice, nearestWall, openings, roadCrossings, wallDefense } from '../shared/walls.js'
 import { WORLD, CENTER, makeTerrain, BIOME_LABEL } from '../shared/terrainGen.js'
 import { createTileStore } from './tiles.js'
@@ -244,7 +244,7 @@ const props = defineProps({
 const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march'])
 
 const fogUrl = fogTexture()
-const iconUrl = name => `/settlement/${name || 'help'}.png`
+const iconUrl = iconSrc
 const sideOf = type => SIZES[BUILDINGS[type]?.size]?.side || 0
 // на экране постройка не меньше 14 px, иначе её не видно издалека
 const shown = b => Math.max(sideOf(b.type), 14 * px.value)

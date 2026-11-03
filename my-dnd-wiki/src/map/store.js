@@ -4,6 +4,7 @@ import { buildRoadGraph, findRoute, partyPosition, polyLength } from '../shared/
 import { POINT_EFFECTS } from '../shared/catalog.js'
 import { cropImage } from '../components/cropState.js'
 import { rollSummary } from '../shared/dice.js'
+import { applySettlementRules } from '../shared/settlement.js'
 
 const TOKEN_KEY = 'anacaria-token'
 const LAYERS_KEY = 'anacaria-layers'
@@ -175,6 +176,8 @@ function applyState(state) {
   store.role = state.role
   store.me = state.me || null
   const { role, serverTime, me, ...data } = state
+  // правила построек мастера — до того, как поселения пересчитаются
+  applySettlementRules(data.settlementRules)
   store.data = data
   stateHook?.(data)
 

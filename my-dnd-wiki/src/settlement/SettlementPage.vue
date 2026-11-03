@@ -71,7 +71,7 @@
           <template v-if="master && unplaced.length">
             <small class="pal-sub">Не расставлены — {{ unplaced.length }} <span>считаются, но на карте их нет</span></small>
             <button v-for="b in unplaced" :key="b.id" class="pal-item" :class="{ on: tool?.placeExisting === b.id }" @click="startPlaceExisting(b)">
-              <img :src="`/settlement/${BUILDINGS[b.type].icon}.png`" alt="" />
+              <img :src="iconSrc(BUILDINGS[b.type].icon)" alt="" />
               <span>{{ b.name || BUILDINGS[b.type].label }}</span>
               <em>{{ SIZES[BUILDINGS[b.type].size]?.area }}{{ b.state === 'construction' ? ' · стройка' : '' }}</em>
             </button>
@@ -83,7 +83,7 @@
           <div v-for="(list, cat) in paletteGroups" :key="cat" class="pal-group">
             <small>{{ CATEGORIES[cat]?.label }}</small>
             <button v-for="b in list" :key="b.type" class="pal-item" :class="{ on: tool?.place === b.type }" @click="startPlace(b.type)">
-              <img :src="`/settlement/${b.icon}.png`" alt="" />
+              <img :src="iconSrc(b.icon)" alt="" />
               <span>{{ b.label }}</span>
               <em>{{ SIZES[b.size]?.label }}{{ SIZES[b.size]?.area ? ' · ' + SIZES[b.size].area : '' }}</em>
               <PriceChips v-if="!b.personal && (!master || !placeBuilt)" class="pal-price" :price="b.price" :stock="s.stock || {}" short />
@@ -148,7 +148,7 @@
         <!-- «прошёл день» -->
         <div v-if="pop === 'day'" class="sp-pop day">
           <div class="pop-head"><b>Сколько прошло?</b><button @click="pop = null">×</button></div>
-          <p>За каждый день на склад придёт прирост и уйдёт расход; чего не хватает — возьмём из запаса, кончится запас — нехватка в журнал. Стройка продвинется, а сайт подкинет заготовки событий.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
+          <p>За каждый день на склад придёт прирост и уйдёт расход; чего не хватает — возьмём из запаса, кончится запас — нехватка в журнал. Стройки, ремонт и улучшения продвинутся руками назначенных строителей, мораль сдвинется (таверна, еда, вода, теснота), срочные события без решения станут хуже, а сайт подкинет заготовки событий.<template v-if="s.day"> Сейчас день {{ s.day }}.</template></p>
           <div class="day-row">
             <button @click="advance(1)">1 день</button><button @click="advance(7)">Неделя</button>
             <input v-model.number="customDays" type="number" min="1" max="60" /><button @click="advance(customDays)">дней</button>
@@ -178,12 +178,12 @@
               <div class="sp-people"><b>{{ calc.population }}</b><small>жителей</small></div>
               <div class="sp-mood"><small>общий статус</small><span>{{ s.status || '—' }}</span></div>
             </div>
-            <!-- мораль, стабильность, угроза — полоски 0…100 -->
+            <!-- мораль, стабильность, угроза — от −100 до 100, ноль посередине -->
             <div class="sp-meters">
-              <div v-for="m in meters" :key="m.key" class="sp-meter" :class="[m.key, { hot: m.hot }]" :title="`${m.label}: ${m.value} из 100`">
-                <span class="sp-ml">{{ m.label }}</span>
-                <div class="sp-trk"><i :style="{ width: Math.max(0, Math.min(100, m.value)) + '%' }" /></div>
-                <b>{{ m.value }}</b>
+              <div v-for="m in meters" :key="m.key" class="sp-meter" :class="[m.key, { hot: m.hot, neg: m.value < 0 }]" :title="m.hint">
+                <span class="sp-ml">{{ m.label }}<em v-if="m.day" :class="m.day > 0 ? 'up' : 'down'">{{ m.day > 0 ? '+' : '−' }}{{ fmtNum(Math.abs(m.day)) }}/д</em></span>
+                <div class="sp-trk"><i :style="{ left: Math.min(50, 50 + m.value / 2) + '%', width: Math.abs(m.value) / 2 + '%' }" /><u /></div>
+                <b>{{ fmtNum(m.value) }}</b>
               </div>
             </div>
           </div>
@@ -229,7 +229,7 @@ import { SPEEDS } from '../shared/march.js'
 import { missingRaceStats } from '../shared/army.js'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
-import { computeSettlement, shortFor, priceText, placementProblems, repairPrice, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
+import { computeSettlement, moraleDay, iconSrc, shortFor, priceText, placementProblems, repairPrice, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
 import { WALL_TYPES, WALL_FEATURES, wallPrice, featurePrice } from '../shared/walls.js'
 import { TERRAIN_DEFAULTS, TERRAIN_PARAMS } from '../shared/terrainGen.js'
 
@@ -240,11 +240,18 @@ const s = computed(() => {
   return list.find(x => x.id === route.params.id) || (!route.params.id ? list[0] : null)
 })
 const calc = computed(() => computeSettlement(s.value || {}))
-const meters = computed(() => [
-  { key: 'morale', label: 'Мораль', value: calc.value.morale },
-  { key: 'stability', label: 'Стабильность', value: calc.value.stability },
-  { key: 'threat', label: 'Угроза', value: calc.value.threat, hot: calc.value.threat >= 50 }
-])
+const sgn = v => `${v > 0 ? '+' : v < 0 ? '−' : ''}${fmtNum(Math.abs(v))}`
+const meters = computed(() => {
+  const c = calc.value, md = moraleDay(s.value || {}, c), perm = c.perm
+  return [
+    { key: 'morale', label: 'Мораль', value: c.morale, day: md.total,
+      hint: `Мораль ${fmtNum(c.morale)} (от −100 до 100). За день ${sgn(md.total)}: ${md.parts.map(p => `${p.label} ${sgn(p.value)}`).join(', ')}. Чем выше мораль, тем труднее её поднять; не больше 15 за день. Ниже нуля — чаще дурные события.` },
+    { key: 'stability', label: 'Стабильность', value: c.stability,
+      hint: `Стабильность ${fmtNum(c.stability)} (от −100 до 100)${perm.stability ? `: своя ${fmtNum(c.stabilityBase)}, постройки ${sgn(perm.stability)}` : ''}. Ниже нуля — чаще дурные события.` },
+    { key: 'threat', label: 'Угроза', value: c.threat, hot: c.threat >= 50,
+      hint: `Угроза ${fmtNum(c.threat)} (от −100 до 100)${perm.threat ? `: своя ${fmtNum(c.threatBase)}, постройки ${sgn(perm.threat)}` : ''}. Чем ближе к −100, тем реже угрозы извне; изнутри — только выше нуля.` }
+  ]
+})
 
 /* загрузочный экран: держим, пока не пришли данные и не нарисована местность;
    сам экран уходит в конце броска топора и не раньше, чем через два броска (2 секунды) */
@@ -459,7 +466,7 @@ async function advance(days) {
   const r = await act('POST', `${base()}/advance`, { days }).catch(() => null)
   pop.value = null
   if (!r) return
-  toast(`Прошло дней: ${days}${r.done?.length ? ' · достроено: ' + r.done.join(', ') : ''}${r.suggestions ? ' · заготовок событий: ' + r.suggestions : ''}`)
+  toast(`Прошло дней: ${days}${r.done?.length ? ' · готово: ' + r.done.join(', ') : ''}${r.morale ? ` · мораль ${r.morale > 0 ? '+' : ''}${r.morale}` : ''}${r.idle?.length ? ' · без строителей стоят: ' + r.idle.join(', ') : ''}${r.suggestions ? ' · заготовок событий: ' + r.suggestions : ''}`)
   if (r.short?.length || r.suggestions) setTab('journal')
 }
 function saveItem(kind, item) {
@@ -514,7 +521,8 @@ const TABS = computed(() => [
   { id: 'squads', label: 'Отряды' },
   { id: 'hospital', label: 'Лечение', dot: (master.value || decider.value) && (s.value?.hospital || []).some(p => !p.treatment) },
   { id: 'orders', label: 'Приказы', dot: master.value && (s.value?.orders || []).some(o => o.status === 'pending') },
-  { id: 'journal', label: 'Журнал', dot: (s.value?.events || []).some(e => e.duration?.includes('decide') && !e.decision) || (master.value && !!s.value?.suggestions?.length) },
+  { id: 'buildings', label: 'Постройки' },
+  { id: 'journal', label: 'Журнал', dot: (s.value?.events || []).some(e => (e.duration?.some(d => d === 'decide' || d === 'urgent') && !e.decision) || (master.value && e.pending)) || (master.value && !!s.value?.suggestions?.length) },
   { id: 'history', label: 'История' }
 ])
 function setTab(id) {
@@ -625,12 +633,20 @@ function setTab(id) {
 .sp-meter b { font: 700 17px/1 var(--a-serif); color: #f3d99a; text-align: right; }
 .sp-trk { position: relative; height: 12px; border-radius: 7px; overflow: hidden; background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px rgba(201, 162, 79, .2);
   background-image: repeating-linear-gradient(90deg, transparent 0 calc(25% - 1px), rgba(201, 162, 79, .22) calc(25% - 1px) 25%); }
-.sp-trk i { position: relative; display: block; height: 100%; border-radius: 7px; transform-origin: left; animation: sp-grow 1s cubic-bezier(.3, 1.2, .5, 1) both; transition: width .8s cubic-bezier(.3, 1.3, .5, 1); }
+.sp-trk i { position: relative; display: block; height: 100%; border-radius: 7px; transform-origin: left; animation: sp-grow 1s cubic-bezier(.3, 1.2, .5, 1) both; transition: width .8s cubic-bezier(.3, 1.3, .5, 1), left .8s cubic-bezier(.3, 1.3, .5, 1); }
 /* бегущий блик по полоске */
 .sp-trk i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%); background-size: 200% 100%; animation: sp-shine 3.5s ease-in-out infinite; }
 .sp-meter.morale .sp-trk i { background: linear-gradient(90deg, #c99a48, #f2d58f); }
 .sp-meter.stability .sp-trk i { background: linear-gradient(90deg, #2f8f9e, #6fd6e8); }
 .sp-meter.threat .sp-trk i { background: linear-gradient(90deg, #a81f30, #ff6b5b); }
+.sp-meter.neg .sp-trk i { background: linear-gradient(270deg, #6a4a8f, #a07cff); }
+.sp-meter.threat.neg .sp-trk i { background: linear-gradient(270deg, #2f6f5e, #6fd6a8); }
+.sp-trk i { position: absolute; top: 0; }
+.sp-meter.neg .sp-trk i { transform-origin: right; }
+.sp-trk u { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: rgba(243, 217, 154, .55); }
+.sp-ml em { display: block; font-style: normal; font-size: 10.5px; font-weight: 700; }
+.sp-ml em.up { color: #9be07a; }
+.sp-ml em.down { color: #ff9b8f; }
 .sp-meter.threat b { color: #ff9b8f; }
 .sp-meter.hot .sp-trk { animation: sp-alarm 1.6s ease-in-out infinite; }
 @keyframes sp-grow { from { transform: scaleX(0); } }

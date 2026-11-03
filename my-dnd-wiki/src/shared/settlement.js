@@ -19,8 +19,10 @@ export const RESOURCES = [
   { key: 'straw', label: 'Солома', group: 'Сырьё', color: '#e8d27a' },
   { key: 'fiber', label: 'Волокно', group: 'Сырьё', color: '#cfc29a' },
   { key: 'herbs', label: 'Травы', group: 'Сырьё', color: '#7ccf8a' },
+  { key: 'soil', label: 'Чернозём', group: 'Сырьё', color: '#7a5a3c' },
   { key: 'parts', label: 'Простые детали', group: 'Изделия', color: '#c9b88f' },
   { key: 'goods', label: 'Товары', group: 'Изделия', color: '#e6c27a' },
+  { key: 'medicine', label: 'Лекарства', group: 'Изделия', color: '#e58fb4' },
   { key: 'iron', label: 'Чёрные металлы', group: 'Металлы и камни', color: '#8f9aa6' },
   { key: 'nonferrous', label: 'Цветные металлы', group: 'Металлы и камни', color: '#d39b62' },
   { key: 'minerals', label: 'Минералы', group: 'Металлы и камни', color: '#9fb8c9' },
@@ -34,49 +36,57 @@ export const RES = Object.fromEntries(RESOURCES.map(r => [r.key, r]))
 
 /* ---------------- Расы ----------------
    eat: растительная / мясная еда, drink: питьевая вода, life: «Быт» — дрова, посуда, одежда, починка (берётся из Дерева).
-   Дети большинства рас тратят на 50% меньше. war / def — военный и оборонительный потенциал одного боевого жителя. */
+   Дети большинства рас тратят на 50% меньше. war / def — военный и оборонительный потенциал одного боевого жителя.
+   build — очков стройки в день от одного строителя; buildMorale — прибавка (pct, %) при морали выше above; buildNote — подпись */
 export const RACES = {
   hobgoblin: {
     label: 'Хобгоблины', traits: ['Всеядные', 'Рабочий запал', 'Общинники', 'Слабая аура'],
     plus: ['Могут есть любую пищу', '+25% к скорости любой работы, если мораль выше 50', 'Чаще образуют семьи, легко уживаются с другими расами'],
     minus: ['Крайне слабый магический потенциал или его отсутствие'],
-    veg: 0.75, meat: 0.75, drink: 1, life: 0.5, war: 1, def: 2
+    veg: 0.75, meat: 0.75, drink: 1, life: 0.5, war: 1, def: 2,
+    build: 5, buildMorale: { above: 50, pct: 25 }, buildNote: 'Рабочий запал: +25% при морали выше 50'
   },
   fenris: {
     label: 'Фенрисы', traits: ['Мясоедные', 'Воинственные', 'Агрессивные', 'Атлетичные', 'Неуклюжие'],
     plus: ['Значительно чаще получают категорию «Боевой»', '+2 к Бою и Охоте', 'Бонусы к Силе и Телосложению'],
     minus: ['Едят на 100% больше мясной пищи', 'Чаще создают конфликты', 'Штрафы к Ловкости и Работе'],
-    veg: 1, meat: 2, drink: 2, life: 1, war: 3, def: 5
+    veg: 1, meat: 2, drink: 2, life: 1, war: 3, def: 5,
+    build: 4, buildNote: 'Сильные, но неуклюжие — штраф к работе'
   },
   kitsune: {
     label: 'Кицунэ', traits: ['Всеядные', 'Сильная аура', 'Неуспевающие', 'Ловкие', 'Чтущие традиции'],
     plus: ['Могут есть любую пищу', 'Большой магический потенциал', 'Бонусы к Ловкости', 'Бонусы к Мудрости'],
     minus: ['Штрафы к Интеллекту', 'Не могут заниматься исследованиями'],
-    veg: 1, meat: 1, drink: 1.5, life: 0.5, war: 1, def: 3
+    veg: 1, meat: 1, drink: 1.5, life: 0.5, war: 1, def: 3,
+    build: 4, buildNote: 'Ловкие, тонкую работу делают хорошо'
   },
   human: {
     label: 'Люди', traits: ['Всеядные', 'Всесторонние', 'Иномирные'],
     plus: ['Могут есть любую пищу', 'Небольшие бонусы ко всем характеристикам', 'Могут выполнять любую работу'],
     minus: ['Дают штраф к Морали представителям других рас'],
-    veg: 1, meat: 1, drink: 1.5, life: 0.75, war: 2, def: 1
+    veg: 1, meat: 1, drink: 1.5, life: 0.75, war: 2, def: 1,
+    build: 5, buildNote: 'Могут любую работу'
   },
   highelf: {
     label: 'Высшие эльфы', traits: ['Всеядные', 'Сильная аура', 'Эгоистичные', 'Слабые', 'Интеллектуалы'],
     plus: ['Могут есть любую пищу', 'Большой магический потенциал', 'Бонусы к Интеллекту'],
     minus: ['Чаще создают конфликты', 'Не могут заниматься тяжёлой работой', 'Штрафы к Силе и Телосложению'],
-    veg: 1, meat: 0.5, drink: 1, life: 1, war: 2, def: 1
+    veg: 1, meat: 0.5, drink: 1, life: 1, war: 2, def: 1,
+    build: 2, buildNote: 'Не годятся для тяжёлой работы'
   },
   centaur: {
     label: 'Кентавры', traits: ['Травоядные', 'Слабая аура', 'Воинственные', 'Кочующие', 'Неуклюжие'],
     plus: ['Значительно чаще получают категорию «Боевой»', 'Эффективны в разведке и походах'],
     minus: ['Едят на 100% больше растительной пищи', 'Крайне слабый магический потенциал', 'Не могут заниматься тонкой работой'],
-    veg: 2, meat: 0, drink: 2, life: 1, war: 4, def: 1
+    veg: 2, meat: 0, drink: 2, life: 1, war: 4, def: 1,
+    build: 6, buildNote: 'Таскают брёвна и камень, но не тонкую работу'
   },
   neko: {
     label: 'Нэко', traits: ['Мясоедные', 'Одиночки', 'Внимательные', 'Оседлые'],
     plus: ['Крайне эффективны в разведке', 'Бонусы в обороне'],
     minus: ['Едят на 100% больше мясной пищи', 'Реже создают семьи', 'Штрафы в походах'],
-    veg: 0.5, meat: 1, drink: 1.5, life: 0.75, war: 2, def: 2
+    veg: 0.5, meat: 1, drink: 1.5, life: 0.75, war: 2, def: 2,
+    build: 4, buildNote: ''
   }
 }
 // категории жителей (как в старой таблице)
@@ -179,20 +189,73 @@ export const CATEGORIES = {
 }
 
 /* ---------------- Постройки ----------------
-   jobs — рабочие места {работа: мест}; gain/use — что даёт и тратит сама постройка в день;
-   housing — жильё, guests — гостевые места, trade — торговые места, defense — защита, leisure — досуг */
+   jobs — рабочие места {работа: мест}; spec — места специалистов {работа: мест}; gain/use — что даёт и тратит сама постройка в день;
+   housing — жильё, guests — гостевые места, trade — торговые места, defense — защита.
+   tiers — уровни постройки (1, 2, 3): поля уровня заменяют поля постройки. Кроме тех же полей у уровня бывают:
+   perm — постоянный бафф {threat, stability, morale (в день)}; gov — управление {head, managers, outposts, maxLevel};
+   ev — шансы событий {family, dorm, breakdown, mineral, soil, medicine}; regrow — сколько метров вырубки в день зарастает вокруг;
+   specGain — что даёт, если у работы есть хоть один специалист; price / cost — цена и работа улучшения до этого уровня; note — подпись */
 export const BUILDINGS = {
-  elder: { label: 'Двор старейшины', cat: 'structure', size: 'large', cost: 250, icon: 'medieval-village-01' },
-  house: { label: 'Жилой дом', cat: 'housing', size: 'medium', cost: 125, icon: 'house', housing: 4 },
-  dorm: { label: 'Общежитие', cat: 'housing', size: 'large', cost: 200, icon: 'block-house', housing: 13 },
-  lumber: { label: 'База лесоруба', cat: 'resources', size: 'medium', cost: 100, icon: 'axe-in-stump', jobs: { lumberjack: 4 } },
-  hunter: { label: 'Дом охотника', cat: 'resources', size: 'medium', cost: 150, icon: 'target-arrows', jobs: { hunter: 4 } },
-  gatherer: { label: 'Дом собирателя', cat: 'resources', size: 'medium', cost: 150, icon: 'gift-trap', jobs: { gatherer: 4 } },
+  elder: {
+    label: 'Двор старейшины', cat: 'structure', size: 'large', cost: 250, icon: 'medieval-village-01',
+    tiers: [
+      { label: 'Двор старейшины', gov: { head: 1, managers: 2, outposts: 4, maxLevel: 1 }, perm: { threat: -2 }, note: 'Все постройки — 1 уровня' },
+      { label: 'Ратуша', gov: { head: 1, managers: 3, outposts: 6, maxLevel: 2 }, perm: { threat: -4, stability: 1 }, price: { wood: 150, stone: 150, build: 100, goods: 20 }, cost: 400, note: 'Постройки можно улучшать до 2 уровня' },
+      { label: 'Магистрат', gov: { head: 1, managers: 4, outposts: 8, maxLevel: 3 }, perm: { threat: -6, stability: 3 }, price: { stone: 300, build: 200, iron: 60, goods: 60 }, cost: 700, note: 'Постройки можно улучшать до 3 уровня' }
+    ]
+  },
+  house: {
+    label: 'Жилой дом', cat: 'housing', size: 'medium', cost: 125, icon: 'house', housing: 4,
+    tiers: [
+      { label: 'Жилой дом', housing: 4, ev: { family: 1 }, note: 'Шанс добрых событий о домах и семьях — чем больше домов, тем чаще' },
+      { label: 'Большой дом', housing: 6, ev: { family: 1.5 }, gain: { veg: 1 }, note: 'Чаще добрые события о семьях, свой огородик' },
+      { label: 'Коттедж', housing: 8, ev: { family: 2 }, gain: { veg: 2, goods: 0.3 }, note: 'Ещё чаще добрые события, огород и немного товаров' }
+    ]
+  },
+  dorm: {
+    label: 'Общежитие', cat: 'housing', size: 'large', cost: 200, icon: 'block-house', housing: 13,
+    tiers: [
+      { label: 'Барак', housing: 13, ev: { dorm: 1 }, note: 'Шанс дурных событий: ссоры семей и рас — чем больше общаг, тем чаще' },
+      { label: 'Ночлежка', housing: 18, ev: { dorm: 0.6 }, note: 'Дурные события реже' },
+      { label: 'Коммуналка', housing: 25, ev: { dorm: 0.3 }, note: 'Дурные события ещё реже' }
+    ]
+  },
+  lumber: {
+    label: 'База лесоруба', cat: 'resources', size: 'medium', cost: 100, icon: 'axe-in-stump', jobs: { lumberjack: 3 }, spec: { lumberjack: 1 },
+    tiers: [
+      { label: 'Домик лесоруба', jobs: { lumberjack: 3 }, spec: { lumberjack: 1 }, regrow: 0.3, note: 'Очень медленно сажают лес обратно; попутно — волокно' },
+      { label: 'Лесоповал', jobs: { lumberjack: 5 }, spec: { lumberjack: 2 }, regrow: 0.6, note: 'Медленно сажают лес обратно; попутно — волокно' },
+      { label: 'Пилорама', jobs: { lumberjack: 7 }, spec: { lumberjack: 3 }, regrow: 1.2, specGain: { build: 8 }, note: 'Умеренно сажают лес; есть специалист-плотник — возят доски (стройматериалы)' }
+    ]
+  },
+  hunter: {
+    label: 'Дом охотника', cat: 'resources', size: 'medium', cost: 150, icon: 'target-arrows', jobs: { hunter: 6 }, spec: { hunter: 1 },
+    tiers: [
+      { label: 'Дом охотника', jobs: { hunter: 6 }, spec: { hunter: 1 }, note: 'Две группы охотников' },
+      { label: 'Дом лесничего', jobs: { hunter: 9 }, spec: { hunter: 2 }, note: 'Три группы охотников' },
+      { label: 'Застава егеря', jobs: { hunter: 12 }, spec: { hunter: 3 }, perm: { threat: -1 }, note: 'Четыре группы, егеря держат округу' }
+    ]
+  },
+  gatherer: {
+    label: 'Дом собирателя', cat: 'resources', size: 'medium', cost: 150, icon: 'gift-trap', jobs: { gatherer: 6 }, spec: { gatherer: 1 },
+    tiers: [
+      { label: 'Хижина собирателя', jobs: { gatherer: 6 }, spec: { gatherer: 1 }, note: 'Две группы собирателей' },
+      { label: 'Застава искателей', jobs: { gatherer: 9 }, spec: { gatherer: 2 }, note: 'Три группы собирателей' },
+      { label: 'Обитель знахаря', jobs: { gatherer: 12 }, spec: { gatherer: 3 }, ev: { medicine: 1 }, note: 'Четыре группы; знахарь иногда варит лекарства' }
+    ]
+  },
   guardpost: { label: 'Застава стражи', cat: 'military', size: 'medium', cost: 150, icon: 'barracks-tent', jobs: { guard: 5 } },
   workshop: { label: 'Мастерская', cat: 'production', size: 'medium', cost: 250, icon: 'tinker', jobs: { locksmith: 4 } },
   field: { label: 'Поле для посадок', cat: 'production', size: 'huge', cost: 50, icon: 'wheat', jobs: { farmer: 10 }, use: { water: 50 } },
   latrine: { label: 'Общ. уборная', cat: 'health', size: 'small', cost: 100, icon: 'tap', jobs: { septic: 1 } },
-  steampump: { label: 'Паровой насос', cat: 'resources', size: 'small', cost: 175, icon: 'valve', gain: { water: 45 } },
+  steampump: {
+    label: 'Паровой насос', cat: 'resources', size: 'small', cost: 175, icon: 'valve', gain: { water: 45 }, use: { steam: 15 },
+    tiers: [
+      { label: 'Малый паровой насос', gain: { water: 45 }, use: { steam: 15 }, ev: { breakdown: 1 }, note: 'Иногда ломается — чинить деталями' },
+      { label: 'Средний паровой насос', gain: { water: 90 }, use: { steam: 30 }, ev: { breakdown: 1 }, note: 'Размер тот же. Иногда ломается' },
+      { label: 'Большой паровой насос', gain: { water: 180 }, use: { steam: 60 }, ev: { breakdown: 1 }, note: 'Размер тот же. Иногда ломается' }
+    ]
+  },
   storehouse: { label: 'Склад', cat: 'storage', size: 'large', cost: 125, icon: 'locked-box', jobs: { storekeeper: 1 } },
   coop: { label: 'Курятник', cat: 'production', size: 'medium', cost: 150, icon: 'rooster', jobs: { poultry: 2 }, use: { water: 10 } },
   machinehall: { label: 'Машинный зал', cat: 'industry', size: 'medium', cost: 400, icon: 'furnace' },
@@ -202,8 +265,22 @@ export const BUILDINGS = {
   market: { label: 'Рынок', cat: 'economy', size: 'large', cost: 300, icon: 'cash', jobs: { trader: 3 }, trade: 15 },
   ranch: { label: 'Ранчо', cat: 'production', size: 'large', cost: 300, icon: 'ranch-gate' },
   barrels: { label: 'Бочки с водой', cat: 'storage', size: 'medium', cost: 50, icon: 'cellar-barrels' },
-  well: { label: 'Скважина', cat: 'resources', size: 'small', cost: 100, icon: 'manual-water-pump', gain: { drink: 80 } },
-  quarry: { label: 'Карьер', cat: 'resources', size: 'medium', cost: 100, icon: 'stone-pile' },
+  well: {
+    label: 'Скважина', cat: 'resources', size: 'small', cost: 100, icon: 'manual-water-pump', jobs: { watercarrier: 1 },
+    tiers: [
+      { label: 'Колодец', jobs: { watercarrier: 1 }, note: 'Водонос — могут работать дети' },
+      { label: 'Скважина', jobs: { watercarrier: 2 }, note: 'Водоносы — могут работать дети' },
+      { label: 'Артезианская скважина', jobs: { watercarrier: 3 }, ev: { mineral: 1 }, note: 'Может пробиться минеральная вода — товар' }
+    ]
+  },
+  quarry: {
+    label: 'Карьер', cat: 'resources', size: 'medium', cost: 100, icon: 'stone-pile', jobs: { miner: 3 }, spec: { miner: 1 },
+    tiers: [
+      { label: 'Каменоломня', jobs: { miner: 3 }, spec: { miner: 1 }, ev: { soil: 0.3 }, note: 'Очень маленький шанс найти чернозём' },
+      { label: 'Карьер', jobs: { miner: 5 }, spec: { miner: 2 }, ev: { soil: 0.6 }, note: 'Маленький шанс найти чернозём' },
+      { label: 'Котлован', jobs: { miner: 7 }, spec: { miner: 3 }, ev: { soil: 1 }, note: 'Умеренный шанс найти чернозём' }
+    ]
+  },
   garden: { label: 'Огород', cat: 'production', size: 'large', cost: 30, icon: 'greenhouse' },
   forge: { label: 'Кузница', cat: 'production', size: 'medium', cost: 275, icon: 'anvil-impact', jobs: { smith: 3 } },
   tower: { label: 'Башня', cat: 'military', size: 'small', cost: 100, icon: 'watchtower', defense: 0 },
@@ -280,18 +357,21 @@ export const priceText = price => Object.entries(price || {}).map(([k, v]) => `$
 export const JOBS = {
   smith: { label: 'Кузнец', icon: 'anvil-impact', per: { parts: 2, iron: -5 / 3 }, spec: 2, effects: [{ label: 'Обработка (Металл)', per: 2 }] },
   septic: { label: 'Септик', icon: 'tap', effects: [{ label: 'Уборка нечистот', pct: true }] },
-  hunter: { label: 'Охотник', icon: 'target-arrows', per: { meat: 8 }, spec: 2, specBonus: 0.25, group: 4, effects: [{ label: 'Группы охотников', group: true }] },
-  gatherer: { label: 'Собиратель', icon: 'gift-trap', per: { fruit: 8, herbs: 1 }, spec: 2, group: 4, effects: [{ label: 'Группы собирателей', group: true }] },
+  hunter: { label: 'Охотник', icon: 'target-arrows', per: { meat: 8 }, spec: 2, specBonus: 0.25, group: 3, effects: [{ label: 'Группы охотников', group: true }] },
+  gatherer: { label: 'Собиратель', icon: 'gift-trap', per: { fruit: 8, herbs: 1 }, spec: 2, specBonus: 0.15, group: 3, effects: [{ label: 'Группы собирателей', group: true }] },
   guard: { label: 'Страж', icon: 'barracks-tent', spec: 2, group: 3, defense: 10, effects: [{ label: 'Группы воинов', group: true }, { label: 'Защита поселения', per: 10, sign: true }, { label: 'Снижение опасности', per: 4, unit: '%' }] },
   locksmith: { label: 'Слесарь', icon: 'tinker', per: { build: 5, parts: -0.5, stone: -15 }, spec: 1, specBonus: 0.5, effects: [{ label: 'Ускорение стройки', per: 8.75, unit: '%' }, { label: 'Изготовление', text: 'Инструменты' }] },
   farmer: { label: 'Фермер', icon: 'wheat', per: { veg: 15, straw: 5 }, spec: 2, specBonus: 0.15, specOnly: ['veg'] },
-  innkeeper: { label: 'Трактирщик', icon: 'tavern-sign', per: { fruit: -8 }, spec: 2, leisure: 17.5, morale: 12.5, effects: [{ label: 'Досуг', per: 17.5 }, { label: 'Мораль', per: 12.5 }] },
+  innkeeper: { label: 'Трактирщик', icon: 'tavern-sign', per: { fruit: -8 }, spec: 2, leisure: 17.5, morale: 0.5, effects: [{ label: 'Досуг', per: 17.5 }, { label: 'Мораль в день', per: 0.5, sign: true }] },
   trader: { label: 'Торговец', icon: 'cash', effects: [{ label: 'Торговля', text: 'идёт' }] },
   mechanic: { label: 'Механик', icon: 'water-mill', per: { steam: 25, coal: -22.5 }, effects: [{ label: 'Паровые станки', text: 'работают' }] },
   poultry: { label: 'Птицевод', icon: 'rooster', per: { meat: 25, goods: 2, straw: -5 } },
   storekeeper: { label: 'Кладовщик', icon: 'locked-box', effects: [{ label: 'Замедление порчи', text: '−25%' }, { label: 'Размер склада', text: '+25%' }] },
   healer: { label: 'Целитель', icon: 'health-normal', per: { herbs: -2 }, spec: 2, effects: [{ label: 'Места пациентов', per: 2 }, { label: 'Болезни', per: -7.5, unit: '%' }, { label: 'Скорость лечения', text: '+30%' }] },
-  lumberjack: { label: 'Лесоруб', icon: 'axe-in-stump', per: { wood: 12 } }
+  lumberjack: { label: 'Лесоруб', icon: 'axe-in-stump', per: { wood: 12, fiber: 1 }, spec: 3, specBonus: 0.15, specOnly: ['wood'] },
+  miner: { label: 'Шахтёр', icon: 'stone-pile', per: { stone: 10 }, spec: 3, specBonus: 0.2, specOnly: ['stone'] },
+  // kids — работу могут делать дети (сначала берём их)
+  watercarrier: { label: 'Водонос', icon: 'manual-water-pump', per: { drink: 80 }, kids: true, effects: [{ label: 'Могут работать дети', text: 'да' }] }
 }
 
 /* ---------------- Аванпосты ---------------- */
@@ -314,11 +394,127 @@ export const EVENT_TYPES = {
 }
 export const EVENT_DURATIONS = {
   permanent: { label: 'Постоянно', color: '#3a3a3a' },
-  quick: { label: 'Быстро', color: '#2c6fd6' },
+  quick: { label: 'Временно', color: '#2c6fd6' },
   decide: { label: 'Требует решения', color: '#1f7a3a' },
-  routine: { label: 'Рутинно', color: '#b4532a' }
+  urgent: { label: 'Срочно', color: '#c2361f' }
 }
+// «Срочно»: столько дней на решение по умолчанию, потом событие становится хуже
+export const URGENT_DAYS = 2
 export const ASSET_FRAMES = { purple: '#a07cff', blue: '#4f8cff', green: '#7ccf4a', gold: '#e6c27a' }
+
+/* ---------------- Уровни построек ---------------- */
+// постройка со своим уровнем: поля уровня поверх полей постройки
+export function tierOf(b) {
+  const d = BUILDINGS[b?.type]
+  if (!d) return null
+  const max = d.tiers?.length || 1
+  const level = Math.max(1, Math.min(max, Math.round(b.level || 1)))
+  return { ...d, ...(d.tiers?.[level - 1] || {}), level, maxLevel: max }
+}
+export const tierLabel = b => tierOf(b)?.label || BUILDINGS[b?.type]?.label || 'Постройка'
+// значок: имя из набора game-icons или своя картинка (путь)
+export const iconSrc = n => (n && n.startsWith('/') ? n : `/settlement/${n || 'help'}.png`)
+// цена и работа улучшения до уровня to: из уровня, иначе — от цены постройки
+export function upgradePrice(type, to) {
+  const d = BUILDINGS[type]
+  const t = d?.tiers?.[to - 1]
+  if (t?.price) return t.price
+  return Object.fromEntries(Object.entries(d?.price || {}).map(([k, v]) => [k, Math.ceil(v * 0.75 * (to - 1))]))
+}
+export const upgradeWork = (type, to) => BUILDINGS[type]?.tiers?.[to - 1]?.cost || Math.round((BUILDINGS[type]?.cost || 100) * (to - 1))
+// почему постройку сейчас не улучшить (null — можно)
+export function upgradeBlock(s, b, c = computeSettlement(s)) {
+  const t = tierOf(b)
+  if (!t) return 'Нет такой постройки'
+  if (t.level >= t.maxLevel) return 'Уже высший уровень'
+  if ((b.state || 'built') !== 'built') return 'Сначала достройте'
+  if (b.damage) return 'Сначала почините'
+  if (b.upgrade) return 'Уже улучшают'
+  if (!t.gov && t.level + 1 > c.gov.maxLevel) return `Нужно управление выше: сейчас постройки до ${c.gov.maxLevel} уровня`
+  return null
+}
+
+/* ---------------- Показатели: мораль, стабильность, угрозы ----------------
+   все три — от −100 до 100. Ниже нуля — чаще дурные события, угроза у −100 — набегов почти нет */
+export const STAT_RANGE = { morale: [-100, 100], stability: [-100, 100], threat: [-100, 100] }
+export const clampStat = (k, v) => {
+  const [lo, hi] = STAT_RANGE[k] || [-1e9, 1e9]
+  return Math.max(lo, Math.min(hi, Math.round((Number(v) || 0) * 10) / 10))
+}
+// не больше стольких морали за раз (день или событие)
+export const MORALE_TICK = 15
+// рост морали тяжелеет к верху: при 0 и ниже — в полную силу, при 100 — 15%; падение — как есть
+export function moraleGain(cur, d) {
+  if (d > 0) d *= Math.max(0.15, 1 - (Math.max(0, cur) / 100) * 0.85)
+  return Math.round(Math.max(-MORALE_TICK, Math.min(MORALE_TICK, d)) * 10) / 10
+}
+// откуда мораль за день: [{ label, value }] и итог с учётом «чем выше, тем труднее»
+export function moraleDay(s, c = computeSettlement(s)) {
+  const parts = []
+  const push = (label, value) => { if (value) parts.push({ label, value: Math.round(value * 10) / 10 }) }
+  push('Трактирщики', c.jobMorale)
+  push('Постройки', c.perm.morale)
+  const stock = s.stock || {}
+  const hungry = ['veg', 'meat'].some(k => c.balance[k] < 0 && (stock[k] || 0) < -c.balance[k])
+  push(hungry ? 'Голод' : 'Еды хватает', hungry ? -4 : 1)
+  const thirsty = c.balance.drink < 0 && (stock.drink || 0) < -c.balance.drink
+  push(thirsty ? 'Жажда' : 'Воды хватает', thirsty ? -4 : 1)
+  if (c.housing.cap && c.housing.used > c.housing.cap) push('Теснота', -2)
+  if (c.unavailableParts.sick) push('Больные', -Math.min(3, c.unavailableParts.sick * 0.2))
+  // настроение само тянется к нулю: к хорошему привыкают, плохое забывается
+  push(c.morale > 0 ? 'Привыкание' : 'Отходят', -c.morale * 0.02)
+  const plus = parts.filter(p => p.value > 0).reduce((n, p) => n + p.value, 0)
+  const minus = parts.filter(p => p.value < 0).reduce((n, p) => n + p.value, 0)
+  const total = Math.max(-MORALE_TICK, Math.min(MORALE_TICK, moraleGain(c.morale, plus) + minus))
+  return { parts, total: Math.round(total * 10) / 10 }
+}
+
+/* ---------------- Стройка ----------------
+   на стройке, ремонте и улучшении работают назначенные жители (b.builders = { раса: сколько });
+   каждый даёт очки по своей расе, слесари ускоряют, без стройматериалов — вчетверо медленнее */
+export const isWorksite = b => (b.state || 'built') === 'construction' || !!b.repair || !!b.upgrade
+export function buildRate(s, b, c = computeSettlement(s)) {
+  const speedUp = (c.jobs.locksmith?.workers || 0) * 8.75
+  const slow = (s.stock?.build || 0) <= 0 && c.balance.build < 0 ? 0.25 : 1
+  let pts = 0
+  const parts = []
+  for (const [race, n] of Object.entries(b.builders || {})) {
+    const r = RACES[race]
+    if (!r || !n) continue
+    const bonus = r.buildMorale && c.morale > r.buildMorale.above ? 1 + r.buildMorale.pct / 100 : 1
+    const v = n * (r.build ?? 4) * bonus
+    pts += v
+    parts.push({ race, n, value: Math.round(v * 10) / 10 })
+  }
+  return { pts: Math.round(pts * (1 + speedUp / 100) * slow * 10) / 10, parts, speedUp, slow }
+}
+// сколько очков работы осталось на площадке
+export function worksiteLeft(b) {
+  if ((b.state || 'built') === 'construction') return Math.max(0, (BUILDINGS[b.type]?.cost || 100) - (b.progress || 0))
+  if (b.upgrade) return Math.max(0, upgradeWork(b.type, b.upgrade.to) - (b.upgrade.progress || 0))
+  if (b.repair) return Math.max(0, repairWork(b) - (b.repair.progress || 0))
+  return 0
+}
+
+/* ---------------- Свои правила мастера ----------------
+   мастер правит постройки, расы и работы на вкладке «Постройки»; правки ложатся поверх исходных справочников */
+const BASE = { buildings: structuredClone(BUILDINGS), races: structuredClone(RACES), jobs: structuredClone(JOBS) }
+export const baseRules = () => structuredClone(BASE)
+export function applySettlementRules(r) {
+  for (const [target, base, key] of [[BUILDINGS, BASE.buildings, 'buildings'], [RACES, BASE.races, 'races'], [JOBS, BASE.jobs, 'jobs']]) {
+    for (const k of Object.keys(target)) if (!base[k]) delete target[k]
+    for (const [k, v] of Object.entries(base)) target[k] = structuredClone(v)
+    for (const [k, v] of Object.entries(r?.[key] || {})) {
+      if (!v || typeof v !== 'object') continue
+      target[k] = { ...(target[k] || {}), ...structuredClone(v) }
+    }
+  }
+  for (const d of Object.values(BUILDINGS)) {
+    d.label ||= 'Постройка'
+    if (!CATEGORIES[d.cat]) d.cat = 'production'
+    if (!SIZES[d.size]) d.size = 'medium'
+  }
+}
 
 /* ---------------- Расчёт ---------------- */
 const round = v => Math.round(v * 10) / 10
@@ -330,6 +526,8 @@ const add = (m, k, v, label) => {
   if (p) p.value = round(p.value + v)
   else m[k].parts.push({ label, value: round(v) })
 }
+// сколько жителей в отряде (активы и герои — не жители)
+const squadPeople = q => Object.values(q?.lines || {}).flat().reduce((n, u) => n + (u?.race ? u.count || 0 : 0), 0)
 
 // Всё, что считается из данных поселения: население, жильё, работы, прирост и расход ресурсов, военные показатели
 export function computeSettlement(s) {
@@ -344,11 +542,15 @@ export function computeSettlement(s) {
   const count = {}
   for (const b of built) count[b.type] = (count[b.type] || 0) + 1
   let housing = 0, guests = 0, trade = 0, defenseB = 0, houseCap = 0
-  const places = {}
+  const places = {}, specSlots = {}
   const gain = {}, use = {}
+  const perm = { threat: 0, stability: 0, morale: 0 }
+  const gov = { head: 0, managers: 0, outposts: 0, maxLevel: 0, label: '' }
+  const ev = {}
+  const specGains = []
   // повреждённая постройка работает не в полную силу, разрушенная — никак
   for (const b of built) {
-    const t = BUILDINGS[b.type]
+    const t = tierOf(b)
     if (!t) continue
     const e = damageEff(b)
     if (!e) continue
@@ -359,19 +561,33 @@ export function computeSettlement(s) {
     trade += Math.round((t.trade || 0) * e)
     defenseB += Math.round((t.defense || 0) * e)
     for (const [j, n] of Object.entries(t.jobs || {})) places[j] = (places[j] || 0) + Math.round(n * e)
+    for (const [j, n] of Object.entries(t.spec || {})) specSlots[j] = (specSlots[j] || 0) + n
     for (const [k, v] of Object.entries(t.gain || {})) add(gain, k, v * e, tag)
     for (const [k, v] of Object.entries(t.use || {})) add(use, k, v * e, tag)
+    for (const k of Object.keys(perm)) perm[k] += t.perm?.[k] || 0
+    for (const [k, v] of Object.entries(t.ev || {})) ev[k] = round((ev[k] || 0) + v * e)
+    if (t.gov && (t.gov.maxLevel || 0) >= gov.maxLevel) Object.assign(gov, t.gov, { label: t.label })
+    for (const j of Object.keys(t.jobs || {})) if (t.specGain) specGains.push({ job: j, gain: t.specGain, e, tag })
   }
+  gov.maxLevel ||= 1
+  // слоты управляющих и аванпостов: от управления (Двор старейшины → Ратуша → Магистрат), мастер может дать больше
+  const managerSlots = Math.max(gov.managers || 0, s.managerSlots || 0) || 2
+  const outpostSlots = Math.max(gov.outposts || 0, s.stats?.outpostSlots || 0)
 
-  // работы: выработка, траты, специалисты, эффекты
+  // работы: выработка, траты, специалисты, эффекты; дети — только там, где можно (kids)
   const assets = Object.fromEntries((s.assets || []).map(a => [a.id, a]))
   const jobs = {}
-  let leisure = 0, morale = 0, defenseJ = 0
+  let leisure = 0, morale = 0, defenseJ = 0, adultWork = 0, kidsLeft = kids, kidWork = 0
   for (const [key, def] of Object.entries(JOBS)) {
     const st = s.jobs?.[key] || {}
     const workers = Math.min(st.workers || 0, places[key] || 0)
     if (!places[key] && !st.workers) continue
-    const specs = (st.specialists || []).slice(0, def.spec || 0)
+    const kidsHere = def.kids ? Math.min(workers, kidsLeft) : 0
+    kidsLeft -= kidsHere
+    kidWork += kidsHere
+    adultWork += workers - kidsHere
+    const nSpec = specSlots[key] ?? def.spec ?? 0
+    const specs = (st.specialists || []).slice(0, nSpec)
     const specBonus = specs.filter(Boolean).length * (def.specBonus || 0)
     const out = {}
     for (const [k, v] of Object.entries(def.per || {})) {
@@ -380,14 +596,16 @@ export function computeSettlement(s) {
       out[k] = { base: round(base), bonus: round(bonus) }
       if (v > 0) { add(gain, k, base, def.label); add(gain, k, bonus, def.label + ' (специалисты)') } else add(use, k, -base, def.label)
     }
+    // «есть специалист — возят доски» и подобное
+    if (specs.some(Boolean)) for (const g of specGains.filter(x => x.job === key)) for (const [k, v] of Object.entries(g.gain)) add(gain, k, v * g.e, g.tag + ' (специалист)')
     leisure += (def.leisure || 0) * workers
     morale += (def.morale || 0) * workers
     defenseJ += (def.defense || 0) * workers
     jobs[key] = {
-      places: places[key] || 0, workers, supply: st.supply ?? (def.per ? 100 : null), out,
+      places: places[key] || 0, workers, kids: kidsHere, supply: st.supply ?? (def.per ? 100 : null), out,
       groups: def.group ? Math.floor(workers / def.group) : null,
       // специалист — актив (по id) или просто имя; у имени может быть свой значок (specIcons)
-      specialists: Array.from({ length: def.spec || 0 }, (_, i) => specs[i] ? (assets[specs[i]] || { name: specs[i], icon: st.specIcons?.[i] || '' }) : null),
+      specialists: Array.from({ length: nSpec }, (_, i) => specs[i] ? (assets[specs[i]] || { name: specs[i], icon: st.specIcons?.[i] || '' }) : null),
       effects: (def.effects || []).map(e => ({
         label: e.label,
         value: e.text ?? (e.group ? String(Math.floor(workers / def.group)) : e.pct ? `${Math.round((workers / (places[key] || 1)) * 100)}%`
@@ -399,8 +617,13 @@ export function computeSettlement(s) {
   // аванпосты
   for (const o of s.outposts || []) {
     if (o.state === 'closed') continue
+    adultWork += o.workers || 0
     for (const [k, v] of Object.entries(o.yields || {})) add(gain, k, v, `Аванпост «${OUTPOSTS[o.type]?.label || o.name}»`)
   }
+  // строители на площадках
+  let builders = 0
+  for (const b of s.buildings || []) if (isWorksite(b)) builders += Object.values(b.builders || {}).reduce((n, v) => n + (v || 0), 0)
+  adultWork += builders
 
   // потребление жителями: еда, питьевая вода, «быт» (дрова — из Дерева). Дети — вдвое меньше
   for (const r of races) {
@@ -424,11 +647,20 @@ export function computeSettlement(s) {
   const st = s.stats || {}
   const defenseW = wallDefense(s.walls || [])
 
+  // недоступные: больные в лечебнице, ушедшие с отрядами (по округе или на карте мира), и кого мастер отметил сам
+  const sick = (s.hospital || []).reduce((n, p) => n + (p.who?.race ? p.count || 1 : p.who?.name ? 1 : 0), 0)
+  const away = (s.army?.squads || []).filter(q => q.status === 'out' || q.status === 'local').reduce((n, q) => n + squadPeople(q), 0)
+  const manual = st.unavailable || 0
+  const unavailable = sick + away + manual
+  // занятые: на работах, аванпостах, стройках и «прочее» (мастер); свободные — остальные взрослые
+  const busy = adultWork + (st.otherBusy || 0)
+  const free = Math.max(0, adults - busy - unavailable)
+
   return {
     population, adults, kids,
-    free: st.freeSettlers ?? sum('free'), busy: population - (st.freeSettlers ?? sum('free')) - (st.unavailable || 0), unavailable: st.unavailable || 0,
+    free, busy, unavailable, unavailableParts: { sick, away, manual }, builders, kidWork, overbooked: Math.max(0, busy + unavailable - adults),
     combat: sum('combat'), important: sum('important'), wounded: sum('wounded'),
-    count, places, jobs,
+    count, places, specSlots, jobs,
     housing: { cap: housing, used: st.housingUsed ?? Math.min(population, housing) },
     houses: { cap: houseCap, used: st.housesUsed ?? houseCap },
     damaged: built.filter(b => b.damage && DAMAGE[b.damage]),
@@ -437,8 +669,12 @@ export function computeSettlement(s) {
     war: { total: warRaces + (passive.war || 0), races: warRaces, assets: passive.war || 0 },
     defense: { total: defRaces + defenseJ + defenseB + defenseW + (passive.defense || 0), races: defRaces, guards: defenseJ, buildings: defenseB, walls: defenseW, assets: passive.defense || 0 },
     leisure: { total: leisure + (passive.leisure || 0), jobs: leisure, assets: passive.leisure || 0 },
-    jobMorale: morale,
-    morale: st.morale ?? 0, stability: st.stability ?? 0, threat: st.threat ?? 0,
+    jobMorale: round(morale),
+    // постоянные баффы построек ложатся поверх: угроза −2 от Двора старейшины и т. п.
+    perm, gov, managerSlots, outpostSlots, ev,
+    morale: clampStat('morale', st.morale ?? 0),
+    stability: clampStat('stability', (st.stability ?? 0) + perm.stability), stabilityBase: st.stability ?? 0,
+    threat: clampStat('threat', (st.threat ?? 0) + perm.threat), threatBase: st.threat ?? 0,
     gain, use,
     balance: Object.fromEntries(RESOURCES.map(r => [r.key, round((gain[r.key]?.total || 0) - (use[r.key]?.total || 0))]))
   }

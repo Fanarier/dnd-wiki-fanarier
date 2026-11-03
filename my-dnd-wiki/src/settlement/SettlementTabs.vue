@@ -127,6 +127,7 @@
         <div class="bar"><i :style="{ width: (j.places ? (j.workers / j.places) * 100 : 0) + '%' }" /></div>
         <div class="job-eff">
           <span v-if="j.supply !== null && j.supply !== undefined" :class="{ warn: j.supply < 100 }">Ресурсы для работы: {{ j.supply }}%</span>
+          <span v-if="j.kids">Из них дети: {{ j.kids }}</span>
           <span v-for="(o, k) in j.out" :key="k" :class="{ minus: o.base < 0 }">{{ o.base < 0 ? 'Тратит' : 'Даёт' }} {{ RES[k]?.label }}: {{ fmt(Math.abs(o.base)) }}<template v-if="o.bonus"> +{{ fmt(o.bonus) }}</template></span>
           <span v-for="e in j.effects" :key="e.label">{{ e.label }}: {{ e.value }}</span>
         </div>
@@ -187,7 +188,7 @@
 
     <!-- ================= АВАНПОСТЫ ================= -->
     <template v-else-if="tab === 'outposts'">
-      <h3>Аванпосты <small>{{ s.outposts.length }} из {{ s.stats?.outpostSlots || s.outposts.length }}</small><button v-if="master" class="ed" @click="emit('edit', 'outposts')">✎ Править</button></h3>
+      <h3>Аванпосты <small>{{ s.outposts.length }} из {{ c.outpostSlots || s.outposts.length }}</small><button v-if="master" class="ed" @click="emit('edit', 'outposts')">✎ Править</button></h3>
       <div class="cards">
       <div v-for="o in s.outposts" :id="'sout-' + o.id" :key="o.id" class="outpost" :class="[o.state, { flash: flash === 'out:' + o.id }]" @click="emit('pick', { kind: 'outpost', id: o.id })">
         <img :src="icon(OUTPOSTS[o.type]?.icon)" alt="" />
@@ -197,7 +198,7 @@
           <span>{{ Object.entries(o.yields || {}).map(([k, v]) => `${RES[k]?.label} +${v}`).join(' · ') }}</span>
         </div>
       </div>
-      <div v-for="n in Math.max(0, (s.stats?.outpostSlots || 0) - s.outposts.length)" :key="'e' + n" class="outpost empty">Свободный слот аванпоста</div>
+      <div v-for="n in Math.max(0, (c.outpostSlots || 0) - s.outposts.length)" :key="'e' + n" class="outpost empty">Свободный слот аванпоста</div>
       </div>
     </template>
 
@@ -213,12 +214,32 @@
         <div class="evrow"><label class="chk">Срок <input v-model="newEv.deadline" type="date" /></label></div>
         <RichEditor v-model="newEv.text" :min-height="80" placeholder="Что случилось — от лица жителей. @ — упомянуть НПС или героя" />
         <input v-model="newEv.effect" placeholder="Влияние: «Угроза +45» (необязательно)" />
+        <div class="evrow stats-in">
+          <small>Последствия</small>
+          <label v-for="(l, k) in STAT_NAMES" :key="k">{{ l }}<input v-model.number="newEv.stats[k]" type="number" min="-100" max="100" placeholder="0" /></label>
+        </div>
+        <div v-if="hasStats(newEv.stats)" class="evrow">
+          <label class="chk"><input v-model="newEv.mode" type="radio" value="now" /> применить сразу</label>
+          <label v-if="!newEv.duration.includes('permanent')" class="chk"><input v-model="newEv.mode" type="radio" value="defer" /> отложить до решения</label>
+          <label class="chk"><input v-model="newEv.mode" type="radio" value="none" /> только текст</label>
+        </div>
+        <div v-if="newEv.duration.includes('urgent')" class="urgent-box">
+          <div class="evrow"><label class="chk">Решить за <input v-model.number="newEv.days" type="number" min="1" max="60" class="num" /> дн.</label><small class="muted">не решат — станет хуже (при «Прошёл день»)</small></div>
+          <input v-model="newEv.worseText" placeholder="Что случится, если не решить: «Варги вернулись и унесли ещё»" />
+          <div class="evrow stats-in">
+            <small>Если не решить</small>
+            <label v-for="(l, k) in STAT_NAMES" :key="k">{{ l }}<input v-model.number="newEv.worse[k]" type="number" min="-100" max="100" placeholder="0" /></label>
+          </div>
+        </div>
         <div class="evrow end"><button class="btn" @click="newEv = null">Отмена</button><button class="btn primary" :disabled="!newEv.title" @click="addEvent">Добавить и оповестить главу</button></div>
       </div>
       <!-- заготовки событий: видит только мастер -->
       <section v-if="master" class="sugg">
         <div class="sugg-head">
           <b>Заготовки событий</b><small>видишь только ты · сайт предлагает по положению дел</small>
+          <span class="odds" :title="'Мораль и стабильность ниже нуля — дурных событий больше. Угрозы извне зависят от угрозы: у −100 их почти нет. Изнутри — только при угрозе выше нуля.'">
+            сейчас: дурные ×{{ fmt(odds.bad) }} · добрые ×{{ fmt(odds.good) }} · угрозы извне ×{{ fmt(odds.outside) }} · изнутри ×{{ fmt(odds.inside) }}
+          </span>
           <button class="btn" :disabled="(s.suggestions?.length || 0) >= 8" @click="rollSuggestion">🎲 Придумать</button>
         </div>
         <p v-if="!s.suggestions?.length" class="muted">Пока пусто. Заготовки появляются при «Прошёл день» (примерно одна на три дня) или по кнопке.</p>
@@ -239,7 +260,13 @@
             <RichText class="ev-text" :text="g.text" />
             <div v-if="g.effect" class="ev-eff">{{ g.effect }}</div>
           </template>
-          <label v-if="g.apply" class="chk apply"><input v-model="applyOn[g.id]" type="checkbox" /> применить сразу: {{ applyText(g.apply) }}</label>
+          <div v-if="g.duration?.includes('urgent')" class="ev-urgent">
+            ⏳ решить за {{ g.days }} дн.<template v-if="g.worse">, иначе — {{ g.worse.title }}: {{ applyText(g.worse.apply) || g.worse.text }}</template>
+          </div>
+          <template v-if="g.apply">
+            <label class="chk apply"><input type="checkbox" :checked="sgMode(g) === 'now'" @change="setSgMode(g, $event.target.checked ? 'now' : 'none')" /> применить сразу: {{ applyText(g.apply) }}</label>
+            <label v-if="!g.duration?.includes('permanent')" class="chk apply defer"><input type="checkbox" :checked="sgMode(g) === 'defer'" @change="setSgMode(g, $event.target.checked ? 'defer' : 'none')" /> отложить до решения — событие висит, показатели не меняются, пока не подтвердишь или не отклонишь</label>
+          </template>
           <div class="evrow end">
             <button class="btn danger" @click="dropSuggestion(g)">Отбросить</button>
             <button v-if="sgEdit?.id !== g.id" class="btn" @click="sgEdit = { id: g.id, title: g.title, text: g.text, effect: g.effect }">Править</button>
@@ -259,13 +286,27 @@
         </div>
         <RichText class="ev-text" :text="e.text" />
         <div v-if="e.effect" class="ev-eff">{{ e.effect }}</div>
+        <div v-if="e.urgentDue != null" class="ev-urgent" :class="{ late: e.escalated, ok: e.decision && !e.escalated }">
+          <template v-if="e.escalated">⚠ не решили вовремя — стало хуже</template>
+          <template v-else-if="e.decision">✓ решено вовремя</template>
+          <template v-else>⏳ решить {{ daysLeft(e) > 0 ? `за ${daysLeft(e)} дн. (до дня ${e.urgentDue})` : 'сегодня' }}<template v-if="e.worse && master">, иначе — {{ e.worse.title }}: {{ applyText(e.worse.apply) || e.worse.text }}</template></template>
+        </div>
+        <div v-if="e.pending" class="ev-pend">
+          <span>Последствия ждут решения: <b>{{ applyText(e.pending) }}</b></span>
+          <template v-if="master">
+            <button class="btn primary" @click="settle(e, 'apply')">Применить</button>
+            <button class="btn" @click="settle(e, 'reject')">Отклонить</button>
+          </template>
+          <small v-else class="muted">подтвердит мастер</small>
+        </div>
+        <div v-else-if="e.settled" class="ev-pend done" :class="e.settled">{{ e.settled === 'applied' ? 'Последствия применены' : 'Последствия отклонены' }}: {{ e.settledText }}</div>
         <div v-if="decEdit === e.id" class="ev-dec edit">
           <small>Решение</small>
           <textarea v-model="decText" rows="3" placeholder="Что прикажет глава?" />
           <div class="evrow end"><button class="btn" @click="decEdit = null">Отмена</button><button class="btn primary" @click="decide(e)">Сохранить решение</button></div>
         </div>
         <div v-else class="ev-dec" :class="{ none: !e.decision }">
-          <small>Решение<template v-if="e.decidedBy"> · {{ e.decidedBy }}</template></small>{{ e.decision || (e.duration?.includes('decide') ? 'ждёт решения главы' : '—') }}
+          <small>Решение<template v-if="e.decidedBy"> · {{ e.decidedBy }}</template></small>{{ e.decision || (e.duration?.some(d => d === 'decide' || d === 'urgent') ? 'ждёт решения главы' : '—') }}
           <button v-if="master || decider" class="ev-act" @click="decEdit = e.id; decText = e.decision || ''">{{ e.decision ? 'изменить' : 'решить' }}</button>
           <button v-if="master" class="ev-act del" @click="removeEvent(e)">удалить событие</button>
         </div>
@@ -298,6 +339,10 @@
           <small>{{ o.status === 'approved' ? (o.paid ? 'Оплачено' : 'Чинят бесплатно') : 'Цена ремонта' }}</small>
           <PriceChips :price="o.status === 'approved' ? o.paid : repairPrice(orderBuilding(o) || o.repair)" :stock="o.status === 'pending' ? s.stock || {} : null" />
         </div>
+        <div v-if="o.kind === 'upgrade'" class="ord-price">
+          <small>{{ o.status === 'approved' ? (o.paid ? 'Оплачено' : 'Улучшают бесплатно') : 'Цена улучшения' }}</small>
+          <PriceChips :price="o.status === 'approved' ? o.paid : upgradePrice(o.upgrade.type, o.upgrade.to)" :stock="o.status === 'pending' ? s.stock || {} : null" />
+        </div>
         <div v-if="o.kind === 'build'" class="ord-price">
           <small>{{ o.status === 'approved' ? (o.paid ? 'Оплачено' : 'Заложено бесплатно') : 'Цена' }}</small>
           <PriceChips :price="o.status === 'approved' ? o.paid : BUILDINGS[o.build.type]?.price" :stock="o.status === 'pending' ? s.stock || {} : null" />
@@ -307,7 +352,7 @@
         <input v-if="o.status === 'pending' && master" v-model="replies[o.id]" class="reply-in" placeholder="Ответ главе (необязательно)" />
         <div v-if="o.status === 'pending' && master" class="evrow end">
           <button class="btn primary" :disabled="!affordable(o)" :title="affordable(o) ? '' : 'На складе не хватает — можно заложить бесплатно'" @click="judge(o, 'approve')">Одобрить</button>
-          <button v-if="o.kind === 'build' || o.kind === 'repair'" class="btn" @click="judge(o, 'approve', true)">Бесплатно</button>
+          <button v-if="o.kind === 'build' || o.kind === 'repair' || o.kind === 'upgrade'" class="btn" @click="judge(o, 'approve', true)">Бесплатно</button>
           <button class="btn danger" @click="judge(o, 'reject')">Отклонить</button>
         </div>
         <button v-else-if="o.status === 'pending' && o.by === store.me?.id" class="ev-act" @click="cancelOrder(o)">отменить приказ</button>
@@ -319,6 +364,7 @@
     <GarrisonTab v-else-if="tab === 'garrison'" :settlement="s" :calc="c" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" />
     <SquadsTab v-else-if="tab === 'squads'" :settlement="s" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" @lead="emit('lead', $event)" />
     <HospitalTab v-else-if="tab === 'hospital'" :settlement="s" :calc="c" :master="master" :decider="decider" />
+    <BuildingRules v-else-if="tab === 'buildings'" :settlement="s" :calc="c" :master="master" />
 
     <!-- ================= ИСТОРИЯ ================= -->
     <SettlementHistory v-else-if="tab === 'history'" :settlement="s" :wide="wide" />
@@ -331,9 +377,9 @@ import { store, heroCover, heroPortraitUrl, act, toast, uploadSettlementPortrait
 import { SPEC_ICONS, isGlyph } from './specIcons.js'
 import RichEditor from '../components/RichEditor.vue'
 import RichText from '../components/RichText.vue'
-import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, DAMAGE, shortFor, repairPrice, explored as isExplored } from '../shared/settlement.js'
+import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, DAMAGE, shortFor, repairPrice, upgradePrice, tierLabel, iconSrc, explored as isExplored } from '../shared/settlement.js'
 import { WORLD } from '../shared/terrainGen.js'
-import { applyText } from '../shared/settlementEvents.js'
+import { applyText, eventOdds } from '../shared/settlementEvents.js'
 import PriceChips from './PriceChips.vue'
 import SettlementHistory from './SettlementHistory.vue'
 import GarrisonTab from './GarrisonTab.vue'
@@ -341,13 +387,14 @@ import IconPick from './IconPick.vue'
 import { RACE_COLORS } from './armyFaces.js'
 import SquadsTab from './SquadsTab.vue'
 import HospitalTab from './HospitalTab.vue'
+import BuildingRules from './BuildingRules.vue'
 
 const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean, wide: Boolean })
 const emit = defineEmits(['pick', 'edit', 'tab', 'battle', 'lead'])
 const base = () => `/api/settlements/${props.settlement.id}`
 const s = computed(() => props.settlement)
 const c = computed(() => props.calc)
-const icon = n => `/settlement/${n || 'help'}.png`
+const icon = iconSrc
 const initial = n => (n || '?').trim()[0]?.toUpperCase() || '?'
 const fmt = v => (Math.round(v * 10) / 10).toLocaleString('ru-RU')
 const date = d => new Date(d).toLocaleDateString('ru-RU')
@@ -357,13 +404,17 @@ const overview = computed(() => {
   const x = c.value, st = s.value.stats || {}
   return [
     { label: 'Тип поселения', value: s.value.kind, icon: 'medieval-village-01' },
-    { label: 'Свободные поселенцы', value: x.free, icon: 'person-free' },
-    { label: 'Занятые поселенцы', value: x.busy, icon: 'person' },
-    { label: 'Недоступные поселенцы', value: x.unavailable, icon: 'person-unavailable' },
+    { label: 'Свободные поселенцы', value: x.free, icon: 'person-free', cls: x.overbooked ? 'warn' : '',
+      hint: `Взрослых ${x.adults} − заняты ${x.busy} − недоступны ${x.unavailable}${x.overbooked ? ` · не хватает ${x.overbooked}: на работы и стройки поставлено больше, чем есть людей` : ''}` },
+    { label: 'Занятые поселенцы', value: x.busy, icon: 'person',
+      hint: `На работах, аванпостах и стройках${x.builders ? ` (строителей ${x.builders})` : ''}${st.otherBusy ? `, прочим — ${st.otherBusy}` : ''}${x.kidWork ? `. Ещё работают дети: ${x.kidWork}` : ''}` },
+    { label: 'Недоступные поселенцы', value: x.unavailable, icon: 'person-unavailable',
+      hint: `Больные в лечебнице: ${x.unavailableParts.sick} · в отрядах вне дома: ${x.unavailableParts.away}${x.unavailableParts.manual ? ` · отметил мастер: ${x.unavailableParts.manual}` : ''}` },
+    { label: 'Управление', value: x.gov.label || '—', icon: 'medieval-village-01', hint: `Постройки можно улучшать до ${x.gov.maxLevel} уровня · управляющих ${x.managerSlots} · аванпостов ${x.outpostSlots}` },
     { label: 'Разведано земли', value: exploredArea.value, icon: 'annexation', hint: 'Сколько округи открыто от тумана (вся округа ≈300 км²)' },
-    { label: 'Аванпосты', value: `${s.value.outposts?.length || 0}/${st.outpostSlots || 0}`, icon: 'gold-mine' },
+    { label: 'Аванпосты', value: `${s.value.outposts?.length || 0}/${x.outpostSlots || 0}`, icon: 'gold-mine' },
     { label: 'Повреждённые постройки', value: x.damaged.length, icon: 'hazard-sign', cls: x.damaged.length ? 'warn' : '',
-      hint: x.damaged.length ? x.damaged.map(b => `${b.name || BUILDINGS[b.type]?.label}: ${DAMAGE[b.damage].short}${b.repair ? ' (чинят)' : ''}`).join(', ') : 'Всё целое' },
+      hint: x.damaged.length ? x.damaged.map(b => `${b.name || tierLabel(b)}: ${DAMAGE[b.damage].short}${b.repair ? ' (чинят)' : ''}`).join(', ') : 'Всё целое' },
     { label: 'Жильё (дома)', value: `${x.houses.used}/${x.houses.cap}`, icon: 'house', cls: x.houses.used >= x.houses.cap ? 'warn' : '' },
     { label: 'Общее жильё', value: `${x.housing.used}/${x.housing.cap}`, icon: 'block-house' },
     { label: 'Гостевые места', value: `${x.guests.used}/${x.guests.cap}`, icon: 'tavern-sign' },
@@ -384,7 +435,7 @@ const exploredArea = computed(() => {
 })
 const head = computed(() => store.data.heroes?.find(h => h.id === s.value.headHeroId) || null)
 const headCover = computed(() => { const g = heroCover(head.value); return g ? heroPortraitUrl(g.thumb || g.file) : '' })
-const managerSlots = computed(() => Array.from({ length: s.value.managerSlots || 2 }, (_, i) => s.value.assets?.find(a => a.id === s.value.managers?.[i]) || null))
+const managerSlots = computed(() => Array.from({ length: c.value.managerSlots || 2 }, (_, i) => s.value.assets?.find(a => a.id === s.value.managers?.[i]) || null))
 const deciders = computed(() => (s.value.deciders || []).map(id => store.data.roster?.find(p => p.id === id)?.character).filter(Boolean))
 const builtCount = computed(() => (s.value.buildings || []).filter(b => b.state === 'built').length)
 const buildingList = computed(() => Object.entries(c.value.count).map(([type, n]) => ({ type, n, ...BUILDINGS[type] })).sort((a, b) => b.n - a.n || a.label.localeCompare(b.label)))
@@ -432,7 +483,7 @@ function occupation(a) {
   const list = []
   if (s.value.managers?.includes(a.id)) list.push({ text: 'Управляет поселением', go: { tab: 'overview', focus: 'gov', el: 'sgov' } })
   for (const [k, j] of Object.entries(s.value.jobs || {})) {
-    if ((j.specialists || []).slice(0, JOBS[k]?.spec || 0).includes(a.id)) list.push({ text: `Специалист: ${JOBS[k].label.toLowerCase()}`, go: { tab: 'jobs', focus: 'job:' + k, el: 'sjob-' + k } })
+    if ((j.specialists || []).slice(0, c.value.specSlots[k] ?? JOBS[k]?.spec ?? 0).includes(a.id)) list.push({ text: `Специалист: ${JOBS[k].label.toLowerCase()}`, go: { tab: 'jobs', focus: 'job:' + k, el: 'sjob-' + k } })
   }
   for (const o of s.value.outposts || []) {
     if (o.specialist && (o.specialist === a.id || o.specialist === a.name)) {
@@ -492,11 +543,23 @@ async function uploadSpecIcon(key, i, e) {
 
 /* журнал: новое событие, решения */
 const newEv = ref(null)
-const blankEvent = () => ({ title: '', type: 'message', duration: ['decide'], deadline: '', text: '', effect: '' })
+const STAT_NAMES = { morale: 'Мораль', stability: 'Стабильность', threat: 'Угроза' }
+const blankEvent = () => ({ title: '', type: 'message', duration: ['decide'], deadline: '', text: '', effect: '', stats: {}, mode: 'now', days: 2, worseText: '', worse: {} })
+const statsOf = o => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => Number(v)).map(([k, v]) => [k, Number(v)]))
+const hasStats = o => Object.keys(statsOf(o)).length > 0
 async function addEvent() {
-  await act('POST', `${base()}/events`, newEv.value, 'Событие в журнале, глава оповещён')
+  const e = newEv.value
+  const stats = statsOf(e.stats), worse = statsOf(e.worse)
+  const body = { title: e.title, type: e.type, duration: e.duration, deadline: e.deadline, text: e.text, effect: e.effect,
+    ...(Object.keys(stats).length ? { apply: { stats }, mode: e.mode } : {}),
+    ...(e.duration.includes('urgent') ? { days: e.days, worse: { text: e.worseText, apply: Object.keys(worse).length ? { stats: worse } : null } } : {}) }
+  await act('POST', `${base()}/events`, body, 'Событие в журнале, глава оповещён')
   newEv.value = null
 }
+// отложенные последствия: мастер применяет или отклоняет
+const settle = (e, action) => act('POST', `${base()}/events/${e.id}/pending/${action}`, undefined, action === 'apply' ? 'Последствия применены' : 'Последствия отклонены').catch(() => null)
+const daysLeft = e => (e.urgentDue ?? 0) - (s.value.day || 0)
+const odds = computed(() => eventOdds(c.value))
 const decEdit = ref(null)
 const decText = ref('')
 async function decide(e) {
@@ -521,6 +584,10 @@ function orderTitle(o) {
     const b = orderBuilding(o)
     return `${o.repair.damage === 'ruined' ? 'Отстроить' : 'Починить'} «${b?.name || BUILDINGS[o.repair.type]?.label}» (${DAMAGE[o.repair.damage]?.short})`
   }
+  if (o.kind === 'upgrade') {
+    const b = (s.value.buildings || []).find(x => x.id === o.upgrade.id)
+    return `Улучшить «${b?.name || BUILDINGS[o.upgrade.type]?.label}» → ${BUILDINGS[o.upgrade.type]?.tiers?.[o.upgrade.to - 1]?.label || 'уровень ' + o.upgrade.to}`
+  }
   return 'Приказ'
 }
 async function sendOrder(kind) {
@@ -531,23 +598,28 @@ async function sendOrder(kind) {
 const judge = (o, action, free = false) => act('POST', `${base()}/orders/${o.id}/${action}`, { reply: replies.value[o.id] || '', free }, action === 'approve' ? 'Приказ одобрен' : 'Приказ отклонён').catch(() => null)
 const orderBuilding = o => (s.value.buildings || []).find(b => b.id === o.repair?.id)
 const affordable = o => (o.kind === 'repair' ? !shortFor(s.value.stock, repairPrice(orderBuilding(o) || o.repair)).length
+  : o.kind === 'upgrade' ? !shortFor(s.value.stock, upgradePrice(o.upgrade.type, o.upgrade.to)).length
   : o.kind !== 'build' || !shortFor(s.value.stock, BUILDINGS[o.build.type]?.price).length)
 
 /* заготовки событий */
 const sgEdit = ref(null)
 const applyOn = ref({})
+// сразу / отложить до решения / без последствий
+const sgMode = g => applyOn.value[g.id] ?? (g.applyOn ? 'now' : 'none')
+const setSgMode = (g, m) => { applyOn.value = { ...applyOn.value, [g.id]: m } }
 const rollSuggestion = () => act('POST', `${base()}/suggestions`).catch(() => null)
 const dropSuggestion = g => act('DELETE', `${base()}/suggestions/${g.id}`).catch(() => null)
 async function releaseSuggestion(g) {
   const edit = sgEdit.value?.id === g.id ? sgEdit.value : {}
-  const body = { title: edit.title ?? g.title, text: edit.text ?? g.text, effect: edit.effect ?? g.effect, apply: applyOn.value[g.id] ?? g.applyOn }
+  const body = { title: edit.title ?? g.title, text: edit.text ?? g.text, effect: edit.effect ?? g.effect, mode: sgMode(g) }
   await act('POST', `${base()}/suggestions/${g.id}/accept`, body, 'Событие в журнале, глава оповещён').catch(() => null)
   sgEdit.value = null
 }
 const cancelOrder = o => act('DELETE', `${base()}/orders/${o.id}`, undefined, 'Приказ отменён')
 
 /* журнал: новые сверху, нерешённые — выше */
-const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.decision && a.duration?.includes('decide') ? -1 : 0) - (!b.decision && b.duration?.includes('decide') ? -1 : 0) || b.createdAt - a.createdAt))
+const open = e => (!e.decision && e.duration?.some(d => d === 'decide' || d === 'urgent')) || !!e.pending
+const events = computed(() => [...(s.value.events || [])].sort((a, b) => (open(a) ? -1 : 0) - (open(b) ? -1 : 0) || b.createdAt - a.createdAt))
 </script>
 
 <style scoped>
@@ -557,6 +629,20 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (!a.dec
 .muted { color: var(--a-muted); font-size: 12px; }
 .ed { float: right; margin-top: 4px; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--a-line); background: rgba(231, 197, 111, .08); color: var(--a-gold-2); font: 700 12px var(--a-sans); cursor: pointer; }
 .ed:hover { background: rgba(231, 197, 111, .18); }
+.odds { flex-basis: 100%; font-size: 11.5px; color: #c9a86a; }
+.stats-in { align-items: flex-end; }
+.stats-in small { align-self: center; color: var(--a-muted); font-size: 12px; font-weight: 700; }
+.stats-in label { display: grid; gap: 2px; font-size: 11px; color: var(--a-muted); }
+.stats-in input { width: 84px; }
+.urgent-box { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; border: 1px dashed rgba(255, 107, 91, .45); background: rgba(194, 54, 31, .07); }
+.ev-urgent { margin-top: 6px; padding: 5px 9px; border-radius: 8px; background: rgba(194, 54, 31, .14); color: #ffb3a6; font-size: 12.5px; font-weight: 700; }
+.ev-urgent.late { background: rgba(255, 74, 61, .22); color: #ff8f80; }
+.ev-urgent.ok { background: rgba(124, 207, 74, .12); color: #b6e39a; }
+.ev-pend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 6px; padding: 6px 10px; border-radius: 9px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(231, 197, 111, .07); font-size: 12.5px; }
+.ev-pend b { color: var(--a-gold-2); }
+.ev-pend.done { border-style: dashed; color: var(--a-muted); }
+.ev-pend.rejected { text-decoration: line-through; text-decoration-color: rgba(255, 255, 255, .25); }
+.chk.apply.defer { color: #e8c98a; }
 .tug-list { display: grid; gap: 6px; }
 .tug { padding: 8px 10px 10px; border-radius: 12px; border: 1px solid var(--a-line-2); background: rgba(255, 255, 255, .02); cursor: pointer; transition: background .15s, border-color .15s; }
 .tug:hover, .tug.open { background: rgba(231, 197, 111, .05); border-color: rgba(231, 197, 111, .25); }

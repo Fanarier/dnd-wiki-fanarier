@@ -31,7 +31,8 @@ import {
 } from './accounts.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePrice } from '../src/shared/walls.js'
 import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
-import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS } from '../src/shared/settlement.js'
+import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS,
+  STAT_RANGE, clampStat, moraleGain, moraleDay, buildRate, isWorksite, worksiteLeft, tierOf, tierLabel, upgradePrice, upgradeWork, upgradeBlock, applySettlementRules, URGENT_DAYS, SIZES, CATEGORIES } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { homeOf, isHome, marchCtx, marchTiming, marchState, msPerMeter, densify, findPath, edgePoint, atEdge } from '../src/shared/march.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
@@ -573,6 +574,7 @@ function viewFor(user, now = Date.now()) {
       ? { ...s, army: { ...s.army, squads: s.army.squads.map(q => (q.taskSecret ? { ...q, task: '' } : q)) } }
       : s)),
     hud: db.hud?.visible ? db.hud : null,
+    settlementRules: db.settlementRules || {},
     npcsRev: db.npcsRev || 0, bestiaryRev: db.bestiaryRev || 0, npcLinks: npcLinks(db, false), npcPins: npcPins(db, false), rulesRev: rulesApi?.rev() || 0, activitiesRev: actApi?.rev() || 0,
     sheetLinks: sheetApi?.linksFor(user) || [],
     campaign: campaignFor(db, false),
@@ -1625,12 +1627,33 @@ const settleLink = (s, tab) => ({ settlementId: s.id, tab })
 function notifyDeciders(s, text, tab = 'journal') {
   for (const id of deciderIds(s)) notify(id, 'settlement', `${s.name}: ${text}`, settleLink(s, tab))
 }
+// последствия события: ресурсы, показатели, повреждения, жители — проверяем форму
+const T_APPLY = a => {
+  if (!a || typeof a !== 'object') return null
+  const nums = (o, keys) => Object.fromEntries(Object.entries(o || {}).filter(([k, v]) => keys(k) && Number.isFinite(Number(v)) && Number(v)).map(([k, v]) => [k, Math.round(T.num(-1e6, 1e6)(v) * 10) / 10]))
+  const out = {}
+  const stock = nums(a.stock, k => !!RES[k]); if (Object.keys(stock).length) out.stock = stock
+  const stats = nums(a.stats, k => !!STAT_RANGE[k]); if (Object.keys(stats).length) out.stats = stats
+  const dmg = (Array.isArray(a.damage) ? a.damage : []).filter(d => d?.id && DAMAGE[d.level]).slice(0, 10).map(d => ({ id: T.str(40)(d.id), level: d.level, name: T.str(120)(d.name) }))
+  if (dmg.length) out.damage = dmg
+  const people = Object.fromEntries(Object.entries(a.people || {}).filter(([r]) => RACES[r]).map(([r, p]) => [r, nums(p, k => ['male', 'female', 'kids'].includes(k))]).filter(([, p]) => Object.keys(p).length))
+  if (Object.keys(people).length) out.people = people
+  return Object.keys(out).length ? out : null
+}
 const T_EVENT = v => ({
   id: v.id || newId('e'), title: T.str(120)(v.title) || 'Событие', type: EVENT_TYPES[v.type] ? v.type : 'message',
-  duration: (Array.isArray(v.duration) ? v.duration : []).filter(d => EVENT_DURATIONS[d]).slice(0, 3),
+  // «Рутинно» стало «Срочно»
+  duration: [...new Set((Array.isArray(v.duration) ? v.duration : []).map(d => (d === 'routine' ? 'urgent' : d)).filter(d => EVENT_DURATIONS[d]))].slice(0, 3),
   deadline: v.deadline ? T.str(20)(v.deadline) : null, text: cleanRich(v.text, 8000), effect: T.str(300)(v.effect),
   decision: T.str(2000)(v.decision), decidedBy: v.decidedBy ? T.str(60)(v.decidedBy) : null, decidedAt: Number(v.decidedAt) || null,
-  location: T.str(80)(v.location), createdAt: Number(v.createdAt) || Date.now()
+  location: T.str(80)(v.location), createdAt: Number(v.createdAt) || Date.now(),
+  // отложенные последствия: ждут, пока мастер подтвердит или отклонит
+  ...(T_APPLY(v.pending) ? { pending: T_APPLY(v.pending) } : {}),
+  ...(v.settled ? { settled: v.settled === 'rejected' ? 'rejected' : 'applied', settledText: T.str(300)(v.settledText) } : {}),
+  // срочное: к какому дню решить; что будет, если не решить
+  ...(v.urgentDue != null && Number.isFinite(Number(v.urgentDue)) ? { urgentDue: Math.round(Number(v.urgentDue)) } : {}),
+  ...(v.worse ? { worse: { title: T.str(120)(v.worse.title), text: T.str(2000)(v.worse.text), apply: T_APPLY(v.worse.apply) } } : {}),
+  ...(v.escalated ? { escalated: true } : {})
 })
 function addEvent(s, ev, notifyThem = true) {
   const e = T_EVENT(ev)
@@ -1653,7 +1676,7 @@ function snapshot(s, delta) {
 }
 // списать цену постройки со склада; null — хватило, иначе текст, чего не хватает
 const payFor = (s, type) => payPrice(s, BUILDINGS[type]?.price || {})
-const STAT_RANGE = { morale: [0, 100], stability: [0, 100], threat: [0, 999] }
+// мораль, стабильность, угрозы — от −100 до 100; мораль растёт тем труднее, чем она выше, и не больше чем на 15 за раз
 function applyEffects(s, apply) {
   s.stock ||= {}
   s.stats ||= {}
@@ -1664,9 +1687,28 @@ function applyEffects(s, apply) {
   }
   for (const [k, v] of Object.entries(apply?.stats || {})) {
     if (!STAT_RANGE[k]) continue
-    const [lo, hi] = STAT_RANGE[k]
-    s.stats[k] = Math.max(lo, Math.min(hi, Math.round((s.stats[k] || 0) + T.num(-1000, 1000)(v))))
+    const cur = clampStat(k, s.stats[k] || 0)
+    const d = T.num(-1000, 1000)(v)
+    s.stats[k] = clampStat(k, cur + (k === 'morale' ? moraleGain(cur, d) : d))
   }
+  for (const [race, p] of Object.entries(apply?.people || {})) {
+    if (!RACES[race]) continue
+    let r = raceOf(s, race)
+    if (!r) { r = { race, male: 0, female: 0, kids: 0 }; (s.races ||= []).push(r) }
+    for (const k of ['male', 'female', 'kids']) if (p[k]) r[k] = Math.max(0, Math.round((r[k] || 0) + p[k]))
+  }
+}
+// событие из заготовки или от мастера: последствия сразу (now), отложить до решения (defer) или без них
+function releaseEvent(s, ev, apply, mode) {
+  const urgent = ev.duration?.includes('urgent')
+  const e = addEvent(s, {
+    ...ev, location: ev.location || s.name,
+    ...(mode === 'defer' && apply ? { pending: apply } : {}),
+    ...(urgent ? { urgentDue: (s.day || 0) + Math.max(1, Math.round(Number(ev.days) || URGENT_DAYS)), worse: ev.worse || null } : {})
+  })
+  if (mode === 'now' && apply) applyEffects(s, apply)
+  logEntry(s, 'event', `Событие: «${e.title}»${mode === 'now' && apply ? ' — ' + applyText(apply) : mode === 'defer' && apply ? ' (последствия ждут решения)' : ''}`)
+  return e
 }
 // повреждение постройки: ремонт, если шёл, начинается заново (работы стало больше); event — написать в журнал
 function setDamage(s, b, level, event = true) {
@@ -1696,6 +1738,30 @@ function startRepair(s, b, pay) {
   logEntry(s, 'build', `${b.damage === 'ruined' ? 'Отстраивают' : 'Чинят'} «${b.name || BUILDINGS[b.type].label}»${pay ? ' — ' + priceText(price) : ''}`)
   return null
 }
+// начать улучшение до следующего уровня: цена со склада (pay), работа — строителями на площадке
+function startUpgrade(s, b, pay) {
+  const why = upgradeBlock(s, b)
+  if (why) return why
+  const to = tierOf(b).level + 1
+  const price = upgradePrice(b.type, to)
+  if (pay) {
+    const miss = payPrice(s, price)
+    if (miss) return miss
+  }
+  b.upgrade = { to, progress: 0, ...(pay ? { paid: price } : {}) }
+  logEntry(s, 'build', `Улучшают «${b.name || tierLabel(b)}» → ${BUILDINGS[b.type].tiers[to - 1].label}${pay ? ' — ' + priceText(price) : ''}`)
+  return null
+}
+function finishUpgrade(s, b) {
+  const was = b.name || tierLabel(b)
+  b.level = b.upgrade.to
+  delete b.upgrade
+  delete b.builders
+  const now = tierLabel(b)
+  addEvent(s, { title: 'Улучшение готово', type: 'done', duration: ['quick'], text: `«${was}» теперь — ${now} (уровень ${b.level}).`, location: s.name }, false)
+  return now
+}
+
 /* ---------- войско: обучение, бой, лечебница ---------- */
 function startTraining(s, t) {
   s.army ||= {}
@@ -1751,6 +1817,7 @@ app.patch('/api/settlements/:id', requireMaster, (req, res) => {
     if (!ok && !(k === 'headHeroId' && v === null)) return res.status(400).json({ error: 'Неверный формат поля: ' + k })
   }
   if (Array.isArray(body.deciders)) body.deciders = body.deciders.filter(id => typeof id === 'string').slice(0, 20)
+  if (body.stats) for (const k of Object.keys(STAT_RANGE)) if (body.stats[k] != null) body.stats[k] = clampStat(k, body.stats[k])
   if (Array.isArray(body.roads)) body.roads = body.roads.slice(0, 500).map(T_ROAD)
   if (Array.isArray(body.walls)) body.walls = body.walls.slice(0, 300).map(T_WALL)
   // повреждения: проверяем значение; стало хуже — событие в журнал главе
@@ -1780,8 +1847,10 @@ app.patch('/api/settlements/:id', requireMaster, (req, res) => {
 app.post('/api/settlements/:id/events', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
-  const e = addEvent(s, { ...(req.body || {}), id: undefined, createdAt: Date.now(), location: req.body?.location || s.name })
-  logEntry(s, 'event', `Событие: «${e.title}»`)
+  const b = req.body || {}
+  const apply = T_APPLY(b.apply)
+  const worse = b.worse && (b.worse.text || T_APPLY(b.worse.apply)) ? { title: b.worse.title || `Хуже: ${b.title || 'событие'}`, text: b.worse.text, apply: T_APPLY(b.worse.apply) } : null
+  const e = releaseEvent(s, { title: b.title, type: b.type, duration: b.duration, deadline: b.deadline, text: b.text, effect: b.effect || (apply ? applyText(apply) : ''), days: b.days, worse }, apply, b.mode === 'defer' ? 'defer' : b.mode === 'now' ? 'now' : 'none')
   saveDb()
   broadcast()
   res.json(e)
@@ -1804,6 +1873,23 @@ app.post('/api/settlements/:id/events/:eid/decision', requireUser, (req, res) =>
   res.json(e)
 })
 
+// отложенные последствия события: применить или отклонить
+app.post('/api/settlements/:id/events/:eid/pending/:action(apply|reject)', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const e = s?.events?.find(x => x.id === req.params.eid)
+  if (!e?.pending) return res.status(404).json({ error: 'У события нет отложенных последствий' })
+  const text = applyText(e.pending)
+  if (req.params.action === 'apply') applyEffects(s, e.pending)
+  e.settled = req.params.action === 'apply' ? 'applied' : 'rejected'
+  e.settledText = text
+  delete e.pending
+  logEntry(s, 'event', `«${e.title}»: последствия ${e.settled === 'applied' ? 'применены — ' + text : 'отклонены'}`)
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(e)
+})
+
 // портрет актива поселения (картинку уже уменьшил браузер)
 app.post('/api/settlements/:id/portrait', requireMaster, express.raw({ type: () => true, limit: '3mb' }), (req, res) => {
   if (!findSettlement(req.params.id)) return res.status(404).json({ error: 'Поселение не найдено' })
@@ -1813,7 +1899,7 @@ app.post('/api/settlements/:id/portrait', requireMaster, express.raw({ type: () 
 })
 
 /* приказы главы: построить, назначить рабочих, разведать, свободный — мастер одобряет */
-const ORDER_KINDS = ['build', 'workers', 'explore', 'repair', 'train', 'free']
+const ORDER_KINDS = ['build', 'workers', 'explore', 'repair', 'upgrade', 'train', 'free']
 app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
@@ -1842,6 +1928,13 @@ app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
     if (bd.repair) return res.status(400).json({ error: 'Её уже чинят' })
     if ((s.orders || []).some(x => x.status === 'pending' && x.repair?.id === bd.id)) return res.status(400).json({ error: 'Приказ на ремонт уже ждёт мастера' })
     o.repair = { id: bd.id, type: bd.type, damage: bd.damage }
+  } else if (b.kind === 'upgrade') {
+    const bd = (s.buildings || []).find(x => x.id === b.building)
+    if (!bd) return res.status(404).json({ error: 'Постройка не найдена' })
+    const why = upgradeBlock(s, bd)
+    if (why) return res.status(400).json({ error: why })
+    if ((s.orders || []).some(x => x.status === 'pending' && x.upgrade?.id === bd.id)) return res.status(400).json({ error: 'Приказ на улучшение уже ждёт мастера' })
+    o.upgrade = { id: bd.id, type: bd.type, to: tierOf(bd).level + 1 }
   } else if (!o.text) return res.status(400).json({ error: 'Напиши, что нужно сделать' })
   ;(s.orders ||= []).push(o)
   if (s.orders.length > 200) s.orders = s.orders.slice(-200)
@@ -1898,6 +1991,13 @@ app.post('/api/settlements/:id/orders/:oid/:action(approve|reject)', requireMast
       const err = startRepair(s, bd, !free)
       if (err) return res.status(400).json({ error: err })
       o.paid = free ? null : price
+    } else if (o.kind === 'upgrade') {
+      const bd = (s.buildings || []).find(x => x.id === o.upgrade.id)
+      if (!bd) return res.status(400).json({ error: 'Постройки уже нет' })
+      const free = !!req.body?.free
+      const err = startUpgrade(s, bd, !free)
+      if (err) return res.status(400).json({ error: err })
+      o.paid = free ? null : bd.upgrade.paid || {}
     } else if (o.kind === 'workers') {
       s.jobs ||= {}
       s.jobs[o.workers.job] = { ...(s.jobs[o.workers.job] || {}), workers: o.workers.count }
@@ -1938,20 +2038,29 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
     const d = Math.round((s.stock[k] - was) * 10) / 10
     if (d) delta[k] = d
   }
-  // стройка: слесари ускоряют, нехватка стройматериалов — −75%
+  // стройка, ремонт и улучшение — руками строителей на площадке (раса даёт свои очки); стены — общей бригадой
   const speedUp = (c.jobs.locksmith?.workers || 0) * 8.75
   const slow = (s.stock.build || 0) <= 0 && c.balance.build < 0 ? 0.25 : 1
   const pts = BUILD_POINTS_PER_DAY * days * (1 + speedUp / 100) * slow
   const done = []
+  const idle = []
   for (const b of s.buildings || []) {
-    if (b.state !== 'construction') continue
-    b.progress = Math.round(((b.progress || 0) + pts) * 10) / 10
-    const cost = BUILDINGS[b.type]?.cost || 100
-    if (b.progress >= cost) {
-      b.state = 'built'
-      delete b.progress
-      done.push(BUILDINGS[b.type].label)
-      addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `Мы закончили «${BUILDINGS[b.type].label}»!`, location: s.name })
+    if (!isWorksite(b)) continue
+    const rate = buildRate(s, b, c).pts * days
+    if (!rate) { idle.push(b.name || tierLabel(b)); continue }
+    if (b.state === 'construction') {
+      b.progress = Math.round(((b.progress || 0) + rate) * 10) / 10
+      const cost = BUILDINGS[b.type]?.cost || 100
+      if (b.progress >= cost) {
+        b.state = 'built'
+        delete b.progress
+        delete b.builders
+        done.push(tierLabel(b))
+        addEvent(s, { title: 'Строительство завершено', type: 'done', duration: ['quick'], text: `Мы закончили «${tierLabel(b)}»!`, location: s.name })
+      }
+    } else if (b.upgrade) {
+      b.upgrade.progress = Math.round(((b.upgrade.progress || 0) + rate) * 10) / 10
+      if (b.upgrade.progress >= upgradeWork(b.type, b.upgrade.to)) done.push('улучшена до ' + finishUpgrade(s, b))
     }
   }
   // обучение воинов: сезон (120 дней)
@@ -1964,11 +2073,14 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
     }
   }
   if (s.army?.training) s.army.training = s.army.training.filter(t => t.done < t.days)
-  // ремонт: те же очки стройки; готово — постройка снова целая
+  // ремонт: строители на площадке; готово — постройка снова целая
   for (const b of s.buildings || []) {
     if (!b.repair || !b.damage) continue
-    b.repair.progress = Math.round(((b.repair.progress || 0) + pts) * 10) / 10
+    const rate = buildRate(s, b, c).pts * days
+    if (!rate) continue
+    b.repair.progress = Math.round(((b.repair.progress || 0) + rate) * 10) / 10
     if (b.repair.progress >= repairWork(b)) {
+      delete b.builders
       const name = b.name || BUILDINGS[b.type].label
       const ruined = b.damage === 'ruined'
       setDamage(s, b, null)
@@ -2003,12 +2115,38 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
     if (open.has(effect)) continue
     addEvent(s, { title: 'Нехватка ресурса', type: 'problem', duration: ['decide'], text: `У нас закончились «${RES[k]?.label}». Как решим, господин глава?`, effect, location: s.name })
   }
+  // мораль — по дням: таверна, еда, вода, теснота, постройки; к верху растёт тяжелее, не больше 15 за день
+  s.stats ||= {}
+  const mood = []
+  for (let i = 0; i < days; i++) {
+    const md = moraleDay(s, i ? computeSettlement(s) : c)
+    s.stats.morale = clampStat('morale', (s.stats.morale || 0) + md.total)
+    mood.push(md.total)
+  }
+  const moodSum = Math.round(mood.reduce((n, v) => n + v, 0) * 10) / 10
+  // срочные события без решения: срок вышел — становится хуже
+  for (let d = 1; d <= days; d++) {
+    const day = (s.day || 0) + d
+    for (const e of [...(s.events || [])]) {
+      if (!e.duration?.includes('urgent') || e.decision || e.escalated || e.urgentDue == null || day < e.urgentDue) continue
+      e.escalated = true
+      const w = e.worse || {}
+      const apply = w.apply || { stats: { morale: -3, stability: -3 } }
+      applyEffects(s, apply)
+      addEvent(s, { title: w.title || `Стало хуже: ${e.title}`, type: 'alarm', duration: ['decide'], text: w.text || `Срочное «${e.title}» так и не решили — стало хуже.`, effect: applyText(apply), location: s.name })
+      logEntry(s, 'event', `«${e.title}» не решили вовремя — ${applyText(apply)}`)
+    }
+  }
+  // лес вокруг баз лесорубов понемногу зарастает обратно (вырубки под постройками не трогаем)
+  regrowForest(s, days)
   s.day = (s.day || 0) + days
   // лента и график
   const top = Object.entries(delta).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 6)
   logEntry(s, 'day', `Прошло ${days} дн.${top.length ? ': ' + top.map(([k, v]) => `${RES[k]?.label} ${v > 0 ? '+' : ''}${v}`).join(', ') : ''}`)
   for (const n of done) logEntry(s, 'built', `Достроена «${n}»`)
   if (short.length) logEntry(s, 'short', 'Кончились: ' + short.map(k => RES[k]?.label).join(', '))
+  if (moodSum) logEntry(s, 'mood', `Мораль ${moodSum > 0 ? '+' : ''}${moodSum} за ${days} дн.`)
+  if (idle.length) logEntry(s, 'build', 'Стоят без строителей: ' + idle.join(', '))
   snapshot(s, delta)
   // заготовки событий для мастера: примерно одна на три дня, не больше восьми в очереди
   const fresh = []
@@ -2016,8 +2154,21 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
   s.updatedAt = Date.now()
   saveDb()
   broadcast()
-  res.json({ ok: true, day: s.day, short, delta, done, suggestions: fresh.length })
+  res.json({ ok: true, day: s.day, short, delta, done, idle, morale: moodSum, suggestions: fresh.length })
 })
+function regrowForest(s, days) {
+  const bases = (s.buildings || []).filter(b => (b.state || 'built') === 'built' && !b.damage && b.x != null && tierOf(b)?.regrow)
+  if (!bases.length || !s.clearings?.length) return
+  const under = (s.buildings || []).filter(b => b.x != null)
+  for (const c of s.clearings) {
+    if (c.tree) continue
+    // вырубку держит постройка внутри — не зарастает
+    if (under.some(u => Math.hypot(u.x - c.x, u.y - c.y) < c.r + 2)) continue
+    const rate = bases.reduce((n, b) => n + (Math.hypot(b.x - c.x, b.y - c.y) < 1200 ? tierOf(b).regrow : 0), 0)
+    if (rate) c.r = Math.round(Math.max(0, c.r - rate * days) * 10) / 10
+  }
+  s.clearings = s.clearings.filter(c => c.tree || c.r >= 2)
+}
 
 // мастер ставит постройку на карту: сразу готовую или стройкой (стройку можно оплатить со склада)
 // постройка в лесу — лес под ней вырубаем
@@ -2134,6 +2285,120 @@ app.post('/api/settlements/:id/walls/:wid/features', requireMaster, (req, res) =
   saveDb()
   broadcast()
   res.json(f)
+})
+
+// строители на площадке (стройка, ремонт, улучшение): мастер и глава назначают сами, сколько жителей какой расы
+app.post('/api/settlements/:id/buildings/:bid/builders', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const b = s?.buildings?.find(x => x.id === req.params.bid)
+  if (!b) return res.status(404).json({ error: 'Постройка не найдена' })
+  if (!canDecide(req.user, s)) return res.status(403).json({ error: 'Строителей назначает глава поселения' })
+  if (!isWorksite(b)) return res.status(400).json({ error: 'Здесь сейчас ничего не строят' })
+  const want = {}
+  for (const [race, n] of Object.entries(req.body?.builders || {})) {
+    const r = raceOf(s, race)
+    if (!r) continue
+    const v = Math.round(T.num(0, 999)(n))
+    if (v > (r.male || 0) + (r.female || 0)) return res.status(400).json({ error: `${RACES[race]?.label || race}: столько взрослых нет` })
+    if (v) want[race] = v
+  }
+  const c = computeSettlement(s)
+  const mine = Object.values(b.builders || {}).reduce((n, v) => n + v, 0)
+  const total = Object.values(want).reduce((n, v) => n + v, 0)
+  if (total - mine > c.free) return res.status(400).json({ error: `Свободных жителей ${c.free} — столько строителей не набрать` })
+  if (total) b.builders = want
+  else delete b.builders
+  logEntry(s, 'build', `«${b.name || tierLabel(b)}»: строителей ${total}${req.user.role === 'master' ? '' : ' — ' + req.user.name}`)
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(b)
+})
+
+// улучшить постройку: начать (pay — со склада) или сразу (instant)
+app.post('/api/settlements/:id/buildings/:bid/upgrade', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const b = s?.buildings?.find(x => x.id === req.params.bid)
+  if (!b) return res.status(404).json({ error: 'Постройка не найдена' })
+  if (req.body?.instant) {
+    if (b.upgrade) { finishUpgrade(s, b) } else {
+      const why = upgradeBlock(s, b)
+      if (why) return res.status(400).json({ error: why })
+      b.upgrade = { to: tierOf(b).level + 1, progress: 0 }
+      finishUpgrade(s, b)
+    }
+  } else if (req.body?.cancel) {
+    if (!b.upgrade) return res.status(400).json({ error: 'Улучшение не идёт' })
+    // вернуть оплаченное на склад
+    for (const [k, v] of Object.entries(b.upgrade.paid || {})) s.stock[k] = Math.round(((s.stock[k] || 0) + v) * 10) / 10
+    delete b.upgrade
+    delete b.builders
+  } else {
+    const err = startUpgrade(s, b, !!req.body?.pay)
+    if (err) return res.status(400).json({ error: err })
+  }
+  s.updatedAt = Date.now()
+  saveDb()
+  broadcast()
+  res.json(b)
+})
+
+/* свои правила построек, рас и работ (вкладка «Постройки»): мастер правит, поверх исходных справочников */
+const RULE_NUM = T.num(-1e6, 1e6)
+const ruleMap = (o, keyOk) => Object.fromEntries(Object.entries(o && typeof o === 'object' ? o : {}).filter(([k, v]) => keyOk(k) && Number.isFinite(Number(v))).slice(0, 40).map(([k, v]) => [k, Math.round(RULE_NUM(v) * 100) / 100]))
+const isRes = k => !!RES[k]
+const isJob = k => /^[a-z][a-z0-9_-]{0,30}$/i.test(k)
+const isIcon = v => typeof v === 'string' && (/^[a-z0-9-]{1,60}$/.test(v) || /^\/(portraits|settlement)\/[\w.-]{1,120}$/.test(v))
+function T_TIER(t) {
+  const o = {}
+  if (t.label) o.label = T.str(80)(t.label)
+  if (isIcon(t.icon)) o.icon = t.icon
+  for (const k of ['housing', 'guests', 'trade', 'defense', 'regrow', 'cost']) if (t[k] != null && t[k] !== '') o[k] = Math.round(T.num(0, 1e5)(t[k]) * 100) / 100
+  for (const k of ['jobs', 'spec']) if (t[k]) o[k] = ruleMap(t[k], isJob)
+  for (const k of ['gain', 'use', 'specGain', 'price']) if (t[k]) o[k] = ruleMap(t[k], isRes)
+  if (t.perm) o.perm = ruleMap(t.perm, k => ['threat', 'stability', 'morale'].includes(k))
+  if (t.gov) o.gov = ruleMap(t.gov, k => ['head', 'managers', 'outposts', 'maxLevel'].includes(k))
+  if (t.ev) o.ev = ruleMap(t.ev, k => ['family', 'dorm', 'breakdown', 'mineral', 'soil', 'medicine'].includes(k))
+  if (t.note) o.note = T.str(300)(t.note)
+  if (o.price && !Object.keys(o.price).length) delete o.price
+  return o
+}
+function T_RULES(r) {
+  const out = { buildings: {}, races: {}, jobs: {} }
+  for (const [k, d] of Object.entries(r?.buildings || {}).slice(0, 120)) {
+    if (!isJob(k) || !d || typeof d !== 'object') continue
+    const b = { ...T_TIER(d) }
+    if (CATEGORIES[d.cat]) b.cat = d.cat
+    if (SIZES[d.size] && d.size !== 'settlement') b.size = d.size
+    if (d.personal) b.personal = true
+    if (Array.isArray(d.tiers)) b.tiers = d.tiers.slice(0, 5).map(T_TIER)
+    out.buildings[k] = b
+  }
+  for (const [k, d] of Object.entries(r?.races || {})) {
+    if (!RACES[k] || !d) continue
+    out.races[k] = { build: Math.round(T.num(0, 100)(d.build ?? RACES[k].build ?? 4) * 10) / 10, buildNote: T.str(200)(d.buildNote),
+      ...(d.buildMorale?.pct ? { buildMorale: { above: T.num(-100, 100)(d.buildMorale.above || 0), pct: T.num(-100, 500)(d.buildMorale.pct) } } : {}) }
+  }
+  for (const [k, d] of Object.entries(r?.jobs || {}).slice(0, 60)) {
+    if (!isJob(k) || !d) continue
+    out.jobs[k] = {
+      label: T.str(60)(d.label) || k, ...(isIcon(d.icon) ? { icon: d.icon } : {}), per: ruleMap(d.per, isRes),
+      ...(d.group ? { group: Math.round(T.num(1, 50)(d.group)) } : {}), ...(d.spec != null ? { spec: Math.round(T.num(0, 20)(d.spec)) } : {}),
+      ...(d.specBonus ? { specBonus: T.num(0, 5)(d.specBonus) } : {}), ...(d.morale ? { morale: T.num(-10, 10)(d.morale) } : {}),
+      ...(d.kids ? { kids: true } : { kids: false })
+    }
+  }
+  return out
+}
+app.put('/api/settlement-rules', requireMaster, (req, res) => {
+  const db = getDb()
+  let rules
+  try { rules = T_RULES(req.body || {}) } catch (e) { return res.status(400).json({ error: e.message }) }
+  db.settlementRules = rules
+  applySettlementRules(rules)
+  saveDb()
+  broadcast()
+  res.json(rules)
 })
 
 app.post('/api/settlements/:id/buildings/:bid/repair', requireMaster, (req, res) => {
@@ -2352,10 +2617,9 @@ app.post('/api/settlements/:id/suggestions/:sid/accept', requireMaster, (req, re
   const sg = s?.suggestions?.find(x => x.id === req.params.sid)
   if (!sg) return res.status(404).json({ error: 'Заготовка не найдена' })
   const b = req.body || {}
-  const e = addEvent(s, { title: b.title ?? sg.title, type: b.type ?? sg.type, duration: b.duration ?? sg.duration, text: b.text ?? sg.text, effect: b.effect ?? sg.effect, location: s.name })
-  const withEffects = b.apply !== undefined ? !!b.apply : sg.applyOn
-  if (withEffects && sg.apply) applyEffects(s, sg.apply)
-  logEntry(s, 'event', `Событие: «${e.title}»${withEffects && sg.apply ? ' — ' + applyText(sg.apply) : ''}`)
+  const mode = ['now', 'defer', 'none'].includes(b.mode) ? b.mode : (b.apply !== undefined ? !!b.apply : sg.applyOn) ? 'now' : 'none'
+  const duration = b.duration ?? sg.duration
+  const e = releaseEvent(s, { title: b.title ?? sg.title, type: b.type ?? sg.type, duration, text: b.text ?? sg.text, effect: b.effect ?? sg.effect, days: b.days ?? sg.days, worse: sg.worse }, sg.apply, mode)
   s.suggestions = s.suggestions.filter(x => x !== sg)
   s.updatedAt = Date.now()
   saveDb()

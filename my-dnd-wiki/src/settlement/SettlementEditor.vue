@@ -24,9 +24,9 @@
           <h4>Управление</h4>
           <label>Глава поселения<select v-model="f.headHeroId"><option :value="null">—</option><option v-for="h in heroes" :key="h.id" :value="h.id">{{ h.name }}</option></select></label>
           <div class="grid2">
-            <label>Слотов управляющих<input v-model.number="f.managerSlots" type="number" min="0" max="6" /></label>
+            <label>Слотов управляющих (если больше, чем даёт управление)<input v-model.number="f.managerSlots" type="number" min="0" max="8" /></label>
             <span />
-            <label v-for="i in f.managerSlots || 0" :key="i">Управляющий {{ i }}
+            <label v-for="i in calcF.managerSlots || 0" :key="i">Управляющий {{ i }}
               <select v-model="f.managers[i - 1]"><option :value="undefined">свободно</option><option v-for="a in f.assets" :key="a.id" :value="a.id">{{ a.name }}</option></select>
             </label>
           </div>
@@ -96,8 +96,8 @@
               <label>Занято<input v-model.number="jobOf(key).workers" type="number" min="0" :max="places[key] || 0" /></label>
               <label v-if="j.per">Ресурсы для работы, %<input v-model.number="jobOf(key).supply" type="number" min="0" max="100" placeholder="100" /></label>
             </div>
-            <div v-if="j.spec" class="grid2">
-              <label v-for="i in j.spec" :key="i">Специалист {{ i }}
+            <div v-if="specN(key)" class="grid2">
+              <label v-for="i in specN(key)" :key="i">Специалист {{ i }}
                 <input v-model="jobOf(key).specialists[i - 1]" list="se-assets" placeholder="имя или актив" />
               </label>
             </div>
@@ -184,7 +184,8 @@ const props = defineProps({ section: String, settlement: Object, wide: Boolean }
 const big = ref(props.wide)
 const emit = defineEmits(['close'])
 const TITLES = { army: 'Войско: статы и лимиты', overview: 'Обзор и управление', resources: 'Запасы и поправки', residents: 'Жители', jobs: 'Работы', assets: 'Активы', outposts: 'Аванпосты' }
-const STATS = { morale: 'Мораль', stability: 'Стабильность', threat: 'Угрозы', freeSettlers: 'Свободные поселенцы', unavailable: 'Недоступные', housesUsed: 'Жильё (дома) занято', housingUsed: 'Общее жильё занято', guestsUsed: 'Гостей', tradeUsed: 'Торговых мест занято', outpostSlots: 'Слотов аванпостов' }
+// свободные считаются сами: взрослые − работы, аванпосты, стройки, «заняты прочим» − недоступные (больные, отряды, «недоступны ещё»)
+const STATS = { morale: 'Мораль (−100…100)', stability: 'Стабильность без построек (−100…100)', threat: 'Угрозы без построек (−100…100)', otherBusy: 'Заняты прочим', unavailable: 'Недоступны ещё (кроме больных и отрядов)', housesUsed: 'Жильё (дома) занято', housingUsed: 'Общее жильё занято', guestsUsed: 'Гостей', tradeUsed: 'Торговых мест занято', outpostSlots: 'Слотов аванпостов (если больше, чем даёт управление)' }
 const PASSIVE_STATS = { war: 'Военный потенциал', defense: 'Защита', leisure: 'Досуг', morale: 'Мораль', stability: 'Стабильность' }
 const FRAME_LABELS = { purple: 'фиолетовая', blue: 'синяя', green: 'зелёная', gold: 'золотая' }
 const { free: _f, workers: _w, ...rest } = RESIDENT_CATS
@@ -205,7 +206,9 @@ const busy = ref(false)
 const heroes = computed(() => store.data.heroes || [])
 const cities = computed(() => store.data.cities || [])
 const players = computed(() => (store.data.roster || []).filter(p => p.character))
-const places = computed(() => computeSettlement(f.value).places)
+const calcF = computed(() => computeSettlement(f.value))
+const places = computed(() => calcF.value.places)
+const specN = key => calcF.value.specSlots[key] ?? JOBS[key]?.spec ?? 0
 
 function jobOf(key) {
   f.value.jobs[key] ||= { workers: 0 }
@@ -250,7 +253,7 @@ async function save() {
   try {
     const v = f.value
     if (props.section === 'jobs') for (const j of Object.values(v.jobs)) j.specialists = (j.specialists || []).map(x => x || null)
-    if (props.section === 'overview') v.managers = v.managers.slice(0, v.managerSlots || 0)
+    if (props.section === 'overview') v.managers = v.managers.slice(0, calcF.value.managerSlots || 0)
     const body = Object.fromEntries(KEYS[props.section].map(k => [k, v[k]]))
     await act('PATCH', `/api/settlements/${props.settlement.id}`, body, 'Сохранено')
     emit('close')

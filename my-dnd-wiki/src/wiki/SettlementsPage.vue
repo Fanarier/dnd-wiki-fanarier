@@ -60,7 +60,7 @@ const list = computed(() => (store.data.settlements || []).map(s => ({
   built: (s.buildings || []).filter(b => b.state === 'built').length,
   mine: !!store.me && s.deciders?.includes(store.me.id),
   // ждут решения главы; приказы на рассмотрении — счётчик видит мастер
-  waiting: (s.events || []).filter(e => e.duration?.includes('decide') && !e.decision).length,
+  waiting: (s.events || []).filter(e => e.duration?.some(d => d === 'decide' || d === 'urgent') && !e.decision).length,
   pending: isMaster.value ? (s.orders || []).filter(o => o.status === 'pending').length : 0
 })))
 </script>

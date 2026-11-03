@@ -61,7 +61,7 @@ function drawMood() {
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: { title: { display: true, text: 'день', color: TXT, font }, ticks: { color: TXT, font, maxTicksLimit: 10 }, grid: { color: GRID } },
-        y: { min: 0, max: 100, ticks: { color: TXT, font, stepSize: 25 }, grid: { color: GRID } }
+        y: { min: -100, max: 100, ticks: { color: TXT, font, stepSize: 50 }, grid: { color: c => (c.tick.value === 0 ? 'rgba(231, 197, 111, .35)' : GRID) } }
       },
       plugins: { legend: { labels: { color: TXT, font, usePointStyle: true, boxWidth: 8 } }, tooltip: { ...tooltip, callbacks: { title: i => `День ${i[0].label}` } } }
     }

@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
-import { upgradeSettlementMap } from '../src/shared/settlement.js'
+import { upgradeSettlementMap, applySettlementRules, computeSettlement, clampStat } from '../src/shared/settlement.js'
 
 const DATA_DIR = path.resolve(import.meta.dirname, 'data')
 const DB_FILE = path.join(DATA_DIR, 'db.json')
@@ -81,6 +81,28 @@ function migrate(d) {
     changed = true
   }
   for (const s of d.settlements || []) if (upgradeSettlementMap(s)) { console.log(`[db] ${s.name}: переведено на большую карту, постройки — в списке «не расставлены»`); changed = true }
+  // правила построек мастера — поверх исходных справочников
+  applySettlementRules(d.settlementRules)
+  // уровни построек, строители, свободные жители считаются сами (v3):
+  // «свободных» из старой таблицы сохраняем — разницу записываем в «заняты прочим»; скважины получают водоносов;
+  // «Рутинно» → «Срочно»; мораль, стабильность и угрозы — от −100 до 100
+  for (const s of d.settlements || []) {
+    if ((s.rulesV || 0) >= 3) continue
+    s.stats ||= {}
+    const c0 = computeSettlement({ ...s, stats: { ...s.stats, otherBusy: 0 }, jobs: { ...s.jobs, watercarrier: { workers: 0 } } })
+    s.jobs ||= {}
+    if (!s.jobs.watercarrier && c0.places.watercarrier) s.jobs.watercarrier = { workers: c0.places.watercarrier }
+    if (s.stats.freeSettlers != null) {
+      const c = computeSettlement({ ...s, stats: { ...s.stats, otherBusy: 0 } })
+      s.stats.otherBusy = Math.max(0, c.free - s.stats.freeSettlers)
+      delete s.stats.freeSettlers
+    }
+    for (const k of ['morale', 'stability', 'threat']) if (s.stats[k] != null) s.stats[k] = clampStat(k, s.stats[k])
+    for (const e of s.events || []) if (e.duration?.includes('routine')) e.duration = [...new Set(e.duration.map(x => (x === 'routine' ? 'urgent' : x)))]
+    s.rulesV = 3
+    console.log(`[db] ${s.name}: уровни построек и строители — свободных ${computeSettlement(s).free}`)
+    changed = true
+  }
   // один портрет → галерея артов (первый — обложка)
   for (const h of d.heroes || []) {
     if (h.gallery) continue
