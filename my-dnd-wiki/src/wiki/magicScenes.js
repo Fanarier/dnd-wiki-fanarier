@@ -543,8 +543,8 @@ const grimoire = {
   }
 }
 
-/* ---------- магма: вулканы в нижних углах — из кратера течёт лава по склонам, поднимается пар,
-   у подножия обсидиан, внизу лавовое озеро с пузырями, редкие искры и пепел ---------- */
+/* ---------- магма: вулканы в нижних углах — плавный силуэт с вогнутыми склонами, борозды веером от кратера,
+   в кратере светится лава, по бороздам течёт лава и расширяется у подножия; пар, обсидиан, лавовое озеро ---------- */
 const puffSprite = (rgb, a0) => {
   const c = document.createElement('canvas'); c.width = c.height = 64
   const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 0, 32, 32, 32)
@@ -552,87 +552,100 @@ const puffSprite = (rgb, a0) => {
   g.fillStyle = r; g.fillRect(0, 0, 64, 64)
   return c
 }
+// точка на склоне вулкана: a — от левого края (−1) до правого (+1), u — от подножия (0) до края кратера (1).
+// Склон вогнутый: у подножия пологий, к вершине круче
+const slopeAt = (v, a, u) => {
+  const half = a < 0 ? v.wl : v.wr
+  const hw = v.cw / 2 + (half - v.cw / 2) * Math.pow(1 - u, 1.7)
+  return [v.cx + a * hw, v.base - u * v.h + (a < 0 ? 0 : u * v.tilt)]
+}
 const magma = {
   build(s) {
     const { rnd, W, H, K } = s
     const e = s.edges()
     s.poolH = 18 * K
     const narrow = W / K < 700
-    // вулкан слева побольше, справа поменьше
-    s.volcs = [[e.treeL, 1], [e.treeR, 0.72]].map(([cx, sc]) => {
-      const h = Math.min(H * 0.46, 380 * K) * sc * (narrow ? 0.7 : 1), w = h * 2.3, cw = h * 0.2
-      const top = H - h, crater = top + h * 0.05
-      // склоны: от подножия к краю кратера, с неровностями
-      const slope = (side) => {
+    s.volcs = [[e.treeL, 1], [e.treeR, 0.7]].map(([cx, sc]) => {
+      const h = Math.min(H * 0.44, 360 * K) * sc * (narrow ? 0.7 : 1)
+      const v = { cx, sc, h, base: H - s.poolH * 0.5, wl: h * (1.25 + rnd() * 0.15), wr: h * (1.15 + rnd() * 0.15), cw: h * 0.24, tilt: h * 0.02 }
+      v.rimY = v.base - h
+      // реки лавы: по бороздам склона, плавно извиваются, у подножия расширяются
+      v.flows = [-0.55, -0.12, 0.3, 0.7].map((a0, f) => {
+        const ph = rnd() * TAU, amp = (0.04 + rnd() * 0.05), end = f === 2 ? 0.45 : 0 // одна остывает на полпути
         const pts = []
-        for (let i = 0; i <= 16; i++) {
-          const u = i / 16, y = H - u * h
-          // вогнутый склон: внизу пологий, наверху круче
-          const x = cx + side * (w / 2 - (w / 2 - cw / 2) * Math.pow(u, 0.7)) + (i && i < 16 ? (rnd() - 0.5) * 10 * K : 0)
-          pts.push([x, y + (i && i < 16 ? (rnd() - 0.5) * 6 * K : 0)])
+        for (let i = 0; i <= 40; i++) {
+          const u = 1 - i / 40 * (1 - end)
+          const a = a0 * (0.35 + 0.65 * (1 - u)) + Math.sin((1 - u) * 7 + ph) * amp * (1 - u * 0.7)
+          pts.push(slopeAt(v, Math.max(-0.97, Math.min(0.97, a)), u))
         }
-        return pts
-      }
-      const L = slope(-1), R = slope(1)
-      // лавовые реки: от края кратера вниз по склону, извиваясь
-      const flows = []
-      for (let f = 0; f < 4; f++) {
-        const side = [-1, -0.2, 0.25, 1][f]
-        const pts = []
-        let x = cx + side * cw * 0.38, y = crater + 4 * K
-        const drift = side * (0.22 + rnd() * 0.3), wav = (6 + rnd() * 8) * K, fr = 0.5 + rnd() * 0.5, ph = rnd() * TAU
-        const n = f === 2 ? 11 : 18 // одна река остывает на полпути
-        for (let i = 0; i <= n; i++) {
-          pts.push([x, y])
-          y += h / 18
-          x += drift * (h / 18) * (0.6 + i / 18) + Math.sin(i * fr + ph) * wav * 0.35
-        }
-        flows.push({ pts, ph: rnd() * TAU, w: (2.6 + rnd() * 2.4) * K, cool: n < 18 })
-      }
-      return { cx, h, w, cw, top, crater, L, R, flows, sc }
+        return { pts, ph, w: (2.4 + rnd() * 1.6) * K * (0.6 + 0.4 * sc), cool: end > 0 }
+      })
+      return v
     })
-    // тело вулканов и обсидиан — один раз в отдельный холст
+    // тело вулканов — один раз в отдельный холст
     s.body = document.createElement('canvas'); s.body.width = W; s.body.height = H
     const bg = s.body.getContext('2d')
     for (const v of s.volcs) {
-      bg.beginPath()
-      v.L.forEach(([x, y], i) => (i ? bg.lineTo(x, y) : bg.moveTo(x, y)))
-      bg.quadraticCurveTo(v.cx, v.crater + v.h * 0.04, v.R[16][0], v.R[16][1]) // чаша кратера
-      for (let i = 15; i >= 0; i--) bg.lineTo(v.R[i][0], v.R[i][1])
-      bg.closePath()
-      const gr = bg.createLinearGradient(0, v.top, 0, H)
-      gr.addColorStop(0, 'rgba(46, 26, 24, .97)'); gr.addColorStop(0.6, 'rgba(30, 16, 14, .98)'); gr.addColorStop(1, 'rgba(58, 20, 12, .98)')
-      bg.fillStyle = gr; bg.fill()
-      // рельеф: тёмные борозды вдоль склона и светлая кромка
-      bg.save(); bg.clip()
-      bg.lineCap = 'round'
-      for (let i = 0; i < 26; i++) {
-        const side = rnd() < 0.5 ? -1 : 1, u0 = 0.1 + rnd() * 0.75
-        const x0 = v.cx + side * (v.cw / 2 + (v.w / 2 - v.cw / 2) * (1 - u0) * rnd())
-        const y0 = H - u0 * v.h
-        bg.strokeStyle = `rgba(0, 0, 0, ${0.15 + rnd() * 0.2})`; bg.lineWidth = (1 + rnd() * 3) * K
-        bg.beginPath(); bg.moveTo(x0, y0); bg.lineTo(x0 + side * (20 + rnd() * 50) * K, y0 + (30 + rnd() * 70) * K); bg.stroke()
+      const outline = () => {
+        bg.beginPath()
+        for (let i = 0; i <= 30; i++) { const [x, y] = slopeAt(v, -1, i / 30); i ? bg.lineTo(x, y) : bg.moveTo(x, y) }
+        // задний край кратера — дуга над чашей
+        bg.ellipse(v.cx, v.rimY + v.tilt / 2, v.cw / 2, v.cw * 0.16, 0, Math.PI, TAU)
+        for (let i = 30; i >= 0; i--) { const [x, y] = slopeAt(v, 1, i / 30); bg.lineTo(x, y) }
+        bg.closePath()
       }
-      const side = bg.createLinearGradient(v.cx - v.w / 2, 0, v.cx + v.w / 2, 0)
-      side.addColorStop(0, 'rgba(120, 100, 150, .14)'); side.addColorStop(0.45, 'rgba(120, 100, 150, 0)'); side.addColorStop(0.55, 'rgba(0, 0, 0, 0)'); side.addColorStop(1, 'rgba(0, 0, 0, .35)')
-      bg.fillStyle = side; bg.fillRect(v.cx - v.w / 2, v.top, v.w, v.h)
-      const heat = bg.createLinearGradient(0, H - v.h * 0.25, 0, H)
-      heat.addColorStop(0, 'rgba(255, 80, 20, 0)'); heat.addColorStop(1, 'rgba(255, 80, 20, .18)')
-      bg.fillStyle = heat; bg.fillRect(v.cx - v.w, H - v.h * 0.25, v.w * 2, v.h * 0.25)
+      outline()
+      const gr = bg.createLinearGradient(0, v.rimY, 0, v.base)
+      gr.addColorStop(0, 'rgba(78, 52, 50, .99)'); gr.addColorStop(0.5, 'rgba(58, 38, 36, .99)'); gr.addColorStop(1, 'rgba(84, 38, 24, .99)')
+      bg.fillStyle = gr; bg.fill()
+      bg.save(); outline(); bg.clip()
+      // свет: слева лунный отсвет, справа тень
+      const side = bg.createLinearGradient(v.cx - v.wl, 0, v.cx + v.wr, 0)
+      side.addColorStop(0, 'rgba(150, 130, 180, .2)'); side.addColorStop(0.42, 'rgba(150, 130, 180, 0)'); side.addColorStop(0.58, 'rgba(0, 0, 0, 0)'); side.addColorStop(1, 'rgba(0, 0, 0, .45)')
+      bg.fillStyle = side; bg.fillRect(v.cx - v.wl, v.rimY - 10, v.wl + v.wr, v.h + 20)
+      // фактура камня: мягкие тёмные и светлые пятна
+      for (let i = 0; i < 60; i++) {
+        const a = (rnd() * 2 - 1) * 0.95, u = rnd() * 0.95, [x, y] = slopeAt(v, a, u), r = (10 + rnd() * 34) * K * v.sc
+        const sp = bg.createRadialGradient(x, y, 0, x, y, r)
+        const dark = rnd() < 0.65, c = dark ? '10, 4, 4' : '150, 110, 100'
+        sp.addColorStop(0, `rgba(${c}, ${dark ? 0.22 : 0.07})`); sp.addColorStop(1, `rgba(${c}, 0)`)
+        bg.fillStyle = sp; bg.fillRect(x - r, y - r, r * 2, r * 2)
+      }
+      // борозды веером от кратера — широкие и мягкие, редкие; светлый гребень только на освещённой стороне
+      bg.lineCap = 'round'
+      for (let k = 0; k < 13; k++) {
+        const a = -0.85 + (k / 12) * 1.7 + (rnd() - 0.5) * 0.08, uEnd = 0.05 + rnd() * 0.35
+        const groove = [[0, `rgba(12, 5, 5, ${0.16 + rnd() * 0.12})`, (3 + rnd() * 3) * v.sc]]
+        if (a < -0.1) groove.push([0.035, 'rgba(200, 170, 190, .06)', 1.6 * v.sc])
+        for (const [off, col, wdt] of groove) {
+          bg.strokeStyle = col; bg.lineWidth = wdt * K
+          bg.beginPath()
+          for (let i = 0; i <= 24; i++) { const u = 0.95 - (i / 24) * (0.95 - uEnd); const [x, y] = slopeAt(v, a + off, u); i ? bg.lineTo(x, y) : bg.moveTo(x, y) }
+          bg.stroke()
+        }
+      }
+      // кромка у кратера подсвечена лавой изнутри, подножие — жаром озера
+      const rim = bg.createRadialGradient(v.cx, v.rimY, 0, v.cx, v.rimY, v.cw * 1.4)
+      rim.addColorStop(0, 'rgba(255, 120, 40, .35)'); rim.addColorStop(1, 'rgba(255, 120, 40, 0)')
+      bg.fillStyle = rim; bg.fillRect(v.cx - v.cw * 1.5, v.rimY - v.cw, v.cw * 3, v.cw * 2.5)
+      const heat = bg.createLinearGradient(0, v.base - v.h * 0.22, 0, v.base)
+      heat.addColorStop(0, 'rgba(255, 80, 20, 0)'); heat.addColorStop(1, 'rgba(255, 80, 20, .2)')
+      bg.fillStyle = heat; bg.fillRect(v.cx - v.wl, v.base - v.h * 0.22, v.wl + v.wr, v.h * 0.22)
       bg.restore()
-      bg.strokeStyle = 'rgba(255, 140, 70, .12)'; bg.lineWidth = 1.2 * K
-      bg.beginPath(); v.L.forEach(([x, y], i) => (i ? bg.lineTo(x, y) : bg.moveTo(x, y))); bg.stroke()
-      bg.beginPath(); v.R.forEach(([x, y], i) => (i ? bg.lineTo(x, y) : bg.moveTo(x, y))); bg.stroke()
-      // обсидиан у подножия: глянцевые чёрные глыбы с холодным фиолетовым отблеском
-      for (let i = 0; i < 12; i++) {
-        const side = i % 2 ? 1 : -1, x = v.cx + side * (v.w * (0.14 + rnd() * 0.34)), r = (12 + rnd() * 22) * K * v.sc
-        const y = H - s.poolH * 0.6, n = 5
-        const pts = Array.from({ length: n }, (_, j) => { const a = Math.PI + (j / (n - 1)) * Math.PI; return [x + Math.cos(a) * r * (0.7 + rnd() * 0.5), y + Math.sin(a) * r * (0.8 + rnd() * 0.9)] })
-        bg.beginPath(); bg.moveTo(x - r, y); pts.forEach(([px, py]) => bg.lineTo(px, py)); bg.lineTo(x + r, y); bg.closePath()
-        bg.fillStyle = 'rgba(12, 8, 18, .97)'; bg.fill()
-        bg.strokeStyle = 'rgba(150, 120, 220, .35)'; bg.lineWidth = 1 * K; bg.stroke()
-        bg.strokeStyle = 'rgba(220, 210, 255, .25)'
-        bg.beginPath(); bg.moveTo(pts[1][0], pts[1][1]); bg.lineTo(pts[2][0], pts[2][1]); bg.stroke()
+      // тонкий контур силуэта — холодный блик слева
+      bg.strokeStyle = 'rgba(190, 170, 220, .3)'; bg.lineWidth = 1.4 * K
+      bg.beginPath(); for (let i = 0; i <= 30; i++) { const [x, y] = slopeAt(v, -1, i / 30); i ? bg.lineTo(x, y) : bg.moveTo(x, y) } bg.stroke()
+      // обсидиан у подножия: глянцевые чёрные осколки с холодным фиолетовым бликом
+      for (let i = 0; i < 7; i++) {
+        const a = (i % 2 ? 1 : -1) * (0.45 + rnd() * 0.45), [x] = slopeAt(v, a, 0), r = (10 + rnd() * 16) * K * v.sc, y = v.base
+        const tip = [x + (rnd() - 0.5) * r * 0.8, y - r * (1.1 + rnd() * 0.8)]
+        const L = [x - r * (0.6 + rnd() * 0.3), y], R = [x + r * (0.6 + rnd() * 0.3), y], mid = [x + (rnd() - 0.5) * r * 0.3, y - r * 0.4]
+        bg.beginPath(); bg.moveTo(...L); bg.lineTo(...tip); bg.lineTo(...R); bg.closePath()
+        bg.fillStyle = 'rgba(10, 7, 16, .98)'; bg.fill()
+        bg.beginPath(); bg.moveTo(...L); bg.lineTo(...tip); bg.lineTo(...mid); bg.closePath()
+        bg.fillStyle = 'rgba(80, 60, 120, .3)'; bg.fill()
+        bg.strokeStyle = 'rgba(200, 185, 255, .35)'; bg.lineWidth = 1 * K
+        bg.beginPath(); bg.moveTo(...tip); bg.lineTo(...mid); bg.stroke()
       }
     }
     s.steamWarm = puffSprite('255, 170, 120', 0.5)
@@ -648,56 +661,58 @@ const magma = {
     g.clearRect(0, 0, W, H)
     const top = H - s.poolH
     const surf = x => top + Math.sin(x * 0.011 / K + t * 0.5) * 2.5 * K + Math.sin(x * 0.027 / K - t * 0.7) * 1.4 * K
-    // жар у земли — медленно дышит
     const heat = g.createLinearGradient(0, H, 0, H - 220 * K)
     heat.addColorStop(0, `rgba(255, 90, 20, ${0.18 + 0.03 * Math.sin(t * 0.4)})`); heat.addColorStop(1, 'rgba(255, 60, 10, 0)')
     g.fillStyle = heat; g.fillRect(0, H - 220 * K, W, 220 * K)
-    // пепел
     g.fillStyle = 'rgba(90, 80, 80, .45)'
     g.beginPath()
     for (const a of s.ash) { a.y += a.v * dt; if (a.y > H) { a.y = -4; a.x = Math.random() * W } const x = a.x + Math.sin(t * 0.5 + a.ph) * 12 * K; g.moveTo(x + a.r, a.y); g.arc(x, a.y, a.r, 0, TAU) }
     g.fill()
     // пар из кратеров: клубы поднимаются, растут, сносит в сторону; у кратера подсвечены лавой
-    for (const v of s.volcs) {
-      if (!s.still && Math.random() < dt * 5) s.steam.push({ x: v.cx + (Math.random() - 0.5) * v.cw * 0.5, y: v.crater, age: 0, life: 7 + Math.random() * 5, ph: Math.random() * TAU, sc: v.sc })
-    }
+    for (const v of s.volcs) if (!s.still && Math.random() < dt * 5) s.steam.push({ x: v.cx + (Math.random() - 0.5) * v.cw * 0.4, y: v.rimY, age: 0, life: 7 + Math.random() * 5, ph: Math.random() * TAU, sc: v.sc })
     for (const p of s.steam) {
       p.age += dt
       const u = p.age / p.life
       p.y -= (18 + 14 * (1 - u)) * K * dt * p.sc
       p.x += (6 + Math.sin(p.age * 0.7 + p.ph) * 8) * K * dt
-      const r = (12 + u * 70) * K * p.sc, a = 0.32 * Math.min(1, p.age * 1.5) * (1 - u)
-      g.globalAlpha = a
+      const r = (12 + u * 70) * K * p.sc
+      g.globalAlpha = 0.3 * Math.min(1, p.age * 1.5) * (1 - u)
       g.drawImage(u < 0.25 ? s.steamWarm : s.steamCool, p.x - r, p.y - r, r * 2, r * 2)
     }
     g.globalAlpha = 1
     s.steam = s.steam.filter(p => p.age < p.life)
     g.drawImage(s.body, 0, 0)
-    // кратер: свечение и лава в чаше — медленный пульс
-    g.globalCompositeOperation = 'lighter'
+    g.lineCap = 'round'; g.lineJoin = 'round'
     for (const v of s.volcs) {
-      const p = 0.75 + 0.25 * Math.sin(t * 0.6 + v.cx)
-      glow(g, v.cx, v.crater, v.cw * 1.6, '255, 120, 40', 0.35 * p)
-      g.fillStyle = `rgba(255, 190, 90, ${0.75 * p})`
-      g.beginPath(); g.ellipse(v.cx, v.crater + v.h * 0.025, v.cw * 0.42, v.h * 0.018 + 2 * K, 0, 0, TAU); g.fill()
-      // лавовые реки: тёмно-красная подложка, оранжевое тело, светлая сердцевина течёт вниз; бегут сгустки
-      g.lineCap = 'round'; g.lineJoin = 'round'
+      const p = 0.78 + 0.22 * Math.sin(t * 0.6 + v.cx)
+      // чаша кратера: раскалённая лава, тёмный передний край
+      const cy = v.rimY + v.tilt / 2, rx = v.cw / 2, ry = v.cw * 0.16
+      const lv = g.createRadialGradient(v.cx, cy, 0, v.cx, cy, rx)
+      lv.addColorStop(0, `rgba(255, 235, 160, ${0.95 * p})`); lv.addColorStop(0.5, `rgba(255, 150, 50, ${0.9 * p})`); lv.addColorStop(1, 'rgba(180, 50, 15, .9)')
+      g.fillStyle = lv; g.beginPath(); g.ellipse(v.cx, cy, rx * 0.92, ry * 0.85, 0, 0, TAU); g.fill()
+      g.strokeStyle = 'rgba(40, 22, 22, .95)'; g.lineWidth = 3 * K * v.sc
+      g.beginPath(); g.ellipse(v.cx, cy, rx, ry, 0, 0, Math.PI); g.stroke() // передний каменный край
+      g.globalCompositeOperation = 'lighter'
+      glow(g, v.cx, cy, v.cw * 1.3, '255, 120, 40', 0.28 * p)
+      // реки лавы: подложка, тело, светлая сердцевина течёт вниз; у подножия — разлив
       for (const f of v.flows) {
         const path = () => { g.beginPath(); f.pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))) }
-        path(); g.strokeStyle = 'rgba(160, 30, 10, .55)'; g.lineWidth = f.w * 2.2 * v.sc; g.stroke()
-        if (f.cool) { const [ex, ey] = f.pts[f.pts.length - 1]; glow(g, ex, ey, f.w * 3, '255, 90, 30', 0.35) }
-        path(); g.strokeStyle = 'rgba(255, 110, 30, .65)'; g.lineWidth = f.w * v.sc; g.stroke()
-        g.setLineDash([10 * K, 14 * K]); g.lineDashOffset = -t * 14 * K
-        path(); g.strokeStyle = 'rgba(255, 220, 140, .7)'; g.lineWidth = f.w * 0.4 * v.sc; g.stroke()
+        path(); g.strokeStyle = 'rgba(170, 35, 10, .5)'; g.lineWidth = f.w * 2.4; g.stroke()
+        path(); g.strokeStyle = 'rgba(255, 115, 35, .7)'; g.lineWidth = f.w; g.stroke()
+        g.setLineDash([9 * K, 13 * K]); g.lineDashOffset = -t * 12 * K
+        path(); g.strokeStyle = 'rgba(255, 225, 150, .75)'; g.lineWidth = f.w * 0.4; g.stroke()
         g.setLineDash([])
+        const [ex, ey] = f.pts[f.pts.length - 1]
+        if (f.cool) glow(g, ex, ey, f.w * 3, '255, 80, 25', 0.3)
+        else { g.fillStyle = 'rgba(255, 130, 40, .55)'; g.beginPath(); g.ellipse(ex, ey, f.w * 3.2, f.w * 0.9, 0, 0, TAU); g.fill() }
         for (let k = 0; k < 2; k++) {
-          const u = (t * 0.05 + k / 2 + f.ph) % 1, i = Math.min(f.pts.length - 2, Math.floor(u * (f.pts.length - 1))), fr = u * (f.pts.length - 1) - i
-          const [ax, ay] = f.pts[i], [bx, by] = f.pts[i + 1]
-          glow(g, ax + (bx - ax) * fr, ay + (by - ay) * fr, 8 * K * v.sc, '255, 210, 130', 0.55)
+          const u = (t * 0.045 + k / 2 + f.ph) % 1, idx = Math.min(f.pts.length - 2, Math.floor(u * (f.pts.length - 1))), fr = u * (f.pts.length - 1) - idx
+          const [ax, ay] = f.pts[idx], [bx, by] = f.pts[idx + 1]
+          glow(g, ax + (bx - ax) * fr, ay + (by - ay) * fr, f.w * 2.6, '255, 215, 140', 0.5)
         }
       }
+      g.globalCompositeOperation = 'source-over'
     }
-    g.globalCompositeOperation = 'source-over'
     // лавовое озеро: течёт, корка дрейфует
     const lava = g.createLinearGradient(0, top - 4 * K, 0, H)
     lava.addColorStop(0, 'rgba(255, 185, 80, .95)'); lava.addColorStop(0.4, 'rgba(255, 110, 30, .95)'); lava.addColorStop(1, 'rgba(150, 30, 10, .95)')
@@ -710,28 +725,24 @@ const magma = {
       c.x = (c.x + c.v * dt) % (W + c.w)
       g.beginPath(); g.ellipse(c.x - c.w / 2, surf(c.x) + s.poolH * 0.45, c.w / 2, s.poolH * (0.18 + 0.05 * Math.sin(t * 0.6 + c.ph)), 0, 0, TAU); g.fill()
     }
-    // где лава стекает в озеро — шипит струйками пара
-    if (!s.still) for (const v of s.volcs) for (const f of v.flows) if (Math.random() < dt * 1.6) { const [x] = f.pts[f.pts.length - 1]; s.puffs.push({ x, y: top, age: 0, life: 1.8 + Math.random(), ph: Math.random() * TAU }) }
+    // пар там, где лава стекает в озеро
+    if (!s.still) for (const v of s.volcs) for (const f of v.flows) if (!f.cool && Math.random() < dt * 1.4) { const [x] = f.pts[f.pts.length - 1]; s.puffs.push({ x, y: top, age: 0, life: 1.8 + Math.random(), ph: Math.random() * TAU }) }
     for (const p of s.puffs) {
       p.age += dt
       const u = p.age / p.life
       p.y -= 30 * K * dt; p.x += Math.sin(p.age * 3 + p.ph) * 10 * K * dt
       const r = (5 + u * 22) * K
-      g.globalAlpha = 0.28 * (1 - u) * Math.min(1, p.age * 4)
+      g.globalAlpha = 0.26 * (1 - u) * Math.min(1, p.age * 4)
       g.drawImage(s.steamCool, p.x - r, p.y - r, r * 2, r * 2)
     }
     g.globalAlpha = 1
     s.puffs = s.puffs.filter(p => p.age < p.life)
-    // пузыри на озере: медленно вспухают и тихо лопаются
+    // пузыри на озере
     if (!s.still && t > s.nextBubble) { s.bubbles.push({ x: Math.random() * W, t0: t, r: (3 + Math.random() * 5) * K }); s.nextBubble = t + 0.9 + Math.random() * 1.8 }
     g.globalCompositeOperation = 'lighter'
     for (const b of s.bubbles) {
       const a = t - b.t0, y = surf(b.x)
-      if (a < 1.4) {
-        const r = b.r * Math.min(1, a / 1.4)
-        g.fillStyle = 'rgba(255, 170, 60, .5)'
-        g.beginPath(); g.ellipse(b.x, y, r, r * 0.8, 0, Math.PI, TAU); g.fill()
-      } else {
+      if (a < 1.4) { const r = b.r * Math.min(1, a / 1.4); g.fillStyle = 'rgba(255, 170, 60, .5)'; g.beginPath(); g.ellipse(b.x, y, r, r * 0.8, 0, Math.PI, TAU); g.fill() } else {
         const u = a - 1.4
         g.strokeStyle = `rgba(255, 200, 100, ${Math.max(0, 0.5 - u * 0.8)})`; g.lineWidth = 1.2 * K
         g.beginPath(); g.ellipse(b.x, y, b.r * (1 + u * 2.5), b.r * 0.3 * (1 + u * 2), 0, 0, TAU); g.stroke()
@@ -739,7 +750,7 @@ const magma = {
     }
     s.bubbles = s.bubbles.filter(b => t - b.t0 < 2.2)
     // искры из кратера — редкие и неспешные
-    if (!s.still) for (const v of s.volcs) if (Math.random() < dt * 3 * v.sc) s.embers.push({ x: v.cx + (Math.random() - 0.5) * v.cw * 0.4, y: v.crater, vx: (Math.random() - 0.5) * 30 * K, vy: (40 + Math.random() * 40) * K, life: 2 + Math.random() * 2.5, age: 0, ph: Math.random() * TAU, r: (0.8 + Math.random() * 1.2) * K })
+    if (!s.still) for (const v of s.volcs) if (Math.random() < dt * 3 * v.sc) s.embers.push({ x: v.cx + (Math.random() - 0.5) * v.cw * 0.4, y: v.rimY, vx: (Math.random() - 0.5) * 30 * K, vy: (40 + Math.random() * 40) * K, life: 2 + Math.random() * 2.5, age: 0, ph: Math.random() * TAU, r: (0.8 + Math.random() * 1.2) * K })
     for (const m of s.embers) {
       m.age += dt; m.y -= m.vy * dt; m.x += (m.vx + Math.sin(m.age * 2 + m.ph) * 10 * K) * dt; m.vy -= 6 * K * dt
       const u = m.age / m.life, fl = 0.75 + 0.25 * Math.sin(t * 7 + m.ph)
