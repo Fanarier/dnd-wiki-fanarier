@@ -354,12 +354,12 @@ function workDay(cast, p, place, B, r, end) {
       // в поле — внутри участка, на стройке и в карьере — по краю
       const spot = around(0, p.job === 'farmer')
       B.walk(spot, { direct: true })
-      B.stay(p.job === 'builder' ? 'build' : JOB_ACT[p.job] || 'work', B.t + between(r, 25, 50))
+      B.stay(p.job === 'builder' ? 'build' : JOB_ACT[p.job] || 'work', B.t + between(r, 8, 18))
     } else {
       // в мастерской, таверне, на рынке: вдоль стороны с дверью
       const spot = byPlace(place, r, 0.7)
       B.walk(spot, { direct: true })
-      B.stay(act, B.t + between(r, 40, 90))
+      B.stay(act, B.t + between(r, 8, 20))
     }
   }
   B.stay(act === 'chop' ? 'work' : act, end, { at: B.at })
@@ -400,7 +400,7 @@ function idleDay(cast, p, B, r, end) {
     const pl = k < 0.3 ? cast.market : k < 0.5 ? cast.store : k < 0.65 && cast.wells.length ? pick(r, cast.wells) : null
     const dest = pl ? byPlace(pl, r) : k < 0.8 ? [cast.plaza[0] + between(r, -16, 16), cast.plaza[1] + between(r, -16, 16)] : (cast.byId[p.home]?.door || cast.plaza)
     B.walk(dest, { act: 'walk' })
-    B.stay(k < 0.65 ? 'errand' : k < 0.8 ? 'stroll' : 'home', B.t + between(r, 30, 90), { hidden: k >= 0.8 })
+    B.stay(k < 0.65 ? 'errand' : k < 0.8 ? 'stroll' : 'home', B.t + (k >= 0.8 ? between(r, 30, 70) : between(r, 8, 25)), { hidden: k >= 0.8 })
   }
 }
 // дети: днём играют у дома и на площади, водоносы бегают с вёдрами
@@ -412,23 +412,25 @@ function kidDay(cast, p, B, r, day, end) {
     if (well) { waterRun(cast, p, B, r, well); continue }
     const near = r() < 0.6 ? home : cast.plaza
     B.walk([near[0] + between(r, -18, 18), near[1] + between(r, -18, 18)], { direct: dist(B.at, near) < 120 })
-    B.stay('play', B.t + between(r, 20, 50))
+    B.stay('play', B.t + between(r, 4, 12))
   }
 }
 // вечер: таверна, болтовня у дома, прогулка
 function evening(cast, p, B, r, day) {
   const bed = 21 * 60 + between(r, 0, 90)
   const k = r()
+  // вечер кусками: постояли, перешли к другой компании — не стоят столбом весь вечер
   if (k < 0.45 && cast.tavern) {
-    B.walk(byPlace(cast.tavern, r, 1.1))
-    B.stay('tavern', bed, { social: 'tavern' })
+    while (B.t < bed - 5) { B.walk(byPlace(cast.tavern, r, 1.1)); B.stay('tavern', Math.min(bed, B.t + between(r, 20, 40)), { social: 'tavern' }) }
   } else if (k < 0.8) {
     const home = cast.byId[p.home]?.door || cast.plaza
-    B.walk([home[0] + between(r, -5, 5), home[1] + between(r, -5, 5)])
-    B.stay('home', bed, { social: 'home', hidden: r() < 0.5 })
+    const inside = r() < 0.5
+    while (B.t < bed - 5) {
+      B.walk([home[0] + between(r, -8, 8), home[1] + between(r, -8, 8)])
+      B.stay('home', Math.min(bed, B.t + between(r, inside ? 60 : 15, inside ? 120 : 35)), { social: 'home', hidden: inside })
+    }
   } else {
-    B.walk([cast.plaza[0] + between(r, -25, 25), cast.plaza[1] + between(r, -25, 25)])
-    B.stay('stroll', bed, { social: 'plaza' })
+    while (B.t < bed - 5) { B.walk([cast.plaza[0] + between(r, -25, 25), cast.plaza[1] + between(r, -25, 25)]); B.stay('stroll', Math.min(bed, B.t + between(r, 8, 20)), { social: 'plaza' }) }
   }
 }
 // разговоры: кто вечером в одном месте — болтают парами; днём на площади — тоже
@@ -444,9 +446,13 @@ function pairChats(cast, plans, day) {
   }
   let n = 0
   for (const list of groups.values()) {
-    list.sort((a, b) => hash(a.id + day) - hash(b.id + day))
-    for (let i = 0; i + 1 < list.length; i += 2) {
+    list.sort((a, b) => hash(a.id + day + a.sg.t0) - hash(b.id + day + b.sg.t0))
+    const used = new Set()
+    for (let i = 0; i + 1 < list.length; i++) {
       const A = list[i], Bq = list[i + 1]
+      // сам с собой не болтает; кусок вечера — только в одной беседе
+      if (A.id === Bq.id || used.has(A.sg) || used.has(Bq.sg)) continue
+      used.add(A.sg); used.add(Bq.sg)
       const t0 = Math.max(A.sg.t0, Bq.sg.t0), t1 = Math.min(A.sg.t1, Bq.sg.t1)
       if (t1 - t0 < 15) continue
       const talk = { id: `c${day}-${n++}`, a: A.id, b: Bq.id, t0, t1: Math.min(t1, t0 + 45) }

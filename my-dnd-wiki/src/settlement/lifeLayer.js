@@ -84,6 +84,8 @@ export function createLifeLayer(canvas, get) {
       const r = p.kid ? r0 * 0.72 : r0
       const ph = (p.id.charCodeAt(p.id.length - 1) * 37) % 100
       if (pos.moving) y += Math.sin(rt / 90 + ph) * r * 0.12
+      // стоя тоже живые: переминаются, поворачиваются
+      else if (!pos.talk) { x += Math.sin(rt / 1300 + ph) * r * 0.3; y += Math.cos(rt / 1700 + ph * 1.7) * r * 0.22; pos.dir = (pos.dir ?? 0) + Math.sin(rt / 2100 + ph) * 0.8 }
       // дозор ночью — с факелом
       if (pos.act === 'patrol' && dk > 0.3) {
         const g = ctx.createRadialGradient(x, y, 0, x, y, Math.max(8 * k, 14))

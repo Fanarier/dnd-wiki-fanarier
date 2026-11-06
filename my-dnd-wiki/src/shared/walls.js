@@ -162,3 +162,44 @@ export function roadCrossings(walls, roads, curveOf) {
   }
   return out
 }
+
+// плавная линия стены (как у дорог — Катмулл — Ром через точки, отрезки ~2 м), но острый угол (поворот круче 65°)
+// остаётся углом: угловую башню или прямоугольный острог не скругляем
+const curveCache = new WeakMap()
+export function wallCurve(points) {
+  if (!points || points.length < 3) return points || []
+  if (curveCache.has(points)) return curveCache.get(points)
+  const pieces = []
+  let cur = [points[0]]
+  for (let i = 1; i < points.length; i++) {
+    cur.push(points[i])
+    if (i < points.length - 1) {
+      const a = points[i - 1], b = points[i], c = points[i + 1]
+      let d = Math.abs(Math.atan2(c[1] - b[1], c[0] - b[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]))
+      if (d > Math.PI) d = 2 * Math.PI - d
+      if (d > (65 * Math.PI) / 180) { pieces.push(cur); cur = [points[i]] }
+    }
+  }
+  pieces.push(cur)
+  const out = []
+  for (const p of pieces) {
+    const c = catmull(p)
+    out.push(...(out.length ? c.slice(1) : c))
+  }
+  curveCache.set(points, out)
+  return out
+}
+function catmull(pts) {
+  if (pts.length < 3) return pts
+  const out = [pts[0]]
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]
+    const n = Math.max(2, Math.min(60, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2)))
+    for (let k = 1; k <= n; k++) {
+      const u = k / n, u2 = u * u, u3 = u2 * u
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3)
+      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])])
+    }
+  }
+  return out
+}
