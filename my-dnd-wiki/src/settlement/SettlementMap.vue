@@ -241,6 +241,10 @@
       </template>
       <em v-else-if="!clockView.speed" title="Мастер поставил время на паузу">пауза</em>
     </div>
+    <!-- куда сошлось много народу: щёлкни — карта туда -->
+    <div v-if="crowds.length" class="sm-crowds" @pointerdown.stop>
+      <button v-for="(g, i) in crowds" :key="i" type="button" :class="{ riot: g.icon === '✊' }" :disabled="!g.at" @click.stop="g.at && focusAt(g.at.x, g.at.y, 2.5)"><span>{{ g.icon }}</span>{{ g.text }}</button>
+    </div>
 
     <!-- подсказки -->
     <div v-if="wallDraftInfo" class="sm-tip" :style="tipPos">
@@ -283,7 +287,7 @@ import { marchCtx, planPath, marchState, marchTiming, msPerMeter, densify, edgeP
 import { squadAt, spotLabel } from './march.js'
 import { createLifeLayer } from './lifeLayer.js'
 import { simplifyLine } from '../shared/geo.js'
-import { buildCast, dayPlans, personAt, ACTS, jobLabel } from '../shared/life.js'
+import { buildCast, dayPlans, personAt, ACTS, jobLabel, snapshotAt, gatherings } from '../shared/life.js'
 import { clockMin, clockOf, dayTime, partOfDay, darkness, CLOCK_SPEEDS, DAY_MIN } from '../shared/clock.js'
 import { RACES } from '../shared/settlement.js'
 
@@ -1349,6 +1353,12 @@ const clockView = computed(() => {
   const t = clockMin(props.settlement, clockNow.value + (store.clockOffset || 0)), dt = dayTime(t), pd = partOfDay(dt.of)
   return { time: dt.text, day: dt.day, icon: pd.icon, part: pd.label, dark: darkness(dt.of) > 0.3, speed: clockOf(props.settlement).speed || 0 }
 })
+// сборища — раз в секунду вместе с часами
+const crowds = computed(() => {
+  const t = clockMin(props.settlement, clockNow.value + (store.clockOffset || 0)), day = Math.floor(t / DAY_MIN)
+  const cast = buildCast(props.settlement)
+  return gatherings(cast, snapshotAt(cast, dayPlans(cast, day), t - day * DAY_MIN), t - day * DAY_MIN)
+})
 // кто это и что делает сейчас
 function personInfo(id) {
   const cast = buildCast(props.settlement)
@@ -1363,6 +1373,10 @@ function focusPerson(id) {
   const info = personInfo(id)
   if (!info?.st) return false
   personSel.value = id
+  // внутри постройки — показываем саму постройку (на ней значок, сколько народу внутри)
+  const pl = info.st.hidden && info.st.sg?.place && buildCast(props.settlement).byId[info.st.sg.place]
+  if (pl) { focusAt(pl.x, pl.y, 4); return true }
+  if (info.st.hidden) return false
   const k = Math.max(view.k, 5)
   Object.assign(view, { k, x: size.w / 2 - info.st.x * k, y: size.h / 2 - info.st.y * k })
   scheduleDraw()
@@ -1406,11 +1420,16 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm.grabbing { cursor: grabbing; }
 .sm-tiles { position: absolute; inset: 0; width: 100%; height: 100%; }
 .sm-life { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.sm-clock { position: absolute; z-index: 2; left: 10px; bottom: 44px; display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 11px; background: rgba(23, 19, 14, .9); border: 1px solid #8a6630; color: #e9dfc8; font: 700 12.5px 'Manrope', sans-serif; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.sm-clock { position: absolute; z-index: 2; left: 50%; bottom: 48px; transform: translateX(-50%); white-space: nowrap; display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 11px; background: rgba(23, 19, 14, .9); border: 1px solid #8a6630; color: #e9dfc8; font: 700 12.5px 'Manrope', sans-serif; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
 .sm-clock b { font: 700 17px 'Cormorant Garamond', Georgia, serif; color: #f3d99a; font-variant-numeric: tabular-nums; }
 .sm-clock small { color: #a8936c; font-weight: 700; }
 .sm-clock em { font-style: normal; color: #ffb36b; font-size: 11.5px; }
 .sm-clock.night { border-color: #4f5c8a; }
+.sm-crowds { position: absolute; z-index: 2; right: 10px; bottom: 190px; display: grid; justify-items: end; gap: 4px; max-width: min(320px, 70%); }
+.sm-crowds button { display: flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .35); background: rgba(23, 19, 14, .88); color: #e9dfc8; font: 700 12px 'Manrope', sans-serif; cursor: pointer; text-align: left; animation: sm-crowd-in .35s ease-out; }
+.sm-crowds button:disabled { cursor: default; }
+.sm-crowds button.riot { border-color: rgba(255, 107, 91, .7); color: #ffc2bb; }
+@keyframes sm-crowd-in { from { opacity: 0; transform: translateX(10px); } }
 .sm-clock button { min-width: 26px; padding: 2px 6px; border-radius: 7px; border: 1px solid rgba(231, 197, 111, .25); background: none; color: #d9cdb0; font: 700 11.5px 'Manrope', sans-serif; cursor: pointer; }
 .sm-clock button.on { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border-color: transparent; }
 .sm-svg { position: relative; display: block; }

@@ -1,6 +1,6 @@
 // Слой жизни на карте поселения: жители ходят, работают, болтают; сумерки, ночь и огни в окнах.
 // Рисуем на отдельном холсте поверх карты; положение жителей — из life.js по часам поселения.
-import { buildCast, dayPlans, personAt, lineNow } from '../shared/life.js'
+import { buildCast, dayPlans, personAt, lineNow, snapshotAt, insideCounts, ACTS } from '../shared/life.js'
 import { clockMin, darkness, DAY_MIN } from '../shared/clock.js'
 import { RACE_COLORS } from './armyFaces.js'
 
@@ -11,7 +11,7 @@ const CLOTH = {
   mechanic: '#4d5560', poultry: '#b8a06a', storekeeper: '#7a6a8f', septic: '#6b6450', free: '#9b8c74'
 }
 const CARRY = { log: '#7a4f2a', bucket: '#5f8fbf', basket: '#b08150', meat: '#c0392b' }
-const TOOLS = { chop: 1, build: 1, mine: 1, farm: 1, patrol: 0, gather: 0 }
+const TOOLS = { chop: 1, build: 1, mine: 1, farm: 1, patrol: 0, gather: 0, riot: 1 }
 const EARS = { fenris: 'wolf', neko: 'cat', kitsune: 'fox' }
 
 export function createLifeLayer(canvas, get) {
@@ -103,6 +103,17 @@ export function createLifeLayer(canvas, get) {
       if (k >= 9) label(ctx, p.name.split(' ')[0], x, y + r * 2.4)
     }
     for (const b of bubbles.slice(0, 16)) bubble(ctx, b.x, b.y, b.text)
+    // кто внутри построек: значок с числом в углу плашки — видно, что народ в таверне, а не на дороге рядом
+    if (k >= 0.7) {
+      const inside = insideCounts(snapshotAt(cast, plans, tod))
+      for (const [id, e] of Object.entries(inside)) {
+        const pl = cast.byId[id]
+        if (!pl) continue
+        const x = sx(pl.x + pl.h), y = sy(pl.y - pl.h)
+        if (x < -30 || y < -30 || x > W + 30 || y > H + 30) continue
+        badge(ctx, x, y, `${ACTS[e.act]?.icon || '⚒'} ${e.n}`)
+      }
+    }
   }
 
   return {
@@ -169,6 +180,17 @@ function drawPerson(ctx, p, pos, x, y, r, rt, ph, sel) {
       ctx.lineTo(bx + Math.cos(a + 1.3) * r * 0.25, by + Math.sin(a + 1.3) * r * 0.25); ctx.lineTo(bx + Math.cos(a - 1.3) * r * 0.25, by + Math.sin(a - 1.3) * r * 0.25); ctx.fill()
     }
   }
+}
+function badge(ctx, x, y, text) {
+  ctx.font = '800 12px Manrope, sans-serif'
+  const w = ctx.measureText(text).width + 12, h = 20
+  ctx.fillStyle = 'rgba(23, 19, 14, .9)'
+  ctx.strokeStyle = '#e7c56f'; ctx.lineWidth = 1.2
+  ctx.beginPath()
+  ctx.roundRect ? ctx.roundRect(x - w / 2, y - h / 2, w, h, 10) : ctx.rect(x - w / 2, y - h / 2, w, h)
+  ctx.fill(); ctx.stroke()
+  ctx.fillStyle = '#f3d99a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(text, x, y + 0.5)
 }
 function bubble(ctx, x, y, text) {
   const t = text.length > 46 ? text.slice(0, 44) + '…' : text

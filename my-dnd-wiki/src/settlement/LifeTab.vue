@@ -44,7 +44,7 @@
     <h4>Лента <small>сегодня, новые сверху</small></h4>
     <div class="feed">
       <p v-if="!feed.length" class="muted">Пока тихо — утро только началось.</p>
-      <button v-for="(m, i) in feed" :key="i" type="button" class="fd" @click="m.who && $emit('person', m.who)"><time>{{ hhmm(m.t) }}</time><span>{{ m.icon }}</span><em>{{ m.text }}</em></button>
+      <button v-for="(m, i) in feed" :key="i" type="button" class="fd" @click="m.who && ($emit('person', m.who), $emit('focus', m.who))" :title="m.who ? 'Показать жителя' : ''"><time>{{ hhmm(m.t) }}</time><span>{{ m.icon }}</span><em>{{ m.text }}</em></button>
     </div>
 
     <!-- все жители -->

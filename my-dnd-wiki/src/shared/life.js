@@ -52,7 +52,8 @@ export const ACTS = {
   stroll: { label: 'гуляет', group: 'Гуляют', icon: '🌿' },
   errand: { label: 'по делам', group: 'По делам', icon: '📦' },
   play: { label: 'играет', group: 'Дети играют', icon: '🪁' },
-  eat: { label: 'обедает', group: 'Обедают', icon: '🍲' }
+  eat: { label: 'обедает', group: 'Обедают', icon: '🍲' },
+  riot: { label: 'бунтует на площади', group: 'Бунтуют', icon: '✊' }
 }
 // работа → что делает на месте
 const JOB_ACT = { lumberjack: 'chop', hunter: 'hunt', gatherer: 'gather', farmer: 'farm', watercarrier: 'water', guard: 'patrol', miner: 'mine', innkeeper: 'serve', trader: 'trade' }
@@ -209,7 +210,9 @@ function makeCast(s) {
   const market = places.find(p => p.type === 'market' && p.built)
   const wells = places.filter(p => p.type === 'well' && p.built)
   const store = places.find(p => (p.type === 'storehouse' || p.type === 'barn') && p.built)
-  return { s, people, places, byId, g, sites, patrols, tavern, market, wells, store, plaza, elder, morale: c.morale, r0: r0() }
+  // недовольство: мораль или стабильность сильно ниже нуля — вечером на площадь выходят бунтовать
+  const unrest = c.morale < -20 || c.stability < -30
+  return { s, people, places, byId, g, sites, patrols, tavern, market, wells, store, plaza, elder, morale: c.morale, unrest, r0: r0() }
 }
 
 /* ---------- распорядок дня ---------- */
@@ -327,7 +330,7 @@ function workDay(cast, p, place, B, r, end) {
   const act = p.job === 'builder' ? 'build' : JOB_ACT[p.job] || 'work'
   if (!OUTDOOR.has(p.job)) {
     // внутри: зашёл — и до вечера (обед — тоже внутри)
-    B.stay(act, end, { at: place.door, hidden: true })
+    B.stay(act, end, { at: place.door, hidden: true, place: place.id })
     return
   }
   const lunch = 12 * 60 + between(r, 0, 40)
@@ -408,7 +411,8 @@ function idleDay(cast, p, B, r, end) {
     const dest = pl ? byPlace(pl, r) : k < 0.8 ? [cast.plaza[0] + between(r, -16, 16), cast.plaza[1] + between(r, -16, 16)] : (cast.byId[p.home]?.door || cast.plaza)
     B.walk(dest, { act: 'walk' })
     // на складе — внутри; рынок, колодец, площадь — на виду
-    B.stay(k < 0.65 ? 'errand' : k < 0.8 ? 'stroll' : 'home', B.t + (k >= 0.8 ? between(r, 30, 70) : between(r, 8, 25)), { hidden: k >= 0.8 || (k >= 0.3 && k < 0.5 && pl === cast.store) })
+    const inStore = k >= 0.3 && k < 0.5 && pl === cast.store
+    B.stay(k < 0.65 ? 'errand' : k < 0.8 ? 'stroll' : 'home', B.t + (k >= 0.8 ? between(r, 30, 70) : between(r, 8, 25)), { hidden: k >= 0.8 || inStore, ...(inStore ? { place: pl.id } : {}) })
   }
 }
 // дети: днём играют у дома и на площади, водоносы бегают с вёдрами
@@ -427,13 +431,17 @@ function kidDay(cast, p, B, r, day, end) {
 function evening(cast, p, B, r, day) {
   const bed = 21 * 60 + between(r, 0, 90)
   const k = r()
+  if (cast.unrest && k < 0.4) {
+    while (B.t < bed - 5) { B.walk([cast.plaza[0] + between(r, -20, 20), cast.plaza[1] + between(r, -20, 20)]); B.stay('riot', Math.min(bed, B.t + between(r, 6, 14)), { social: 'plaza' }) }
+    return
+  }
   // вечер кусками: постояли, перешли к другой компании — не стоят столбом весь вечер
   if (k < 0.45 && cast.tavern) {
     while (B.t < bed - 5) {
       // большинство сидит внутри; немногие выходят на крыльцо — их видно, они болтают
       const out = r() < 0.3
       B.walk(out ? byPlace(cast.tavern, r, 1.1) : cast.tavern.door)
-      B.stay('tavern', Math.min(bed, B.t + between(r, 20, 40)), { social: out ? 'tavern' : 'tavern-in', hidden: !out })
+      B.stay('tavern', Math.min(bed, B.t + between(r, 20, 40)), { social: out ? 'tavern' : 'tavern-in', hidden: !out, place: cast.tavern.id })
     }
   } else if (k < 0.8) {
     const home = cast.byId[p.home]?.door || cast.plaza
@@ -548,6 +556,43 @@ export function lineNow(cast, talk, t, byId) {
   return lines[k]
 }
 
+const day0 = sg => Math.floor(sg.t0 / 60)
+
+/* ---------- сборища: куда сошлось много народу (для подсказки на карте) ---------- */
+// snap — snapshotAt; вернёт [{ icon, text, at: { x, y }, n }] — самые заметные сверху
+export function gatherings(cast, snap, tod) {
+  const out = []
+  const by = (f) => snap.filter(x => x.act !== 'away' && f(x))
+  const at = pl => (pl ? { x: pl.x, y: pl.y } : { x: cast.plaza[0], y: cast.plaza[1] })
+  const tav = by(x => x.act === 'tavern')
+  if (cast.tavern && tav.length >= 5) out.push({ icon: '🍺', n: tav.length, text: `${tav.length} ${plural(tav.length, 'житель гуляет', 'жителя гуляют', 'жителей гуляют')} в таверне${tod > 22 * 60 ? ' — до ночи' : ''}`, at: at(cast.tavern) })
+  const riot = by(x => x.act === 'riot')
+  if (riot.length >= 3) out.push({ icon: '✊', n: riot.length + 100, text: `Бунт на площади: ${riot.length} недовольных`, at: at(null) })
+  const plaza = by(x => x.act === 'stroll')
+  if (plaza.length >= 6) out.push({ icon: '🎶', n: plaza.length, text: `Гуляния на площади: ${plaza.length}`, at: at(null) })
+  // стройки с народом
+  const sites = new Map()
+  for (const x of by(x => x.act === 'build')) sites.set(x.p.work, (sites.get(x.p.work) || 0) + 1)
+  for (const [id, n] of sites) if (n >= 3) out.push({ icon: '🔨', n, text: `Стройка «${cast.byId[id]?.name || 'постройка'}»: ${n} ${plural(n, 'строитель', 'строителя', 'строителей')}`, at: at(cast.byId[id]) })
+  const walk = by(x => x.moving)
+  if (walk.length >= 12 && tod > 5 * 60 && tod < 9 * 60) out.push({ icon: '🚶', n: walk.length, text: `Утро: ${walk.length} идут на работу`, at: at(null) })
+  const sleep = by(x => x.act === 'sleep').length
+  if (sleep > snap.length * 0.7) out.push({ icon: '💤', n: 0, text: 'Деревня спит', at: null })
+  return out.sort((a, b) => b.n - a.n).slice(0, 4)
+}
+// сколько народу внутри каждой постройки сейчас: { [id]: { n, act } }
+export function insideCounts(snap) {
+  const m = {}
+  for (const x of snap) {
+    const pl = x.sg?.place
+    if (!x.hidden || !pl) continue
+    const e = (m[pl] ||= { n: 0, act: x.act })
+    e.n++
+  }
+  return m
+}
+const plural = (n, one, few, many) => (n % 10 === 1 && n % 100 !== 11 ? one : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? few : many)
+
 /* ---------- сводка и лента ---------- */
 export function snapshotAt(cast, plans, t) {
   const out = []
@@ -565,11 +610,16 @@ export function moments(cast, plans, t, limit = 60) {
   const name = p => `${p.name}${p.kid ? '' : ` (${jobLabel(p)})`}`
   const seenTalk = new Set()
   for (const p of cast.people) {
+    let prev = null
     for (const sg of plans[p.id] || []) {
       if (sg.t0 > t) break
+      const was = prev
+      prev = sg.act === 'walk' ? prev : sg.act
+      const n0 = out.length
       if (sg.act === 'chop' && sg.t1 <= t && hash(p.id + sg.t0) % 3 === 0) out.push({ t: sg.t1, icon: '🪓', text: `${name(p)} свалил${p.sex === 'f' ? 'а' : ''} дерево` })
       if (sg.act === 'hunt' && sg.t1 <= t && p.group != null && hash(p.id) % 3 === 0) out.push({ t: sg.t1, icon: '🏹', text: `Охотники возвращаются${sg.carry !== null ? ' с добычей' : ''}` })
-      if (sg.act === 'tavern' && hash(p.id + sg.t0) % 4 === 0) out.push({ t: sg.t0, icon: '🍺', text: `${name(p)} зашёл${p.sex === 'f' ? 'а' : ''} в таверну` })
+      if (sg.act === 'tavern' && was !== 'tavern' && hash(p.id + day0(sg)) % 3 === 0) out.push({ t: sg.t0, icon: '🍺', text: `${name(p)} зашёл${p.sex === 'f' ? 'а' : ''} в таверну` })
+      if (sg.act === 'riot' && was !== 'riot' && hash(p.id) % 2 === 0) out.push({ t: sg.t0, icon: '✊', text: `${name(p)} вышел${p.sex === 'f' ? 'а' : ''} на площадь — недоволен${p.sex === 'f' ? 'а' : ''}` })
       if (sg.act === 'build' && hash(p.id + sg.t0) % 5 === 0) out.push({ t: sg.t0, icon: '🔨', text: `${name(p)} стучит на стройке «${cast.byId[p.work]?.name || 'постройка'}»` })
       if (sg.act === 'gather' && hash(p.id + sg.t0) % 4 === 0) out.push({ t: sg.t1 <= t ? sg.t1 : sg.t0, icon: '🧺', text: `${name(p)} ${sg.t1 <= t ? 'набрал' + (p.sex === 'f' ? 'а' : '') + ' полную корзину' : 'ушёл' + (p.sex === 'f' ? 'а' : '') + ' за травами'}` })
       if (sg.talk && !seenTalk.has(sg.talk.id) && sg.talk.t0 <= t) {
@@ -578,6 +628,7 @@ export function moments(cast, plans, t, limit = 60) {
         const line = chatLines(cast, sg.talk, A, B)[0]
         out.push({ t: sg.talk.t0, icon: '💬', text: `${A.name} и ${B.name}: «${line.text}»`, talk: sg.talk.id, who: A.id })
       }
+      for (let i = n0; i < out.length; i++) out[i].who ||= p.id
     }
   }
   return out.sort((a, b) => b.t - a.t).slice(0, limit)
