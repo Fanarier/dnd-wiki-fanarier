@@ -16,7 +16,7 @@ const EARS = { fenris: 'wolf', neko: 'cat', kitsune: 'fox' }
 
 export function createLifeLayer(canvas, get) {
   const ctx = canvas.getContext('2d')
-  let raf = 0, last = [], running = false, lastDraw = 0
+  let raf = 0, last = [], running = false, lastDraw = 0, lastCam = ''
   const byIdCache = { cast: null, map: null }
   const peopleById = cast => {
     if (byIdCache.cast !== cast) { byIdCache.cast = cast; byIdCache.map = Object.fromEntries(cast.people.map(p => [p.id, p])) }
@@ -28,9 +28,10 @@ export function createLifeLayer(canvas, get) {
     if (!running) return
     const st = get()
     const now = performance.now()
-    // жителей не видно — достаточно редко перерисовывать сумерки
+    // жителей не видно — сумерки можно рисовать реже, но камеру двинули — сразу, иначе огни отстают от карты
     const slow = !st || st.view.k < 0.55
-    if (!slow || now - lastDraw > 400) { draw(st, now); lastDraw = now }
+    const cam = st ? `${st.view.x}|${st.view.y}|${st.view.k}|${st.size.w}|${st.size.h}` : ''
+    if (!slow || cam !== lastCam || now - lastDraw > 400) { draw(st, now); lastDraw = now; lastCam = cam }
     raf = requestAnimationFrame(frame)
   }
   function draw(st, rt) {
