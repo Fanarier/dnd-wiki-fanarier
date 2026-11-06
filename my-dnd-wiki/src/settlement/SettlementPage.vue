@@ -444,7 +444,7 @@ function onPerson(id) {
   if (id) setTab('life')
 }
 function onFocusPerson(id) {
-  if (!mapRef.value?.focusPerson(id)) toast('Сейчас дома — на улице не видно')
+  if (!mapRef.value?.focusPerson(id)) toast('Сейчас внутри — дома или на работе, на улице не видно')
 }
 
 /* ---------- ремонт построек ---------- */

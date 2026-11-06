@@ -2,7 +2,7 @@
 // Общий для сервера и клиента. Числа подобраны так, что перенесённый Урюпинск даёт те же цифры,
 // что старая таблица (см. docs/urupinsk/README.md). Значки — public/settlement/*.png (game-icons.net, CC BY 3.0).
 
-import { wallDefense } from './walls.js'
+import { wallDefense, smoothLine } from './walls.js'
 import { makeTerrain, B as TB, WORLD, CENTER } from './terrainGen.js'
 
 /* ---------------- Ресурсы ---------------- */
@@ -127,19 +127,8 @@ const curveCache = new WeakMap()
 export function roadCurve(r) {
   if (curveCache.has(r)) return curveCache.get(r)
   const pts = r.points || []
-  let out = pts
-  if (pts.length > 2 && r.type !== 'bridge') {
-    out = [pts[0]]
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]
-      const n = Math.max(2, Math.min(60, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2)))
-      for (let k = 1; k <= n; k++) {
-        const u = k / n, u2 = u * u, u3 = u2 * u
-        const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3)
-        out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])])
-      }
-    }
-  }
+  // плавно, без петель на резких поворотах (центростремительный сплайн); мост — прямыми
+  const out = pts.length > 2 && r.type !== 'bridge' ? smoothLine(pts) : pts
   curveCache.set(r, out)
   return out
 }

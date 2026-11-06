@@ -320,9 +320,16 @@ function makePlans(cast, day) {
   pairChats(cast, plans, day)
   return plans
 }
+// работы под открытым небом — их видно; остальные работают внутри постройки и на карте пропадают
+const OUTDOOR = new Set(['lumberjack', 'hunter', 'gatherer', 'farmer', 'watercarrier', 'guard', 'builder', 'miner', 'outpost'])
 // дневная работа на месте
 function workDay(cast, p, place, B, r, end) {
   const act = p.job === 'builder' ? 'build' : JOB_ACT[p.job] || 'work'
+  if (!OUTDOOR.has(p.job)) {
+    // внутри: зашёл — и до вечера (обед — тоже внутри)
+    B.stay(act, end, { at: place.door, hidden: true })
+    return
+  }
   const lunch = 12 * 60 + between(r, 0, 40)
   const around = (rad, inside) => {
     const a = r() * Math.PI * 2
@@ -400,7 +407,8 @@ function idleDay(cast, p, B, r, end) {
     const pl = k < 0.3 ? cast.market : k < 0.5 ? cast.store : k < 0.65 && cast.wells.length ? pick(r, cast.wells) : null
     const dest = pl ? byPlace(pl, r) : k < 0.8 ? [cast.plaza[0] + between(r, -16, 16), cast.plaza[1] + between(r, -16, 16)] : (cast.byId[p.home]?.door || cast.plaza)
     B.walk(dest, { act: 'walk' })
-    B.stay(k < 0.65 ? 'errand' : k < 0.8 ? 'stroll' : 'home', B.t + (k >= 0.8 ? between(r, 30, 70) : between(r, 8, 25)), { hidden: k >= 0.8 })
+    // на складе — внутри; рынок, колодец, площадь — на виду
+    B.stay(k < 0.65 ? 'errand' : k < 0.8 ? 'stroll' : 'home', B.t + (k >= 0.8 ? between(r, 30, 70) : between(r, 8, 25)), { hidden: k >= 0.8 || (k >= 0.3 && k < 0.5 && pl === cast.store) })
   }
 }
 // дети: днём играют у дома и на площади, водоносы бегают с вёдрами
@@ -421,7 +429,12 @@ function evening(cast, p, B, r, day) {
   const k = r()
   // вечер кусками: постояли, перешли к другой компании — не стоят столбом весь вечер
   if (k < 0.45 && cast.tavern) {
-    while (B.t < bed - 5) { B.walk(byPlace(cast.tavern, r, 1.1)); B.stay('tavern', Math.min(bed, B.t + between(r, 20, 40)), { social: 'tavern' }) }
+    while (B.t < bed - 5) {
+      // большинство сидит внутри; немногие выходят на крыльцо — их видно, они болтают
+      const out = r() < 0.3
+      B.walk(out ? byPlace(cast.tavern, r, 1.1) : cast.tavern.door)
+      B.stay('tavern', Math.min(bed, B.t + between(r, 20, 40)), { social: out ? 'tavern' : 'tavern-in', hidden: !out })
+    }
   } else if (k < 0.8) {
     const home = cast.byId[p.home]?.door || cast.plaza
     const inside = r() < 0.5

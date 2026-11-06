@@ -163,7 +163,7 @@ export function roadCrossings(walls, roads, curveOf) {
   return out
 }
 
-// плавная линия стены (как у дорог — Катмулл — Ром через точки, отрезки ~2 м), но острый угол (поворот круче 65°)
+// плавная линия стены (как у дорог — сплайн через точки, отрезки ~2 м), но острый угол (поворот круче 45°)
 // остаётся углом: угловую башню или прямоугольный острог не скругляем
 const curveCache = new WeakMap()
 export function wallCurve(points) {
@@ -177,7 +177,7 @@ export function wallCurve(points) {
       const a = points[i - 1], b = points[i], c = points[i + 1]
       let d = Math.abs(Math.atan2(c[1] - b[1], c[0] - b[0]) - Math.atan2(b[1] - a[1], b[0] - a[0]))
       if (d > Math.PI) d = 2 * Math.PI - d
-      if (d > (65 * Math.PI) / 180) { pieces.push(cur); cur = [points[i]] }
+      if (d > (45 * Math.PI) / 180) { pieces.push(cur); cur = [points[i]] }
     }
   }
   pieces.push(cur)
@@ -189,16 +189,29 @@ export function wallCurve(points) {
   curveCache.set(points, out)
   return out
 }
-function catmull(pts) {
-  if (pts.length < 3) return pts
+const catmull = smoothLine
+// плавная линия через точки — центростремительный Катмулл — Ром: не даёт петель и «перелётов» на поворотах,
+// даже когда соседние отрезки сильно разной длины. Отрезки ~2 м
+export function smoothLine(pts) {
+  if (!pts || pts.length < 3) return pts || []
+  const P = i => {
+    // за концами — отражение соседней точки
+    if (i < 0) return [2 * pts[0][0] - pts[1][0], 2 * pts[0][1] - pts[1][1]]
+    if (i >= pts.length) { const a = pts[pts.length - 1], b = pts[pts.length - 2]; return [2 * a[0] - b[0], 2 * a[1] - b[1]] }
+    return pts[i]
+  }
+  const knot = (a, b) => Math.max(1e-4, Math.sqrt(Math.hypot(b[0] - a[0], b[1] - a[1])))
+  const lerp = (a, b, ta, tb, t) => { const k = (t - ta) / (tb - ta); return [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k] }
   const out = [pts[0]]
   for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)]
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2)
+    const t0 = 0, t1 = t0 + knot(p0, p1), t2 = t1 + knot(p1, p2), t3 = t2 + knot(p2, p3)
     const n = Math.max(2, Math.min(60, Math.ceil(Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) / 2)))
     for (let k = 1; k <= n; k++) {
-      const u = k / n, u2 = u * u, u3 = u2 * u
-      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3)
-      out.push([f(p0[0], p1[0], p2[0], p3[0]), f(p0[1], p1[1], p2[1], p3[1])])
+      const t = t1 + ((t2 - t1) * k) / n
+      const A1 = lerp(p0, p1, t0, t1, t), A2 = lerp(p1, p2, t1, t2, t), A3 = lerp(p2, p3, t2, t3, t)
+      const B1 = lerp(A1, A2, t0, t2, t), B2 = lerp(A2, A3, t1, t3, t)
+      out.push(lerp(B1, B2, t1, t2, t))
     }
   }
   return out
