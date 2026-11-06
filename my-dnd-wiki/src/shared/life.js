@@ -227,12 +227,25 @@ function makeCast(s) {
   const store = places.find(p => (p.type === 'storehouse' || p.type === 'barn') && p.built)
   // недовольство: мораль или стабильность сильно ниже нуля — вечером на площадь выходят бунтовать
   const unrest = c.morale < -20 || c.stability < -30
-  // место на площади: на её круге; без площади — перед двором старейшины, не на его плашке
+  // место у постройки, где можно постоять: вокруг неё с любой стороны, не на дороге и не на соседних постройках.
+  // Кучками: точки «садятся» на 6 уголков вокруг постройки, рядом друг с другом
+  const spotNear = (pl, r, near = 2, far = 10) => {
+    for (let i = 0; i < 14; i++) {
+      const corner = Math.floor(r() * 6), a = corner * (Math.PI / 3) + between(r, -0.25, 0.25)
+      const out = pl.h + between(r, near, far), m = Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)))
+      const x = pl.x + (Math.cos(a) / m) * out * (0.75 + 0.25 * m), y = pl.y + (Math.sin(a) / m) * out * (0.75 + 0.25 * m)
+      if ((g.nearest(x, y, 1, 10)[0]?.d ?? Infinity) < 4.5) continue
+      if (places.some(q => q !== pl && Math.abs(x - q.x) < q.h + 1.5 && Math.abs(y - q.y) < q.h + 1.5)) continue
+      return [x, y]
+    }
+    return byPlace(pl, r)
+  }
+  // место на площади: на её круге; без площади — вокруг двора старейшины, не на дороге
   const plazaSpot = r => {
     if (square) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * square.h * 0.8; return [square.x + Math.cos(a) * d, square.y + Math.sin(a) * d] }
-    return elder ? byPlace(elder, r, 1.2) : [plaza[0] + between(r, -20, 20), plaza[1] + between(r, -20, 20)]
+    return elder ? spotNear(elder, r, 3, 18) : [plaza[0] + between(r, -20, 20), plaza[1] + between(r, -20, 20)]
   }
-  return { s, people, places, byId, g, bar, sites, patrols, tavern, market, wells, store, plaza, plazaSpot, square, elder, morale: c.morale, unrest, r0: r0() }
+  return { s, people, places, byId, g, bar, sites, patrols, tavern, market, wells, store, plaza, plazaSpot, spotNear, square, elder, morale: c.morale, unrest, r0: r0() }
 }
 
 /* ---------- распорядок дня ---------- */
@@ -436,7 +449,7 @@ function idleDay(cast, p, B, r, end) {
   while (B.t < end - 20) {
     const k = r()
     const pl = k < 0.3 ? cast.market : k < 0.5 ? cast.store : k < 0.65 && cast.wells.length ? pick(r, cast.wells) : null
-    const dest = pl ? byPlace(pl, r) : k < 0.8 ? cast.plazaSpot(r) : (cast.byId[p.home] ? doorOf(cast.byId[p.home], B.at) : cast.plaza)
+    const dest = pl ? cast.spotNear(pl, r, 1.5, 6) : k < 0.8 ? cast.plazaSpot(r) : (cast.byId[p.home] ? doorOf(cast.byId[p.home], B.at) : cast.plaza)
     B.walk(dest, { act: 'walk' })
     // на складе — внутри; рынок, колодец, площадь — на виду
     const inStore = k >= 0.3 && k < 0.5 && pl === cast.store
@@ -450,7 +463,8 @@ function kidDay(cast, p, B, r, day, end) {
   const stop = Math.min(end, 19 * 60 + between(r, 0, 60))
   while (B.t < stop - 10) {
     if (well) { waterRun(cast, p, B, r, well); continue }
-    const spot = r() < 0.6 ? [home[0] + between(r, -18, 18), home[1] + between(r, -18, 18)] : cast.plazaSpot(r)
+    const homePl = cast.byId[p.home]
+    const spot = r() < 0.6 ? (homePl ? cast.spotNear(homePl, r, 2, 16) : [home[0] + between(r, -18, 18), home[1] + between(r, -18, 18)]) : cast.plazaSpot(r)
     B.walk(spot, { direct: dist(B.at, spot) < 80 })
     B.stay('play', B.t + between(r, 4, 12))
   }
@@ -466,16 +480,17 @@ function evening(cast, p, B, r, day) {
   // вечер кусками: постояли, перешли к другой компании — не стоят столбом весь вечер
   if (k < 0.45 && cast.tavern) {
     while (B.t < bed - 5) {
-      // большинство сидит внутри; немногие выходят на крыльцо — их видно, они болтают
-      const out = r() < 0.3
-      B.walk(out ? byPlace(cast.tavern, r, 1.1) : doorOf(cast.tavern, B.at))
+      // большинство сидит внутри; немногие (примерно каждый седьмой) выходят подышать — кучками вокруг таверны, не на дороге
+      const out = r() < 0.15
+      B.walk(out ? cast.spotNear(cast.tavern, r, 1.5, 7) : doorOf(cast.tavern, B.at))
       B.stay('tavern', Math.min(bed, B.t + between(r, 20, 40)), { social: out ? 'tavern' : 'tavern-in', hidden: !out, place: cast.tavern.id })
     }
   } else if (k < 0.8) {
-    const home = cast.byId[p.home]?.door || cast.plaza
+    const homePl = cast.byId[p.home]
     const inside = r() < 0.5
     while (B.t < bed - 5) {
-      B.walk([home[0] + between(r, -8, 8), home[1] + between(r, -8, 8)])
+      // во дворе у дома — сбоку, не на дороге перед дверью
+      B.walk(homePl ? cast.spotNear(homePl, r, 1.5, 6) : cast.plazaSpot(r))
       B.stay('home', Math.min(bed, B.t + between(r, inside ? 60 : 15, inside ? 120 : 35)), { social: 'home', hidden: inside })
     }
   } else {
@@ -507,8 +522,8 @@ function pairChats(cast, plans, day) {
       const talk = { id: `c${day}-${n++}`, a: A.id, b: Bq.id, t0, t1: Math.min(t1, t0 + 45) }
       A.sg.talk = talk
       Bq.sg.talk = talk
-      // стоят лицом друг к другу
-      const mid = [(A.sg.at[0] + Bq.sg.at[0]) / 2, (A.sg.at[1] + Bq.sg.at[1]) / 2]
+      // стоят лицом друг к другу — у места первого (оно уже не на дороге)
+      const mid = A.sg.at
       A.sg.at = [mid[0] - 1.1, mid[1]]
       Bq.sg.at = [mid[0] + 1.1, mid[1]]
     }
