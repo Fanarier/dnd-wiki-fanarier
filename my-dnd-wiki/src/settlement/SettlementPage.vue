@@ -28,7 +28,8 @@
       <div class="sp-mapwrap">
         <SettlementMap ref="mapRef" class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts" :brush="brush" :master="master"
                        @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog"
-                       @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" @wall="onWall" @wall-feature="onWallFeature" @need-gate="onNeedGate" @march="onMarch" />
+                       @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" @wall="onWall" @wall-feature="onWallFeature" @need-gate="onNeedGate" @march="onMarch"
+                       @clock="onClock" @person="onPerson" />
         <!-- инструменты: мастеру — правка карты, главе — приказы -->
         <div v-if="master || decider" class="sp-tools">
           <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="setTool(null)">👁 Смотреть</button>
@@ -204,7 +205,8 @@
             {{ tb.label }}<i v-if="tb.dot" class="dot" />
           </button>
         </nav>
-        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" @pick="sel = $event" @edit="editing = $event" @tab="setTab" @battle="battleSide = $event" @lead="startLead" />
+        <SettlementTabs :tab="tab" :settlement="s" :calc="calc" :master="master" :decider="decider" :wide="wide" :person="selPerson" @pick="sel = $event" @edit="editing = $event" @tab="setTab" @battle="battleSide = $event" @lead="startLead"
+                        @clock="onClock" @person="onPerson" @focus="onFocusPerson" @focus-at="p => mapRef?.focusAt(p.x, p.y, 3)" />
         <p class="sp-credit">Значки: game-icons.net (CC BY 3.0)</p>
       </aside>
     </div>
@@ -421,6 +423,18 @@ async function onMarch({ qid, path, exit, label, speed }) {
   sel.value = { kind: 'squad', id: qid }
 }
 
+/* ---------- жизнь: часы и жители ---------- */
+const onClock = speed => act('POST', `${base()}/clock`, { speed }).catch(() => null)
+const selPerson = ref(null)
+function onPerson(id) {
+  selPerson.value = id
+  if (mapRef.value) mapRef.value.personSel = id
+  if (id) setTab('life')
+}
+function onFocusPerson(id) {
+  if (!mapRef.value?.focusPerson(id)) toast('Сейчас дома — на улице не видно')
+}
+
 /* ---------- ремонт построек ---------- */
 const onRepair = (id, opt) => act('POST', `${base()}/buildings/${id}/repair`, opt, opt.instant ? 'Постройка снова целая' : 'Ремонт начат — пойдёт с «Прошёл день»').catch(() => null)
 async function onOrderRepair(b) {
@@ -512,6 +526,7 @@ const selItem = computed(() => {
 const tab = ref(route.query.tab || 'overview')
 const TABS = computed(() => [
   { id: 'overview', label: 'Обзор' },
+  { id: 'life', label: 'Жизнь' },
   { id: 'resources', label: 'Ресурсы', dot: Object.values(calc.value.balance).some(v => v < 0) },
   { id: 'residents', label: 'Жители' },
   { id: 'jobs', label: 'Работы' },

@@ -221,6 +221,16 @@
         </g>
       </g>
     </svg>
+    <!-- жители, сумерки и огни: свой холст поверх карты -->
+    <canvas ref="lifeCv" class="sm-life" />
+    <!-- часы поселения: мастер ставит паузу и скорость, как в RimWorld -->
+    <div class="sm-clock" :class="{ night: clockView.dark }" @pointerdown.stop @dblclick.stop>
+      <span class="ck-ico" :title="clockView.part">{{ clockView.icon }}</span><b>{{ clockView.time }}</b><small>день {{ clockView.day }}</small>
+      <template v-if="master">
+        <button v-for="sp in CLOCK_SPEEDS" :key="sp.v" type="button" :class="{ on: clockView.speed === sp.v }" :title="sp.title" @click.stop="emit('clock', sp.v)">{{ sp.label }}</button>
+      </template>
+      <em v-else-if="!clockView.speed" title="Мастер поставил время на паузу">пауза</em>
+    </div>
 
     <!-- подсказки -->
     <div v-if="wallDraftInfo" class="sm-tip" :style="tipPos">
@@ -261,6 +271,10 @@ import { ICONS } from '../map/icons.js'
 import { cargoOf } from '../shared/army.js'
 import { marchCtx, planPath, marchState, marchTiming, msPerMeter, densify, edgePoint, EDGE } from '../shared/march.js'
 import { squadAt, spotLabel } from './march.js'
+import { createLifeLayer } from './lifeLayer.js'
+import { buildCast, dayPlans, personAt, ACTS, jobLabel } from '../shared/life.js'
+import { clockMin, clockOf, dayTime, partOfDay, darkness, CLOCK_SPEEDS, DAY_MIN } from '../shared/clock.js'
+import { RACES } from '../shared/settlement.js'
 
 const props = defineProps({
   settlement: { type: Object, required: true },
@@ -274,7 +288,7 @@ const props = defineProps({
   brush: { type: Number, default: 60 }, // радиус кисти, м
   master: Boolean
 })
-const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march', 'clock', 'person'])
 
 const fogUrl = fogTexture()
 const iconUrl = iconSrc
@@ -881,6 +895,11 @@ function onMove(e) {
   if (rc) mouse.value = { x: e.clientX - rc.left, y: e.clientY - rc.top }
   if (box.value) { cursor.value = toWorld(e.clientX, e.clientY); describe() }
   const p = pointers.get(e.pointerId)
+  // житель под курсором — подсказка (если не над постройкой и т. п.)
+  if (!p && life && !toolActive.value && rc && (!hover.value || hover.value.kind === 'person')) {
+    const id = life.hit(e.clientX - rc.left, e.clientY - rc.top)
+    hover.value = id ? { kind: 'person', item: id } : null
+  }
   if (!p) return
   if (handle && roadEdit.value) {
     const w = toWorld(e.clientX, e.clientY)
@@ -957,7 +976,14 @@ function onUp(e) {
     else if (props.tool.march && !e.target.closest?.('[data-mp], [data-mm]')) addMarchPoint(w)
   }
   // клик по пустому месту снимает выбор
-  if (!moved && primary && !toolActive.value && up && e.target.closest && !e.target.closest('.sm-item, .sm-road-hit, .sm-handle, .sm-ctrl')) emit('select', null)
+  if (!moved && primary && !toolActive.value && up && e.target.closest && !e.target.closest('.sm-item, .sm-road-hit, .sm-handle, .sm-ctrl')) {
+    // щелчок по жителю — показать, кто это
+    const rc = box.value.getBoundingClientRect()
+    const id = life?.hit(e.clientX - rc.left, e.clientY - rc.top)
+    personSel.value = id || null
+    if (id) emit('person', id)
+    else emit('select', null)
+  }
   release(e)
 }
 function release(e) {
@@ -1016,6 +1042,10 @@ const tip = computed(() => {
     if (h.kind === 'wallFeature') return { title: WALL_FEATURES[h.item.kind].label + (h.item.built ? '' : ' (строится)'), lines: [`На стене: ${w.name || t.label.toLowerCase()}`] }
     return { title: w.name || t.label, lines }
   }
+  if (h.kind === 'person') {
+    const info = personInfo(h.item)
+    return info ? { title: info.p.name, lines: [`${RACES[info.p.race]?.label || ''}${info.p.kid ? ', ребёнок' : ''} · ${info.p.age} лет`, `Работа: ${jobLabel(info.p)}`, `Сейчас: ${info.act}`] } : null
+  }
   const b = h.item, d = tierOf(b) || BUILDINGS[b.type]
   const lines = [`${CATEGORIES[d.cat]?.label} · ${SIZES[d.size]?.label}${SIZES[d.size]?.area ? ' (' + SIZES[d.size].area + ')' : ''}`]
   for (const [j, n] of Object.entries(d.jobs || {})) lines.push(`${JOBS[j]?.label || j}: ${n} мест`)
@@ -1044,8 +1074,46 @@ function describe() {
   }, 60)
 }
 
+/* ---------- жизнь: жители и часы ---------- */
+const lifeCv = ref(null)
+const personSel = ref(null)
+let life = null, clockTimer = 0
+const clockNow = ref(Date.now())
+const clockView = computed(() => {
+  const t = clockMin(props.settlement, clockNow.value + (store.clockOffset || 0)), dt = dayTime(t), pd = partOfDay(dt.of)
+  return { time: dt.text, day: dt.day, icon: pd.icon, part: pd.label, dark: darkness(dt.of) > 0.3, speed: clockOf(props.settlement).speed || 0 }
+})
+// кто это и что делает сейчас
+function personInfo(id) {
+  const cast = buildCast(props.settlement)
+  const p = cast.people.find(x => x.id === id)
+  if (!p) return null
+  const t = clockMin(props.settlement, Date.now() + (store.clockOffset || 0)), day = Math.floor(t / DAY_MIN)
+  const st = personAt(dayPlans(cast, day)[id], t - day * DAY_MIN)
+  return { p, st, act: p.away ? `ушёл с отрядом «${p.away}»` : ACTS[st?.act]?.label || 'дома' }
+}
+// показать жителя на карте (из вкладки «Жизнь»)
+function focusPerson(id) {
+  const info = personInfo(id)
+  if (!info?.st) return false
+  personSel.value = id
+  const k = Math.max(view.k, 5)
+  Object.assign(view, { k, x: size.w / 2 - info.st.x * k, y: size.h / 2 - info.st.y * k })
+  scheduleDraw()
+  return true
+}
+function focusAt(x, y, k = 3) {
+  Object.assign(view, { k: Math.max(view.k, k), x: size.w / 2 - x * Math.max(view.k, k), y: size.h / 2 - y * Math.max(view.k, k) })
+  scheduleDraw()
+}
+const onVis = () => (document.hidden ? life?.stop() : life?.start())
+
 let ro = null
 onMounted(() => {
+  life = createLifeLayer(lifeCv.value, () => ({ s: props.settlement, view, size, offset: store.clockOffset || 0, selected: personSel.value }))
+  life.start()
+  clockTimer = setInterval(() => { clockNow.value = Date.now() }, 1000)
+  document.addEventListener('visibilitychange', onVis)
   ro = new ResizeObserver(([e]) => {
     const first = !size.w
     size.w = e.contentRect.width
@@ -1057,17 +1125,28 @@ onMounted(() => {
   window.addEventListener('keydown', onKey)
 })
 onBeforeUnmount(() => {
+  life?.stop()
+  clearInterval(clockTimer)
+  document.removeEventListener('visibilitychange', onVis)
   ro?.disconnect()
   tiles.destroy()
   window.removeEventListener('keydown', onKey)
 })
-defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marchInfo, marchDraft })
+defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marchInfo, marchDraft, focusPerson, focusAt, personSel })
 </script>
 
 <style scoped>
 .sm { position: relative; overflow: hidden; background: #161a1f; touch-action: none; cursor: default; user-select: none; }
 .sm.grabbing { cursor: grabbing; }
 .sm-tiles { position: absolute; inset: 0; width: 100%; height: 100%; }
+.sm-life { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.sm-clock { position: absolute; z-index: 2; left: 10px; bottom: 44px; display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 11px; background: rgba(23, 19, 14, .9); border: 1px solid #8a6630; color: #e9dfc8; font: 700 12.5px 'Manrope', sans-serif; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.sm-clock b { font: 700 17px 'Cormorant Garamond', Georgia, serif; color: #f3d99a; font-variant-numeric: tabular-nums; }
+.sm-clock small { color: #a8936c; font-weight: 700; }
+.sm-clock em { font-style: normal; color: #ffb36b; font-size: 11.5px; }
+.sm-clock.night { border-color: #4f5c8a; }
+.sm-clock button { min-width: 26px; padding: 2px 6px; border-radius: 7px; border: 1px solid rgba(231, 197, 111, .25); background: none; color: #d9cdb0; font: 700 11.5px 'Manrope', sans-serif; cursor: pointer; }
+.sm-clock button.on { background: linear-gradient(180deg, #f0d083, #c9a24f); color: #1b1408; border-color: transparent; }
 .sm-svg { position: relative; display: block; }
 .sm-world { fill: none; stroke: rgba(231, 197, 111, .55); stroke-width: 2; stroke-dasharray: 2 10; stroke-linecap: round; pointer-events: none; }
 .sm-fog { pointer-events: none; opacity: .86; }

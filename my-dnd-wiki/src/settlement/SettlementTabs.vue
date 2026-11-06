@@ -365,6 +365,8 @@
     <SquadsTab v-else-if="tab === 'squads'" :settlement="s" :master="master" :decider="decider" @edit="emit('edit', $event)" @battle="emit('battle', $event)" @lead="emit('lead', $event)" />
     <HospitalTab v-else-if="tab === 'hospital'" :settlement="s" :calc="c" :master="master" :decider="decider" />
     <BuildingRules v-else-if="tab === 'buildings'" :settlement="s" :calc="c" :master="master" />
+    <LifeTab v-else-if="tab === 'life'" :settlement="s" :calc="c" :master="master" :person="person"
+             @clock="emit('clock', $event)" @focus="emit('focus', $event)" @focus-at="emit('focus-at', $event)" @person="emit('person', $event)" />
 
     <!-- ================= ИСТОРИЯ ================= -->
     <SettlementHistory v-else-if="tab === 'history'" :settlement="s" :wide="wide" />
@@ -388,9 +390,10 @@ import { RACE_COLORS } from './armyFaces.js'
 import SquadsTab from './SquadsTab.vue'
 import HospitalTab from './HospitalTab.vue'
 import BuildingRules from './BuildingRules.vue'
+import LifeTab from './LifeTab.vue'
 
-const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean, wide: Boolean })
-const emit = defineEmits(['pick', 'edit', 'tab', 'battle', 'lead'])
+const props = defineProps({ tab: String, settlement: Object, calc: Object, master: Boolean, decider: Boolean, wide: Boolean, person: String })
+const emit = defineEmits(['pick', 'edit', 'tab', 'battle', 'lead', 'clock', 'focus', 'focus-at', 'person'])
 const base = () => `/api/settlements/${props.settlement.id}`
 const s = computed(() => props.settlement)
 const c = computed(() => props.calc)

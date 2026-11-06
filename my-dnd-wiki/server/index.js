@@ -36,6 +36,7 @@ import { computeSettlement, placementProblems, clearingFor, shortFor, priceText,
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { homeOf, isHome, marchCtx, marchTiming, marchState, msPerMeter, densify, routePath, edgePoint, atEdge } from '../src/shared/march.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
+import { clockOf, clockMin, DAY_MIN, CLOCK_SPEEDS } from '../src/shared/clock.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { DIE_SIDES, ADV_MODES, keptIndex, rollSummary } from '../src/shared/dice.js'
 import { isFogged, anomalyState, partyPosition, journeyState, subPath, polyLength } from '../src/shared/geo.js'
@@ -651,6 +652,7 @@ setInterval(() => {
     }
   }
   if (tickMarches(db, now)) changed = true
+  if (tickClocks(now)) changed = true
   // метка дошла до конца пути — мастеру уведомление (один раз за отправку)
   for (const a of db.anomalies) {
     if (!a.move || a.move.arrived || a.move.startAt == null || a.move.pausedAt != null || a.move.end === 'loop') continue
@@ -2024,6 +2026,41 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
   const days = Math.round(T.num(1, 60)(req.body?.days ?? 1))
+  const r = advanceSettlement(s, days)
+  // часы перескакивают на столько же суток (время суток то же)
+  const now = Date.now(), c = clockOf(s)
+  s.clock = { min: clockMin(s, now) + days * DAY_MIN, at: now, speed: c.speed || 0 }
+  saveDb()
+  broadcast()
+  res.json(r)
+})
+// часы поселения: мастер ставит скорость (0 — пауза), как в RimWorld
+app.post('/api/settlements/:id/clock', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const speed = Number(req.body?.speed)
+  if (!CLOCK_SPEEDS.some(x => x.v === speed)) return res.status(400).json({ error: 'Нет такой скорости' })
+  const now = Date.now()
+  s.clock = { min: clockMin(s, now), at: now, speed }
+  saveDb()
+  broadcast()
+  res.json(s.clock)
+})
+// часы идут: перевалили за полночь — хозяйство проживает новые сутки
+function tickClocks(now) {
+  let changed = false
+  for (const s of getDb().settlements || []) {
+    if (!(s.clock?.speed > 0)) continue
+    const day = Math.floor(clockMin(s, now) / DAY_MIN)
+    if (day > (s.day || 0)) {
+      const r = advanceSettlement(s, Math.min(30, day - (s.day || 0)))
+      if (r.done.length || r.short.length) notifyDeciders(s, `новые сутки: ${[...r.done, ...r.short.map(k => 'нехватка: ' + (RES[k]?.label || k))].join(', ')}`)
+      changed = true
+    }
+  }
+  return changed
+}
+function advanceSettlement(s, days) {
   if (!s.history?.length) snapshot(s) // точка отсчёта для графиков
   const c = computeSettlement(s)
   s.stock ||= {}
@@ -2152,10 +2189,8 @@ app.post('/api/settlements/:id/advance', requireMaster, (req, res) => {
   const fresh = []
   for (let i = 0; i < days; i++) if (Math.random() < 0.35) { const sg = addSuggestion(s); if (sg) fresh.push(sg) }
   s.updatedAt = Date.now()
-  saveDb()
-  broadcast()
-  res.json({ ok: true, day: s.day, short, delta, done, idle, morale: moodSum, suggestions: fresh.length })
-})
+  return { ok: true, day: s.day, short, delta, done, idle, morale: moodSum, suggestions: fresh.length }
+}
 function regrowForest(s, days) {
   const bases = (s.buildings || []).filter(b => (b.state || 'built') === 'built' && !b.damage && b.x != null && tierOf(b)?.regrow)
   if (!bases.length || !s.clearings?.length) return
