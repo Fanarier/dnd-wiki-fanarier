@@ -387,3 +387,12 @@ export function blobPath(cx, cy, r, seedStr = '', n = 22) {
 }
 
 export const toPath = pts => (pts && pts.length ? 'M' + pts.map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join('L') : '')
+
+// убрать лишние точки ломаной: точки ближе eps к прямой между соседями выкидываются (Дуглас — Пекер); концы остаются
+export function simplifyLine(pts, eps) {
+  if (pts.length < 3) return pts
+  let idx = -1, dmax = 0
+  for (let i = 1; i < pts.length - 1; i++) { const d = segDist(pts[i], pts[0], pts[pts.length - 1]); if (d > dmax) { dmax = d; idx = i } }
+  if (dmax <= eps) return [pts[0], pts[pts.length - 1]]
+  return [...simplifyLine(pts.slice(0, idx + 1), eps).slice(0, -1), ...simplifyLine(pts.slice(idx), eps)]
+}

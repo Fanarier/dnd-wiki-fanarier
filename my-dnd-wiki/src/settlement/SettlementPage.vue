@@ -496,6 +496,7 @@ async function advance(days) {
   if (r.short?.length || r.suggestions) setTab('journal')
 }
 function saveItem(kind, item) {
+  if (kind === 'road' || kind === 'wall') remember()
   if (kind === 'building') patch({ buildings: s.value.buildings.map(b => (b.id === item.id ? item : b)) }, 'Сохранено')
   else if (kind === 'road') patch({ roads: s.value.roads.map(r => (r.id === item.id ? item : r)) }, 'Сохранено')
   else if (kind === 'wall') patch({ walls: s.value.walls.map(w => (w.id === item.id ? item : w)) }, 'Сохранено')
@@ -519,7 +520,7 @@ function onKey() {
   const h = e => {
     if (e.target?.closest?.('input, textarea, select, [contenteditable]')) return
     if (master.value && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я') && !(tool.value?.road || tool.value?.wall)) { e.preventDefault(); undoLines(); return }
-    if (master.value && e.key === 'Delete' && (sel.value?.kind === 'road' || sel.value?.kind === 'wall')) { removeItem(sel.value.kind, sel.value.id); return }
+    if (master.value && e.key === 'Delete' && (sel.value?.kind === 'road' || sel.value?.kind === 'wall') && mapRef.value?.pointSel == null) { removeItem(sel.value.kind, sel.value.id); return }
     if (e.key !== 'Escape') return
     // дорогу, которую рисуют, Esc сбрасывает сам; второй Esc — снять инструмент
     if ((tool.value?.road || tool.value?.wall) && mapRef.value?.draft?.length) return

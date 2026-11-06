@@ -172,8 +172,11 @@
 
         <!-- ручки выбранной дороги: точки тянуть, середины — добавить точку, двойной щелчок по точке — убрать -->
         <g v-if="editRoad" class="sm-handles">
-          <circle v-for="m in editMids" :key="'m' + m.i" :cx="m.p[0]" :cy="m.p[1]" :r="5 * px" class="sm-handle mid" :data-m="m.i" vector-effect="non-scaling-stroke" />
-          <circle v-for="(p, i) in editRoad.points" :key="'v' + i" :cx="p[0]" :cy="p[1]" :r="(i === 0 || i === editRoad.points.length - 1 ? 8 : 6.5) * px" class="sm-handle" :class="{ end: i === 0 || i === editRoad.points.length - 1 }" :data-h="i" vector-effect="non-scaling-stroke" />
+          <circle v-for="m in editMids" :key="'m' + m.i" :cx="m.p[0]" :cy="m.p[1]" :r="5 * px" class="sm-handle mid" :data-m="m.i" vector-effect="non-scaling-stroke"
+                  @pointerenter="hover = { kind: 'mid' }" @pointerleave="hover = null" />
+          <circle v-for="(p, i) in editRoad.points" :key="'v' + i" :cx="p[0]" :cy="p[1]" :r="(i === 0 || i === editRoad.points.length - 1 ? 8 : 6.5) * px" class="sm-handle"
+                  :class="{ end: i === 0 || i === editRoad.points.length - 1, picked: pointSel === i }" :data-h="i" vector-effect="non-scaling-stroke"
+                  @pointerenter="hover = { kind: 'point' }" @pointerleave="hover = null" @contextmenu.prevent.stop />
           <circle v-if="handleSnap" :cx="handleSnap[0]" :cy="handleSnap[1]" :r="11 * px" class="sm-snap" vector-effect="non-scaling-stroke" />
         </g>
 
@@ -273,6 +276,7 @@ import { cargoOf } from '../shared/army.js'
 import { marchCtx, planPath, marchState, marchTiming, msPerMeter, densify, edgePoint, EDGE } from '../shared/march.js'
 import { squadAt, spotLabel } from './march.js'
 import { createLifeLayer } from './lifeLayer.js'
+import { simplifyLine } from '../shared/geo.js'
 import { buildCast, dayPlans, personAt, ACTS, jobLabel } from '../shared/life.js'
 import { clockMin, clockOf, dayTime, partOfDay, darkness, CLOCK_SPEEDS, DAY_MIN } from '../shared/clock.js'
 import { RACES } from '../shared/settlement.js'
@@ -750,9 +754,20 @@ const editRoad = computed(() => {
 const editMids = computed(() => {
   const pts = editRoad.value?.points || []
   return pts.slice(1).map((p, i) => ({ i, p: [(p[0] + pts[i][0]) / 2, (p[1] + pts[i][1]) / 2], len: Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]) }))
-    .filter(m => m.len * view.k >= 34)
+    .filter(m => m.len * view.k >= 34 && cursor.value && Math.hypot(m.p[0] - cursor.value.x, m.p[1] - cursor.value.y) * view.k < 60)
 })
-let handle = null // { i, follow: [{ id, end }], snap } — тянут точку
+// выбранная точка дороги: Delete или Backspace — убрать; правая кнопка или двойной щелчок по точке — тоже
+const pointSel = ref(null)
+watch(() => props.selected?.id, () => { pointSel.value = null })
+function removePoint(i) {
+  const r = editRoad.value
+  if (!r) return
+  if (r.points.length <= 2) { pointSel.value = null; return }
+  emit('roadEdit', { kind: props.selected.kind, id: r.id, points: r.points.filter((_, k) => k !== i) })
+  pointSel.value = null
+}
+let lastPointClick = null // { i, t } — свой двойной щелчок: после перерисовки браузерный dblclick теряется
+let handle = null // { i, follow, start, mid } — тянут точку; пока не сдвинули на несколько пикселей — это щелчок
 let lineMove = null // { start, orig, follow } — тянут линию целиком
 let freehand = null // { from, start } — рисуют дорогу мышью
 const handleSnap = ref(null)
@@ -800,14 +815,8 @@ function moveFollowers(follow, f) {
   }
   return others
 }
-// упростить ломаную, нарисованную мышью (Дуглас — Пекер)
-function simplify(pts, eps) {
-  if (pts.length < 3) return pts
-  let idx = -1, dmax = 0
-  for (let i = 1; i < pts.length - 1; i++) { const d = segDistPt(pts[i], pts[0], pts[pts.length - 1]); if (d > dmax) { dmax = d; idx = i } }
-  if (dmax <= eps) return [pts[0], pts[pts.length - 1]]
-  return [...simplify(pts.slice(0, idx + 1), eps).slice(0, -1), ...simplify(pts.slice(idx), eps)]
-}
+// упростить ломаную, нарисованную мышью
+const simplify = simplifyLine
 
 /* ---------- отряды в округе ---------- */
 const squadsView = computed(() => {
@@ -920,6 +929,10 @@ function onDown(e) {
   if (mouse && e.button > 2) return
   // мышью карту двигают зажатым колёсиком (или правой кнопкой), левая — выбирать и ставить; пальцем — как обычно
   const panBtn = mouse && e.button !== 0
+  if (mouse && e.button === 2 && editRoad.value) {
+    const h = e.target.closest?.('[data-h]')
+    if (h) { removePoint(+h.dataset.h); return }
+  }
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, pan: !mouse || panBtn })
   moved = false
   drag.value = true
@@ -950,15 +963,11 @@ function onDown(e) {
   if (h && editRoad.value) {
     const kind = props.selected.kind
     const pts = editRoad.value.points.map(p => [...p])
-    if (h.dataset.m != null) {
-      const i = +h.dataset.m + 1
-      pts.splice(i, 0, [(pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2])
-      handle = { i, follow: [] }
-    } else {
+    if (h.dataset.m != null) handle = { i: +h.dataset.m + 1, mid: true, follow: [], start: [e.clientX, e.clientY], kind, base: pts }
+    else {
       const i = +h.dataset.h
-      handle = { i, follow: followersOf(kind, editRoad.value, pts[i]), end: i === 0 || i === pts.length - 1 }
+      handle = { i, follow: followersOf(kind, editRoad.value, pts[i]), end: i === 0 || i === pts.length - 1, start: [e.clientX, e.clientY], kind, base: pts }
     }
-    roadEdit.value = { kind, id: editRoad.value.id, points: pts, others: {} }
     pointers.get(e.pointerId).pan = false
     e.currentTarget.setPointerCapture?.(e.pointerId)
     return
@@ -1002,6 +1011,13 @@ function onMove(e) {
     hover.value = id ? { kind: 'person', item: id } : null
   }
   if (!p) return
+  if (handle && !roadEdit.value) {
+    if (Math.hypot(e.clientX - handle.start[0], e.clientY - handle.start[1]) < 5) return
+    // потянули — теперь это правка: середина становится новой точкой
+    const pts = handle.base.map(p => [...p])
+    if (handle.mid) pts.splice(handle.i, 0, [(pts[handle.i - 1][0] + pts[handle.i][0]) / 2, (pts[handle.i - 1][1] + pts[handle.i][1]) / 2])
+    roadEdit.value = { kind: handle.kind, id: editRoad.value.id, points: pts, others: {} }
+  }
   if (handle && roadEdit.value) {
     const w = toWorld(e.clientX, e.clientY)
     // конец прилипает к другим линиям того же вида (кроме тех, что идут следом)
@@ -1075,6 +1091,16 @@ function onMove(e) {
 }
 function onUp(e) {
   const up = e.type === 'pointerup'
+  if (handle && !roadEdit.value) {
+    const hd = handle
+    handle = null
+    if (up && !hd.mid) {
+      const now = Date.now()
+      if (lastPointClick && lastPointClick.i === hd.i && now - lastPointClick.t < 450) { lastPointClick = null; removePoint(hd.i) }
+      else { lastPointClick = { i: hd.i, t: now }; pointSel.value = hd.i }
+    }
+    return release(e)
+  }
   if ((handle || lineMove) && roadEdit.value) {
     if (up && moved) emit('roadEdit', { kind: roadEdit.value.kind, id: roadEdit.value.id, points: roadEdit.value.points, others: roadEdit.value.others })
     handle = null
@@ -1145,14 +1171,15 @@ function onDbl(e) {
     else finishMarch()
     return
   }
-  // двойной щелчок по точке выбранной дороги — убрать точку
-  const h = e.target.closest?.('[data-h]')
-  if (h && editRoad.value && editRoad.value.points.length > 2) {
-    emit('roadEdit', { kind: props.selected.kind, id: editRoad.value.id, points: editRoad.value.points.filter((_, i) => i !== +h.dataset.h) })
-  }
+  // двойной щелчок по точке убирает её — это ловит onUp (два щелчка подряд), здесь ничего не делаем
 }
 function onLeave() { hover.value = null; cursor.value = null; place.value = '' }
 function onKey(e) {
+  if (editRoad.value && pointSel.value != null && (e.key === 'Delete' || e.key === 'Backspace') && !e.target?.closest?.('input, textarea, select, [contenteditable]')) {
+    e.preventDefault()
+    removePoint(pointSel.value)
+    return
+  }
   if (props.tool?.march && !e.target?.closest?.('input, textarea, select, [contenteditable]')) {
     if (e.key === 'Enter') finishMarch()
     else if (e.key === 'Backspace') { undoMarchPoint(); e.preventDefault() }
@@ -1180,6 +1207,8 @@ const tip = computed(() => {
     return { title: `Отряд «${m.name}»`, lines: m.st && !m.st.done ? [`Идёт: ${m.move.label}`, `Осталось ≈ ${fmtHours(m.st.left)}`] : ['Стоит в округе'] }
   }
   if (h.kind === 'road') return { title: h.item.name || ROAD_TYPES[h.item.type]?.label, lines: [`Длина: ${fmtLen(roadLen(h.item.points))}`] }
+  if (h.kind === 'point') return { title: 'Точка дороги', lines: ['Тяни — передвинуть', 'Убрать: правая кнопка, двойной щелчок или щёлкни и нажми Delete'] }
+  if (h.kind === 'mid') return { title: 'Новая точка', lines: ['Потяни — появится точка'] }
   if (h.kind === 'needGate') return { title: 'Дорога упирается в стену', lines: ['Щёлкни — поставить ворота'] }
   if (h.kind === 'wall' || h.kind === 'wallFeature') {
     const w = h.kind === 'wall' ? h.item : h.wall, t = WALL_TYPES[w.type] || WALL_TYPES.palisade
@@ -1277,7 +1306,7 @@ onBeforeUnmount(() => {
   tiles.destroy()
   window.removeEventListener('keydown', onKey)
 })
-defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marchInfo, marchDraft, focusPerson, focusAt, personSel })
+defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marchInfo, marchDraft, focusPerson, focusAt, personSel, pointSel })
 </script>
 
 <style scoped>
@@ -1375,6 +1404,8 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm-handle { fill: #fff3c4; stroke: #3a2a14; stroke-width: 1.5; cursor: grab; }
 .sm-handle.mid { fill: rgba(255, 243, 196, .55); }
 .sm-handle.end { fill: #ffe08a; stroke-width: 2; }
+.sm-handle.picked { fill: #ff8a6b; stroke: #fff; stroke-width: 2.5; }
+.sm-handle.mid { opacity: .8; }
 .sm-road-hit.movable { cursor: move; }
 .sm-cursor { pointer-events: none; }
 .sm-cursor.bad .sm-ghost-plate { stroke: #ff4a3d; fill: rgba(255, 74, 61, .2); }

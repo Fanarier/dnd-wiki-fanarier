@@ -163,13 +163,15 @@
       <template v-else-if="sel.kind === 'road'">
         <label>Название <input v-model="form.name" placeholder="например, Старый тракт" /></label>
         <label>Вид <select v-model="form.type"><option v-for="(r, k) in ROAD_TYPES" :key="k" :value="k">{{ r.label }}</option></select></label>
-        <p class="tip">Тяни саму дорогу — двигается целиком, примыкающие дороги тянутся следом. Тяни точки (концы прилипают к другим дорогам); кружок посередине — новая точка; двойной щелчок по точке — убрать. Ctrl+Z — отменить, Delete — удалить.</p>
+        <p class="tip">Тяни саму дорогу — двигается целиком, примыкающие тянутся следом. Тяни точки (концы прилипают к другим дорогам). <b>Убрать точку</b> — правой кнопкой по ней, двойным щелчком или щёлкни и нажми Delete. Новая точка — потяни кружок между точками (появляется у курсора). Ctrl+Z — отменить.</p>
+        <button type="button" class="mini" :disabled="item.points.length <= 2" @click="thin">✂ Убрать лишние точки ({{ item.points.length }})</button>
       </template>
       <template v-else-if="sel.kind === 'wall'">
         <label>Название <input v-model="form.name" placeholder="например, Северный частокол" /></label>
         <label>Вид <select v-model="form.type"><option v-for="(t, k) in WALL_TYPES" :key="k" :value="k">{{ t.label }}</option></select></label>
         <label>Построено <input v-model.number="form.built" type="number" min="0" :max="Math.ceil(wlen)" /> м из {{ Math.round(wlen) }}</label>
-        <p class="tip">Тяни точки на карте; за середину отрезка — новая точка; двойной щелчок по точке — убрать. Стройка идёт от первой точки.</p>
+        <p class="tip">Тяни стену целиком или её точки. Убрать точку — правой кнопкой по ней, двойным щелчком или щёлкни и нажми Delete; новая точка — потяни кружок между точками. Стройка идёт от первой точки.</p>
+        <button type="button" class="mini" :disabled="item.points.length <= 2" @click="thin">✂ Убрать лишние точки ({{ item.points.length }})</button>
       </template>
       <template v-else>
         <label>Тип <select v-model="form.type"><option v-for="(o, k) in OUTPOSTS" :key="k" :value="k">{{ o.label }}</option></select></label>
@@ -201,7 +203,8 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { store, act } from '../map/store.js'
+import { store, act, toast } from '../map/store.js'
+import { simplifyLine } from '../shared/geo.js'
 import PriceChips from './PriceChips.vue'
 import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES, RACES, RESOURCES, ROAD_TYPES, DAMAGE, repairPrice, repairWork,
   tierOf, iconSrc, upgradePrice, upgradeWork, upgradeBlock, isWorksite, buildRate, worksiteLeft, priceText } from '../shared/settlement.js'
@@ -291,6 +294,13 @@ function removeFeature(f) {
   emit('save', 'wall', { ...props.item, features: props.item.features.filter(x => x.id !== f.id) })
 }
 const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.id === props.item.owner))
+// убрать точки, которые почти не меняют форму (ближе 1,5 м к прямой между соседями)
+function thin() {
+  const pts = simplifyLine(props.item.points, props.sel.kind === 'wall' ? 0.6 : 1.5)
+  if (pts.length === props.item.points.length) return toast('Лишних точек нет')
+  emit('save', props.sel.kind, { ...props.item, points: pts })
+  toast(`Точек было ${props.item.points.length}, стало ${pts.length} — Ctrl+Z вернёт`)
+}
 </script>
 
 <style scoped>
