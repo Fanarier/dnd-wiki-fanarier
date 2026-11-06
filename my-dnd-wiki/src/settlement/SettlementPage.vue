@@ -29,7 +29,7 @@
         <SettlementMap ref="mapRef" class="sp-map" :settlement="s" :calc="calc" :selected="sel" :tool="tool" :ghosts="ghosts" :brush="brush" :master="master"
                        @ready="mapReady = true" @select="sel = $event" @moved="onMoved" @placed="onPlaced" @explore="onExplore" @fog="onFog"
                        @cut="onCut" @fell="onFell" @road="onRoad" @road-edit="onRoadEdit" @wall="onWall" @wall-feature="onWallFeature" @need-gate="onNeedGate" @march="onMarch"
-                       @clock="onClock" @person="onPerson" />
+                       @clock="onClock" @person="onPerson" @doors="onDoors" />
         <!-- инструменты: мастеру — правка карты, главе — приказы -->
         <div v-if="master || decider" class="sp-tools">
           <button :class="{ on: !tool }" title="Смотреть и выбирать" @click="setTool(null)">👁 Смотреть</button>
@@ -434,6 +434,9 @@ async function onMarch({ qid, path, exit, label, speed }) {
   tool.value = null
   sel.value = { kind: 'squad', id: qid }
 }
+
+// входы постройки (смещения от центра на краю плашки)
+const onDoors = ({ id, doors }) => patch({ buildings: s.value.buildings.map(b => (b.id === id ? { ...b, doors } : b)) })
 
 /* ---------- жизнь: часы и жители ---------- */
 const onClock = speed => act('POST', `${base()}/clock`, { speed }).catch(() => null)

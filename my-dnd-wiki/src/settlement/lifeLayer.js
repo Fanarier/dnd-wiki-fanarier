@@ -11,7 +11,7 @@ const CLOTH = {
   mechanic: '#4d5560', poultry: '#b8a06a', storekeeper: '#7a6a8f', septic: '#6b6450', free: '#9b8c74'
 }
 const CARRY = { log: '#7a4f2a', bucket: '#5f8fbf', basket: '#b08150', meat: '#c0392b' }
-const TOOLS = { chop: 1, build: 1, mine: 1, farm: 1, patrol: 0, gather: 0, riot: 1 }
+const TOOLS = { chop: 1, build: 1, mine: 1, farm: 1, patrol: 0, gather: 1, riot: 1 }
 const EARS = { fenris: 'wolf', neko: 'cat', kitsune: 'fox' }
 
 export function createLifeLayer(canvas, get) {
@@ -71,6 +71,17 @@ export function createLifeLayer(canvas, get) {
       }
     }
     if (k < 0.55) return
+    // ягодные кусты и травы там, где ходят собиратели
+    if (k >= 0.7) {
+      for (const pl of cast.places) {
+        if (pl.type !== 'gatherer') continue
+        for (const [i, p] of (cast.sites[pl.id] || []).entries()) {
+          const x = sx(p[0]), y = sy(p[1])
+          if (x < -20 || y < -20 || x > W + 20 || y > H + 20) continue
+          bush(ctx, x, y, Math.max(4, 1.6 * k), i)
+        }
+      }
+    }
     const ppl = peopleById(cast)
     // радиус «плеч» в пикселях: мультяшно крупнее настоящего, иначе издалека — пылинки
     const r0 = Math.min(16, Math.max(4, 0.8 * k))
@@ -179,6 +190,21 @@ function drawPerson(ctx, p, pos, x, y, r, rt, ph, sel) {
       ctx.beginPath(); ctx.moveTo(bx + Math.cos(a) * r * 0.55, by + Math.sin(a) * r * 0.55)
       ctx.lineTo(bx + Math.cos(a + 1.3) * r * 0.25, by + Math.sin(a + 1.3) * r * 0.25); ctx.lineTo(bx + Math.cos(a - 1.3) * r * 0.25, by + Math.sin(a - 1.3) * r * 0.25); ctx.fill()
     }
+  }
+}
+// куст с ягодами: зелёный шар с тенью и россыпью ягод (цвет — от номера куста)
+const BERRY = ['#c0392b', '#7d3c98', '#e67e22', '#2e86c1']
+function bush(ctx, x, y, r, i) {
+  ctx.fillStyle = 'rgba(0, 0, 0, .22)'
+  ctx.beginPath(); ctx.ellipse(x + r * 0.25, y + r * 0.35, r * 1.05, r * 0.8, 0, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#3f7a32'
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = '#5c9c45'
+  ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.55, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = BERRY[i % BERRY.length]
+  for (let k = 0; k < 5; k++) {
+    const a = k * 1.3 + i, d = r * (0.35 + (k % 3) * 0.2)
+    ctx.beginPath(); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d, Math.max(1, r * 0.16), 0, Math.PI * 2); ctx.fill()
   }
 }
 function badge(ctx, x, y, text) {

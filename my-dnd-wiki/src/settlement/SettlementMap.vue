@@ -20,6 +20,14 @@
             </template>
           </g>
         </mask>
+        <pattern id="sm-cobble" patternUnits="userSpaceOnUse" width="2.4" height="2.4">
+          <rect width="2.4" height="2.4" fill="#86817a" />
+          <rect x="0.1" y="0.1" width="1.05" height="1.0" rx="0.25" fill="#aaa598" />
+          <rect x="1.25" y="0.1" width="1.05" height="1.0" rx="0.25" fill="#a39e92" />
+          <rect x="0.65" y="1.25" width="1.05" height="1.0" rx="0.25" fill="#b0ab9e" />
+          <rect x="-0.5" y="1.25" width="1.05" height="1.0" rx="0.25" fill="#a39e92" />
+          <rect x="1.8" y="1.25" width="1.05" height="1.0" rx="0.25" fill="#aaa598" />
+        </pattern>
         <pattern id="sm-furrows" patternUnits="userSpaceOnUse" width="3" height="3" patternTransform="rotate(-8)">
           <rect width="3" height="3" fill="#c9b85a" />
           <rect width="3" height="1.1" fill="#a6963e" />
@@ -137,7 +145,16 @@
         <g v-for="b in placedView" :key="b.id" class="sm-item" :class="[{ sel: isSel('building', b.id), dragging: b.id === dragId, bad: b.id === dragId && dragBad.length, building: b.state === 'construction', onroad: overRoad.has(b.id) }, b.damage ? 'dmg dmg-' + b.damage : '']"
            :transform="`translate(${b.x} ${b.y})`" :data-id="b.id" data-kind="building"
            @pointerenter="hover = { kind: 'building', item: b }" @pointerleave="hover = null" @click.stop="pick('building', b)">
-          <template v-if="b.type === 'field'">
+          <template v-if="b.type === 'plaza'">
+            <circle :r="shown(b) / 2 + 0.8" fill="rgba(0, 0, 0, .25)" :transform="`translate(0.8 1.1)`" />
+            <circle :r="shown(b) / 2" :fill="view.k > 0.6 ? 'url(#sm-cobble)' : '#9a958a'" class="sm-plaza" vector-effect="non-scaling-stroke" />
+            <circle :r="shown(b) * 0.36" fill="none" stroke="#bdb8ab" :stroke-width="shown(b) * 0.025" stroke-dasharray="2 1.2" />
+            <rect v-for="a in [45, 135, 225, 315]" :key="a" :x="-shown(b) * 0.06" :y="-shown(b) * 0.4" :width="shown(b) * 0.12" :height="shown(b) * 0.035" fill="#7a5530" :transform="`rotate(${a})`" />
+            <circle :r="shown(b) * 0.15" fill="#c9c4b7" stroke="#4c4a45" :stroke-width="shown(b) * 0.018" />
+            <circle :r="shown(b) * 0.115" fill="#4f9fd0" />
+            <circle :r="shown(b) * 0.03" fill="#e9e4d6" class="sm-fountain" />
+          </template>
+          <template v-else-if="b.type === 'field'">
             <rect :x="-shown(b) / 2" :y="-shown(b) / 2" :width="shown(b)" :height="shown(b)" :rx="shown(b) / 14" fill="url(#sm-furrows)" class="sm-field" vector-effect="non-scaling-stroke" />
             <image :href="iconUrl('wheat')" :x="-icon(b) / 2" :y="-icon(b) / 2" :width="icon(b)" :height="icon(b)" />
           </template>
@@ -163,6 +180,15 @@
           <g v-if="b.repair && b.damage" :transform="`translate(0 ${shown(b) / 2 + 5 * px})`">
             <rect :x="-shown(b) / 2" :y="-2.5 * px" :width="shown(b)" :height="5 * px" :rx="2.5 * px" class="sm-prog-bg" />
             <rect :x="-shown(b) / 2" :y="-2.5 * px" :width="shown(b) * Math.min(1, (b.repair.progress || 0) / repairWork(b))" :height="5 * px" :rx="2.5 * px" class="sm-prog repair" />
+          </g>
+        </g>
+
+        <!-- входы выбранной постройки: видны только у выбранной; мастер тянет по краю, правой кнопкой или двойным щелчком — убрать -->
+        <g v-if="doorsView" class="sm-doors">
+          <g v-for="d in doorsView.list" :key="d.i" :transform="`translate(${d.x} ${d.y}) rotate(${d.deg})`" :data-door="d.i" :class="{ edit: master }"
+             @pointerenter="hover = { kind: 'door' }" @pointerleave="hover = null" @contextmenu.prevent.stop>
+            <rect :x="-doorsView.w / 2" :y="-doorsView.t / 2" :width="doorsView.w" :height="doorsView.t" :rx="doorsView.t / 4" class="sm-door-plate" />
+            <line :x1="0" :x2="0" :y1="-doorsView.t / 2" :y2="doorsView.t / 2" class="sm-door-line" />
           </g>
         </g>
 
@@ -303,7 +329,7 @@ const props = defineProps({
   brush: { type: Number, default: 60 }, // радиус кисти, м
   master: Boolean
 })
-const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march', 'clock', 'person'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march', 'clock', 'person', 'doors'])
 
 const fogUrl = fogTexture()
 const iconUrl = iconSrc
@@ -852,6 +878,29 @@ const editMids = computed(() => {
   return pts.slice(1).map((p, i) => ({ i, p: [(p[0] + pts[i][0]) / 2, (p[1] + pts[i][1]) / 2], len: Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]) }))
     .filter(m => m.len * view.k >= 34 && cursor.value && Math.hypot(m.p[0] - cursor.value.x, m.p[1] - cursor.value.y) * view.k < 60)
 })
+// входы выбранной постройки: смещения от центра, лежат на краю плашки
+const doorDrag = ref(null)
+let lastDoorClick = null
+const onEdge = (b, dx, dy) => {
+  const h = sideOf(b.type) / 2
+  if (Math.abs(dx) >= Math.abs(dy)) return [Math.sign(dx || 1) * h, Math.round(Math.max(-h, Math.min(h, dy)) * 10) / 10]
+  return [Math.round(Math.max(-h, Math.min(h, dx)) * 10) / 10, Math.sign(dy || 1) * h]
+}
+const doorsView = computed(() => {
+  if (props.selected?.kind !== 'building') return null
+  const b0 = (props.settlement.buildings || []).find(x => x.id === props.selected.id)
+  if (!b0 || b0.x == null || !sideOf(b0.type)) return null
+  const b = { ...b0, doors: doorDrag.value ? doorDrag.value.doors : b0.doors || [] }
+  if (!b.doors.length) return null
+  const h = sideOf(b.type) / 2
+  const list = b.doors.map(([dx, dy], i) => ({ i, x: b.x + dx, y: b.y + dy, deg: Math.abs(Math.abs(dx) - h) < 0.01 ? 90 : 0 }))
+  return { b, list, w: Math.max(3.5, 16 * px.value), t: Math.max(1.1, 6 * px.value) }
+})
+function removeDoor(i) {
+  const b = doorsView.value?.b
+  if (!b) return
+  emit('doors', { id: b.id, doors: b.doors.filter((_, k) => k !== i) })
+}
 // выбранная точка дороги: Delete или Backspace — убрать; правая кнопка или двойной щелчок по точке — тоже
 const pointSel = ref(null)
 watch(() => props.selected?.id, () => { pointSel.value = null })
@@ -1025,6 +1074,10 @@ function onDown(e) {
   if (mouse && e.button > 2) return
   // мышью карту двигают зажатым колёсиком (или правой кнопкой), левая — выбирать и ставить; пальцем — как обычно
   const panBtn = mouse && e.button !== 0
+  if (mouse && e.button === 2 && doorsView.value && props.master) {
+    const dd = e.target.closest?.('[data-door]')
+    if (dd) { removeDoor(+dd.dataset.door); return }
+  }
   if (mouse && e.button === 2 && editRoad.value) {
     const h = e.target.closest?.('[data-h]')
     if (h) { removePoint(+h.dataset.h); return }
@@ -1050,6 +1103,14 @@ function onDown(e) {
       marchDraft.value = [...marchDraft.value.slice(0, i), p, ...marchDraft.value.slice(i)]
       marchDrag.value = { i, p }
     } else marchDrag.value = { i: +mp.dataset.mp, p: marchDraft.value[+mp.dataset.mp] }
+    pointers.get(e.pointerId).pan = false
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    return
+  }
+  // вход постройки тянут по её краю
+  const dr = props.master && e.target.closest?.('[data-door]')
+  if (dr && doorsView.value) {
+    doorDrag.value = { i: +dr.dataset.door, doors: doorsView.value.b.doors.map(d => [...d]), moved: false, start: [e.clientX, e.clientY] }
     pointers.get(e.pointerId).pan = false
     e.currentTarget.setPointerCapture?.(e.pointerId)
     return
@@ -1107,6 +1168,16 @@ function onMove(e) {
     hover.value = id ? { kind: 'person', item: id } : null
   }
   if (!p) return
+  if (doorDrag.value) {
+    const dd = doorDrag.value
+    if (!dd.moved && Math.hypot(e.clientX - dd.start[0], e.clientY - dd.start[1]) < 4) return
+    const b = doorsView.value.b, w = toWorld(e.clientX, e.clientY)
+    const doors = dd.doors.map(d => [...d])
+    doors[dd.i] = onEdge(b, w.x - b.x, w.y - b.y)
+    doorDrag.value = { ...dd, doors, moved: true }
+    moved = true
+    return
+  }
   if (handle && !roadEdit.value) {
     if (Math.hypot(e.clientX - handle.start[0], e.clientY - handle.start[1]) < 5) return
     // потянули — теперь это правка: середина становится новой точкой
@@ -1187,6 +1258,17 @@ function onMove(e) {
 }
 function onUp(e) {
   const up = e.type === 'pointerup'
+  if (doorDrag.value) {
+    const dd = doorDrag.value
+    doorDrag.value = null
+    if (up && dd.moved) emit('doors', { id: doorsView.value.b.id, doors: dd.doors })
+    else if (up) {
+      // двойной щелчок по входу — убрать
+      const now = Date.now()
+      if (lastDoorClick && lastDoorClick.i === dd.i && now - lastDoorClick.t < 450) { lastDoorClick = null; removeDoor(dd.i) } else lastDoorClick = { i: dd.i, t: now }
+    }
+    return release(e)
+  }
   if (handle && !roadEdit.value) {
     const hd = handle
     handle = null
@@ -1303,6 +1385,7 @@ const tip = computed(() => {
     return { title: `Отряд «${m.name}»`, lines: m.st && !m.st.done ? [`Идёт: ${m.move.label}`, `Осталось ≈ ${fmtHours(m.st.left)}`] : ['Стоит в округе'] }
   }
   if (h.kind === 'road') return { title: h.item.name || ROAD_TYPES[h.item.type]?.label, lines: [`Длина: ${fmtLen(roadLen(h.item.points))}`] }
+  if (h.kind === 'door') return { title: 'Вход', lines: props.master ? ['Сюда входят и отсюда выходят жители', 'Тяни по краю — передвинуть', 'Правая кнопка или двойной щелчок — убрать'] : ['Сюда входят и отсюда выходят жители'] }
   if (h.kind === 'point') return { title: 'Точка дороги', lines: ['Тяни — передвинуть', 'Убрать: правая кнопка, двойной щелчок или щёлкни и нажми Delete'] }
   if (h.kind === 'mid') return { title: 'Новая точка', lines: ['Потяни — появится точка'] }
   if (h.kind === 'needGate') return { title: 'Дорога упирается в стену', lines: ['Щёлкни — поставить ворота'] }
@@ -1515,6 +1598,14 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm-handle { fill: #fff3c4; stroke: #3a2a14; stroke-width: 1.5; cursor: grab; }
 .sm-handle.mid { fill: rgba(255, 243, 196, .55); }
 .sm-handle.end { fill: #ffe08a; stroke-width: 2; }
+.sm-plaza { stroke: #4c4a45; stroke-width: 2.5; }
+.sm-fountain { animation: sm-fount 1.8s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes sm-fount { 50% { transform: scale(1.6); opacity: .7; } }
+@media (prefers-reduced-motion: reduce) { .sm-fountain { animation: none; } }
+.sm-door-plate { fill: #8a5a2c; stroke: #2a1a0c; stroke-width: 0.25; }
+.sm-door-line { stroke: #f0d083; stroke-width: 0.25; }
+.sm-doors g.edit { cursor: grab; }
+.sm-doors g:hover .sm-door-plate { fill: #b07a3e; }
 .sm-handle.picked { fill: #ff8a6b; stroke: #fff; stroke-width: 2.5; }
 .sm-handle.mid { opacity: .8; }
 .sm-road-hit.movable { cursor: move; }

@@ -77,7 +77,9 @@ function placesOf(s, g) {
       const dx = q.x - b.x, dy = q.y - b.y, m = Math.max(Math.abs(dx), Math.abs(dy)) || 1
       door = [b.x + (dx / m) * (h + 1), b.y + (dy / m) * (h + 1)]
     }
-    out.push({ id: b.id, b, t, type: b.type, x: b.x, y: b.y, h, door, built: (b.state || 'built') === 'built' && b.damage !== 'ruined', name: b.name || t.label })
+    // входы, что поставил мастер (смещения от центра на краю плашки); нет — дверь к ближней дороге
+    const doors = (b.doors || []).map(([dx, dy]) => { const m = Math.max(Math.abs(dx), Math.abs(dy)) || 1; return [b.x + dx + (dx / m) * 1, b.y + dy + (dy / m) * 1] })
+    out.push({ id: b.id, b, t, type: b.type, x: b.x, y: b.y, h, door: doors[0] || door, doors: doors.length ? doors : [door], built: (b.state || 'built') === 'built' && b.damage !== 'ruined', name: b.name || t.label })
   }
   return out
 }
@@ -86,7 +88,7 @@ function placesOf(s, g) {
 // по поселению: состояние приходит заново при каждой правке, поэтому храним по id и сверяем ключ
 const castCache = new Map()
 // ключ: от чего зависит раздача ролей (меняется — раздаём заново)
-const castKey = s => JSON.stringify([s.races, s.jobs, (s.buildings || []).map(b => [b.id, b.type, b.x, b.y, b.level, b.state, b.builders, b.damage]), s.outposts?.map(o => [o.id, o.workers, o.state]),
+const castKey = s => JSON.stringify([s.races, s.jobs, (s.buildings || []).map(b => [b.id, b.type, b.x, b.y, b.level, b.state, b.builders, b.damage, b.doors]), s.outposts?.map(o => [o.id, o.workers, o.state]),
   (s.hospital || []).map(p => [p.who, p.count]), (s.army?.squads || []).map(q => [q.id, q.status]), s.roads?.length])
 export function buildCast(s) {
   const key = castKey(s)
@@ -134,7 +136,9 @@ function makeCast(s) {
   // дома: заселяем по расам (семьи — рядом), лишние ночуют у двора старейшины
   const homes = places.filter(p => (p.t.housing || 0) > 0 && p.built)
   const elder = places.find(p => p.type === 'elder')
-  const plaza = elder ? elder.door : [CENTER, CENTER]
+  // площадь: своя постройка «Площадь», иначе — перед двором старейшины
+  const square = places.find(p => p.type === 'plaza' && p.built)
+  const plaza = square ? [square.x, square.y] : elder ? elder.door : [CENTER, CENTER]
   let hi = 0, left = homes[0]?.t.housing || 0
   for (const p of [...people].sort((a, b) => a.race.localeCompare(b.race))) {
     while (homes[hi] && left <= 0) { hi++; left = homes[hi]?.t.housing || 0 }
@@ -212,7 +216,12 @@ function makeCast(s) {
   const store = places.find(p => (p.type === 'storehouse' || p.type === 'barn') && p.built)
   // недовольство: мораль или стабильность сильно ниже нуля — вечером на площадь выходят бунтовать
   const unrest = c.morale < -20 || c.stability < -30
-  return { s, people, places, byId, g, sites, patrols, tavern, market, wells, store, plaza, elder, morale: c.morale, unrest, r0: r0() }
+  // место на площади: на её круге; без площади — перед двором старейшины, не на его плашке
+  const plazaSpot = r => {
+    if (square) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * square.h * 0.8; return [square.x + Math.cos(a) * d, square.y + Math.sin(a) * d] }
+    return elder ? byPlace(elder, r, 1.2) : [plaza[0] + between(r, -20, 20), plaza[1] + between(r, -20, 20)]
+  }
+  return { s, people, places, byId, g, sites, patrols, tavern, market, wells, store, plaza, plazaSpot, square, elder, morale: c.morale, unrest, r0: r0() }
 }
 
 /* ---------- распорядок дня ---------- */
@@ -233,7 +242,7 @@ function route(cast, a, b) {
   const k = `${q(a[0])},${q(a[1])}>${q(b[0])},${q(b[1])}`
   let p = pathCache.get(k)
   if (!p) {
-    p = walkRoute(cast.g, a, b)
+    p = walkRoute(cast.g, a, b, 5)
     if (pathCache.size > 6000) pathCache.clear()
     pathCache.set(k, p)
   }
@@ -242,7 +251,7 @@ function route(cast, a, b) {
 function makePlans(cast, day) {
   const plans = {}
   const { people, byId, sites } = cast
-  const homeDoor = p => byId[p.home]?.door || cast.plaza
+  const homeDoor = (p, from) => (byId[p.home] ? doorOf(byId[p.home], from) : cast.plaza)
   // помощник: собирает план одного жителя по времени
   const builder = (p, start) => {
     const segs = []
@@ -291,7 +300,7 @@ function makePlans(cast, day) {
     else if (nightGuard && place) {
       B.stay('home', 18 * 60, { hidden: true })
       patrol(cast, p, B, r, DAY_MIN - 30)
-      B.walk(homeDoor(p))
+      B.walk(homeDoor(p, B.at))
       B.stay('home', DAY_MIN, { hidden: true })
       plans[p.id] = B.segs
       continue
@@ -301,22 +310,22 @@ function makePlans(cast, day) {
       const gr = rng(hash(gk + day))
       huntPlan[gk] ||= { out: 6 * 60 + 20 + between(gr, 0, 30), site: pick(gr, sites[place.id]?.length ? sites[place.id] : [place.door]), back: 16 * 60 + between(gr, 0, 60) }
       const hp = huntPlan[gk]
-      B.walk(place.door)
-      B.stay('work', hp.out, { at: place.door })
+      B.walk(doorOf(place, B.at))
+      B.stay('work', hp.out, { at: B.at })
       const off = [between(r, -6, 6), between(r, -6, 6)]
       B.walk([hp.site[0] + off[0], hp.site[1] + off[1]], { direct: true })
       B.stay('hunt', hp.back)
       B.walk(place.door, { direct: true, carry: r() < 0.6 ? 'meat' : null })
       B.stay('work', Math.max(B.t + 15, workEnd - 30), { at: place.door })
     } else if (place) {
-      B.walk(place.door)
+      B.walk(doorOf(place, B.at))
       workDay(cast, p, place, B, r, workEnd)
     } else {
       idleDay(cast, p, B, r, workEnd)
     }
     // ---- вечер ----
     if (!p.kid) evening(cast, p, B, r, day)
-    B.walk(homeDoor(p))
+    B.walk(homeDoor(p, B.at))
     B.stay('sleep', DAY_MIN, { hidden: true })
     plans[p.id] = B.segs
   }
@@ -330,7 +339,7 @@ function workDay(cast, p, place, B, r, end) {
   const act = p.job === 'builder' ? 'build' : JOB_ACT[p.job] || 'work'
   if (!OUTDOOR.has(p.job)) {
     // внутри: зашёл — и до вечера (обед — тоже внутри)
-    B.stay(act, end, { at: place.door, hidden: true, place: place.id })
+    B.stay(act, end, { at: B.at, hidden: true, place: place.id })
     return
   }
   const lunch = 12 * 60 + between(r, 0, 40)
@@ -396,6 +405,13 @@ function waterRun(cast, p, B, r, well) {
   B.stay('water', B.t + 3)
   B.walk(well.door)
 }
+// ближайший к точке вход постройки
+export function doorOf(place, from) {
+  if (!from || place.doors.length < 2) return place.door
+  let best = place.doors[0], bd = Infinity
+  for (const d of place.doors) { const v = dist(d, from); if (v < bd) { bd = v; best = d } }
+  return best
+}
 // место у постройки: вдоль её стороны с дверью, не на самой плашке и не кучей в одной точке
 function byPlace(place, r, spread = 1) {
   if (!place) return null
@@ -408,7 +424,7 @@ function idleDay(cast, p, B, r, end) {
   while (B.t < end - 20) {
     const k = r()
     const pl = k < 0.3 ? cast.market : k < 0.5 ? cast.store : k < 0.65 && cast.wells.length ? pick(r, cast.wells) : null
-    const dest = pl ? byPlace(pl, r) : k < 0.8 ? [cast.plaza[0] + between(r, -16, 16), cast.plaza[1] + between(r, -16, 16)] : (cast.byId[p.home]?.door || cast.plaza)
+    const dest = pl ? byPlace(pl, r) : k < 0.8 ? cast.plazaSpot(r) : (cast.byId[p.home] ? doorOf(cast.byId[p.home], B.at) : cast.plaza)
     B.walk(dest, { act: 'walk' })
     // на складе — внутри; рынок, колодец, площадь — на виду
     const inStore = k >= 0.3 && k < 0.5 && pl === cast.store
@@ -422,8 +438,8 @@ function kidDay(cast, p, B, r, day, end) {
   const stop = Math.min(end, 19 * 60 + between(r, 0, 60))
   while (B.t < stop - 10) {
     if (well) { waterRun(cast, p, B, r, well); continue }
-    const near = r() < 0.6 ? home : cast.plaza
-    B.walk([near[0] + between(r, -18, 18), near[1] + between(r, -18, 18)], { direct: dist(B.at, near) < 120 })
+    const spot = r() < 0.6 ? [home[0] + between(r, -18, 18), home[1] + between(r, -18, 18)] : cast.plazaSpot(r)
+    B.walk(spot, { direct: dist(B.at, spot) < 80 })
     B.stay('play', B.t + between(r, 4, 12))
   }
 }
@@ -432,7 +448,7 @@ function evening(cast, p, B, r, day) {
   const bed = 21 * 60 + between(r, 0, 90)
   const k = r()
   if (cast.unrest && k < 0.4) {
-    while (B.t < bed - 5) { B.walk([cast.plaza[0] + between(r, -20, 20), cast.plaza[1] + between(r, -20, 20)]); B.stay('riot', Math.min(bed, B.t + between(r, 6, 14)), { social: 'plaza' }) }
+    while (B.t < bed - 5) { B.walk(cast.plazaSpot(r)); B.stay('riot', Math.min(bed, B.t + between(r, 6, 14)), { social: 'plaza' }) }
     return
   }
   // вечер кусками: постояли, перешли к другой компании — не стоят столбом весь вечер
@@ -440,7 +456,7 @@ function evening(cast, p, B, r, day) {
     while (B.t < bed - 5) {
       // большинство сидит внутри; немногие выходят на крыльцо — их видно, они болтают
       const out = r() < 0.3
-      B.walk(out ? byPlace(cast.tavern, r, 1.1) : cast.tavern.door)
+      B.walk(out ? byPlace(cast.tavern, r, 1.1) : doorOf(cast.tavern, B.at))
       B.stay('tavern', Math.min(bed, B.t + between(r, 20, 40)), { social: out ? 'tavern' : 'tavern-in', hidden: !out, place: cast.tavern.id })
     }
   } else if (k < 0.8) {
@@ -451,7 +467,7 @@ function evening(cast, p, B, r, day) {
       B.stay('home', Math.min(bed, B.t + between(r, inside ? 60 : 15, inside ? 120 : 35)), { social: 'home', hidden: inside })
     }
   } else {
-    while (B.t < bed - 5) { B.walk([cast.plaza[0] + between(r, -25, 25), cast.plaza[1] + between(r, -25, 25)]); B.stay('stroll', Math.min(bed, B.t + between(r, 8, 20)), { social: 'plaza' }) }
+    while (B.t < bed - 5) { B.walk(cast.plazaSpot(r)); B.stay('stroll', Math.min(bed, B.t + between(r, 8, 20)), { social: 'plaza' }) }
   }
 }
 // разговоры: кто вечером в одном месте — болтают парами; днём на площади — тоже
@@ -563,7 +579,7 @@ const day0 = sg => Math.floor(sg.t0 / 60)
 export function gatherings(cast, snap, tod) {
   const out = []
   const by = (f) => snap.filter(x => x.act !== 'away' && f(x))
-  const at = pl => (pl ? { x: pl.x, y: pl.y } : { x: cast.plaza[0], y: cast.plaza[1] })
+  const at = pl => (pl ? { x: pl.x, y: pl.y } : cast.square ? { x: cast.square.x, y: cast.square.y } : { x: cast.plaza[0], y: cast.plaza[1] })
   const tav = by(x => x.act === 'tavern')
   if (cast.tavern && tav.length >= 5) out.push({ icon: '🍺', n: tav.length, text: `${tav.length} ${plural(tav.length, 'житель гуляет', 'жителя гуляют', 'жителей гуляют')} в таверне${tod > 22 * 60 ? ' — до ночи' : ''}`, at: at(cast.tavern) })
   const riot = by(x => x.act === 'riot')

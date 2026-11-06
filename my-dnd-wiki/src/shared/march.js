@@ -422,14 +422,14 @@ export function routePath(ctx, a, b) {
 
 // путь пешком для жителей: к ближней дороге, по дорогам, от дороги к цели — без поиска по местности (быстро);
 // если дорог рядом нет или так дольше — напрямик
-export function walkRoute(g, a, b) {
+export function walkRoute(g, a, b, offroad = OFFROAD) {
   const straight = Math.hypot(b[0] - a[0], b[1] - a[1])
-  if (!g?.nodes.length || straight < 60) return [a, b]
-  const leg = (p, q) => ({ ...q, cost: Math.hypot(p[0] - q.x, p[1] - q.y) * OFFROAD })
+  if (!g?.nodes.length || straight < 40) return [a, b]
+  const leg = (p, q) => ({ ...q, cost: Math.hypot(p[0] - q.x, p[1] - q.y) * offroad })
   const starts = g.nearest(a[0], a[1], 2, 400).map(q => leg(a, q))
   const goals = g.nearest(b[0], b[1], 2, 400).map(q => leg(b, q))
   if (!starts.length || !goals.length) return [a, b]
   const r = roadLeg(g, starts, goals)
-  if (!r || r.total >= straight * OFFROAD) return [a, b]
+  if (!r || r.total >= straight * offroad) return [a, b]
   return [a, ...r.pts, b]
 }

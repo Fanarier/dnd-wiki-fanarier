@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- площадь с фонтаном: мощёный круг, чаша, струи -->
+  <circle cx="256" cy="256" r="232" fill="#8f8b82" stroke="#4c4a45" stroke-width="16"/>
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#b6b1a5" stroke-width="10" stroke-dasharray="28 14"/>
+  <g stroke="#a39e92" stroke-width="8">
+    <line x1="256" y1="40" x2="256" y2="150"/><line x1="256" y1="362" x2="256" y2="472"/>
+    <line x1="40" y1="256" x2="150" y2="256"/><line x1="362" y1="256" x2="472" y2="256"/>
+  </g>
+  <circle cx="256" cy="256" r="104" fill="#c9c4b7" stroke="#4c4a45" stroke-width="14"/>
+  <circle cx="256" cy="256" r="80" fill="#4f9fd0"/>
+  <path d="M256 256 C226 206 226 176 256 150 C286 176 286 206 256 256 Z" fill="#bfe6ff"/>
+  <path d="M256 256 C200 236 186 214 196 190 C226 196 246 222 256 256 Z" fill="#9bd3f5"/>
+  <path d="M256 256 C312 236 326 214 316 190 C286 196 266 222 256 256 Z" fill="#9bd3f5"/>
+  <circle cx="256" cy="256" r="18" fill="#e9e4d6" stroke="#4c4a45" stroke-width="8"/>
+</svg>

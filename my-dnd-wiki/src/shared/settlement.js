@@ -262,6 +262,8 @@ export const BUILDINGS = {
   barn: { label: 'Амбар', cat: 'storage', size: 'large', cost: 125, icon: 'barn' },
   tavern: { label: 'Таверна', cat: 'social', size: 'large', cost: 300, icon: 'tavern-sign', jobs: { innkeeper: 4 }, guests: 10, use: { water: 10 } },
   market: { label: 'Рынок', cat: 'economy', size: 'large', cost: 300, icon: 'cash', jobs: { trader: 3 }, trade: 15 },
+  // круглая мощёная площадь с фонтаном: тут гуляют, собираются и бунтуют
+  plaza: { label: 'Площадь', cat: 'social', size: 'large', cost: 120, icon: '/settlement/plaza.svg', perm: { morale: 0.5 }, note: 'Место гуляний и сборов: вечером сюда идут жители. Мораль +0,5 в день' },
   ranch: { label: 'Ранчо', cat: 'production', size: 'large', cost: 300, icon: 'ranch-gate' },
   barrels: { label: 'Бочки с водой', cat: 'storage', size: 'medium', cost: 50, icon: 'cellar-barrels' },
   well: {
@@ -313,6 +315,7 @@ const PRICES = {
   barn: { wood: 70, straw: 20, build: 15 },
   tavern: { wood: 140, stone: 40, build: 50, clay: 20 },
   market: { wood: 120, stone: 60, build: 40, goods: 10 },
+  plaza: { stone: 120, build: 40, wood: 20 },
   ranch: { wood: 150, build: 30, straw: 40 },
   barrels: { wood: 30, iron: 5 },
   well: { stone: 50, wood: 20, iron: 10 },

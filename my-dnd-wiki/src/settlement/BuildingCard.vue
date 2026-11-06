@@ -87,6 +87,9 @@
         <div v-if="def.defense"><span>Защита</span><b>+{{ cut(def.defense) }}</b></div>
         <div v-for="(v, k) in def.gain || {}" :key="'g' + k"><span>Даёт</span><b class="plus">{{ RES[k]?.label }} +{{ cut(v, true) }}/день</b></div>
         <div v-for="(v, k) in def.use || {}" :key="'u' + k"><span>Тратит</span><b class="minus">{{ RES[k]?.label }} −{{ cut(v, true) }}/день</b></div>
+        <div v-if="item.x != null && SIZES[BUILDINGS[item.type]?.size]?.side"><span>Входы</span>
+          <b>{{ item.doors?.length ? item.doors.length + ' — видны на карте' : 'нет — жители идут к краю у дороги' }}
+            <button v-if="master" type="button" class="mini" title="Добавить вход на краю постройки; потом тяни его по краю" @click="addDoor">＋ вход</button></b></div>
         <div v-if="def.note && !nextTier" class="dmg-note">{{ def.note }}</div>
         <div v-else-if="def.note" class="dmg-note">Сейчас: {{ def.note }}</div>
       </div>
@@ -294,6 +297,14 @@ function removeFeature(f) {
   emit('save', 'wall', { ...props.item, features: props.item.features.filter(x => x.id !== f.id) })
 }
 const owner = computed(() => props.item.owner && store.data.heroes?.find(h => h.id === props.item.owner))
+// новый вход: по очереди на сторонах — снизу, справа, сверху, слева; дальше мастер тянет его по краю
+function addDoor() {
+  const h = (SIZES[BUILDINGS[props.item.type]?.size]?.side || 10) / 2
+  const doors = [...(props.item.doors || [])]
+  const sides = [[0, h], [h, 0], [0, -h], [-h, 0]]
+  doors.push(sides[doors.length % 4])
+  emit('save', 'building', { ...props.item, doors })
+}
 // убрать точки, которые почти не меняют форму (ближе 1,5 м к прямой между соседями)
 function thin() {
   const pts = simplifyLine(props.item.points, props.sel.kind === 'wall' ? 0.6 : 1.5)
