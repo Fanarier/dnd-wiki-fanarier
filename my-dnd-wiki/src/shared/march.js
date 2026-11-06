@@ -343,7 +343,7 @@ export function roadGraph(roads = []) {
 }
 
 // Дейкстра по графу дорог от входов (точка на ребре + цена дороги до неё) до выходов; null — не связаны
-function roadLeg(g, starts, goals) {
+function roadLeg(g, starts, goals, blocked = null) {
   const N = g.nodes.length, dist = new Float64Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), from0 = new Int32Array(N).fill(-1)
   const heap = []
   const push = (i, d) => { heap.push([d, i]); let n = heap.length - 1; while (n) { const p = (n - 1) >> 1; if (heap[p][0] <= d) break; [heap[p], heap[n]] = [heap[n], heap[p]]; n = p } }
@@ -358,6 +358,7 @@ function roadLeg(g, starts, goals) {
     const [d, i] = pop()
     if (d > dist[i]) continue
     for (const [j, w] of g.adj[i]) {
+      if (blocked?.has(i < j ? i * 100000 + j : j * 100000 + i)) continue
       const nd = d + w / ROAD_SPEED
       if (nd < dist[j]) { dist[j] = nd; from[j] = i; from0[j] = from0[i]; push(j, nd) }
     }
@@ -422,14 +423,46 @@ export function routePath(ctx, a, b) {
 
 // путь пешком для жителей: к ближней дороге, по дорогам, от дороги к цели — без поиска по местности (быстро);
 // если дорог рядом нет или так дольше — напрямик
-export function walkRoute(g, a, b, offroad = OFFROAD) {
+// bar — стены (wallBarrier) и закрытые ими рёбра дорог (bar.blocked): сквозь стену не ходят, только через ворота.
+// depth > 0 — подпуть к воротам: если не пройти, вернёт null
+export function walkRoute(g, a, b, offroad = OFFROAD, bar = null, depth = 0) {
   const straight = Math.hypot(b[0] - a[0], b[1] - a[1])
-  if (!g?.nodes.length || straight < 40) return [a, b]
-  const leg = (p, q) => ({ ...q, cost: Math.hypot(p[0] - q.x, p[1] - q.y) * offroad })
-  const starts = g.nearest(a[0], a[1], 2, 400).map(q => leg(a, q))
-  const goals = g.nearest(b[0], b[1], 2, 400).map(q => leg(b, q))
-  if (!starts.length || !goals.length) return [a, b]
-  const r = roadLeg(g, starts, goals)
-  if (!r || r.total >= straight * offroad) return [a, b]
-  return [a, ...r.pts, b]
+  const free = !bar || bar.empty || !bar.crosses(a, b)
+  if (free && (!g?.nodes.length || straight < 40)) return [a, b]
+  let best = null
+  if (g?.nodes.length) {
+    const ok = (p, q) => !bar || bar.empty || !bar.crosses(p, [q.x, q.y])
+    const leg = (p, q) => ({ ...q, cost: Math.hypot(p[0] - q.x, p[1] - q.y) * offroad })
+    const starts = g.nearest(a[0], a[1], 3, 400).filter(q => ok(a, q)).map(q => leg(a, q))
+    const goals = g.nearest(b[0], b[1], 3, 400).filter(q => ok(b, q)).map(q => leg(b, q))
+    const r = starts.length && goals.length ? roadLeg(g, starts, goals, bar?.blocked) : null
+    if (r) best = { cost: r.total, path: [a, ...r.pts, b] }
+  }
+  if (free && (!best || best.cost >= straight * offroad)) return [a, b]
+  if (best) return best.path
+  // ни напрямик, ни по дорогам — через ближние ворота (с той стороны, где стоим)
+  if (bar && depth === 0) {
+    const near = [...bar.gates].sort((p, q) => Math.hypot(p.x - a[0], p.y - a[1]) + Math.hypot(p.x - b[0], p.y - b[1]) - Math.hypot(q.x - a[0], q.y - a[1]) - Math.hypot(q.x - b[0], q.y - b[1])).slice(0, 2)
+    let bestG = null
+    for (const gt of near) {
+      for (const [p, q] of [[gt.in, gt.out], [gt.out, gt.in]]) {
+        if (bar.crosses(p, q) || bar.crosses(a, p) && !g?.nodes.length) continue
+        const one = walkRoute(g, a, p, offroad, bar, 1), two = one && walkRoute(g, q, b, offroad, bar, 1)
+        if (!one || !two) continue
+        const L = [...one, ...two].reduce((n, pt, i, arr) => (i ? n + Math.hypot(pt[0] - arr[i - 1][0], pt[1] - arr[i - 1][1]) : 0), 0)
+        if (!bestG || L < bestG.L) bestG = { L, path: [...one, ...two] }
+      }
+    }
+    if (bestG) return bestG.path
+  }
+  return depth ? null : [a, b]
+}
+// какие рёбра графа дорог пересекают стену (дорога упирается в стену без ворот) — для пеших закрыты
+export function blockedEdges(g, bar) {
+  const out = new Set()
+  if (!bar || bar.empty) return out
+  g.adj.forEach((list, i) => {
+    for (const [j] of list) if (i < j && bar.crosses(g.nodes[i], g.nodes[j])) out.add(i * 100000 + j)
+  })
+  return out
 }

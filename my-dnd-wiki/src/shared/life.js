@@ -3,7 +3,8 @@
 // поэтому у всех, кто смотрит, на карте одно и то же, а сервер ничего не считает. Данные поселения не меняются.
 import { RACES, JOBS, BUILDINGS, computeSettlement, tierOf, SIZES } from './settlement.js'
 import { makeTerrain, B, CENTER } from './terrainGen.js'
-import { roadGraph, walkRoute } from './march.js'
+import { roadGraph, walkRoute, blockedEdges } from './march.js'
+import { wallBarrier } from './walls.js'
 import { makeName } from './names.js'
 import { DAY_MIN } from './clock.js'
 
@@ -89,7 +90,8 @@ function placesOf(s, g) {
 const castCache = new Map()
 // ключ: от чего зависит раздача ролей (меняется — раздаём заново)
 const castKey = s => JSON.stringify([s.races, s.jobs, (s.buildings || []).map(b => [b.id, b.type, b.x, b.y, b.level, b.state, b.builders, b.damage, b.doors]), s.outposts?.map(o => [o.id, o.workers, o.state]),
-  (s.hospital || []).map(p => [p.who, p.count]), (s.army?.squads || []).map(q => [q.id, q.status]), (s.roads || []).map(r => r.points.length + ':' + r.points[0]?.join(','))])
+  (s.hospital || []).map(p => [p.who, p.count]), (s.army?.squads || []).map(q => [q.id, q.status]), (s.roads || []).map(r => r.points.length + ':' + r.points[0]?.join(',')),
+  (s.walls || []).map(w => [w.points.length, w.points[0], w.built, (w.features || []).map(f => [f.kind, f.s])])])
 export function buildCast(s) {
   const key = castKey(s)
   const old = castCache.get(s.id)
@@ -100,6 +102,10 @@ export function buildCast(s) {
 }
 function makeCast(s) {
   const g = roadGraph(s.roads || [])
+  // стены: сквозь частокол не ходят — только через ворота и калитки
+  const bar = wallBarrier(s.walls || [])
+  bar.blocked = blockedEdges(g, bar)
+  pathCache.clear()
   const c = computeSettlement(s)
   const places = placesOf(s, g)
   const byId = Object.fromEntries(places.map(p => [p.id, p]))
@@ -226,7 +232,7 @@ function makeCast(s) {
     if (square) { const a = r() * Math.PI * 2, d = Math.sqrt(r()) * square.h * 0.8; return [square.x + Math.cos(a) * d, square.y + Math.sin(a) * d] }
     return elder ? byPlace(elder, r, 1.2) : [plaza[0] + between(r, -20, 20), plaza[1] + between(r, -20, 20)]
   }
-  return { s, people, places, byId, g, sites, patrols, tavern, market, wells, store, plaza, plazaSpot, square, elder, morale: c.morale, unrest, r0: r0() }
+  return { s, people, places, byId, g, bar, sites, patrols, tavern, market, wells, store, plaza, plazaSpot, square, elder, morale: c.morale, unrest, r0: r0() }
 }
 
 /* ---------- распорядок дня ---------- */
@@ -247,7 +253,7 @@ function route(cast, a, b) {
   const k = `${q(a[0])},${q(a[1])}>${q(b[0])},${q(b[1])}`
   let p = pathCache.get(k)
   if (!p) {
-    p = walkRoute(cast.g, a, b, 5)
+    p = walkRoute(cast.g, a, b, 5, cast.bar)
     if (pathCache.size > 6000) pathCache.clear()
     pathCache.set(k, p)
   }
@@ -265,7 +271,8 @@ function makePlans(cast, day) {
       get t() { return t }, get at() { return at },
       stay(act, until, extra = {}) { if (until > t) segs.push({ t0: t, t1: until, act, at: extra.at || at, ...extra }); t = Math.max(t, until) },
       walk(to, extra = {}) {
-        const path = extra.direct ? [at, to] : route(cast, at, to)
+        // «напрямик» — только если по пути нет стены; иначе по дорогам и через ворота
+        const path = extra.direct && !cast.bar.crosses(at, to) ? [at, to] : route(cast, at, to)
         const cum = [0]
         for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + dist(path[i - 1], path[i]))
         const dur = Math.max(1, cum[cum.length - 1] / WALK)

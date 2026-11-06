@@ -70,6 +70,9 @@
         </g>
         <!-- стены: построенное — частокол или камень, ещё не построенное — пунктиром; проёмы ворот и калиток вырезаны -->
         <g class="sm-walls">
+          <!-- полоса для щелчка по стене — под воротами и башнями, чтобы их можно было тянуть -->
+          <path v-for="w in wallsDraw" :key="'h' + w.id" :d="w.dAll" class="sm-road-hit" :class="{ movable: editRoad?.id === w.id }" :data-lid="w.id" :stroke-width="Math.max(w.w, 14 * px)"
+                @pointerenter="hover = { kind: 'wall', item: w }" @pointerleave="hover = null" @click.stop="pick('wall', w)" />
           <template v-for="w in wallsDraw" :key="w.id">
             <path v-if="isSel('wall', w.id)" :d="w.dAll" class="rd" stroke="rgba(255, 236, 170, .55)" :stroke-width="w.w + 8 * px" />
             <path v-for="(d, i) in w.plan" :key="'p' + i" :d="d" class="rd sm-wall-plan" :stroke-width="w.w" :stroke-dasharray="`${3 * px} ${2.5 * px}`" />
@@ -88,8 +91,10 @@
               <path v-for="(d, i) in w.merlons" :key="'m' + i" :d="d" class="rd" stroke="#d3cec1" :stroke-width="w.w * 0.26" stroke-dasharray="0.95 0.6" />
             </template>
             <template v-else><path v-for="(d, i) in w.done" :key="'t' + i" :d="d" class="rd" :stroke="w.st.top" :stroke-width="w.w * 0.55" :stroke-dasharray="w.st.dash" /></template>
-            <g v-for="f in w.feats" :key="f.id" class="sm-wfeat" :class="[f.kind, { plan: !f.built }]" :transform="`translate(${f.x} ${f.y}) rotate(${f.deg})`"
+            <g v-for="f in w.feats" :key="f.id" class="sm-wfeat" :class="[f.kind, { plan: !f.built, movable: master && !toolActive }]" :transform="`translate(${f.x} ${f.y}) rotate(${f.deg})`" :data-feat="f.id" :data-wall="w.id"
                @pointerenter="hover = { kind: 'wallFeature', item: f, wall: w }" @pointerleave="hover = null" @click.stop="pick('wall', w)">
+              <!-- невидимая область захвата: за ворота и башню легко ухватиться -->
+              <rect class="sm-feat-hit" :x="-Math.max(f.len || f.side, 14 * px) / 2 - 1" :y="-Math.max(f.post * 1.5, f.side / 2, 8 * px)" :width="Math.max(f.len || f.side, 14 * px) + 2" :height="Math.max(f.post * 3, f.side, 16 * px)" />
               <!-- башня: деревянная — квадрат с шатровой крышей, каменная — круглая с зубцами -->
               <template v-if="f.kind === 'tower' && w.type === 'stone'">
                 <circle :cx="w.sh" :cy="w.sh * 1.4" :r="f.side / 2 * 1.05" fill="rgba(0, 0, 0, .3)" />
@@ -115,8 +120,7 @@
               </template>
             </g>
           </template>
-          <path v-for="w in wallsDraw" :key="'h' + w.id" :d="w.dAll" class="sm-road-hit" :class="{ movable: editRoad?.id === w.id }" :data-lid="w.id" :stroke-width="Math.max(w.w, 14 * px)"
-                @pointerenter="hover = { kind: 'wall', item: w }" @pointerleave="hover = null" @click.stop="pick('wall', w)" />
+
         </g>
         <!-- дорога упирается в стену, а проёма нет — мастеру подсказка; щелчок ставит ворота -->
         <g v-if="master && !lineTool">
@@ -329,7 +333,7 @@ const props = defineProps({
   brush: { type: Number, default: 60 }, // радиус кисти, м
   master: Boolean
 })
-const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march', 'clock', 'person', 'doors'])
+const emit = defineEmits(['select', 'moved', 'placed', 'explore', 'fog', 'cut', 'fell', 'road', 'roadEdit', 'wall', 'wallFeature', 'needGate', 'ready', 'march', 'clock', 'person', 'doors', 'featureMove'])
 
 const fogUrl = fogTexture()
 const iconUrl = iconSrc
@@ -491,7 +495,12 @@ const edited = (kind, x) => {
   return e.others?.[x.id] ? { ...x, points: e.others[x.id] } : x
 }
 const roadsView = computed(() => (props.settlement.roads || []).map(r => edited('road', r)))
-const wallsView = computed(() => (props.settlement.walls || []).map(w => edited('wall', w)))
+// пока тянут ворота по стене — их место на лету
+const featDrag = ref(null) // { wallId, id, s, start, moved }
+const wallsView = computed(() => (props.settlement.walls || []).map(w => {
+  const x = edited('wall', w), fd = featDrag.value
+  return fd?.moved && fd.wallId === x.id ? { ...x, features: (x.features || []).map(f => (f.id === fd.id ? { ...f, s: fd.s } : f)) } : x
+}))
 
 /* ---------- стены ---------- */
 // шатровая крыша деревянной башни сверху: четыре ската разного тона
@@ -1107,6 +1116,14 @@ function onDown(e) {
     e.currentTarget.setPointerCapture?.(e.pointerId)
     return
   }
+  // ворота, калитку, башню тянут вдоль их стены
+  const ft = props.master && !toolActive.value && e.target.closest?.('[data-feat]')
+  if (ft) {
+    featDrag.value = { wallId: ft.dataset.wall, id: ft.dataset.feat, s: null, start: [e.clientX, e.clientY], moved: false }
+    pointers.get(e.pointerId).pan = false
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    return
+  }
   // вход постройки тянут по её краю
   const dr = props.master && e.target.closest?.('[data-door]')
   if (dr && doorsView.value) {
@@ -1168,6 +1185,18 @@ function onMove(e) {
     hover.value = id ? { kind: 'person', item: id } : null
   }
   if (!p) return
+  if (featDrag.value) {
+    const fd = featDrag.value
+    if (!fd.moved && Math.hypot(e.clientX - fd.start[0], e.clientY - fd.start[1]) < 4) return
+    const w = (props.settlement.walls || []).find(x => x.id === fd.wallId)
+    const f = w?.features?.find(x => x.id === fd.id)
+    if (!w || !f) return
+    const c = toWorld(e.clientX, e.clientY), q = nearestWall([w], c.x, c.y)
+    const half = (WALL_FEATURES[f.kind]?.len || 0) / 2, len = wallLength(w.points)
+    featDrag.value = { ...fd, s: Math.round(Math.max(half, Math.min(len - half, q.s)) * 10) / 10, moved: true }
+    moved = true
+    return
+  }
   if (doorDrag.value) {
     const dd = doorDrag.value
     if (!dd.moved && Math.hypot(e.clientX - dd.start[0], e.clientY - dd.start[1]) < 4) return
@@ -1258,6 +1287,13 @@ function onMove(e) {
 }
 function onUp(e) {
   const up = e.type === 'pointerup'
+  if (featDrag.value) {
+    const fd = featDrag.value
+    featDrag.value = null
+    if (up && fd.moved) emit('featureMove', { wallId: fd.wallId, id: fd.id, s: fd.s })
+    else if (up) { const w = wallsDraw.value.find(x => x.id === fd.wallId); if (w) pick('wall', w) }
+    return release(e)
+  }
   if (doorDrag.value) {
     const dd = doorDrag.value
     doorDrag.value = null
@@ -1392,7 +1428,7 @@ const tip = computed(() => {
   if (h.kind === 'wall' || h.kind === 'wallFeature') {
     const w = h.kind === 'wall' ? h.item : h.wall, t = WALL_TYPES[w.type] || WALL_TYPES.palisade
     const lines = [`Длина: ${fmtLen(w.len)}`, w.built < w.len - 0.1 ? `Стройка: ${fmtLen(w.built)} из ${fmtLen(w.len)}` : 'Построена', `Защита +${wallDefense([{ ...w, id: '_' }])}`]
-    if (h.kind === 'wallFeature') return { title: WALL_FEATURES[h.item.kind].label + (h.item.built ? '' : ' (строится)'), lines: [`На стене: ${w.name || t.label.toLowerCase()}`] }
+    if (h.kind === 'wallFeature') return { title: WALL_FEATURES[h.item.kind].label + (h.item.built ? '' : ' (строится)'), lines: [`На стене: ${w.name || t.label.toLowerCase()}`, ...(props.master ? ['Тяни — передвинуть вдоль стены'] : [])] }
     return { title: w.name || t.label, lines }
   }
   if (h.kind === 'person') {
@@ -1531,6 +1567,8 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm-wall-plan { stroke: rgba(243, 217, 154, .55); }
 .sm-wfeat { cursor: pointer; }
 .sm-wfeat.plan { opacity: .55; }
+.sm-wfeat.movable { cursor: grab; }
+.sm-feat-hit { fill: transparent; pointer-events: all; }
 .sm-door { stroke: #c49a5a; }
 .sm-wfeat.aim { pointer-events: none; }
 .sm-wfeat.aim rect { fill: rgba(155, 224, 122, .35); stroke: #9be07a; stroke-width: 2; }

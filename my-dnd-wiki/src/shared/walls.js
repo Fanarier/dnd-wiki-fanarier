@@ -216,3 +216,61 @@ export function smoothLine(pts) {
   }
   return out
 }
+
+// стены как препятствие для пеших: построенные куски без проёмов (ворота и калитки — проходы).
+// crosses(a, b) — пересекает ли отрезок стену; gates — проходы с точками по обе стороны (in / out)
+export function wallBarrier(walls = []) {
+  const segs = []
+  const gates = []
+  for (const w of walls) {
+    const len = wallLength(w.points), built = Math.min(len, w.built ?? len)
+    const gaps = openings(w).sort((a, b) => a[0] - b[0])
+    let a = 0
+    const pieces = []
+    for (const [g0, g1] of gaps) { if (g0 > a) pieces.push([a, g0]); a = Math.max(a, g1) }
+    if (a < len) pieces.push([a, len])
+    for (const [p0, p1] of pieces) {
+      if (built <= p0) continue
+      const pts = slice(w.points, p0, Math.min(p1, built))
+      for (let i = 1; i < pts.length; i++) segs.push([pts[i - 1], pts[i]])
+    }
+    for (const f of w.features || []) {
+      if (!WALL_FEATURES[f.kind]?.len) continue
+      const p = pointAt(w.points, f.s), nx = -Math.sin(p.angle), ny = Math.cos(p.angle)
+      gates.push({ x: p.x, y: p.y, in: [p.x + nx * 5, p.y + ny * 5], out: [p.x - nx * 5, p.y - ny * 5] })
+    }
+  }
+  // отрезки стен по клеткам 50 м — проверка быстрая
+  const CELL = 50, cells = new Map()
+  segs.forEach(([a, b], i) => {
+    for (let gx = Math.floor(Math.min(a[0], b[0]) / CELL); gx <= Math.floor(Math.max(a[0], b[0]) / CELL); gx++) {
+      for (let gy = Math.floor(Math.min(a[1], b[1]) / CELL); gy <= Math.floor(Math.max(a[1], b[1]) / CELL); gy++) {
+        const k = gx * 8192 + gy
+        if (!cells.has(k)) cells.set(k, [])
+        cells.get(k).push(i)
+      }
+    }
+  })
+  const hit = (a, b, c, d) => {
+    const den = (a[0] - b[0]) * (c[1] - d[1]) - (a[1] - b[1]) * (c[0] - d[0])
+    if (Math.abs(den) < 1e-9) return false
+    const t = ((a[0] - c[0]) * (c[1] - d[1]) - (a[1] - c[1]) * (c[0] - d[0])) / den, u = -((a[0] - b[0]) * (a[1] - c[1]) - (a[1] - b[1]) * (a[0] - c[0])) / den
+    return t > 0.001 && t < 0.999 && u >= 0 && u <= 1
+  }
+  const crosses = (a, b) => {
+    if (!segs.length) return false
+    const x0 = Math.floor(Math.min(a[0], b[0]) / CELL), x1 = Math.floor(Math.max(a[0], b[0]) / CELL)
+    const y0 = Math.floor(Math.min(a[1], b[1]) / CELL), y1 = Math.floor(Math.max(a[1], b[1]) / CELL)
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 600) return segs.some(([c, d]) => hit(a, b, c, d))
+    const seen = new Set()
+    for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) {
+      for (const i of cells.get(gx * 8192 + gy) || []) {
+        if (seen.has(i)) continue
+        seen.add(i)
+        if (hit(a, b, segs[i][0], segs[i][1])) return true
+      }
+    }
+    return false
+  }
+  return { crosses, gates, empty: !segs.length }
+}
