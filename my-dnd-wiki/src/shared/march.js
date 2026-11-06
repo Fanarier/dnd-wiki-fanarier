@@ -66,7 +66,7 @@ export function marchCtx(s) {
     return best
   }
   const segs = [...new Set([...buckets.values()].flat())]
-  return { speed, onRoad, roadPoint, segs }
+  return { speed, onRoad, roadPoint, segs, graph: roadGraph(s.roads || []) }
 }
 
 // мс на метр при полном темпе: темп карты мира (км за игровой день) и длина игрового дня в настоящих часах
@@ -229,9 +229,193 @@ export function planPath(ctx, points, auto) {
   if (!auto) return points
   const out = [points[0]]
   for (let i = 1; i < points.length; i++) {
-    const p = findPath(ctx, points[i - 1], points[i])
+    const p = routePath(ctx, points[i - 1], points[i])
     if (!p) return null
     out.push(...p.slice(1))
   }
   return out
+}
+
+/* ---------- граф дорог: идти точно по оси дороги, через стыки и перекрёстки ----------
+   узлы — точки осей дорог через ~15 м, рёбра — вдоль дорог; конец дороги на другой дороге и пересечения связаны.
+   Один граф и для отрядов (routePath), и для жителей на карте */
+const STEP = 15
+const graphCache = new WeakMap()
+export function roadGraph(roads = []) {
+  if (graphCache.has(roads)) return graphCache.get(roads)
+  const nodes = [], adj = []
+  const node = p => { nodes.push([p[0], p[1]]); adj.push([]); return nodes.length - 1 }
+  const link = (i, j) => {
+    if (i === j) return
+    const d = Math.hypot(nodes[i][0] - nodes[j][0], nodes[i][1] - nodes[j][1])
+    adj[i].push([j, d]); adj[j].push([i, d])
+  }
+  const lines = [] // { road, ids, w }
+  for (const r of roads) {
+    const c = roadCurve(r)
+    if (c.length < 2) continue
+    const ids = [node(c[0])]
+    let acc = 0
+    for (let i = 1; i < c.length; i++) {
+      acc += Math.hypot(c[i][0] - c[i - 1][0], c[i][1] - c[i - 1][1])
+      if (acc >= STEP || i === c.length - 1) { const k = node(c[i]); link(ids[ids.length - 1], k); ids.push(k); acc = 0 }
+    }
+    lines.push({ road: r, ids, w: ROAD_TYPES[r.type]?.w || 4 })
+  }
+  // все рёбра по корзинам 100 м — для стыков, пересечений и поиска ближайшей дороги
+  const CELL = 100, buckets = new Map(), edges = []
+  for (const L of lines) {
+    for (let i = 1; i < L.ids.length; i++) {
+      const e = { a: L.ids[i - 1], b: L.ids[i], line: L }
+      edges.push(e)
+      const [ax, ay] = nodes[e.a], [bx, by] = nodes[e.b]
+      for (let gx = Math.floor(Math.min(ax, bx) / CELL); gx <= Math.floor(Math.max(ax, bx) / CELL); gx++) {
+        for (let gy = Math.floor(Math.min(ay, by) / CELL); gy <= Math.floor(Math.max(ay, by) / CELL); gy++) {
+          const k = gx * 4096 + gy
+          if (!buckets.has(k)) buckets.set(k, [])
+          buckets.get(k).push(e)
+        }
+      }
+    }
+  }
+  const near = (x, y, rad = 1) => {
+    const out = new Set(), gx = Math.floor(x / CELL), gy = Math.floor(y / CELL)
+    for (let i = -rad; i <= rad; i++) for (let j = -rad; j <= rad; j++) for (const e of buckets.get((gx + i) * 4096 + gy + j) || []) out.add(e)
+    return out
+  }
+  const project = (e, x, y) => {
+    const [ax, ay] = nodes[e.a], [bx, by] = nodes[e.b], dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy
+    const t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L)) : 0
+    const px = ax + dx * t, py = ay + dy * t
+    return { e, t, x: px, y: py, d: Math.hypot(x - px, y - py) }
+  }
+  // конец дороги на другой дороге — связываем с ближайшим ребром той дороги (или её концом)
+  for (const L of lines) {
+    for (const end of [L.ids[0], L.ids[L.ids.length - 1]]) {
+      const [x, y] = nodes[end]
+      let best = null
+      for (const e of near(x, y)) {
+        if (e.line === L) continue
+        const p = project(e, x, y)
+        if (p.d <= e.line.w / 2 + 2.5 && (!best || p.d < best.d)) best = p
+      }
+      if (!best) continue
+      if (best.t < 0.02) link(end, best.e.a)
+      else if (best.t > 0.98) link(end, best.e.b)
+      else { const k = node([best.x, best.y]); link(end, k); link(k, best.e.a); link(k, best.e.b) }
+    }
+  }
+  // пересечения посреди дорог (перекрёсток «крестом»)
+  const seen = new Set()
+  for (const list of buckets.values()) {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      const e = list[i], f = list[j]
+      if (e.line === f.line) continue
+      const key = e.a < f.a ? `${e.a}:${f.a}` : `${f.a}:${e.a}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const [x1, y1] = nodes[e.a], [x2, y2] = nodes[e.b], [x3, y3] = nodes[f.a], [x4, y4] = nodes[f.b]
+      const den = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4)
+      if (Math.abs(den) < 1e-9) continue
+      const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / den, u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / den
+      if (t <= 0 || t >= 1 || u <= 0 || u >= 1) continue
+      const k = node([x1 + t * (x2 - x1), y1 + t * (y2 - y1)])
+      link(k, e.a); link(k, e.b); link(k, f.a); link(k, f.b)
+    }
+  }
+  // ближайшие точки на дорогах к (x, y): по одной на дорогу, сначала ближние
+  const nearest = (x, y, n = 4, maxD = 1500) => {
+    const best = new Map()
+    for (let rad = 1; rad <= Math.ceil(maxD / CELL); rad = rad * 2 + 1) {
+      for (const e of near(x, y, rad)) {
+        const p = project(e, x, y)
+        if (p.d > maxD) continue
+        const q = best.get(e.line)
+        if (!q || p.d < q.d) best.set(e.line, p)
+      }
+      if (best.size >= n) break
+    }
+    return [...best.values()].sort((a, b) => a.d - b.d).slice(0, n)
+  }
+  const g = { nodes, adj, nearest }
+  graphCache.set(roads, g)
+  return g
+}
+
+// Дейкстра по графу дорог от входов (точка на ребре + цена дороги до неё) до выходов; null — не связаны
+function roadLeg(g, starts, goals) {
+  const N = g.nodes.length, dist = new Float64Array(N).fill(Infinity), from = new Int32Array(N).fill(-1), from0 = new Int32Array(N).fill(-1)
+  const heap = []
+  const push = (i, d) => { heap.push([d, i]); let n = heap.length - 1; while (n) { const p = (n - 1) >> 1; if (heap[p][0] <= d) break; [heap[p], heap[n]] = [heap[n], heap[p]]; n = p } }
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let n = 0; for (;;) { const l = n * 2 + 1, r = l + 1; let m = n; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === n) break; [heap[m], heap[n]] = [heap[n], heap[m]]; n = m } } return top }
+  starts.forEach((s, si) => {
+    for (const v of [s.e.a, s.e.b]) {
+      const d = s.cost + Math.hypot(g.nodes[v][0] - s.x, g.nodes[v][1] - s.y) / ROAD_SPEED
+      if (d < dist[v]) { dist[v] = d; from0[v] = si; from[v] = -1; push(v, d) }
+    }
+  })
+  while (heap.length) {
+    const [d, i] = pop()
+    if (d > dist[i]) continue
+    for (const [j, w] of g.adj[i]) {
+      const nd = d + w / ROAD_SPEED
+      if (nd < dist[j]) { dist[j] = nd; from[j] = i; from0[j] = from0[i]; push(j, nd) }
+    }
+  }
+  let best = null
+  for (const t of goals) {
+    for (const v of [t.e.a, t.e.b]) {
+      if (dist[v] === Infinity) continue
+      const total = dist[v] + Math.hypot(g.nodes[v][0] - t.x, g.nodes[v][1] - t.y) / ROAD_SPEED + t.cost
+      if (!best || total < best.total) best = { total, v, t }
+    }
+    // вход и выход на одном ребре — прямо по нему
+    for (const s of starts) {
+      if (s.e !== t.e) continue
+      const total = s.cost + Math.hypot(s.x - t.x, s.y - t.y) / ROAD_SPEED + t.cost
+      if (!best || total < best.total) best = { total, direct: s, t }
+    }
+  }
+  if (!best) return null
+  if (best.direct) return { total: best.total, start: best.direct, goal: best.t, pts: [[best.direct.x, best.direct.y], [best.t.x, best.t.y]] }
+  const chain = []
+  for (let i = best.v; i >= 0; i = from[i]) chain.push(g.nodes[i])
+  chain.reverse()
+  const s = starts[from0[best.v]]
+  return { total: best.total, start: s, goal: best.t, pts: [[s.x, s.y], ...chain, [best.t.x, best.t.y]] }
+}
+
+// цена пути «по времени»: бездорожье дороже (как в поиске пути), дорога — по полной скорости
+export function pathCost(ctx, path) {
+  let t = 0
+  for (let i = 1; i < path.length; i++) {
+    const [ax, ay] = path[i - 1], [bx, by] = path[i], d = Math.hypot(bx - ax, by - ay), n = Math.max(1, Math.ceil(d / 25))
+    for (let k = 0; k < n; k++) {
+      const x = ax + (bx - ax) * (k + 0.5) / n, y = ay + (by - ay) * (k + 0.5) / n
+      const on = ctx.onRoad(x, y)
+      t += (d / n) / Math.max(0.08, ctx.speed(x, y)) * (on ? 1 : OFFROAD)
+    }
+  }
+  return t
+}
+
+// путь с учётом дорог: выйти на ближнюю дорогу, пройти по оси через стыки, сойти у цели — если так не дольше,
+// чем по бездорожью. Иначе — поиск пути по местности. null — не дойти
+export function routePath(ctx, a, b) {
+  const direct = findPath(ctx, a, b)
+  const directCost = direct ? pathCost(ctx, direct) : Infinity
+  const g = ctx.graph
+  if (!g?.nodes.length) return direct
+  // подход к дороге: близко — по прямой, дальше — поиском пути
+  const legTo = (from, p) => {
+    const path = Math.hypot(from[0] - p.x, from[1] - p.y) < 40 ? [from, [p.x, p.y]] : findPath(ctx, from, [p.x, p.y])
+    return path ? { ...p, path, cost: pathCost(ctx, path) } : null
+  }
+  const starts = g.nearest(a[0], a[1]).map(p => legTo(a, p)).filter(Boolean)
+  const goals = g.nearest(b[0], b[1]).map(p => { const l = legTo(b, p); return l && { ...l, path: [...l.path].reverse() } }).filter(Boolean)
+  if (!starts.length || !goals.length) return direct
+  const leg = roadLeg(g, starts, goals)
+  if (!leg || leg.total >= directCost) return direct
+  const out = [...leg.start.path.slice(0, -1), ...leg.pts, ...leg.goal.path.slice(1)]
+  return out.filter((p, i) => !i || Math.hypot(p[0] - out[i - 1][0], p[1] - out[i - 1][1]) > 0.05).map(p => [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10])
 }

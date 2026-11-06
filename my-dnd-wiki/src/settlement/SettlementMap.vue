@@ -35,15 +35,21 @@
              поэтому перекрёстки сливаются; там, где дорога упирается в другую, — плавный раструб -->
         <g class="sm-roads">
           <path v-for="r in roadsDraw.filter(x => isSel('road', x.id))" :key="'g' + r.id" :d="r.d" class="rd" stroke="rgba(255, 236, 170, .55)" :stroke-width="r.st.edge.w + 8 * px" />
-          <path v-for="r in roadsDraw" :key="'s' + r.id" :d="r.d" class="rd" :stroke="r.st.shadow.c" :stroke-width="r.st.shadow.w" />
+          <template v-for="r in roadsDraw" :key="'s' + r.id">
+            <path :d="r.d" class="rd bt" :stroke="r.st.shadow.c" :stroke-width="r.st.shadow.w" />
+            <circle v-for="(c, i) in r.caps" :key="i" :cx="c[0]" :cy="c[1]" :r="r.st.shadow.w / 2" :fill="r.st.shadow.c" />
+          </template>
           <template v-for="r in roadsDraw" :key="'e' + r.id">
             <path v-for="(f, i) in r.flares" :key="i" :d="f" :fill="r.st.edge.c" :stroke="r.st.edge.c" :stroke-width="r.st.edge.w - r.st.fill.w" stroke-linejoin="round" />
-            <path :d="r.d" class="rd" :stroke="r.st.edge.c" :stroke-width="r.st.edge.w" />
+            <path :d="r.d" class="rd bt" :stroke="r.st.edge.c" :stroke-width="r.st.edge.w" />
+            <circle v-for="(c, i) in r.caps" :key="'c' + i" :cx="c[0]" :cy="c[1]" :r="r.st.edge.w / 2" :fill="r.st.edge.c" />
           </template>
+          <!-- покрытие и разметка — дорога за дорогой: главная (и та, в которую упираются) ложится поверх -->
           <template v-for="r in roadsDraw" :key="'f' + r.id">
             <path v-for="(f, i) in r.flares" :key="i" :d="f" :fill="r.st.fill.c" />
-            <path :d="r.d" class="rd" :stroke="r.st.fill.c" :stroke-width="r.st.fill.w" />
-            <path v-for="(l, i) in r.st.extra" :key="'x' + i" :d="r.dInner" class="rd" :stroke="l.c" :stroke-width="l.w" :stroke-dasharray="l.dash" stroke-linecap="butt" />
+            <path :d="r.d" class="rd bt" :stroke="r.st.fill.c" :stroke-width="r.st.fill.w" />
+            <circle v-for="(c, i) in r.caps" :key="'c' + i" :cx="c[0]" :cy="c[1]" :r="r.st.fill.w / 2" :fill="r.st.fill.c" />
+            <path v-for="(l, i) in r.marks" :key="'x' + i" :d="l.d" class="rd bt" :stroke="l.c" :stroke-width="l.w" :stroke-dasharray="l.dash" :stroke-dashoffset="l.dashOff" />
           </template>
           <path v-for="r in roadsDraw" :key="'h' + r.id" :d="r.d" class="sm-road-hit" :stroke-width="Math.max(ROAD_TYPES[r.type]?.w || 4, 14 * px)"
                 @pointerenter="hover = { kind: 'road', item: r }" @pointerleave="hover = null" @click.stop="pick('road', r)" />
@@ -53,18 +59,45 @@
           <template v-for="w in wallsDraw" :key="w.id">
             <path v-if="isSel('wall', w.id)" :d="w.dAll" class="rd" stroke="rgba(255, 236, 170, .55)" :stroke-width="w.w + 8 * px" />
             <path v-for="(d, i) in w.plan" :key="'p' + i" :d="d" class="rd sm-wall-plan" :stroke-width="w.w" :stroke-dasharray="`${3 * px} ${2.5 * px}`" />
+            <!-- тень, тело, верх: частокол — брёвна торцами, камень — кладка и зубцы снаружи -->
+            <path v-for="(d, i) in w.done" :key="'s' + i" :d="d" class="rd" :stroke="'rgba(0, 0, 0, .28)'" :stroke-width="w.w * 1.15" :transform="`translate(${w.sh} ${w.sh * 1.4})`" />
             <path v-for="(d, i) in w.done" :key="'e' + i" :d="d" class="rd" :stroke="w.st.edge" :stroke-width="w.w + w.st.edgeW" />
             <path v-for="(d, i) in w.done" :key="'b' + i" :d="d" class="rd" :stroke="w.st.body" :stroke-width="w.w" />
-            <path v-for="(d, i) in w.done" :key="'t' + i" :d="d" class="rd" :stroke="w.st.top" :stroke-width="w.w * 0.55" :stroke-dasharray="w.st.dash" stroke-linecap="butt" />
+            <template v-if="w.near && w.type !== 'stone'">
+              <path v-for="(d, i) in w.done" :key="'l' + i" :d="d" class="rd logs" stroke="#8a5f33" :stroke-width="w.w * 0.86" :stroke-dasharray="`0.001 ${w.w * 0.9}`" />
+              <path v-for="(d, i) in w.done" :key="'h' + i" :d="d" class="rd logs" stroke="#c09257" :stroke-width="w.w * 0.34" :stroke-dasharray="`0.001 ${w.w * 0.9}`" :transform="`translate(${-w.w * 0.12} ${-w.w * 0.12})`" />
+              <path v-for="(d, i) in w.done" :key="'r' + i" :d="d" class="rd logs" stroke="#5a3a1c" :stroke-width="w.w * 0.12" :stroke-dasharray="`0.001 ${w.w * 0.9}`" />
+            </template>
+            <template v-else-if="w.near">
+              <path v-for="(d, i) in w.done" :key="'k' + i" :d="d" class="rd" stroke="#b3aea2" :stroke-width="w.w * 0.46" />
+              <path v-for="(d, i) in w.done" :key="'j' + i" :d="d" class="rd" stroke="#6f6b63" :stroke-width="w.w" stroke-dasharray="0.12 1.35" />
+              <path v-for="(d, i) in w.merlons" :key="'m' + i" :d="d" class="rd" stroke="#d3cec1" :stroke-width="w.w * 0.26" stroke-dasharray="0.95 0.6" />
+            </template>
+            <template v-else><path v-for="(d, i) in w.done" :key="'t' + i" :d="d" class="rd" :stroke="w.st.top" :stroke-width="w.w * 0.55" :stroke-dasharray="w.st.dash" /></template>
             <g v-for="f in w.feats" :key="f.id" class="sm-wfeat" :class="[f.kind, { plan: !f.built }]" :transform="`translate(${f.x} ${f.y}) rotate(${f.deg})`"
                @pointerenter="hover = { kind: 'wallFeature', item: f, wall: w }" @pointerleave="hover = null" @click.stop="pick('wall', w)">
-              <template v-if="f.kind === 'tower'">
-                <rect :x="-f.side / 2" :y="-f.side / 2" :width="f.side" :height="f.side" :rx="f.side / 10" :fill="w.st.body" :stroke="w.st.edge" :stroke-width="Math.max(0.4, 1.5 * px)" />
-                <rect :x="-f.side / 4" :y="-f.side / 4" :width="f.side / 2" :height="f.side / 2" :fill="w.st.top" />
+              <!-- башня: деревянная — квадрат с шатровой крышей, каменная — круглая с зубцами -->
+              <template v-if="f.kind === 'tower' && w.type === 'stone'">
+                <circle :cx="w.sh" :cy="w.sh * 1.4" :r="f.side / 2 * 1.05" fill="rgba(0, 0, 0, .3)" />
+                <circle :r="f.side / 2" :fill="w.st.body" :stroke="w.st.edge" :stroke-width="Math.max(0.3, 1.2 * px)" />
+                <circle :r="f.side * 0.42" fill="none" stroke="#d3cec1" :stroke-width="f.side * 0.13" :stroke-dasharray="`${f.side * 0.2} ${f.side * 0.13}`" />
+                <circle :r="f.side * 0.3" fill="#a9a498" stroke="#6f6b63" :stroke-width="Math.max(0.1, 0.6 * px)" />
+              </template>
+              <template v-else-if="f.kind === 'tower'">
+                <rect :x="-f.side / 2 + w.sh" :y="-f.side / 2 + w.sh * 1.4" :width="f.side" :height="f.side" fill="rgba(0, 0, 0, .3)" />
+                <rect :x="-f.side / 2" :y="-f.side / 2" :width="f.side" :height="f.side" :rx="f.side / 14" fill="#5a3a1c" :stroke="w.st.edge" :stroke-width="Math.max(0.3, 1.2 * px)" />
+                <path v-for="(t, i) in ROOF" :key="i" :d="t.d(f.side * 0.46)" :fill="t.c" />
+                <circle r="0.25" fill="#3a2614" />
               </template>
               <template v-else>
-                <rect v-for="sx in [-1, 1]" :key="sx" :x="sx * f.len / 2 - f.post / 2" :y="-f.post / 2" :width="f.post" :height="f.post" :fill="w.st.edge" />
-                <line :x1="-f.len / 2 + f.post / 2" :x2="f.len / 2 - f.post / 2" y1="0" y2="0" class="sm-door" :stroke-width="Math.max(0.35, w.w * 0.45)" :stroke-dasharray="`${Math.max(0.2, px)} ${Math.max(0.08, px * 0.4)}`" />
+                <rect v-for="sx in [-1, 1]" :key="'sh' + sx" :x="sx * f.len / 2 - f.post / 2 + w.sh" :y="-f.post / 2 + w.sh * 1.4" :width="f.post" :height="f.post" fill="rgba(0, 0, 0, .28)" />
+                <!-- створки: две у ворот, одна у калитки; доски поперёк -->
+                <g v-if="w.near">
+                  <rect v-for="(l, i) in f.leaves" :key="'lf' + i" :x="l.x" :y="-f.leafT / 2" :width="l.w" :height="f.leafT" fill="#8a5a2c" stroke="#3a2614" :stroke-width="0.08" />
+                  <line v-for="(l, i) in f.leaves" :key="'pl' + i" :x1="l.x" :x2="l.x + l.w" y1="0" y2="0" stroke="#5e3d1c" :stroke-width="f.leafT" :stroke-dasharray="`0.06 ${0.32}`" />
+                </g>
+                <line v-else :x1="-f.len / 2 + f.post / 2" :x2="f.len / 2 - f.post / 2" y1="0" y2="0" class="sm-door" :stroke-width="Math.max(0.35, w.w * 0.45)" />
+                <rect v-for="sx in [-1, 1]" :key="sx" :x="sx * f.len / 2 - f.post / 2" :y="-f.post / 2" :width="f.post" :height="f.post" :rx="f.post / 8" :fill="w.type === 'stone' ? '#a19c90' : '#6e4b28'" :stroke="w.st.edge" :stroke-width="Math.max(0.1, 0.8 * px)" />
               </template>
             </g>
           </template>
@@ -95,7 +128,7 @@
         <circle v-if="tool === 'fell' && fellTarget" :cx="fellTarget.x" :cy="fellTarget.y" :r="Math.max(fellTarget.r + 0.6, 6 * px)" class="sm-fell" vector-effect="non-scaling-stroke" />
 
         <!-- постройки в настоящем размере (издалека — не меньше значка) -->
-        <g v-for="b in placedView" :key="b.id" class="sm-item" :class="[{ sel: isSel('building', b.id), dragging: b.id === dragId, bad: b.id === dragId && dragBad.length, building: b.state === 'construction' }, b.damage ? 'dmg dmg-' + b.damage : '']"
+        <g v-for="b in placedView" :key="b.id" class="sm-item" :class="[{ sel: isSel('building', b.id), dragging: b.id === dragId, bad: b.id === dragId && dragBad.length, building: b.state === 'construction', onroad: overRoad.has(b.id) }, b.damage ? 'dmg dmg-' + b.damage : '']"
            :transform="`translate(${b.x} ${b.y})`" :data-id="b.id" data-kind="building"
            @pointerenter="hover = { kind: 'building', item: b }" @pointerleave="hover = null" @click.stop="pick('building', b)">
           <template v-if="b.type === 'field'">
@@ -399,6 +432,13 @@ const roadsView = computed(() => (props.settlement.roads || []).map(r => (roadEd
 const wallsView = computed(() => (props.settlement.walls || []).map(w => (roadEdit.value?.kind === 'wall' && roadEdit.value.id === w.id ? { ...w, points: roadEdit.value.points } : w)))
 
 /* ---------- стены ---------- */
+// шатровая крыша деревянной башни сверху: четыре ската разного тона
+const ROOF = [
+  { c: '#a46b3c', d: h => `M0 0 L${-h} ${-h} L${h} ${-h} Z` },
+  { c: '#7a4f2a', d: h => `M0 0 L${h} ${-h} L${h} ${h} Z` },
+  { c: '#5f3d1f', d: h => `M0 0 L${h} ${h} L${-h} ${h} Z` },
+  { c: '#8d5b31', d: h => `M0 0 L${-h} ${h} L${-h} ${-h} Z` }
+]
 const WALL_STYLE = {
   palisade: { edge: '#2c1f12', body: '#7a5530', top: '#b0844f', edgeW: 0.5, dash: '0.3 0.14' },
   stone: { edge: '#34322e', body: '#8f8b82', top: '#c2bdb1', edgeW: 0.7, dash: '1.1 0.8' }
@@ -411,18 +451,28 @@ const wallsDraw = computed(() => wallsView.value.map(w => {
   let a = 0
   for (const [g0, g1] of openings(w).sort((x, y) => x[0] - y[0])) { if (g0 > a) pieces.push([a, g0]); a = Math.max(a, g1) }
   if (a < len) pieces.push([a, len])
-  const done = [], plan = []
+  const donePts = [], plan = []
   for (const [p0, p1] of pieces) {
-    if (built > p0) done.push(pathOf(slice(w.points, p0, Math.min(p1, built))))
+    if (built > p0) donePts.push(slice(w.points, p0, Math.min(p1, built)))
     if (built < p1) plan.push(pathOf(slice(w.points, Math.max(p0, built), p1)))
   }
   const wpx = Math.max(t.w, 3 * px.value)
+  // вблизи — брёвна, кладка, зубцы; издалека — простая полоса
+  const near = view.k * t.w >= 5
+  // зубцы — с внешней стороны: у кольца это снаружи, у открытой стены — слева по ходу
+  let area = 0
+  for (let i = 0; i < w.points.length; i++) { const a = w.points[i], b = w.points[(i + 1) % w.points.length]; area += a[0] * b[1] - b[0] * a[1] }
+  const outer = area > 0 ? -1 : 1
+  const merlons = near && w.type === 'stone' ? donePts.map(p => pathOf(offsetLine(p, outer * t.w * 0.37))) : []
   const feats = (w.features || []).map(f => {
     const p = pointAt(w.points, f.s), d = WALL_FEATURES[f.kind]
     const side = Math.max((d.side || 5) * (w.type === 'stone' ? 1.2 : 1), 10 * px.value)
-    return { ...f, x: p.x, y: p.y, deg: (p.angle * 180) / Math.PI, len: d.len, side, post: Math.max(wpx * 1.5, 0.6), built: (f.state || 'built') === 'built' && built >= f.s }
+    const post = Math.max(wpx * (w.type === 'stone' ? 1.6 : 1.5), 0.6)
+    const inner = Math.max(0, (d.len || 0) - post)
+    const leaves = f.kind === 'gate' ? [{ x: -inner / 2, w: inner / 2 - 0.05 }, { x: 0.05, w: inner / 2 - 0.05 }] : [{ x: -inner / 2, w: inner }]
+    return { ...f, x: p.x, y: p.y, deg: (p.angle * 180) / Math.PI, len: d.len, side, post, leaves, leafT: Math.max(0.3, t.w * 0.5), built: (f.state || 'built') === 'built' && built >= f.s }
   })
-  return { ...w, len, built, w: wpx, dAll: pathOf(w.points), done: done.filter(Boolean), plan: plan.filter(Boolean), feats, st: WALL_STYLE[w.type] || WALL_STYLE.palisade }
+  return { ...w, len, built, w: wpx, near, sh: Math.max(0.35, t.w * 0.35), dAll: pathOf(w.points), done: donePts.map(pathOf).filter(Boolean), merlons, plan: plan.filter(Boolean), feats, st: WALL_STYLE[w.type] || WALL_STYLE.palisade }
 }))
 // дорога пересекает стену без ворот
 const needGates = computed(() => roadCrossings(wallsView.value, roadsView.value, roadCurve).filter(c => !c.gate))
@@ -448,17 +498,56 @@ const wallDraftInfo = computed(() => {
     lines: [`Цена: ${fmtPrice(wallPrice(type, len))}`, `Стройка ≈ ${days} дн. (без слесарей)`, `Защита +${Math.round(len * WALL_TYPES[type].defense)}`]
   }
 })
-// оформление вида дороги: ширины в метрах, но не тоньше нескольких пикселей издалека
+// оформление вида дороги: ширины в метрах, но не тоньше нескольких пикселей издалека.
+// marks — разметка поверх покрытия: линии со смещением от оси off (м) — колеи, булыжник, доски, перила; вблизи подробнее
 function roadStyle(type) {
-  const w = ROAD_TYPES[type]?.w || 4, p = px.value
+  const w = ROAD_TYPES[type]?.w || 4, p = px.value, k = view.k
   const m = (meters, pixels) => Math.max(meters, pixels * p)
   switch (type) {
-    case 'trail': return { shadow: { c: 'rgba(40, 30, 18, .22)', w: m(w + 1.4, 3) }, edge: { c: '#9a7d55', w: m(w + 0.5, 2.2) }, fill: { c: '#c4a676', w: m(w, 1.4) }, extra: [] }
-    case 'tract': return { shadow: { c: 'rgba(30, 22, 12, .35)', w: m(w + 4, 4.6) }, edge: { c: '#5e472c', w: m(w + 1.6, 3.4) }, fill: { c: '#977652', w: m(w, 2.6) }, extra: [{ c: '#83653f', w: m(w * 0.62, 1.4) }, { c: '#977652', w: m(w * 0.36, 0.8) }] }
-    case 'paved': return { shadow: { c: 'rgba(20, 20, 18, .35)', w: m(w + 3.5, 4.2) }, edge: { c: '#4c4a45', w: m(w + 1.4, 3.2) }, fill: { c: '#9a958a', w: m(w, 2.4) }, extra: view.k > 1.2 ? [{ c: '#b6b1a5', w: w * 0.9, dash: '0.45 0.8' }] : [] }
-    case 'bridge': return { shadow: { c: 'rgba(10, 8, 4, .45)', w: m(w + 3, 4.4) }, edge: { c: '#3b2a18', w: m(w + 1.6, 3.4) }, fill: { c: '#a77d4c', w: m(w, 2.6) }, extra: view.k > 0.8 ? [{ c: '#7a5a34', w: w * 0.94, dash: '0.28 0.5' }] : [] }
-    default: return { shadow: { c: 'rgba(40, 30, 18, .32)', w: m(w + 3, 3.6) }, edge: { c: '#6b5235', w: m(w + 1.2, 2.8) }, fill: { c: '#a3835a', w: m(w, 2) }, extra: [{ c: 'rgba(196, 166, 120, .5)', w: m(w * 0.38, 0.7) }] }
+    case 'trail': return { shadow: { c: 'rgba(40, 30, 18, .22)', w: m(w + 1.4, 3) }, edge: { c: '#9a7d55', w: m(w + 0.5, 2.2) }, fill: { c: '#c4a676', w: m(w, 1.4) },
+      marks: k > 2 ? [{ off: 0, c: 'rgba(120, 92, 56, .35)', w: w * 0.4, dash: '0.22 0.7' }] : [] }
+    case 'tract': return { shadow: { c: 'rgba(30, 22, 12, .35)', w: m(w + 4, 4.6) }, edge: { c: '#5e472c', w: m(w + 1.6, 3.4) }, fill: { c: '#977652', w: m(w, 2.6) },
+      marks: k > 0.5 ? [{ off: 0, c: '#a6865f', w: w * 0.22 }, ...[-1, 1].flatMap(sg => [{ off: sg * w * 0.32, c: '#7a5d3a', w: w * 0.09 }, { off: sg * w * 0.12, c: '#83653f', w: w * 0.07 }])] : [] }
+    case 'paved': return { shadow: { c: 'rgba(20, 20, 18, .35)', w: m(w + 3.5, 4.2) }, edge: { c: '#4c4a45', w: m(w + 1.4, 3.2) }, fill: { c: k > 1.2 ? '#86817a' : '#9a958a', w: m(w, 2.4) },
+      // булыжник: ряды камней вразбежку на тёмном растворе, по краям — бордюр
+      marks: k > 1.2 ? [
+        ...[-0.38, -0.23, -0.08, 0.08, 0.23, 0.38].map((f, i) => ({ off: f * w, c: i % 2 ? '#a39e92' : '#aca79b', w: w * 0.13, dash: '0.68 0.12', dashOff: [0, 0.4, 0.15, 0.55, 0.28, 0.7][i] })),
+        ...[-1, 1].map(sg => ({ off: sg * w * 0.47, c: '#bdb8ab', w: w * 0.06 }))
+      ] : [] }
+    case 'bridge': return { shadow: { c: 'rgba(10, 8, 4, .45)', w: m(w + 3, 4.4) }, edge: { c: '#3b2a18', w: m(w + 1.6, 3.4) }, fill: { c: '#a77d4c', w: m(w, 2.6) },
+      marks: k > 0.8 ? [{ off: 0, c: '#7a5a34', w: w * 0.94, dash: '0.12 0.42' }, ...[-1, 1].map(sg => ({ off: sg * w * 0.47, c: '#4a3420', w: w * 0.1 }))] : [] }
+    default: return { shadow: { c: 'rgba(40, 30, 18, .32)', w: m(w + 3, 3.6) }, edge: { c: '#6b5235', w: m(w + 1.2, 2.8) }, fill: { c: '#a3835a', w: m(w, 2) },
+      // грунтовка: две колеи и травка посередине
+      marks: k > 0.6 ? [...[-1, 1].map(sg => ({ off: sg * w * 0.24, c: '#8a6c47', w: w * 0.13 })), ...(k > 1.5 ? [{ off: 0, c: 'rgba(118, 146, 66, .45)', w: w * 0.12, dash: '0.5 1.1' }] : [])] : [] }
   }
+}
+// ломаная, сдвинутая вбок на d метров (влево по ходу — минус)
+function offsetLine(pts, d) {
+  if (!d || pts.length < 2) return pts
+  return pts.map((p, i) => {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1
+    return [p[0] - (dy / l) * d, p[1] + (dx / l) * d]
+  })
+}
+// отрезать от ломаной кусок длиной cut с начала (end = 0) или с конца (end = 1)
+const trimEnd = (pts, end, cut) => (end ? trimStart([...pts].reverse(), cut).reverse() : trimStart(pts, cut))
+// дорога упирается в постройку — обрываем у края плашки, как подъезд к двери
+function trimAtBuilding(pts, end, buildings) {
+  const tip = end ? pts[pts.length - 1] : pts[0]
+  const inside = (b, p, pad) => Math.abs(p[0] - b.x) <= b.h + pad && Math.abs(p[1] - b.y) <= b.h + pad
+  const b = buildings.find(q => inside(q, tip, 1))
+  if (!b) return null
+  const seq = end ? [...pts].reverse() : pts
+  let i = 1
+  while (i < seq.length && inside(b, seq[i], 0)) i++
+  if (i >= seq.length) return null // дорога целиком под постройкой — не трогаем
+  // точная граница между seq[i-1] (внутри) и seq[i] (снаружи)
+  let lo = 0, hi = 1
+  const at = u => [seq[i - 1][0] + (seq[i][0] - seq[i - 1][0]) * u, seq[i - 1][1] + (seq[i][1] - seq[i - 1][1]) * u]
+  for (let n = 0; n < 12; n++) { const mid = (lo + hi) / 2; if (inside(b, at(mid), 0)) lo = mid; else hi = mid }
+  const out = [at(hi), ...seq.slice(i)]
+  return end ? out.reverse() : out
 }
 // точка на ломаной на расстоянии dist от начала
 function pointAlong(pts, dist) {
@@ -514,34 +603,62 @@ function flarePath(curve, end, J, tI, wN, wI) {
 const roadsDraw = computed(() => {
   const roads = roadsView.value
   const juncs = roadJunctions(roads)
+  // плашки построек (полсторны) — к ним дороги подходят «к двери»
+  const plates = placed.value.map(b => ({ x: b.x, y: b.y, h: sideOf(b.type) / 2 }))
+  const rank = r => ROAD_TYPES[r.type]?.rank || 0
+  // кто главнее на стыке: при равном виде позже рисуем ту, в которую упираются, — её разметка ляжет поверх раструба
+  const into = new Map()
+  for (const j of juncs) if (rank(j.into) >= rank(j.road)) into.set(j.into, (into.get(j.into) || 0) + 1)
   return roads.map(r => {
     const st = roadStyle(r.type)
     const full = roadCurve(r)
     let curve = full
-    const flares = []
-    let inner = full
-    for (const j of juncs.filter(x => x.road === r)) {
-      const sti = roadStyle(j.into.type)
-      const ci = roadCurve(j.into)
-      // упёрлись в конец другой дороги — это угол или продолжение, раструб не нужен
-      const atEnd = [ci[0], ci[ci.length - 1]].some(p => Math.hypot(p[0] - j.x, p[1] - j.y) < sti.fill.w / 2 + 0.5)
-      if (!atEnd && (ROAD_TYPES[j.into.type]?.rank || 0) >= (ROAD_TYPES[r.type]?.rank || 0)) {
-        // направление главной дороги в точке примыкания
-        const q = nearestRoad([j.into], j.x, j.y)
-        const tI = q ? [ci[q.seg][0] - ci[q.seg - 1][0], ci[q.seg][1] - ci[q.seg - 1][1]] : [1, 0]
-        const fp = flarePath(full, j.end, [j.x, j.y], tI, st.fill.w, sti.fill.w)
-        if (fp) {
-          flares.push(fp)
-          // сама дорога кончается у оси главной, не доходя до неё: круглый конец не вылезает за дальнюю кромку
-          const cut = sti.fill.w / 2 * 0.9
-          curve = j.end ? trimStart([...curve].reverse(), cut).reverse() : trimStart(curve, cut)
+    const flares = [], caps = []
+    for (const end of [0, 1]) {
+      const tip = end ? full[full.length - 1] : full[0]
+      const j = juncs.find(x => x.road === r && x.end === end)
+      if (j) {
+        const sti = roadStyle(j.into.type)
+        const ci = roadCurve(j.into)
+        // упёрлись в конец другой дороги — это угол или продолжение: круглый стык;
+        // если дальше идёт дорога попроще (мостовая → грунтовка), главная обрывается ровно, без колпачка
+        const atEnd = [ci[0], ci[ci.length - 1]].some(p => Math.hypot(p[0] - j.x, p[1] - j.y) < sti.fill.w / 2 + 0.5)
+        if (atEnd) { if (rank(j.into) >= rank(r)) caps.push(tip); continue }
+        if (rank(j.into) >= rank(r)) {
+          // примыкание к дороге не ниже рангом — плавный раструб, сама дорога кончается под покрытием главной
+          const q = nearestRoad([j.into], j.x, j.y)
+          const tI = q ? [ci[q.seg][0] - ci[q.seg - 1][0], ci[q.seg][1] - ci[q.seg - 1][1]] : [1, 0]
+          const fp = flarePath(full, j.end, [j.x, j.y], tI, st.fill.w, sti.fill.w)
+          if (fp) flares.push(fp)
+          curve = trimEnd(curve, end, sti.fill.w / 2 * 0.9)
+        } else {
+          // главная дорога кончается на второстепенной — ровно у её кромки, без нашлёпки сверху
+          curve = trimEnd(curve, end, sti.fill.w / 2)
         }
+        continue
       }
-      // разметка не заходит на покрытие главной дороги
-      inner = j.end ? trimStart([...inner].reverse(), sti.fill.w / 2 + 0.3).reverse() : trimStart(inner, sti.fill.w / 2 + 0.3)
+      const cut = trimAtBuilding(curve, end, plates)
+      if (cut) curve = cut
+      else caps.push(tip) // тупик — круглый конец
     }
-    return { ...r, st, flares, d: pathOf(curve), dInner: pathOf(inner), rank: ROAD_TYPES[r.type]?.rank || 0 }
-  }).sort((a, b) => a.rank - b.rank)
+    const marks = st.marks.map(mk => ({ ...mk, d: pathOf(offsetLine(curve, mk.off)) }))
+    return { ...r, st, flares, caps, marks, d: pathOf(curve), rank: rank(r), order: rank(r) * 1000 + (into.get(r) || 0) }
+  }).sort((a, b) => a.order - b.order)
+})
+// постройки, под которыми проходит дорога (не подъезд, а прямо насквозь) — мастеру подсвечиваем
+const overRoad = computed(() => {
+  if (!props.master) return new Set()
+  const out = new Set()
+  for (const b of placed.value) {
+    const h = sideOf(b.type) / 2 - 0.5
+    if (h <= 0) continue
+    for (const r of roadsView.value) {
+      const c = roadCurve(r)
+      // точка дороги внутри плашки, и это не один из концов (подъезд)
+      if (c.some((p, i) => i > 2 && i < c.length - 3 && Math.abs(p[0] - b.x) < h && Math.abs(p[1] - b.y) < h)) { out.add(b.id); break }
+    }
+  }
+  return out
 })
 const roadLen = pts => pts.reduce((n, p, i) => (i ? n + Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]) : 0), 0)
 const fmtHours = ms => (ms >= 3600000 ? `${(ms / 3600000).toFixed(1).replace('.', ',')} ч` : `${Math.max(1, Math.round(ms / 60000))} мин`)
@@ -899,15 +1016,16 @@ const tip = computed(() => {
     if (h.kind === 'wallFeature') return { title: WALL_FEATURES[h.item.kind].label + (h.item.built ? '' : ' (строится)'), lines: [`На стене: ${w.name || t.label.toLowerCase()}`] }
     return { title: w.name || t.label, lines }
   }
-  const b = h.item, d = BUILDINGS[b.type]
+  const b = h.item, d = tierOf(b) || BUILDINGS[b.type]
   const lines = [`${CATEGORIES[d.cat]?.label} · ${SIZES[d.size]?.label}${SIZES[d.size]?.area ? ' (' + SIZES[d.size].area + ')' : ''}`]
-  for (const [j, n] of Object.entries(d.jobs || {})) lines.push(`${JOBS[j].label}: ${n} мест`)
+  for (const [j, n] of Object.entries(d.jobs || {})) lines.push(`${JOBS[j]?.label || j}: ${n} мест`)
   if (d.housing) lines.push(`Жильё: ${d.housing}`)
+  if (overRoad.value.has(b.id)) lines.push('⚠ Стоит прямо на дороге — передвинь постройку или дорогу')
   if (b.damage && DAMAGE[b.damage]) {
     lines.push(`${DAMAGE[b.damage].label} — работает на ${Math.round(DAMAGE[b.damage].work * 100)}%`)
     if (b.repair) lines.push(`Ремонт: ${Math.floor(b.repair.progress || 0)} из ${repairWork(b)}`)
   }
-  return { title: b.name || d.label, lines }
+  return { title: b.name || d.label, lines, bad: overRoad.value.has(b.id) }
 })
 // строка состояния: местность под курсором и расстояние до поселения
 const place = ref('')
@@ -954,6 +1072,7 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm-world { fill: none; stroke: rgba(231, 197, 111, .55); stroke-width: 2; stroke-dasharray: 2 10; stroke-linecap: round; pointer-events: none; }
 .sm-fog { pointer-events: none; opacity: .86; }
 .rd { fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.rd.bt { stroke-linecap: butt; }
 .sm-roads path:not(.sm-road-hit) { pointer-events: none; }
 .sm-road-hit { fill: none; stroke: transparent; stroke-linecap: round; stroke-linejoin: round; cursor: pointer; pointer-events: stroke; }
 .sm-snap { fill: rgba(255, 243, 196, .2); stroke: #fff3c4; stroke-width: 2; pointer-events: none; }
@@ -961,6 +1080,7 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm-draft { stroke: rgba(243, 217, 154, .75); stroke-dasharray: 6 4; stroke-linecap: round; stroke-linejoin: round; }
 .sm-draft.wall { stroke: rgba(176, 132, 79, .85); stroke-dasharray: none; stroke-linecap: butt; }
 .sm-walls .rd { stroke-linecap: butt; stroke-linejoin: miter; }
+.sm-walls .rd.logs { stroke-linecap: round; }
 .sm-wall-plan { stroke: rgba(243, 217, 154, .55); }
 .sm-wfeat { cursor: pointer; }
 .sm-wfeat.plan { opacity: .55; }
@@ -1009,6 +1129,8 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm.tool-paint { cursor: crosshair; }
 .sm-item.dragging { opacity: .9; }
 .sm-item.bad .sm-plate { stroke: #ff4a3d; fill: #f3c6c0; }
+/* мастеру: постройка стоит прямо на дороге */
+.sm-item.onroad .sm-plate { stroke: #ff4a3d; stroke-dasharray: 5 3; }
 .sm-item.building .sm-plate { stroke-dasharray: 6 4; fill: #c9c2b2; opacity: .88; }
 .sm-prog-bg { fill: rgba(20, 16, 10, .75); }
 .sm-prog { fill: #e6c27a; }

@@ -1,7 +1,7 @@
 // Походы по карте поселения на странице: где отряд, куда он идёт, отправить в путь
 import { ref, watch } from 'vue'
 import { store, act, isMaster } from '../map/store.js'
-import { homeOf, isHome, marchCtx, marchState, findPath, edgePoint } from '../shared/march.js'
+import { homeOf, isHome, marchCtx, marchState, routePath, edgePoint } from '../shared/march.js'
 import { OUTPOSTS, BUILDINGS } from '../shared/settlement.js'
 
 // где отряд сейчас: { x, y, home } — дома (у дома главы); null — на карте мира
@@ -33,7 +33,7 @@ export const sendMarch = (s, qid, path, { exit = false, label = '', speed = isMa
 export function marchTo(s, qid, to, opt) {
   const from = squadAt(s, qid)
   if (!from) return null
-  const path = findPath(marchCtx(s), [from.x, from.y], to) || [[from.x, from.y], to]
+  const path = routePath(marchCtx(s), [from.x, from.y], to) || [[from.x, from.y], to]
   return sendMarch(s, qid, path, opt)
 }
 export const marchHome = (s, qid) => marchTo(s, qid, homeOf(s), { label: 'Домой' })

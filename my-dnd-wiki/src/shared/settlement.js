@@ -143,6 +143,16 @@ export function roadCurve(r) {
   curveCache.set(r, out)
   return out
 }
+// рамка дороги [x0, y0, x1, y1] — для быстрых проверок
+const boxCache = new WeakMap()
+export function roadBox(r) {
+  if (boxCache.has(r)) return boxCache.get(r)
+  const c = roadCurve(r)
+  const bb = [Infinity, Infinity, -Infinity, -Infinity]
+  for (const [x, y] of c) { if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (x > bb[2]) bb[2] = x; if (y > bb[3]) bb[3] = y }
+  boxCache.set(r, bb)
+  return bb
+}
 // ближайшая к точке дорога: { road, x, y, dist, seg }
 export function nearestRoad(roads, x, y, skipId) {
   let best = null
@@ -723,8 +733,21 @@ export function placementProblems(s, b, ignoreId = b.id) {
   if (codes.has(TB.WATER)) out.push('в воде')
   if (codes.has(TB.SWAMP)) out.push('в болоте')
   if (codes.has(TB.RAVINE)) out.push('в овраге')
-  if (pts.some(p => (s.roads || []).some(r => { const c = roadCurve(r); return c.some((a, i) => i && segDist(p, c[i - 1], a) < roadW(r) / 2 + 1) }))) out.push('на дороге')
-  if (pts.some(p => !explored(s, p))) out.push('за пределами разведанной земли')
+  // дороги: сперва отбираем отрезки рядом с квадратом (по рамкам), потом проверяем точки — иначе на каждое движение мыши тысячи отрезков
+  const near = []
+  for (const r of s.roads || []) {
+    const pad = roadW(r) / 2 + 1, bb = roadBox(r)
+    if (bb[0] - pad > f.x + f.w || bb[2] + pad < f.x || bb[1] - pad > f.y + f.h || bb[3] + pad < f.y) continue
+    const c = roadCurve(r)
+    for (let i = 1; i < c.length; i++) {
+      const a = c[i - 1], q = c[i]
+      if (Math.min(a[0], q[0]) - pad > f.x + f.w || Math.max(a[0], q[0]) + pad < f.x || Math.min(a[1], q[1]) - pad > f.y + f.h || Math.max(a[1], q[1]) + pad < f.y) continue
+      near.push([a, q, pad])
+    }
+  }
+  if (near.length && pts.some(p => near.some(([a, q, pad]) => segDist(p, a, q) < pad))) out.push('на дороге')
+  const ex = (s.explored || []).filter(e => !e.r || (Math.abs(e.x - b.x) < e.r + f.side && Math.abs(e.y - b.y) < e.r + f.side))
+  if (pts.some(p => !explored({ explored: ex }, p))) out.push('за пределами разведанной земли')
   for (const q of s.buildings || []) {
     if (q.id === ignoreId || q.x == null) continue
     const g = footprint(q)

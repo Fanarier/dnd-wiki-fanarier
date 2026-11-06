@@ -34,7 +34,7 @@ import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
 import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS,
   STAT_RANGE, clampStat, moraleGain, moraleDay, buildRate, isWorksite, worksiteLeft, tierOf, tierLabel, upgradePrice, upgradeWork, upgradeBlock, applySettlementRules, URGENT_DAYS, SIZES, CATEGORIES } from '../src/shared/settlement.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
-import { homeOf, isHome, marchCtx, marchTiming, marchState, msPerMeter, densify, findPath, edgePoint, atEdge } from '../src/shared/march.js'
+import { homeOf, isHome, marchCtx, marchTiming, marchState, msPerMeter, densify, routePath, edgePoint, atEdge } from '../src/shared/march.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
 import { URGENCY, QUEST_TAGS, EARLY_DEFAULT, earlyChance, nextRollAt } from '../src/shared/quests.js'
 import { DIE_SIDES, ADV_MODES, keptIndex, rollSummary } from '../src/shared/dice.js'
@@ -682,7 +682,7 @@ function squadCameHome(p) {
   const home = homeOf(st)
   const edge = away?.edge || edgePoint(home[0], SETTLE_WORLD)
   const ctx = marchCtx(st)
-  const path = away?.path?.length > 1 ? [...away.path].reverse() : findPath(ctx, edge, home) || [edge, home]
+  const path = away?.path?.length > 1 ? [...away.path].reverse() : routePath(ctx, edge, home) || [edge, home]
   q.status = 'local'
   ;(st.marches ||= {})[q.id] = { x: edge[0], y: edge[1], move: startMove(ctx, densify(path), { label: 'Домой', home: true }) }
   notify('masters', 'arrived', `${st.name}: отряд «${q.name}» вернулся в округу, идёт домой`, settleLink(st, 'squads'))
