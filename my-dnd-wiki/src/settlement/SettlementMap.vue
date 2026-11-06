@@ -51,7 +51,7 @@
             <circle v-for="(c, i) in r.caps" :key="'c' + i" :cx="c[0]" :cy="c[1]" :r="r.st.fill.w / 2" :fill="r.st.fill.c" />
             <path v-for="(l, i) in r.marks" :key="'x' + i" :d="l.d" class="rd bt" :stroke="l.c" :stroke-width="l.w" :stroke-dasharray="l.dash" :stroke-dashoffset="l.dashOff" />
           </template>
-          <path v-for="r in roadsDraw" :key="'h' + r.id" :d="r.d" class="sm-road-hit" :stroke-width="Math.max(ROAD_TYPES[r.type]?.w || 4, 14 * px)"
+          <path v-for="r in roadsDraw" :key="'h' + r.id" :d="r.d" class="sm-road-hit" :class="{ movable: editRoad?.id === r.id }" :data-lid="r.id" :stroke-width="Math.max(ROAD_TYPES[r.type]?.w || 4, 14 * px)"
                 @pointerenter="hover = { kind: 'road', item: r }" @pointerleave="hover = null" @click.stop="pick('road', r)" />
         </g>
         <!-- стены: построенное — частокол или камень, ещё не построенное — пунктиром; проёмы ворот и калиток вырезаны -->
@@ -101,7 +101,7 @@
               </template>
             </g>
           </template>
-          <path v-for="w in wallsDraw" :key="'h' + w.id" :d="w.dAll" class="sm-road-hit" :stroke-width="Math.max(w.w, 14 * px)"
+          <path v-for="w in wallsDraw" :key="'h' + w.id" :d="w.dAll" class="sm-road-hit" :class="{ movable: editRoad?.id === w.id }" :data-lid="w.id" :stroke-width="Math.max(w.w, 14 * px)"
                 @pointerenter="hover = { kind: 'wall', item: w }" @pointerleave="hover = null" @click.stop="pick('wall', w)" />
         </g>
         <!-- дорога упирается в стену, а проёма нет — мастеру подсказка; щелчок ставит ворота -->
@@ -172,8 +172,9 @@
 
         <!-- ручки выбранной дороги: точки тянуть, середины — добавить точку, двойной щелчок по точке — убрать -->
         <g v-if="editRoad" class="sm-handles">
-          <circle v-for="(p, i) in editRoad.points" :key="'v' + i" :cx="p[0]" :cy="p[1]" :r="6 * px" class="sm-handle" :data-h="i" vector-effect="non-scaling-stroke" />
-          <circle v-for="(p, i) in editMids" :key="'m' + i" :cx="p[0]" :cy="p[1]" :r="4 * px" class="sm-handle mid" :data-m="i" vector-effect="non-scaling-stroke" />
+          <circle v-for="m in editMids" :key="'m' + m.i" :cx="m.p[0]" :cy="m.p[1]" :r="5 * px" class="sm-handle mid" :data-m="m.i" vector-effect="non-scaling-stroke" />
+          <circle v-for="(p, i) in editRoad.points" :key="'v' + i" :cx="p[0]" :cy="p[1]" :r="(i === 0 || i === editRoad.points.length - 1 ? 8 : 6.5) * px" class="sm-handle" :class="{ end: i === 0 || i === editRoad.points.length - 1 }" :data-h="i" vector-effect="non-scaling-stroke" />
+          <circle v-if="handleSnap" :cx="handleSnap[0]" :cy="handleSnap[1]" :r="11 * px" class="sm-snap" vector-effect="non-scaling-stroke" />
         </g>
 
         <!-- курсор инструмента -->
@@ -441,9 +442,16 @@ watch(tileWorld, scheduleDraw)
 
 /* ---------- дороги ---------- */
 const pathOf = pts => (pts.length < 2 ? '' : 'M' + pts.map(p => `${Math.round(p[0] * 100) / 100} ${Math.round(p[1] * 100) / 100}`).join(' L'))
-const roadEdit = ref(null) // { kind: road | wall, id, points } — пока тянут ручку
-const roadsView = computed(() => (props.settlement.roads || []).map(r => (roadEdit.value?.kind === 'road' && roadEdit.value.id === r.id ? { ...r, points: roadEdit.value.points } : r)))
-const wallsView = computed(() => (props.settlement.walls || []).map(w => (roadEdit.value?.kind === 'wall' && roadEdit.value.id === w.id ? { ...w, points: roadEdit.value.points } : w)))
+// пока тянут: { kind: road | wall, id, points, others: { id: points } } — others — примыкающие линии, чьи концы идут следом
+const roadEdit = ref(null)
+const edited = (kind, x) => {
+  const e = roadEdit.value
+  if (e?.kind !== kind) return x
+  if (e.id === x.id) return { ...x, points: e.points }
+  return e.others?.[x.id] ? { ...x, points: e.others[x.id] } : x
+}
+const roadsView = computed(() => (props.settlement.roads || []).map(r => edited('road', r)))
+const wallsView = computed(() => (props.settlement.walls || []).map(w => edited('wall', w)))
 
 /* ---------- стены ---------- */
 // шатровая крыша деревянной башни сверху: четыре ската разного тона
@@ -586,7 +594,8 @@ function trimStart(pts, cut) {
 const f2 = p => `${Math.round(p[0] * 100) / 100} ${Math.round(p[1] * 100) / 100}`
 // раструб примыкания: оба угла между кромкой главной дороги и второстепенной скругляются (как на картах).
 // J — точка примыкания на оси главной, tI — направление главной там, wN / wI — ширина второстепенной и главной
-function flarePath(curve, end, J, tI, wN, wI) {
+// edge — прижать точку к настоящей кромке главной (на изгибе кромка не прямая, иначе вылезает шип)
+function flarePath(curve, end, J, tI, wN, wI, edge = p => p) {
   const pts = end ? [...curve].reverse() : curve
   const P = pointAlong(pts, wI / 2 + Math.max(wN * 2, 4))
   let dx = P[0] - J[0], dy = P[1] - J[1]
@@ -599,16 +608,20 @@ function flarePath(curve, end, J, tI, wN, wI) {
   // кромка главной со стороны, откуда пришла второстепенная
   const sg = Math.sign(dx * -iy + dy * ix) || 1
   const ex = J[0] - iy * sg * (wI / 2), ey = J[1] + ix * sg * (wI / 2)
-  const r = Math.min(Math.max(wN * 0.9, 1.4), 4.5) // радиус скругления
+  const r = Math.min(Math.max(wN * 0.55, 1), 3) // радиус скругления
   const side = k => {
     // пересечение кромки второстепенной (смещение k·h) с кромкой главной: E + tI·u = J + n·k·h + d·v
     const bx = J[0] + nx * k * h - ex, by = J[1] + ny * k * h - ey
     const det = ix * -dy - iy * -dx
     if (Math.abs(det) < 0.15) return null // почти параллельно — раструб не нужен
-    const u = (bx * -dy - by * -dx) / det
+    let u = (bx * -dy - by * -dx) / det
+    // острый угол: кромки сходятся далеко — длинный клин травы не заливаем, скругляем у самого стыка
+    const lim = h + wI / 2 + r
+    if (Math.abs(u) > lim) u = Math.sign(u) * lim
     const Cx = ex + ix * u, Cy = ey + iy * u
-    const away = Math.sign((nx * k) * ix + (ny * k) * iy) || k
-    return { S: [Cx + ix * away * r, Cy + iy * away * r], C: [Cx, Cy], Q: [Cx + dx * r, Cy + dy * r] }
+    // скругление уходит по кромке главной прочь от стыка (иначе на остром угле — крючок)
+    const away = Math.sign(u) || k
+    return { S: edge([Cx + ix * away * r, Cy + iy * away * r]), C: edge([Cx, Cy]), Q: [Cx + dx * r, Cy + dy * r] }
   }
   const a = side(1), b = side(-1)
   if (!a || !b) return null
@@ -627,7 +640,7 @@ const roadsDraw = computed(() => {
     const st = roadStyle(r.type)
     const full = roadCurve(r)
     let curve = full
-    const flares = [], caps = []
+    const flares = [], caps = [], joinEnds = []
     for (const end of [0, 1]) {
       const tip = end ? full[full.length - 1] : full[0]
       const j = juncs.find(x => x.road === r && x.end === end)
@@ -637,12 +650,18 @@ const roadsDraw = computed(() => {
         // упёрлись в конец другой дороги — это угол или продолжение: круглый стык;
         // если дальше идёт дорога попроще (мостовая → грунтовка), главная обрывается ровно, без колпачка
         const atEnd = [ci[0], ci[ci.length - 1]].some(p => Math.hypot(p[0] - j.x, p[1] - j.y) < sti.fill.w / 2 + 0.5)
-        if (atEnd) { if (rank(j.into) >= rank(r)) caps.push(tip); continue }
+        if (atEnd) { if (rank(j.into) >= rank(r)) caps.push(tip); joinEnds.push(end); continue }
         if (rank(j.into) >= rank(r)) {
           // примыкание к дороге не ниже рангом — плавный раструб, сама дорога кончается под покрытием главной
           const q = nearestRoad([j.into], j.x, j.y)
           const tI = q ? [ci[q.seg][0] - ci[q.seg - 1][0], ci[q.seg][1] - ci[q.seg - 1][1]] : [1, 0]
-          const fp = flarePath(full, j.end, [j.x, j.y], tI, st.fill.w, sti.fill.w)
+          const edge = P => {
+            const q2 = nearestRoad([j.into], P[0], P[1])
+            if (!q2) return P
+            const ex = P[0] - q2.x, ey = P[1] - q2.y, l = Math.hypot(ex, ey) || 1
+            return [q2.x + (ex / l) * sti.fill.w / 2, q2.y + (ey / l) * sti.fill.w / 2]
+          }
+          const fp = flarePath(full, j.end, [j.x, j.y], tI, st.fill.w, sti.fill.w, edge)
           if (fp) flares.push(fp)
           curve = trimEnd(curve, end, sti.fill.w / 2 * 0.9)
         } else {
@@ -655,7 +674,10 @@ const roadsDraw = computed(() => {
       if (cut) curve = cut
       else caps.push(tip) // тупик — круглый конец
     }
-    const marks = st.marks.map(mk => ({ ...mk, d: pathOf(offsetLine(curve, mk.off)) }))
+    // разметка у стыка «конец в конец» обрывается чуть раньше — колеи двух дорог не перекрещиваются крестиком
+    let mc = curve
+    for (const end of joinEnds) if (mc.length > 1) mc = trimEnd(mc, end, st.fill.w * 0.55)
+    const marks = st.marks.map(mk => ({ ...mk, d: pathOf(offsetLine(mc, mk.off)) }))
     return { ...r, st, flares, caps, marks, d: pathOf(curve), rank: rank(r), order: rank(r) * 1000 + (into.get(r) || 0) }
   }).sort((a, b) => a.order - b.order)
 })
@@ -724,8 +746,68 @@ const editRoad = computed(() => {
   if (!props.master || (kind !== 'road' && kind !== 'wall') || toolActive.value) return null
   return (kind === 'wall' ? wallsView.value : roadsView.value).find(r => r.id === props.selected.id) || null
 })
-const editMids = computed(() => (editRoad.value ? editRoad.value.points.slice(1).map((p, i) => [(p[0] + editRoad.value.points[i][0]) / 2, (p[1] + editRoad.value.points[i][1]) / 2]) : []))
-let handle = null
+// кружки «вставить точку» — только на отрезках, заметных на экране
+const editMids = computed(() => {
+  const pts = editRoad.value?.points || []
+  return pts.slice(1).map((p, i) => ({ i, p: [(p[0] + pts[i][0]) / 2, (p[1] + pts[i][1]) / 2], len: Math.hypot(p[0] - pts[i][0], p[1] - pts[i][1]) }))
+    .filter(m => m.len * view.k >= 34)
+})
+let handle = null // { i, follow: [{ id, end }], snap } — тянут точку
+let lineMove = null // { start, orig, follow } — тянут линию целиком
+let freehand = null // { from, start } — рисуют дорогу мышью
+const handleSnap = ref(null)
+const linesOf = kind => (kind === 'wall' ? wallsView.value : roadsView.value)
+const sameKind = () => (props.selected?.kind === 'wall' ? props.settlement.walls || [] : props.settlement.roads || [])
+// к точке прилипает конец другой линии того же вида, иначе — сама линия; skip — кого не учитывать
+function snapPoint(w, kind, skip) {
+  const tol = 12 * px.value
+  const lines = linesOf(kind).filter(x => !skip.has(x.id))
+  let best = null, bd = tol
+  for (const x of lines) for (const p of [x.points[0], x.points[x.points.length - 1]]) {
+    const d = Math.hypot(p[0] - w.x, p[1] - w.y)
+    if (d < bd) { bd = d; best = [p[0], p[1]] }
+  }
+  if (best) return best
+  const q = kind === 'wall' ? nearestWall(lines, w.x, w.y) : nearestRoad(lines, w.x, w.y)
+  return q && q.dist < tol ? [Math.round(q.x * 10) / 10, Math.round(q.y * 10) / 10] : null
+}
+// концы других линий, что лежат на этой линии (стыки) — двигаются вместе с ней
+function followersOf(kind, line, near) {
+  const out = []
+  const curve = kind === 'wall' ? line.points : roadCurve(line)
+  for (const x of sameKind()) {
+    if (x.id === line.id) continue
+    x.points.forEach((p, k) => {
+      if (k !== 0 && k !== x.points.length - 1) return
+      const d = near ? Math.hypot(p[0] - near[0], p[1] - near[1]) : Math.min(...curve.slice(1).map((a, i) => segDistPt(p, curve[i], a)))
+      if (d < (near ? 1.5 : 2.5 + (ROAD_TYPES[x.type]?.w || 2) / 2)) out.push({ id: x.id, end: k, orig: [...p], pts: x.points })
+    })
+  }
+  return out
+}
+function segDistPt([x, y], [ax, ay], [bx, by]) {
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy
+  const t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L)) : 0
+  return Math.hypot(x - ax - t * dx, y - ay - t * dy)
+}
+// сдвинуть концы примыкающих линий
+function moveFollowers(follow, f) {
+  const others = {}
+  for (const q of follow) {
+    const pts = (others[q.id] || q.pts).map(p => [...p])
+    pts[q.end === 0 ? 0 : pts.length - 1] = f(q.orig)
+    others[q.id] = pts
+  }
+  return others
+}
+// упростить ломаную, нарисованную мышью (Дуглас — Пекер)
+function simplify(pts, eps) {
+  if (pts.length < 3) return pts
+  let idx = -1, dmax = 0
+  for (let i = 1; i < pts.length - 1; i++) { const d = segDistPt(pts[i], pts[0], pts[pts.length - 1]); if (d > dmax) { dmax = d; idx = i } }
+  if (dmax <= eps) return [pts[0], pts[pts.length - 1]]
+  return [...simplify(pts.slice(0, idx + 1), eps).slice(0, -1), ...simplify(pts.slice(idx), eps)]
+}
 
 /* ---------- отряды в округе ---------- */
 const squadsView = computed(() => {
@@ -863,16 +945,35 @@ function onDown(e) {
     e.currentTarget.setPointerCapture?.(e.pointerId)
     return
   }
-  // ручки дороги
+  // ручки дороги: точку тянуть (стыки других дорог в этой точке — следом), середину — вставить новую точку
   const h = e.target.closest?.('[data-h], [data-m]')
   if (h && editRoad.value) {
+    const kind = props.selected.kind
     const pts = editRoad.value.points.map(p => [...p])
-    if (h.dataset.m != null) { const i = +h.dataset.m + 1; pts.splice(i, 0, [...editMids.value[+h.dataset.m]]); handle = { i } } else handle = { i: +h.dataset.h }
-    roadEdit.value = { kind: props.selected.kind, id: editRoad.value.id, points: pts }
+    if (h.dataset.m != null) {
+      const i = +h.dataset.m + 1
+      pts.splice(i, 0, [(pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2])
+      handle = { i, follow: [] }
+    } else {
+      const i = +h.dataset.h
+      handle = { i, follow: followersOf(kind, editRoad.value, pts[i]), end: i === 0 || i === pts.length - 1 }
+    }
+    roadEdit.value = { kind, id: editRoad.value.id, points: pts, others: {} }
     pointers.get(e.pointerId).pan = false
     e.currentTarget.setPointerCapture?.(e.pointerId)
     return
   }
+  // выбранную дорогу или стену тянут целиком за тело; примыкающие дороги тянутся концами следом
+  const lid = e.target.closest?.('[data-lid]')?.dataset.lid
+  if (lid && editRoad.value && lid === editRoad.value.id && mouse) {
+    const kind = props.selected.kind
+    lineMove = { start: toWorld(e.clientX, e.clientY), orig: editRoad.value.points.map(p => [...p]), follow: followersOf(kind, editRoad.value) }
+    roadEdit.value = { kind, id: editRoad.value.id, points: lineMove.orig, others: {} }
+    e.currentTarget.setPointerCapture?.(e.pointerId)
+    return
+  }
+  // дорогу или стену рисуют мышью: зажал левую кнопку и ведёшь
+  if (lineTool.value && mouse) freehand = { from: draft.value.length, start: toWorld(e.clientX, e.clientY) }
   // мастер тянет постройку или аванпост
   if (props.tool === 'move') {
     const g = e.target.closest?.('.sm-item[data-id]')
@@ -903,8 +1004,38 @@ function onMove(e) {
   if (!p) return
   if (handle && roadEdit.value) {
     const w = toWorld(e.clientX, e.clientY)
-    roadEdit.value.points[handle.i] = [w.x, w.y]
+    // конец прилипает к другим линиям того же вида (кроме тех, что идут следом)
+    const skip = new Set([roadEdit.value.id, ...handle.follow.map(q => q.id)])
+    const sn = handle.end ? snapPoint(w, roadEdit.value.kind, skip) : null
+    const p = sn || [Math.round(w.x * 10) / 10, Math.round(w.y * 10) / 10]
+    handleSnap.value = sn
+    const pts = roadEdit.value.points.map(q => [...q])
+    pts[handle.i] = p
+    roadEdit.value = { ...roadEdit.value, points: pts, others: moveFollowers(handle.follow, () => p) }
     moved = true
+    return
+  }
+  if (lineMove) {
+    const w = toWorld(e.clientX, e.clientY)
+    let dx = w.x - lineMove.start.x, dy = w.y - lineMove.start.y
+    // концы прилипают к другим линиям — тогда сдвиг подгоняем под прилипший конец
+    const skip = new Set([roadEdit.value.id, ...lineMove.follow.map(q => q.id)])
+    handleSnap.value = null
+    for (const k of [0, lineMove.orig.length - 1]) {
+      const p = lineMove.orig[k], sn = snapPoint({ x: p[0] + dx, y: p[1] + dy }, roadEdit.value.kind, skip)
+      if (sn) { dx = sn[0] - p[0]; dy = sn[1] - p[1]; handleSnap.value = sn; break }
+    }
+    const mv = p => [Math.round((p[0] + dx) * 10) / 10, Math.round((p[1] + dy) * 10) / 10]
+    roadEdit.value = { ...roadEdit.value, points: lineMove.orig.map(mv), others: moveFollowers(lineMove.follow, mv) }
+    if (Math.abs(dx) + Math.abs(dy) > 0.3) moved = true
+    return
+  }
+  if (freehand) {
+    const w = toWorld(e.clientX, e.clientY)
+    const pts = draft.value, last = pts[pts.length - 1]
+    if (pts.length === freehand.from) { if (Math.hypot(w.x - freehand.start.x, w.y - freehand.start.y) * view.k > 6) draft.value = [...pts, snap(freehand.start), [w.x, w.y]] }
+    else if (Math.hypot(w.x - last[0], w.y - last[1]) >= Math.max(2, 10 * px.value)) draft.value = [...pts, [w.x, w.y]]
+    if (draft.value.length > freehand.from) moved = true
     return
   }
   if (marchDrag.value) {
@@ -944,11 +1075,25 @@ function onMove(e) {
 }
 function onUp(e) {
   const up = e.type === 'pointerup'
-  if (handle && roadEdit.value) {
-    if (up && moved) emit('roadEdit', { kind: roadEdit.value.kind, id: roadEdit.value.id, points: roadEdit.value.points })
+  if ((handle || lineMove) && roadEdit.value) {
+    if (up && moved) emit('roadEdit', { kind: roadEdit.value.kind, id: roadEdit.value.id, points: roadEdit.value.points, others: roadEdit.value.others })
     handle = null
+    lineMove = null
+    handleSnap.value = null
     roadEdit.value = null
     return release(e)
+  }
+  if (freehand) {
+    const f = freehand
+    freehand = null
+    if (moved && up) {
+      // конец штриха прилипает, линию упрощаем; если рисовали с нуля — сразу готово
+      const w = toWorld(e.clientX, e.clientY)
+      const stroke = [...draft.value.slice(f.from), snap(w)]
+      draft.value = [...draft.value.slice(0, f.from), ...simplify(stroke, Math.max(0.8, 2.5 * px.value))]
+      if (f.from === 0 && draft.value.length >= 2) finishRoad()
+      return release(e)
+    }
   }
   if (marchDrag.value) {
     commitMarchDrag()
@@ -1229,6 +1374,8 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm-label.ghost { fill: #f3d99a; }
 .sm-handle { fill: #fff3c4; stroke: #3a2a14; stroke-width: 1.5; cursor: grab; }
 .sm-handle.mid { fill: rgba(255, 243, 196, .55); }
+.sm-handle.end { fill: #ffe08a; stroke-width: 2; }
+.sm-road-hit.movable { cursor: move; }
 .sm-cursor { pointer-events: none; }
 .sm-cursor.bad .sm-ghost-plate { stroke: #ff4a3d; fill: rgba(255, 74, 61, .2); }
 .sm-brush { fill: rgba(243, 217, 154, .14); stroke: #f3d99a; stroke-width: 2; stroke-dasharray: 6 5; }

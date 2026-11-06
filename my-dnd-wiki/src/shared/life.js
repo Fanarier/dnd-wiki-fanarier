@@ -356,8 +356,8 @@ function workDay(cast, p, place, B, r, end) {
       B.walk(spot, { direct: true })
       B.stay(p.job === 'builder' ? 'build' : JOB_ACT[p.job] || 'work', B.t + between(r, 25, 50))
     } else {
-      // в мастерской, таверне, на рынке: у дверей и рядом
-      const spot = [place.door[0] + between(r, -4, 4), place.door[1] + between(r, -4, 4)]
+      // в мастерской, таверне, на рынке: вдоль стороны с дверью
+      const spot = byPlace(place, r, 0.7)
       B.walk(spot, { direct: true })
       B.stay(act, B.t + between(r, 40, 90))
     }
@@ -386,12 +386,20 @@ function waterRun(cast, p, B, r, well) {
   B.stay('water', B.t + 3)
   B.walk(well.door)
 }
+// место у постройки: вдоль её стороны с дверью, не на самой плашке и не кучей в одной точке
+function byPlace(place, r, spread = 1) {
+  if (!place) return null
+  const dx = place.door[0] - place.x, dy = place.door[1] - place.y, l = Math.hypot(dx, dy) || 1
+  const nx = dx / l, ny = dy / l, along = between(r, -place.h * 0.85, place.h * 0.85) * spread, out = place.h + between(r, 2, 7)
+  return [place.x + nx * out - ny * along, place.y + ny * out + nx * along]
+}
 // без работы: дела, прогулки, рынок
 function idleDay(cast, p, B, r, end) {
   while (B.t < end - 20) {
     const k = r()
-    const dest = k < 0.3 && cast.market ? cast.market.door : k < 0.5 && cast.store ? cast.store.door : k < 0.65 && cast.wells.length ? pick(r, cast.wells).door : k < 0.8 ? cast.plaza : (cast.byId[p.home]?.door || cast.plaza)
-    B.walk([dest[0] + between(r, -6, 6), dest[1] + between(r, -6, 6)], { act: 'walk' })
+    const pl = k < 0.3 ? cast.market : k < 0.5 ? cast.store : k < 0.65 && cast.wells.length ? pick(r, cast.wells) : null
+    const dest = pl ? byPlace(pl, r) : k < 0.8 ? [cast.plaza[0] + between(r, -16, 16), cast.plaza[1] + between(r, -16, 16)] : (cast.byId[p.home]?.door || cast.plaza)
+    B.walk(dest, { act: 'walk' })
     B.stay(k < 0.65 ? 'errand' : k < 0.8 ? 'stroll' : 'home', B.t + between(r, 30, 90), { hidden: k >= 0.8 })
   }
 }
@@ -412,8 +420,7 @@ function evening(cast, p, B, r, day) {
   const bed = 21 * 60 + between(r, 0, 90)
   const k = r()
   if (k < 0.45 && cast.tavern) {
-    const a = r() * Math.PI * 2, d = between(r, 3, cast.tavern.h + 4)
-    B.walk([cast.tavern.door[0] + Math.cos(a) * d, cast.tavern.door[1] + Math.sin(a) * d])
+    B.walk(byPlace(cast.tavern, r, 1.1))
     B.stay('tavern', bed, { social: 'tavern' })
   } else if (k < 0.8) {
     const home = cast.byId[p.home]?.door || cast.plaza

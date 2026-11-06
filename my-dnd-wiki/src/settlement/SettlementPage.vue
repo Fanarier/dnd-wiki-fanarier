@@ -316,8 +316,8 @@ const hint = computed(() => {
   if (t?.place) return `Кликни по разведанной земле, куда поставить «${BUILDINGS[t.place]?.label}». Esc — отмена.`
   if (t?.explore) return 'Кликни, какой участок разведать — мастер получит приказ.'
   if (t?.march) return `Веди «${squadName(t.march)}» от дома главы: щёлкай точки на карте, тяни их, двойной щелчок по точке — убрать, кружок между точками — вставить. У края карты — выход на карту мира. Enter — идти, Esc — отмена.`
-  if (t?.road) return `${ROAD_TYPES[t.road].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Точка прилипает к другим дорогам (кольцо); начни с конца такой же дороги — продолжишь её.`
-  if (t?.wall) return `${WALL_TYPES[t.wall].label}: щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Начни с конца такой же стены — продолжишь её; последнюю точку поставь на первую — кольцо.`
+  if (t?.road) return `${ROAD_TYPES[t.road].label}: веди мышью с зажатой левой кнопкой — нарисуется сама, или щёлкай точки (двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена). Концы прилипают к другим дорогам (кольцо); начни с конца такой же дороги — продолжишь её. Карту двигай колёсиком или правой кнопкой.`
+  if (t?.wall) return `${WALL_TYPES[t.wall].label}: веди мышью с зажатой левой кнопкой или щёлкай точки, двойной щелчок или Enter — готово, Backspace — убрать точку, Esc — отмена. Начни с конца такой же стены — продолжишь её; последнюю точку поставь на первую — кольцо.`
   if (t?.wallFeature) return `${WALL_FEATURES[t.wallFeature].label}: наведи на стену и щёлкни. Esc — отмена.`
   if (t === 'cut') return 'Води кистью по лесу — вырубка.'
   if (t === 'fell') return 'Наведи на дерево или куст и щёлкни — останется пень. Esc — отмена.'
@@ -392,15 +392,27 @@ function mergeRoad(roads, type, points) {
   }
   return keep ? { roads: [...rest, { ...keep, points: pts }], id: keep.id, merged: true } : null
 }
+// Ctrl+Z: дороги и стены, какими были до последних правок на карте (до 30 шагов)
+const lineUndo = []
+const remember = () => { lineUndo.push({ roads: s.value.roads || [], walls: s.value.walls || [] }); if (lineUndo.length > 30) lineUndo.shift() }
+async function undoLines() {
+  const prev = lineUndo.pop()
+  if (!prev) return toast('Отменять нечего')
+  await patch({ roads: prev.roads, walls: prev.walls }, 'Отменено')
+}
 async function onRoad({ type, points }) {
+  remember()
   const m = mergeRoad(s.value.roads || [], type, points)
   const id = m?.id || 'r' + Date.now().toString(36)
   const r = await patch({ roads: m ? m.roads : [...(s.value.roads || []), { id, type, points }] }, m ? `${ROAD_TYPES[type].label} продолжена` : `${ROAD_TYPES[type].label} проложена`)
   if (r) sel.value = { kind: 'road', id }
 }
-const onRoadEdit = ({ kind, id, points }) => (kind === 'wall'
-  ? patch({ walls: s.value.walls.map(w => (w.id === id ? { ...w, points } : w)) })
-  : patch({ roads: s.value.roads.map(r => (r.id === id ? { ...r, points } : r)) }))
+// правка линии; others — примыкающие линии, чьи концы потянулись следом
+function onRoadEdit({ kind, id, points, others = {} }) {
+  remember()
+  const upd = x => (x.id === id ? { ...x, points } : others[x.id] ? { ...x, points: others[x.id] } : x)
+  return kind === 'wall' ? patch({ walls: s.value.walls.map(upd) }) : patch({ roads: s.value.roads.map(upd) })
+}
 
 /* ---------- походы отрядов по округе ---------- */
 const squadName = id => s.value?.army?.squads?.find(q => q.id === id)?.name || 'отряд'
@@ -496,8 +508,8 @@ function removeItem(kind, id, how) {
   } else {
     if (!confirm(kind === 'road' ? 'Удалить дорогу?' : kind === 'wall' ? 'Снести стену вместе с воротами и башнями? Потраченное не вернётся.' : kind === 'building' ? 'Снести постройку совсем?' : 'Убрать аванпост?')) return
     if (kind === 'building') patch({ buildings: s.value.buildings.filter(b => b.id !== id) }, 'Снесено')
-    else if (kind === 'road') patch({ roads: s.value.roads.filter(r => r.id !== id) }, 'Дорога удалена')
-    else if (kind === 'wall') patch({ walls: s.value.walls.filter(w => w.id !== id) }, 'Стена снесена')
+    else if (kind === 'road') { remember(); patch({ roads: s.value.roads.filter(r => r.id !== id) }, 'Дорога удалена — Ctrl+Z вернёт') }
+    else if (kind === 'wall') { remember(); patch({ walls: s.value.walls.filter(w => w.id !== id) }, 'Стена снесена — Ctrl+Z вернёт') }
     else patch({ outposts: s.value.outposts.filter(o => o.id !== id) }, 'Убрано')
   }
   sel.value = null
@@ -505,7 +517,10 @@ function removeItem(kind, id, how) {
 onKey()
 function onKey() {
   const h = e => {
-    if (e.key !== 'Escape' || e.target?.closest?.('input, textarea, select, [contenteditable]')) return
+    if (e.target?.closest?.('input, textarea, select, [contenteditable]')) return
+    if (master.value && (e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'я') && !(tool.value?.road || tool.value?.wall)) { e.preventDefault(); undoLines(); return }
+    if (master.value && e.key === 'Delete' && (sel.value?.kind === 'road' || sel.value?.kind === 'wall')) { removeItem(sel.value.kind, sel.value.id); return }
+    if (e.key !== 'Escape') return
     // дорогу, которую рисуют, Esc сбрасывает сам; второй Esc — снять инструмент
     if ((tool.value?.road || tool.value?.wall) && mapRef.value?.draft?.length) return
     tool.value = null

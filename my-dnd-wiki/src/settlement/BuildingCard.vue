@@ -163,7 +163,7 @@
       <template v-else-if="sel.kind === 'road'">
         <label>Название <input v-model="form.name" placeholder="например, Старый тракт" /></label>
         <label>Вид <select v-model="form.type"><option v-for="(r, k) in ROAD_TYPES" :key="k" :value="k">{{ r.label }}</option></select></label>
-        <p class="tip">Тяни точки на карте; за середину отрезка — новая точка; двойной щелчок по точке — убрать.</p>
+        <p class="tip">Тяни саму дорогу — двигается целиком, примыкающие дороги тянутся следом. Тяни точки (концы прилипают к другим дорогам); кружок посередине — новая точка; двойной щелчок по точке — убрать. Ctrl+Z — отменить, Delete — удалить.</p>
       </template>
       <template v-else-if="sel.kind === 'wall'">
         <label>Название <input v-model="form.name" placeholder="например, Северный частокол" /></label>
