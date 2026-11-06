@@ -89,7 +89,7 @@ function placesOf(s, g) {
 const castCache = new Map()
 // ключ: от чего зависит раздача ролей (меняется — раздаём заново)
 const castKey = s => JSON.stringify([s.races, s.jobs, (s.buildings || []).map(b => [b.id, b.type, b.x, b.y, b.level, b.state, b.builders, b.damage, b.doors]), s.outposts?.map(o => [o.id, o.workers, o.state]),
-  (s.hospital || []).map(p => [p.who, p.count]), (s.army?.squads || []).map(q => [q.id, q.status]), s.roads?.length])
+  (s.hospital || []).map(p => [p.who, p.count]), (s.army?.squads || []).map(q => [q.id, q.status]), (s.roads || []).map(r => r.points.length + ':' + r.points[0]?.join(','))])
 export function buildCast(s) {
   const key = castKey(s)
   const old = castCache.get(s.id)
@@ -186,11 +186,16 @@ function makeCast(s) {
   const gen = makeTerrain(s.terrain)
   gen.setClearings(s.clearings || [])
   const o = {}
+  // место занято: на дороге (с обочиной) или под постройкой (с запасом) — кусты и деревья туда не ставим
+  const covered = (x, y) => (g.nearest(x, y, 1, 8)[0]?.d ?? Infinity) < 6
+    || places.some(p => Math.abs(x - p.x) < p.h + 4 && Math.abs(y - p.y) < p.h + 4)
+    || (s.outposts || []).some(o => o.x != null && Math.hypot(x - o.x, y - o.y) < 20)
   const spotsNear = (x, y, want, rMin, rMax, n, seed) => {
     const r = rng(seed), out = []
     for (let i = 0; i < 400 && out.length < n; i++) {
       const a = r() * Math.PI * 2, d = between(r, rMin, rMax), px = x + Math.cos(a) * d, py = y + Math.sin(a) * d
-      if (want.includes(gen.sample(px, py, o).code)) out.push([Math.round(px * 10) / 10, Math.round(py * 10) / 10])
+      if (!want.includes(gen.sample(px, py, o).code) || covered(px, py)) continue
+      out.push([Math.round(px * 10) / 10, Math.round(py * 10) / 10])
     }
     // рядом ничего — ищем дальше
     return out.length || rMax > 3000 ? out : spotsNear(x, y, want, rMax, rMax * 2.5, n, seed + 1)
