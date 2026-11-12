@@ -41,16 +41,25 @@
           </div>
         </template>
         <template v-else-if="nextTier && item.state !== 'construction'">
-          <div class="up-next"><span>Следующий уровень</span><b>{{ nextTier.label }}</b></div>
-          <div v-if="nextTier.note" class="dmg-note">{{ nextTier.note }}</div>
+          <!-- у уровня варианты: башня — на выбор, мельница — у воды станет водяной -->
+          <template v-if="variantPick">
+            <div class="up-next"><span>Следующий уровень</span><b>на выбор</b></div>
+            <div class="variants">
+              <button v-for="(v, k) in nextTier.variants" :key="k" type="button" :class="{ on: upVariant === k }" @click="upVariant = k"><b>{{ v.label }}</b><small>{{ v.note }}</small></button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="up-next"><span>Следующий уровень</span><b>{{ nextLabel }}</b></div>
+            <div v-if="nextNote" class="dmg-note">{{ nextNote }}</div>
+          </template>
           <div class="price-row"><span>Цена улучшения</span><PriceChips :price="upgradePrice(item.type, def.level + 1)" :stock="settlement.stock || {}" /></div>
           <div><span>Работы</span><b>{{ upgradeWork(item.type, def.level + 1) }} очков стройки</b></div>
           <div v-if="upBlock" class="dmg-note">{{ upBlock }}</div>
           <div v-else-if="master || decider" class="repair-btns">
             <template v-if="master">
               <label class="chk"><input v-model="upgradePay" type="checkbox" /> со склада</label>
-              <button class="go" @click="upgrade({ pay: upgradePay })">Улучшить</button>
-              <button @click="upgrade({ instant: true })">Сразу</button>
+              <button class="go" @click="upgrade({ pay: upgradePay, variant: upVariant })">Улучшить</button>
+              <button @click="upgrade({ instant: true, variant: upVariant })">Сразу</button>
             </template>
             <span v-else-if="upgradeOrdered" class="muted">приказ на улучшение ждёт мастера</span>
             <button v-else class="go" @click="orderUpgrade">Приказ: улучшить</button>
@@ -82,6 +91,20 @@
         <div v-for="(n, j) in def.jobs || {}" :key="j"><span>{{ JOBS[j]?.label || j }}</span><b>{{ cut(n) }} мест · всего занято {{ calc.jobs[j]?.workers || 0 }} из {{ calc.jobs[j]?.places || 0 }}</b></div>
         <div v-for="(n, j) in def.spec || {}" :key="'s' + j"><span>Специалисты</span><b>{{ JOBS[j]?.label || j }}: +{{ n }}</b></div>
         <div v-if="def.housing"><span>Жильё</span><b>{{ cut(def.housing) }} жильцов</b></div>
+        <div v-for="(v, k) in def.storage || {}" :key="'st' + k"><span>Хранение</span><b>{{ STORE_LABEL[k] }}: +{{ v }} каждого</b></div>
+        <div v-if="def.seasonal"><span>Зимой</span><b :class="def.winter ? 'plus' : 'minus'">{{ def.winter ? 'работает' : 'стоит' }}{{ calc.season?.key === 'winter' ? ' (сейчас зима)' : '' }}</b></div>
+        <div v-if="def.rain"><span>Вода</span><b>в дождь не нужна{{ calc.weather === 'rain' ? ' — сегодня дождь' : '' }}</b></div>
+        <div v-if="def.mill"><span>Мельница</span><b>{{ def.mill === 'water' ? 'водяная — работает всегда' : millToday }}</b></div>
+        <div v-if="def.blueprints"><span>Чертежи</span><b>до {{ def.blueprints }}</b></div>
+        <!-- огород: что растит каждое место -->
+        <div v-if="def.crops" class="crops">
+          <span>Посадки</span>
+          <div>
+            <select v-for="i in cropSlots" :key="i" :value="(item.crops || [])[i - 1] || 'veg'" :disabled="!(master || decider)" @change="setCrop(i - 1, $event.target.value)">
+              <option value="veg">Овощи</option><option value="fruit">Фрукты</option><option value="herbs">Травы</option>
+            </select>
+          </div>
+        </div>
         <div v-if="def.guests"><span>Гостевые места</span><b>{{ cut(def.guests) }}</b></div>
         <div v-if="def.trade"><span>Торговые места</span><b>{{ cut(def.trade) }}</b></div>
         <div v-if="def.defense"><span>Защита</span><b>+{{ cut(def.defense) }}</b></div>
@@ -210,7 +233,7 @@ import { store, act, toast } from '../map/store.js'
 import { simplifyLine } from '../shared/geo.js'
 import PriceChips from './PriceChips.vue'
 import { BUILDINGS, CATEGORIES, SIZES, JOBS, OUTPOSTS, RES, RACES, RESOURCES, ROAD_TYPES, DAMAGE, repairPrice, repairWork,
-  tierOf, iconSrc, upgradePrice, upgradeWork, upgradeBlock, isWorksite, buildRate, worksiteLeft, priceText } from '../shared/settlement.js'
+  tierOf, iconSrc, upgradePrice, upgradeWork, upgradeBlock, isWorksite, buildRate, worksiteLeft, priceText, STORE_LABEL, WEATHER } from '../shared/settlement.js'
 import { CENTER } from '../shared/terrainGen.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallPrice, wallDefense } from '../shared/walls.js'
 
@@ -244,13 +267,32 @@ const base = () => `/api/settlements/${props.settlement.id}`
 const nextTier = computed(() => (props.sel.kind !== 'building' ? null : BUILDINGS[props.item.type]?.tiers?.[props.item.upgrade ? props.item.upgrade.to - 1 : def.value.level] || null))
 const upBlock = computed(() => (props.sel.kind === 'building' && nextTier.value && !props.item.upgrade ? upgradeBlock(props.settlement, props.item, props.calc) : null))
 const upgradePay = ref(true)
+// вариант следующего уровня: выбирать нужно, только если ветки ещё нет (башня с 1 на 2 уровень); мельница — сама, по месту
+const variantPick = computed(() => !!nextTier.value?.variants && !nextTier.value.mill && !props.item.variant)
+const upVariant = ref(null)
+watch(() => [props.item.id, nextTier.value], () => { upVariant.value = nextTier.value?.variants ? (props.item.variant || Object.keys(nextTier.value.variants)[0]) : null }, { immediate: true })
+const nextLabel = computed(() => {
+  const t = nextTier.value
+  if (!t?.variants) return t?.label
+  if (t.mill) return `${t.label} — у воды станет водяной`
+  return t.variants[props.item.variant]?.label || t.label
+})
+const nextNote = computed(() => { const t = nextTier.value; return (t?.variants && !t.mill && t.variants[props.item.variant]?.note) || t?.note })
+const millToday = computed(() => `ветряная — сегодня ${WEATHER[props.calc.weather]?.label.toLowerCase() || ''}: ${props.calc.weather === 'wind' ? 'работает вдвое' : props.calc.weather === 'calm' ? 'стоит' : 'работает'}`)
+// огород: места и посадки
+const cropSlots = computed(() => def.value.jobs?.gardener || 0)
+function setCrop(i, crop) {
+  const crops = Array.from({ length: cropSlots.value }, (_, k) => (props.item.crops || [])[k] || 'veg')
+  crops[i] = crop
+  act('POST', `${base()}/buildings/${props.item.id}/crops`, { crops }, 'Посадки сохранены').catch(() => null)
+}
 const upgrade = opt => act('POST', `${base()}/buildings/${props.item.id}/upgrade`, opt, opt.instant ? 'Улучшено' : opt.cancel ? 'Улучшение отменено' : 'Улучшение начато — назначь строителей').catch(() => null)
 const upgradeOrdered = computed(() => (props.settlement.orders || []).some(o => o.status === 'pending' && o.upgrade?.id === props.item.id))
 async function orderUpgrade() {
   const price = priceText(upgradePrice(props.item.type, def.value.level + 1))
   const text = prompt(`Приказ: улучшить «${props.item.name || def.value.label}» → ${nextTier.value.label}.${price ? `\nЦена: ${price}.` : ''}\nКомментарий для мастера (необязательно):`, '')
   if (text === null) return
-  await act('POST', `${base()}/orders`, { kind: 'upgrade', building: props.item.id, text }, 'Приказ отправлен мастеру').catch(() => null)
+  await act('POST', `${base()}/orders`, { kind: 'upgrade', building: props.item.id, text, variant: upVariant.value }, 'Приказ отправлен мастеру').catch(() => null)
 }
 
 /* строители: стройка, ремонт, улучшение */
@@ -367,6 +409,14 @@ function thin() {
 .crew-f .go:disabled { opacity: .45; cursor: default; }
 .crew-list { color: var(--a-text); }
 .up-next b { color: var(--a-gold-2) !important; }
+.rows .variants { display: grid !important; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 6px; }
+.variants button { display: grid; gap: 2px; padding: 7px 9px; border-radius: 10px; border: 1px solid var(--a-line); background: rgba(255, 255, 255, .03); color: var(--a-text); text-align: left; cursor: pointer; font: 600 12px var(--a-sans); }
+.variants button b { color: var(--a-gold-2) !important; text-align: left !important; }
+.variants button small { color: var(--a-muted); }
+.variants button.on { border-color: #e7c56f; background: rgba(231, 197, 111, .12); }
+.rows .crops { align-items: flex-start; }
+.crops > div { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.crops select { padding: 3px 6px; border-radius: 7px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 600 12px var(--a-sans); }
 .dmg-pick { display: grid; gap: 4px; }
 .dmg-pick small { color: var(--a-muted); font-weight: 800; }
 .dmg-pick div { display: flex; flex-wrap: wrap; gap: 4px; }

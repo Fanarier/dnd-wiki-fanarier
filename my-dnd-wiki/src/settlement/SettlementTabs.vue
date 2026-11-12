@@ -59,6 +59,7 @@
                 <input v-if="master" class="stock-in" type="number" min="0" :value="r.stock" :title="`Сколько «${r.label}» на складе`"
                        @click.stop @keydown.enter="$event.target.blur()" @change="setStock(r.key, $event.target.value)" />
                 <b v-else>{{ fmt(r.stock) }}</b>
+                <em v-if="r.cap != null" class="cap" :class="{ over: r.stock > r.cap }" :title="r.stock > r.cap ? 'Больше, чем вмещают хранилища: каждый день портится 10% излишка' : 'Лимит хранения'">/ {{ fmt(r.cap) }}</em>
               </span>
             </div>
             <div v-if="r.gain || r.use" class="tug-bar" :title="`Прирост ${Math.round(r.share)}% · расход ${100 - Math.round(r.share)}%`">
@@ -379,7 +380,7 @@ import { store, heroCover, heroPortraitUrl, act, toast, uploadSettlementPortrait
 import { SPEC_ICONS, isGlyph } from './specIcons.js'
 import RichEditor from '../components/RichEditor.vue'
 import RichText from '../components/RichText.vue'
-import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, DAMAGE, shortFor, repairPrice, upgradePrice, tierLabel, iconSrc, explored as isExplored } from '../shared/settlement.js'
+import { RESOURCES, RES, RACES, RESIDENT_CATS, BUILDINGS, JOBS, OUTPOSTS, EVENT_TYPES, EVENT_DURATIONS, ASSET_FRAMES, DAMAGE, WEATHER, shortFor, repairPrice, upgradePrice, tierLabel, iconSrc, explored as isExplored } from '../shared/settlement.js'
 import { WORLD } from '../shared/terrainGen.js'
 import { applyText, eventOdds } from '../shared/settlementEvents.js'
 import PriceChips from './PriceChips.vue'
@@ -407,6 +408,8 @@ const overview = computed(() => {
   const x = c.value, st = s.value.stats || {}
   return [
     { label: 'Тип поселения', value: s.value.kind, icon: 'medieval-village-01' },
+    { label: `${x.season.icon} ${x.season.label}`, value: `${WEATHER[x.weather]?.icon} ${WEATHER[x.weather]?.label}`, icon: 'thought-bubble', hint: `День ${s.value.day || 0}: ${x.season.label.toLowerCase()} (сезон — 30 дней). Сегодня ${WEATHER[x.weather]?.label.toLowerCase()} — ${WEATHER[x.weather]?.hint}` },
+    { label: 'Хранилища', value: `${x.storage.general} / ${x.storage.food} / ${x.storage.water}`, icon: 'locked-box', hint: 'Лимит каждого ресурса: склады (всё, кроме еды и воды) / амбары (еда) / бочки (вода). Сверх лимита каждый день портится 10% излишка', cls: Object.entries(s.value.stock || {}).some(([k, v]) => x.caps[k] != null && v > x.caps[k]) ? 'warn' : '' },
     { label: 'Свободные поселенцы', value: x.free, icon: 'person-free', cls: x.overbooked ? 'warn' : '',
       hint: `Взрослых ${x.adults} − заняты ${x.busy} − недоступны ${x.unavailable}${x.overbooked ? ` · не хватает ${x.overbooked}: на работы и стройки поставлено больше, чем есть людей` : ''}` },
     { label: 'Занятые поселенцы', value: x.busy, icon: 'person',
@@ -452,7 +455,7 @@ const openRes = ref(null)
 const resRows = computed(() => RESOURCES.map(r => {
   const gain = c.value.gain[r.key]?.total || 0, use = c.value.use[r.key]?.total || 0
   // доля прироста в общем обороте — граница, где прирост и расход «упираются» друг в друга
-  return { ...r, gain, use, bal: c.value.balance[r.key], stock: s.value.stock?.[r.key] || 0, share: gain + use ? (gain / (gain + use)) * 100 : 50 }
+  return { ...r, gain, use, bal: c.value.balance[r.key], stock: s.value.stock?.[r.key] || 0, cap: c.value.caps?.[r.key] ?? null, share: gain + use ? (gain / (gain + use)) * 100 : 50 }
 }))
 // мастер ставит запас прямо в таблице
 function setStock(key, v) {
@@ -659,6 +662,8 @@ const events = computed(() => [...(s.value.events || [])].sort((a, b) => (open(a
 .tug-head .to { color: #9be07a; }
 .tug-stock { margin-left: auto; display: flex; align-items: center; gap: 6px; color: var(--a-muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; }
 .tug-stock b { color: var(--a-gold-2); font-size: 14px; text-transform: none; letter-spacing: 0; }
+.tug-stock .cap { font-style: normal; text-transform: none; letter-spacing: 0; font-size: 12px; color: var(--a-muted); }
+.tug-stock .cap.over { color: #ff9b8f; }
 .tug-bar { position: relative; display: flex; height: 22px; border-radius: 7px; background: #c0293a; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35); }
 .tug-bar.none { display: block; height: auto; padding: 3px 10px; background: rgba(255, 255, 255, .04); color: var(--a-muted); font-size: 11.5px; font-style: italic; margin-top: -10px; }
 .tug-g { flex: none; height: 100%; border-radius: 7px 0 0 7px; background: linear-gradient(180deg, #7ee06a, #46b23a); transition: width .8s cubic-bezier(.3, 1.3, .5, 1); overflow: hidden; }

@@ -31,8 +31,10 @@ import {
 } from './accounts.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePrice } from '../src/shared/walls.js'
 import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
-import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS,
-  STAT_RANGE, clampStat, moraleGain, moraleDay, buildRate, isWorksite, worksiteLeft, tierOf, tierLabel, upgradePrice, upgradeWork, upgradeBlock, applySettlementRules, URGENT_DAYS, SIZES, CATEGORIES } from '../src/shared/settlement.js'
+import { computeSettlement, placementProblems, clearingFor, shortFor, priceText, DAMAGE, DAMAGE_ORDER, worseDamage, repairPrice, repairWork, BUILDINGS, JOBS, RES, RACES, EVENT_TYPES, EVENT_DURATIONS, ROAD_TYPES as SETTLE_ROADS,
+  STAT_RANGE, clampStat, moraleGain, moraleDay, buildRate, isWorksite, worksiteLeft, tierOf, tierLabel, upgradePrice, upgradeWork, upgradeBlock, applySettlementRules, URGENT_DAYS, SIZES, CATEGORIES,
+  WEATHER, weatherOf, seasonOf, storeKind, STORE_LABEL } from '../src/shared/settlement.js'
+import { makeTerrain, B as TBIOME } from '../src/shared/terrainGen.js'
 import { TERRAIN_PARAMS, WORLD as SETTLE_WORLD } from '../src/shared/terrainGen.js'
 import { homeOf, isHome, marchCtx, marchTiming, marchState, msPerMeter, densify, routePath, edgePoint, atEdge } from '../src/shared/march.js'
 import { suggestEvent, applyText } from '../src/shared/settlementEvents.js'
@@ -1685,7 +1687,10 @@ function applyEffects(s, apply) {
   for (const [k, v] of Object.entries(apply?.stock || {})) if (RES[k]) s.stock[k] = Math.max(0, Math.round(((s.stock[k] || 0) + T.num(-1e6, 1e6)(v)) * 10) / 10)
   for (const d of apply?.damage || []) {
     const b = (s.buildings || []).find(x => x.id === d.id)
-    if (b && DAMAGE[d.level]) setDamage(s, b, worseDamage(b.damage, d.level), false)
+    if (!b || !DAMAGE[d.level]) continue
+    // укреплённая (военный лагерь) — на ступень слабее; малое — вовсе мимо
+    const lv = tierOf(b)?.fortified ? DAMAGE_ORDER[DAMAGE_ORDER.indexOf(d.level) - 1] : d.level
+    if (lv) setDamage(s, b, worseDamage(b.damage, lv), false)
   }
   for (const [k, v] of Object.entries(apply?.stats || {})) {
     if (!STAT_RANGE[k]) continue
@@ -1741,22 +1746,47 @@ function startRepair(s, b, pay) {
   return null
 }
 // начать улучшение до следующего уровня: цена со склада (pay), работа — строителями на площадке
-function startUpgrade(s, b, pay) {
+// вариант улучшения: у башни — выбор (баллиста или призма; дальше — та же ветка), у мельницы — у воды водяная
+function upgradeVariant(s, b, to, want) {
+  const t = BUILDINGS[b.type]?.tiers?.[to - 1]
+  if (!t?.variants) return { variant: null }
+  const keys = Object.keys(t.variants)
+  if (b.variant && keys.includes(b.variant)) return { variant: b.variant }
+  if (t.mill) {
+    // вода ближе 60 м — водяная мельница
+    const gen = makeTerrain(s.terrain)
+    const wet = [0, 60].some(r => Array.from({ length: 12 }, (_, i) => [b.x + Math.cos(i * Math.PI / 6) * r, b.y + Math.sin(i * Math.PI / 6) * r]).some(([x, y]) => gen.sample(x, y, {}).code === TBIOME.WATER))
+    return { variant: b.x != null && wet ? 'water' : 'wind' }
+  }
+  if (!keys.includes(want)) return { error: `Выбери, во что улучшить: ${keys.map(k => t.variants[k].label).join(' или ')}` }
+  // баллиста и призма рядом (ближе 70 м) не стоят
+  if (b.type === 'tower') {
+    const other = want === 'ballista' ? 'prism' : 'ballista'
+    const near = (s.buildings || []).find(x => x !== b && x.type === 'tower' && (x.variant === other || x.upgrade?.variant === other) && x.x != null && Math.hypot(x.x - b.x, x.y - b.y) < 70)
+    if (near) return { error: `Рядом (ближе 70 м) стоит «${tierLabel(near)}» — ${t.variants[want].label.toLowerCase()} рядом с ней не поставить` }
+  }
+  return { variant: want }
+}
+function startUpgrade(s, b, pay, want) {
   const why = upgradeBlock(s, b)
   if (why) return why
   const to = tierOf(b).level + 1
+  const vr = upgradeVariant(s, b, to, want)
+  if (vr.error) return vr.error
   const price = upgradePrice(b.type, to)
   if (pay) {
     const miss = payPrice(s, price)
     if (miss) return miss
   }
-  b.upgrade = { to, progress: 0, ...(pay ? { paid: price } : {}) }
-  logEntry(s, 'build', `Улучшают «${b.name || tierLabel(b)}» → ${BUILDINGS[b.type].tiers[to - 1].label}${pay ? ' — ' + priceText(price) : ''}`)
+  b.upgrade = { to, progress: 0, ...(pay ? { paid: price } : {}), ...(vr.variant ? { variant: vr.variant } : {}) }
+  const tt = BUILDINGS[b.type].tiers[to - 1]
+  logEntry(s, 'build', `Улучшают «${b.name || tierLabel(b)}» → ${(vr.variant && tt.variants?.[vr.variant]?.label) || tt.label}${pay ? ' — ' + priceText(price) : ''}`)
   return null
 }
 function finishUpgrade(s, b) {
   const was = b.name || tierLabel(b)
   b.level = b.upgrade.to
+  if (b.upgrade.variant) b.variant = b.upgrade.variant
   delete b.upgrade
   delete b.builders
   const now = tierLabel(b)
@@ -1936,7 +1966,7 @@ app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
     const why = upgradeBlock(s, bd)
     if (why) return res.status(400).json({ error: why })
     if ((s.orders || []).some(x => x.status === 'pending' && x.upgrade?.id === bd.id)) return res.status(400).json({ error: 'Приказ на улучшение уже ждёт мастера' })
-    o.upgrade = { id: bd.id, type: bd.type, to: tierOf(bd).level + 1 }
+    o.upgrade = { id: bd.id, type: bd.type, to: tierOf(bd).level + 1, ...(b.variant ? { variant: T.str(20)(b.variant) } : {}) }
   } else if (!o.text) return res.status(400).json({ error: 'Напиши, что нужно сделать' })
   ;(s.orders ||= []).push(o)
   if (s.orders.length > 200) s.orders = s.orders.slice(-200)
@@ -1997,7 +2027,7 @@ app.post('/api/settlements/:id/orders/:oid/:action(approve|reject)', requireMast
       const bd = (s.buildings || []).find(x => x.id === o.upgrade.id)
       if (!bd) return res.status(400).json({ error: 'Постройки уже нет' })
       const free = !!req.body?.free
-      const err = startUpgrade(s, bd, !free)
+      const err = startUpgrade(s, bd, !free, o.upgrade.variant)
       if (err) return res.status(400).json({ error: err })
       o.paid = free ? null : bd.upgrade.paid || {}
     } else if (o.kind === 'workers') {
@@ -2074,6 +2104,34 @@ function advanceSettlement(s, days) {
     s.stock[k] = Math.max(0, v)
     const d = Math.round((s.stock[k] - was) * 10) / 10
     if (d) delta[k] = d
+  }
+  // склады: сверх лимита каждый день портится 10% излишка (в пределах лимита ничего не ветшает)
+  const spoiled = {}
+  for (let i = 0; i < days; i++) {
+    for (const [k, cap] of Object.entries(c.caps)) {
+      if (cap == null || (s.stock[k] || 0) <= cap) continue
+      const loss = Math.max(1, Math.round((s.stock[k] - cap) * 0.1))
+      s.stock[k] = Math.round((s.stock[k] - loss) * 10) / 10
+      spoiled[k] = (spoiled[k] || 0) + loss
+    }
+  }
+  if (Object.keys(spoiled).length) {
+    for (const [k, v] of Object.entries(spoiled)) delta[k] = Math.round(((delta[k] || 0) - v) * 10) / 10
+    const by = {}
+    for (const [k, v] of Object.entries(spoiled)) (by[storeKind(k)] ||= []).push(`${RES[k]?.label} −${v}`)
+    const text = Object.entries(by).map(([kind, l]) => `${STORE_LABEL[kind] || 'Склады'} переполнены: ${l.join(', ')}`).join('; ')
+    // одно открытое событие о ветшании — дописываем, а не плодим
+    const open = (s.events || []).find(e => e.title === 'Ветшание запасов' && !e.decision)
+    if (open) { open.effect = text.slice(0, 300); open.createdAt = Date.now() }
+    else addEvent(s, { title: 'Ветшание запасов', type: 'problem', duration: ['decide'], text: 'Запасов больше, чем вмещают склады, амбары и бочки, — лишнее гниёт, ржавеет и растаскивается. Строим хранилища или продаём излишки?', effect: text.slice(0, 300), location: s.name })
+    logEntry(s, 'short', 'Сверх лимита испортилось: ' + Object.entries(spoiled).map(([k, v]) => `${RES[k]?.label} ${v}`).join(', '))
+  }
+  // гости таверн приезжают и уезжают сами
+  if (c.guests.cap) {
+    s.stats ||= {}
+    let g = s.stats.guestsUsed || 0
+    for (let i = 0; i < days; i++) g = Math.max(0, Math.min(c.guests.cap, g + Math.round(Math.random() * 7) - 3))
+    s.stats.guestsUsed = g
   }
   // стройка, ремонт и улучшение — руками строителей на площадке (раса даёт свои очки); стены — общей бригадой
   const speedUp = (c.jobs.locksmith?.workers || 0) * 8.75
@@ -2350,6 +2408,33 @@ app.post('/api/settlements/:id/buildings/:bid/builders', requireUser, (req, res)
   res.json(b)
 })
 
+// погода на сегодня: мастер ставит сам (null — как выпадет)
+app.post('/api/settlements/:id/weather', requireMaster, (req, res) => {
+  const s = findSettlement(req.params.id)
+  if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
+  const kind = req.body?.kind
+  if (kind && !WEATHER[kind]) return res.status(400).json({ error: 'Нет такой погоды' })
+  if (kind) s.weather = { day: s.day || 0, kind }
+  else delete s.weather
+  logEntry(s, 'day', `Погода на сегодня: ${WEATHER[weatherOf(s)].label}${kind ? ' (поставил мастер)' : ''}`)
+  saveDb()
+  broadcast()
+  res.json({ weather: weatherOf(s) })
+})
+// огород: что растит каждое место (фрукты, овощи, травы) — выбирают мастер и глава
+app.post('/api/settlements/:id/buildings/:bid/crops', requireUser, (req, res) => {
+  const s = findSettlement(req.params.id)
+  const b = s?.buildings?.find(x => x.id === req.params.bid)
+  if (!b) return res.status(404).json({ error: 'Постройка не найдена' })
+  if (!canDecide(req.user, s)) return res.status(403).json({ error: 'Это решает глава поселения' })
+  if (!tierOf(b)?.crops) return res.status(400).json({ error: 'Здесь ничего не сажают' })
+  b.crops = (Array.isArray(req.body?.crops) ? req.body.crops : []).slice(0, 20).map(c => (['veg', 'fruit', 'herbs'].includes(c) ? c : 'veg'))
+  logEntry(s, 'workers', `«${b.name || tierLabel(b)}»: посадки — ${b.crops.map(c => RES[c]?.label).join(', ')}`)
+  saveDb()
+  broadcast()
+  res.json(b)
+})
+
 // улучшить постройку: начать (pay — со склада) или сразу (instant)
 app.post('/api/settlements/:id/buildings/:bid/upgrade', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
@@ -2359,7 +2444,9 @@ app.post('/api/settlements/:id/buildings/:bid/upgrade', requireMaster, (req, res
     if (b.upgrade) { finishUpgrade(s, b) } else {
       const why = upgradeBlock(s, b)
       if (why) return res.status(400).json({ error: why })
-      b.upgrade = { to: tierOf(b).level + 1, progress: 0 }
+      const vr = upgradeVariant(s, b, tierOf(b).level + 1, req.body?.variant)
+      if (vr.error) return res.status(400).json({ error: vr.error })
+      b.upgrade = { to: tierOf(b).level + 1, progress: 0, ...(vr.variant ? { variant: vr.variant } : {}) }
       finishUpgrade(s, b)
     }
   } else if (req.body?.cancel) {
@@ -2369,7 +2456,7 @@ app.post('/api/settlements/:id/buildings/:bid/upgrade', requireMaster, (req, res
     delete b.upgrade
     delete b.builders
   } else {
-    const err = startUpgrade(s, b, !!req.body?.pay)
+    const err = startUpgrade(s, b, !!req.body?.pay, req.body?.variant)
     if (err) return res.status(400).json({ error: err })
   }
   s.updatedAt = Date.now()
@@ -2384,17 +2471,25 @@ const ruleMap = (o, keyOk) => Object.fromEntries(Object.entries(o && typeof o ==
 const isRes = k => !!RES[k]
 const isJob = k => /^[a-z][a-z0-9_-]{0,30}$/i.test(k)
 const isIcon = v => typeof v === 'string' && (/^[a-z0-9-]{1,60}$/.test(v) || /^\/(portraits|settlement)\/[\w.-]{1,120}$/.test(v))
-function T_TIER(t) {
+const EV_KEYS = ['family', 'dorm', 'breakdown', 'mineral', 'soil', 'medicine', 'harvest', 'clean', 'guard', 'social', 'fair', 'plaza', 'health', 'masterwork', 'watch', 'ballista', 'cannon', 'spire']
+function T_TIER(t, depth = 0) {
   const o = {}
   if (t.label) o.label = T.str(80)(t.label)
   if (isIcon(t.icon)) o.icon = t.icon
-  for (const k of ['housing', 'guests', 'trade', 'defense', 'regrow', 'cost']) if (t[k] != null && t[k] !== '') o[k] = Math.round(T.num(0, 1e5)(t[k]) * 100) / 100
+  for (const k of ['housing', 'guests', 'trade', 'defense', 'regrow', 'cost', 'fullBoost', 'fed', 'fert', 'power', 'recovery']) if (t[k] != null && t[k] !== '') o[k] = Math.round(T.num(0, 1e5)(t[k]) * 100) / 100
+  for (const k of ['seasonal', 'rain', 'crewUse', 'crops', 'winter', 'fortified', 'crewDefense']) if (t[k]) o[k] = true
+  if (t.mill === 'wind' || t.mill === 'water') o.mill = t.mill
+  if (t.blueprints) o.blueprints = T.str(40)(t.blueprints)
   for (const k of ['jobs', 'spec']) if (t[k]) o[k] = ruleMap(t[k], isJob)
-  for (const k of ['gain', 'use', 'specGain', 'price']) if (t[k]) o[k] = ruleMap(t[k], isRes)
+  for (const k of ['gain', 'use', 'specGain', 'price', 'full']) if (t[k]) o[k] = ruleMap(t[k], isRes)
+  if (t.storage) o.storage = ruleMap(t.storage, k => ['general', 'food', 'water', 'drink'].includes(k))
+  if (t.boost) o.boost = ruleMap(t.boost, isJob)
+  if (t.perWorker && typeof t.perWorker === 'object') o.perWorker = Object.fromEntries(Object.entries(t.perWorker).filter(([k]) => isJob(k)).slice(0, 20).map(([k, v]) => [k, ruleMap(v, isRes)]))
   if (t.perm) o.perm = ruleMap(t.perm, k => ['threat', 'stability', 'morale'].includes(k))
   if (t.gov) o.gov = ruleMap(t.gov, k => ['head', 'managers', 'outposts', 'maxLevel'].includes(k))
-  if (t.ev) o.ev = ruleMap(t.ev, k => ['family', 'dorm', 'breakdown', 'mineral', 'soil', 'medicine'].includes(k))
+  for (const k of ['ev', 'fullEv']) if (t[k]) o[k] = ruleMap(t[k], x => EV_KEYS.includes(x))
   if (t.note) o.note = T.str(300)(t.note)
+  if (!depth && t.variants && typeof t.variants === 'object') o.variants = Object.fromEntries(Object.entries(t.variants).filter(([k]) => isJob(k)).slice(0, 4).map(([k, v]) => [k, T_TIER(v || {}, 1)]))
   if (o.price && !Object.keys(o.price).length) delete o.price
   return o
 }

@@ -2,6 +2,7 @@
 // Рисуем на отдельном холсте поверх карты; положение жителей — из life.js по часам поселения.
 import { buildCast, dayPlans, personAt, lineNow, snapshotAt, insideCounts, ACTS } from '../shared/life.js'
 import { clockMin, darkness, DAY_MIN } from '../shared/clock.js'
+import { weatherOf } from '../shared/settlement.js'
 import { RACE_COLORS } from './armyFaces.js'
 
 // одежда по работе — чтобы издалека было видно, кто чем занят
@@ -29,7 +30,9 @@ export function createLifeLayer(canvas, get) {
     const st = get()
     const now = performance.now()
     // жителей не видно — сумерки можно рисовать реже, но камеру двинули — сразу, иначе огни отстают от карты
-    const slow = !st || st.view.k < 0.55
+    // идёт дождь или снег — рисуем каждый кадр, иначе осадки дёргаются
+    const wet = st?.s && ['rain', 'snow'].includes(weatherOf(st.s))
+    const slow = !st || (st.view.k < 0.55 && !wet)
     const cam = st ? `${st.view.x}|${st.view.y}|${st.view.k}|${st.size.w}|${st.size.h}` : ''
     if (!slow || cam !== lastCam || now - lastDraw > 400) { draw(st, now); lastDraw = now; lastCam = cam }
     raf = requestAnimationFrame(frame)
@@ -71,6 +74,9 @@ export function createLifeLayer(canvas, get) {
         }
       }
     }
+    // дождь и снег — косые штрихи и хлопья поверх карты (по погоде поселения)
+    const wx = weatherOf(s, day)
+    if (wx === 'rain' || wx === 'snow') precip(ctx, W, H, rt, wx, view)
     if (k < 0.55) return
     // ягодные кусты и травы там, где ходят собиратели
     if (k >= 0.7) {
@@ -239,4 +245,18 @@ function label(ctx, text, x, y) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'top'
   ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(20, 14, 6, .75)'; ctx.strokeText(text, x, y)
   ctx.fillStyle = '#f3e7c8'; ctx.fillText(text, x, y)
+}
+
+// осадки: капли летят наискось, снег медленно кружит; привязаны к экрану, но сдвигаются вместе с картой
+function precip(ctx, W, H, rt, kind, view) {
+  const n = Math.min(260, Math.round((W * H) / 5200))
+  ctx.save()
+  if (kind === 'rain') { ctx.strokeStyle = 'rgba(190, 210, 235, .35)'; ctx.lineWidth = 1 } else ctx.fillStyle = 'rgba(245, 248, 255, .75)'
+  for (let i = 0; i < n; i++) {
+    const seedX = (i * 97.13) % 1, seedY = (i * 57.71) % 1, sp = kind === 'rain' ? 0.9 + (i % 5) * 0.08 : 0.08 + (i % 7) * 0.012
+    const x = (((seedX * W + view.x * 0.15 + rt * (kind === 'rain' ? 0.25 : 0.02) * sp) % W) + W) % W
+    const y = (((seedY * H + view.y * 0.15 + rt * (kind === 'rain' ? 0.9 : 0.05) * sp) % H) + H) % H
+    if (kind === 'rain') { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 3, y - 11); ctx.stroke() } else { ctx.beginPath(); ctx.arc(x + Math.sin(rt / 900 + i) * 3, y, 1.4 + (i % 3) * 0.5, 0, Math.PI * 2); ctx.fill() }
+  }
+  ctx.restore()
 }

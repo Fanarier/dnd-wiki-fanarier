@@ -154,6 +154,12 @@
             <button @click="advance(1)">1 день</button><button @click="advance(7)">Неделя</button>
             <input v-model.number="customDays" type="number" min="1" max="60" /><button @click="advance(customDays)">дней</button>
           </div>
+          <label class="wx">Погода сегодня
+            <select :value="s.weather?.day === (s.day || 0) ? s.weather.kind : ''" @change="setWeather($event.target.value)">
+              <option value="">как выпадет ({{ WEATHER[calc.weather]?.label.toLowerCase() }})</option>
+              <option v-for="(w, k) in WEATHER" :key="k" :value="k">{{ w.icon }} {{ w.label }}</option>
+            </select>
+          </label>
         </div>
       </div>
 
@@ -231,7 +237,7 @@ import { SPEEDS } from '../shared/march.js'
 import { missingRaceStats } from '../shared/army.js'
 import PriceChips from './PriceChips.vue'
 import { store, isMaster, act, toast } from '../map/store.js'
-import { computeSettlement, moraleDay, iconSrc, shortFor, priceText, placementProblems, repairPrice, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
+import { computeSettlement, moraleDay, iconSrc, WEATHER, shortFor, priceText, placementProblems, repairPrice, BUILDINGS, CATEGORIES, SIZES, RES, ROAD_TYPES } from '../shared/settlement.js'
 import { WALL_TYPES, WALL_FEATURES, wallPrice, featurePrice } from '../shared/walls.js'
 import { TERRAIN_DEFAULTS, TERRAIN_PARAMS } from '../shared/terrainGen.js'
 
@@ -442,6 +448,9 @@ function onFeatureMove({ wallId, id, s: at }) {
 }
 // входы постройки (смещения от центра на краю плашки)
 const onDoors = ({ id, doors }) => patch({ buildings: s.value.buildings.map(b => (b.id === id ? { ...b, doors } : b)) })
+
+// погода на сегодня — мастер ставит сам или «как выпадет»
+const setWeather = kind => act('POST', `${base()}/weather`, { kind: kind || null }, kind ? `Погода: ${WEATHER[kind].label}` : 'Погода — как выпадет').catch(() => null)
 
 /* ---------- жизнь: часы и жители ---------- */
 const onClock = speed => act('POST', `${base()}/clock`, { speed }).catch(() => null)
@@ -738,4 +747,6 @@ function setTab(id) {
   .sp-tabs::-webkit-scrollbar { display: none; }
   .sp-tab { padding: 6px 10px; white-space: nowrap; flex: none; }
 }
+.sp-pop .wx { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--a-muted); font-size: 12px; font-weight: 700; }
+.sp-pop .wx select { flex: 1; min-width: 0; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .3); color: var(--a-text); font: 600 12.5px var(--a-sans); }
 </style>

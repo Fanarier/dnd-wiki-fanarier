@@ -266,6 +266,7 @@
     <!-- часы поселения: мастер ставит паузу и скорость, как в RimWorld -->
     <div class="sm-clock" :class="{ night: clockView.dark }" @pointerdown.stop @dblclick.stop>
       <span class="ck-ico" :title="clockView.part">{{ clockView.icon }}</span><b>{{ clockView.time }}</b><small>день {{ clockView.day }}</small>
+      <span class="ck-wx" :title="`${clockView.season.label}; сегодня ${clockView.wx.label.toLowerCase()} — ${clockView.wx.hint}`">{{ clockView.season.icon }} {{ clockView.wx.icon }}</span>
       <template v-if="master">
         <button v-for="sp in CLOCK_SPEEDS" :key="sp.v" type="button" :class="{ on: clockView.speed === sp.v }" :title="sp.title" @click.stop="emit('clock', sp.v)">{{ sp.label }}</button>
       </template>
@@ -319,7 +320,7 @@ import { createLifeLayer } from './lifeLayer.js'
 import { simplifyLine } from '../shared/geo.js'
 import { buildCast, dayPlans, personAt, ACTS, jobLabel, snapshotAt, gatherings } from '../shared/life.js'
 import { clockMin, clockOf, dayTime, partOfDay, darkness, CLOCK_SPEEDS, DAY_MIN } from '../shared/clock.js'
-import { RACES } from '../shared/settlement.js'
+import { RACES, WEATHER } from '../shared/settlement.js'
 
 const props = defineProps({
   settlement: { type: Object, required: true },
@@ -1470,7 +1471,8 @@ let life = null, clockTimer = 0
 const clockNow = ref(Date.now())
 const clockView = computed(() => {
   const t = clockMin(props.settlement, clockNow.value + (store.clockOffset || 0)), dt = dayTime(t), pd = partOfDay(dt.of)
-  return { time: dt.text, day: dt.day, icon: pd.icon, part: pd.label, dark: darkness(dt.of) > 0.3, speed: clockOf(props.settlement).speed || 0 }
+  return { time: dt.text, day: dt.day, icon: pd.icon, part: pd.label, dark: darkness(dt.of) > 0.3, speed: clockOf(props.settlement).speed || 0,
+    season: props.calc.season || { label: '', icon: '' }, wx: WEATHER[props.calc.weather] || WEATHER.clear }
 })
 // сборища — раз в секунду вместе с часами
 const crowds = computed(() => {
@@ -1542,6 +1544,7 @@ defineExpose({ fit, fitAll, finishRoad, draft, finishMarch, undoMarchPoint, marc
 .sm-clock { position: absolute; z-index: 2; left: 50%; bottom: 48px; transform: translateX(-50%); white-space: nowrap; display: flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 11px; background: rgba(23, 19, 14, .9); border: 1px solid #8a6630; color: #e9dfc8; font: 700 12.5px 'Manrope', sans-serif; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
 .sm-clock b { font: 700 17px 'Cormorant Garamond', Georgia, serif; color: #f3d99a; font-variant-numeric: tabular-nums; }
 .sm-clock small { color: #a8936c; font-weight: 700; }
+.sm-clock .ck-wx { font-size: 14px; letter-spacing: 1px; }
 .sm-clock em { font-style: normal; color: #ffb36b; font-size: 11.5px; }
 .sm-clock.night { border-color: #4f5c8a; }
 .sm-crowds { position: absolute; z-index: 2; right: 10px; bottom: 190px; display: grid; justify-items: end; gap: 4px; max-width: min(320px, 70%); }

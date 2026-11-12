@@ -1,6 +1,6 @@
 <template>
   <div class="hp">
-    <h3>Дом целителя <small>коек {{ split.beds }} = {{ healers }} целител{{ healers === 1 ? 'ь' : 'я' }} × {{ BEDS_PER_HEALER }} · занято {{ split.beds - split.free }} · ждут {{ split.queue.length }}</small></h3>
+    <h3>Дом целителя <small>коек {{ split.beds }} = {{ healers }} целител{{ healers === 1 ? 'ь' : 'я' }} × {{ BEDS_PER_HEALER }} · занято {{ split.beds - split.free }} · ждут {{ split.queue.length }}<template v-if="calc.recovery"> · выздоровление +{{ calc.recovery }}%</template></small></h3>
     <div v-if="!split.beds" class="alert">Лечить некому: нужен «Дом целителя» и целители на работе (вкладка «Работы»). Больные ждут в очереди.</div>
     <p class="muted">Сюда попадают те, кто не вылечился сам. Метод лечения выбирает глава, полоску двигает мастер: начало — 50%, 0 — не вылечили (смерть), 100 — здоров.</p>
 

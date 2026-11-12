@@ -82,6 +82,12 @@
               </div>
               <div v-if="i" class="fld"><small>Цена улучшения до этого уровня <em>пусто — ¾ цены стройки за каждый уровень</em></small><MapEdit v-model="t.price" :keys="RES_KEYS" add-label="ресурс" /></div>
               <label class="full">Заметка<input v-model="t.note" placeholder="что ещё даёт — для игроков" /></label>
+              <!-- особые свойства уровня: станки, «вся смена», корм, удобрение, хранение, варианты — как есть, в виде JSON -->
+              <details class="adv-x">
+                <summary>Особое{{ advKeys(t).length ? ` (${advKeys(t).join(', ')})` : '' }}</summary>
+                <textarea :value="advJson(t)" rows="6" spellcheck="false" @change="setAdv(t, $event)" />
+                <small>Ключи: perWorker {работа: {ресурс: ±}}, boost {работа: %}, full {ресурс: +}, fullBoost %, fed %, fert %, storage {general|food|water|drink}, seasonal, winter, rain, crewUse, crops, mill wind|water, power %, recovery %, fortified, crewDefense, blueprints, fullEv, variants {ключ: уровень}</small>
+              </details>
             </div>
             <div class="te-acts">
               <button v-if="b.def.tiers.length < 5" type="button" class="mini" @click="addTier(b.def)">＋ уровень</button>
@@ -170,8 +176,30 @@ const copy = o => JSON.parse(JSON.stringify(o))
 const norm = d => ({ ...copy(d), tiers: copy(tiersOf(d)) })
 const fmt = v => String(Math.round(v * 100) / 100).replace('.', ',')
 const perText = per => Object.entries(per || {}).map(([k, v]) => `${RES[k]?.label || k} ${v > 0 ? '+' : '−'}${fmt(Math.abs(v))}`).join(', ')
+// особые свойства уровня (правятся как JSON)
+const ADV = ['perWorker', 'boost', 'full', 'fullBoost', 'fed', 'fert', 'storage', 'seasonal', 'winter', 'rain', 'crewUse', 'crops', 'mill', 'power', 'recovery', 'fortified', 'crewDefense', 'blueprints', 'fullEv', 'variants']
+const advKeys = t => ADV.filter(k => t[k] != null)
+const advJson = t => JSON.stringify(Object.fromEntries(advKeys(t).map(k => [k, t[k]])), null, 1)
+function setAdv(t, e) {
+  let v
+  try { v = JSON.parse(e.target.value || '{}') } catch { e.target.classList.add('bad'); return }
+  e.target.classList.remove('bad')
+  for (const k of ADV) { if (v[k] == null) delete t[k]; else t[k] = v[k] }
+}
+const STORE = { general: 'склады', food: 'амбары', water: 'вода', drink: 'питьевая' }
 function summary(t, i) {
   const out = []
+  if (t.storage) out.push('Хранение: ' + Object.entries(t.storage).map(([k, v]) => `${STORE[k] || k} +${v}`).join(', '))
+  if (t.perWorker) for (const [j, m] of Object.entries(t.perWorker)) out.push(`${JOBS[j]?.label || j} здесь ещё: ${perText(m)}`)
+  if (t.boost) out.push('Станки: ' + Object.entries(t.boost).map(([j, v]) => `${JOBS[j]?.label || j} +${v}%`).join(', '))
+  if (t.full) out.push('Вся смена на месте: ' + perText(t.full))
+  if (t.fullBoost) out.push(`Вся смена на месте: +${t.fullBoost}%`)
+  if (t.fed) out.push(`Еды хватает: +${t.fed}%`)
+  if (t.fert) out.push(`Есть удобрение: +${t.fert}% (1 в день)`)
+  if (t.seasonal || t.winter) out.push(t.winter ? 'Работает и зимой' : 'Зимой стоит')
+  if (t.mill) out.push(t.mill === 'water' ? 'Водяная: работает всегда' : 'Ветряная: в сильный ветер вдвое, в штиль стоит')
+  if (t.recovery) out.push(`Выздоровление +${t.recovery}% за целителя`)
+  if (t.variants) out.push('На выбор: ' + Object.values(t.variants).map(v => v.label).join(' или '))
   const nums = [['housing', 'жильё'], ['guests', 'гостей'], ['trade', 'торговых мест'], ['defense', 'защита +']]
   const n = nums.filter(([k]) => t[k]).map(([k, l]) => (l.endsWith('+') ? l + t[k] : `${l} ${t[k]}`))
   if (n.length) out.push(n.join(' · '))
@@ -308,5 +336,9 @@ input, select { min-width: 0; padding: 4px 7px; border-radius: 7px; border: 1px 
 .bm input { width: 46px; }
 .jb { display: grid; gap: 5px; padding: 7px 10px; margin-bottom: 5px; border-radius: 10px; border: 1px solid rgba(231, 197, 111, .14); font-size: 12.5px; }
 .jb b { color: var(--a-gold-2); }
+.adv-x summary { cursor: pointer; color: var(--a-muted); font-size: 12px; font-weight: 700; }
+.adv-x textarea { width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--a-line-2); background: rgba(0, 0, 0, .35); color: var(--a-text); font: 12px ui-monospace, Consolas, monospace; }
+.adv-x textarea.bad { border-color: #ff6b5b; }
+.adv-x small { display: block; color: #7d6c4e; font-size: 11px; }
 @media (max-width: 520px) { .rc-h { display: none; } .rc-r { grid-template-columns: 1fr 1fr; } }
 </style>

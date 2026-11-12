@@ -42,12 +42,20 @@ export const EVENT_IDEAS = [
     weight: (s, c) => (c.threat >= 25 ? 1 + c.threat / 30 : 0.15),
     make(s, c, rnd) {
       const [foe, beast] = pick(rnd, [['Варги', true], ['Мародёры', false], ['Гоблины с холмов', false], ['Дезертиры', false], ['Одичавшие волки', true]])
-      const power = Math.round(c.threat * (2 + rnd() * 6))
-      const def = c.defense.total
+      const ev = c.ev || {}
+      // часовые на башнях замечают заранее, баллисты снижают опасность, шпиль ставит барьер
+      const watch = ev.watch > 0 ? ' Часовые заметили их ещё на подходе.' : ''
+      const power = Math.round(c.threat * (2 + rnd() * 6) * Math.max(0.4, 1 - 0.15 * (ev.ballista || 0)))
+      const def = Math.round(c.defense.total * (ev.spire ? 1.35 : 1))
+      const barrier = ev.spire ? ' Башня-шпиль подняла магический барьер.' : ''
+      // орудие разносит одиночного зверя
+      if (beast && ev.cannon && rnd() < Math.min(0.8, 0.4 * ev.cannon)) {
+        return { title: `Орудие отогнало: ${foe.toLowerCase()}`, type: 'done', duration: ['quick'], text: `${foe} шли к поселению, но башенное орудие ударило первым — стая рассеялась, не добежав до стен.${watch}`, effect: 'Угрозы −6, мораль +2', apply: { stats: { threat: -6, morale: 2 } } }
+      }
       if (def >= power) {
         return {
           title: `${foe} у стен`, type: 'threat', duration: ['quick'],
-          text: `${foe} попытались прорваться к поселению, но стража встретила их у частокола и отбросила. Сила набега ${power} против защиты ${def}.`,
+          text: `${foe} попытались прорваться к поселению, но стража встретила их у частокола и отбросила.${watch}${barrier} Сила набега ${power} против защиты ${def}.`,
           effect: 'Отбились. Мораль +2, угрозы −5', apply: { stats: { morale: 2, threat: -5 } }
         }
       }
@@ -98,7 +106,8 @@ export const EVENT_IDEAS = [
   },
   {
     id: 'sickness', label: 'Болезнь', mood: 'bad', origin: 'inside',
-    weight: (s, c) => ((c.jobs.healer?.workers || 0) === 0 ? 1.5 : 0.4) + (c.balance.drink < 0 ? 1 : 0),
+    // уборные и бани — реже болезни
+    weight: (s, c) => (((c.jobs.healer?.workers || 0) === 0 ? 1.5 : 0.4) + (c.balance.drink < 0 ? 1 : 0)) * Math.max(0.3, 1 - 0.12 * (c.ev?.clean || 0)),
     make(s, c, rnd) {
       const what = pick(rnd, ['лихорадка', 'кашель с кровью', 'кишечная хворь', 'болотная трясуха'])
       const sick = between(rnd, 3, 9)
@@ -200,7 +209,8 @@ export const EVENT_IDEAS = [
   },
   {
     id: 'theft', label: 'Кража со склада', mood: 'bad', origin: 'inside',
-    weight: (s, c) => ((s.stock?.goods || 0) + (s.stock?.parts || 0) > 20 ? ((c.jobs.storekeeper?.workers || 0) ? 0.3 : 1) : 0),
+    // крытые склады и хранилища — реже кражи
+    weight: (s, c) => ((s.stock?.goods || 0) + (s.stock?.parts || 0) > 20 ? ((c.jobs.storekeeper?.workers || 0) ? 0.3 : 1) * Math.max(0.25, 1 - 0.25 * (c.ev?.guard || 0)) : 0),
     make(s, c, rnd) {
       const res = (s.stock?.goods || 0) >= (s.stock?.parts || 0) ? 'goods' : 'parts'
       const n = Math.max(3, Math.round((s.stock?.[res] || 0) * (0.1 + rnd() * 0.2)))
@@ -531,6 +541,58 @@ export const EVENT_IDEAS = [
         text: `${craft[0].toUpperCase() + craft.slice(1)} ${makeName(race, g, rnd)} (${RACES[race].label}) услышал${g === 'f' ? 'а' : ''} о нас и просит места. Руки золотые, характер — посмотрим.`,
         effect: `Если принять: +1 житель (${RACES[race].label})`, apply: { people: { [race]: { [g === 'f' ? 'female' : 'male']: 1 } } }, applyOff: true
       }
+    }
+  },
+
+  /* ---------- постройки: таверна, площадь, ярмарка, госпиталь, мастерские ---------- */
+  {
+    id: 'guest-tale', label: 'Гость в таверне', mood: 'good', origin: 'outside',
+    weight: (s, c) => (c.ev?.social || 0) * 0.15,
+    make(s, c, rnd) {
+      const [who, gift, res, n] = pick(rnd, [['странствующий менестрель', 'спел до утра — люди повеселели', null, 0], ['заезжий купец', 'расплатился щедро', 'goods', between(rnd, 10, 30)], ['паломница', 'оставила в дар целебные травы', 'herbs', between(rnd, 5, 15)], ['старый наёмник', 'научил стражу паре приёмов', null, 0]])
+      return { title: 'Гость в таверне', type: 'approve', duration: ['quick'], text: `В таверне остановился ${who} и ${gift}.`, effect: res ? `${RES[res].label} +${n}, мораль +1` : 'Мораль +2', apply: res ? { stock: { [res]: n }, stats: { morale: 1 } } : { stats: { morale: 2 } } }
+    }
+  },
+  {
+    id: 'plaza-fest', label: 'Гуляния на площади', mood: 'good', origin: 'inside',
+    weight: (s, c) => (c.ev?.plaza || 0) * 0.25,
+    make(s, c, rnd) {
+      const what = pick(rnd, ['бродячие артисты дали представление', 'дети устроили игры в салки вокруг фонтана', 'сыграли свадьбу прямо на площади', 'зажгли костры и плясали до полуночи'])
+      return { title: 'Гуляния на площади', type: 'approve', duration: ['quick'], text: `На площади ${what}.`, effect: 'Мораль +2, стабильность +1', apply: { stats: { morale: 2, stability: 1 } } }
+    }
+  },
+  {
+    id: 'plaza-preacher', label: 'Проповедник', mood: 'neutral', origin: 'outside',
+    weight: (s, c) => (c.ev?.plaza || 0) * 0.12,
+    make(s, c, rnd) {
+      const good = rnd() < 0.5
+      return good
+        ? { title: 'Проповедник на площади', type: 'message', duration: ['quick'], text: 'Седой проповедник говорил о терпении и труде — люди слушали молча и расходились спокойными.', effect: 'Стабильность +2', apply: { stats: { stability: 2 } } }
+        : { title: 'Смутьян на площади', type: 'problem', duration: ['decide'], text: 'Чужак на площади кричит, что глава ворует и что пора менять порядки. Собирается толпа. Прогнать?', effect: 'Стабильность −2', apply: { stats: { stability: -2 } } }
+    }
+  },
+  {
+    id: 'fair', label: 'Ярмарка', mood: 'good', origin: 'outside',
+    weight: (s, c) => (c.ev?.fair || 0) * 0.3,
+    make(s, c, rnd) {
+      const n = between(rnd, 20, 60), g = between(rnd, 5, 20)
+      return { title: 'Ярмарочный день', type: 'approve', duration: ['quick'], text: 'На ярмарку съехались торговцы со всей округи: шум, музыка, пряники и выгодные сделки.', effect: `ТМС +${n}, золото +${g}, мораль +2`, apply: { stock: { goods: n, gold: g }, stats: { morale: 2 } } }
+    }
+  },
+  {
+    id: 'health', label: 'Здоровье', mood: 'good', origin: 'inside',
+    weight: (s, c) => (c.ev?.health || 0) * 0.2,
+    make(s, c, rnd) {
+      const what = pick(rnd, ['в госпитале вовремя заметили лихорадку и не дали ей разойтись', 'лекари привили детей от оспы', 'целители научили жителей кипятить воду'])
+      return { title: 'Госпиталь на страже', type: 'approve', duration: ['quick'], text: `Добрые вести: ${what}.`, effect: 'Мораль +1, стабильность +1', apply: { stats: { morale: 1, stability: 1 } } }
+    }
+  },
+  {
+    id: 'masterwork', label: 'Шедевр мастерской', mood: 'good', origin: 'random',
+    weight: (s, c) => (c.ev?.masterwork || 0) * 0.08,
+    make(s, c, rnd) {
+      const what = pick(rnd, ['клинок с узором, как морозная паутина', 'доспех, что держит удар вдвое лучше обычного', 'механический арбалет с самовзводом', 'паровой резак тонкой работы'])
+      return { title: 'Изготовлено: фиолетовое качество', type: 'important', duration: ['decide'], text: `Мастера превзошли себя — вышел ${what}. Это вещь фиолетового качества. Кому отдать?`, effect: 'Новый предмет фиолетового качества (мастер выдаёт в инвентарь)' }
     }
   }
 ]
