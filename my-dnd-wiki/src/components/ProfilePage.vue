@@ -3,170 +3,165 @@
     <header class="p-top">
       <router-link to="/" class="back">← Карта</router-link>
       <router-link to="/wiki" class="back">Вики</router-link>
+      <router-link v-if="viewId" to="/profile" class="back">Мой профиль</router-link>
       <span class="grow" />
       <UserMenu />
     </header>
 
     <div v-if="!store.ready" class="p-load"><SteamLoader kind="gate" /></div>
     <div v-else-if="!store.me" class="p-card center">
-      <h2>Профиль доступен после входа</h2>
+      <h2>{{ viewId ? 'Профили игроков видны после входа' : 'Профиль доступен после входа' }}</h2>
       <button class="brass" @click="store.gate = 'choose'">Войти</button>
     </div>
 
+    <!-- чужой профиль -->
+    <main v-else-if="viewId" class="p-main">
+      <PublicProfile :id="viewId" />
+    </main>
+
     <main v-else class="p-main">
-      <!-- карточка персонажа -->
-      <section class="p-card hero">
-        <i class="rivet tl" /><i class="rivet tr" /><i class="rivet bl" /><i class="rivet br" />
-        <label class="avatar" title="Сменить аватарку">
-          <img v-if="avatarPreview" :src="avatarPreview" alt="" />
-          <span v-else :style="{ background: f.color }">{{ (f.name || '?')[0] }}</span>
-          <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden @change="pickAvatar" />
-          <em>сменить</em>
-        </label>
-        <div class="hero-fields">
-          <div class="role">{{ isMaster ? '♛ Мастер' : '⚔ Игрок' }} · логин <b>{{ store.me.login }}</b>
-            <span v-if="!isMaster" class="rank" :style="{ background: rank.color, color: rank.text }">{{ rank.label }}</span>
-          </div>
-          <label>{{ isMaster ? 'Имя (видно на курсоре и в пингах)' : 'Имя персонажа' }}<input v-model="f.name" maxlength="40" /></label>
-          <label v-if="!isMaster">Раса<input v-model="f.race" maxlength="40" placeholder="необязательно" /></label>
-          <div class="row">
+      <ProfileHead :p="head" editable>
+        <router-link v-if="publicId" class="mini p-as" :to="'/profile/' + publicId" title="Твой профиль глазами других игроков">👁 Как видят другие</router-link>
+      </ProfileHead>
+
+      <!-- вкладки: профиль, настройки, у мастера — игроки и мастера -->
+      <nav class="p-tabs" role="tablist" aria-label="Разделы профиля">
+        <button v-for="t in tabs" :key="t.k" type="button" role="tab" :aria-selected="tab === t.k" :class="{ on: tab === t.k }" @click="setTab(t.k)">
+          {{ t.t }}<b v-if="t.n" class="p-tab-n">{{ t.n }}</b>
+        </button>
+      </nav>
+
+      <template v-if="tab === 'profile'">
+        <!-- анкета: имя, раса, цвет -->
+        <section class="p-card">
+          <h3>Анкета <small>аватарку и обложку меняй прямо на них</small></h3>
+          <div class="p-form">
+            <label>{{ isMaster ? 'Имя (видно на курсоре и в пингах)' : 'Имя персонажа' }}<input v-model="f.name" maxlength="40" /></label>
+            <label v-if="!isMaster">Раса<input v-model="f.race" maxlength="40" placeholder="необязательно" /></label>
             <label class="color">Цвет курсора и пингов<input v-model="f.color" type="color" /></label>
-            <button v-if="f.avatar === null" class="link" @click="f.avatar = undefined">вернуть аватар</button>
-            <button v-else-if="store.me.avatar || f.avatar" class="link" @click="f.avatar = null">убрать аватар</button>
+            <button class="brass small" :disabled="busy || !formDirty" @click="saveProfile">Сохранить</button>
           </div>
-          <div class="row end">
-            <button class="brass" :disabled="busy" @click="saveProfile">Сохранить</button>
+        </section>
+
+        <!-- о себе: видят все вошедшие игроки -->
+        <section class="p-card">
+          <h3>О себе <small>{{ isMaster ? 'в режиме мастера твой профиль другим не виден' : 'видят все игроки, гости — нет' }}</small></h3>
+          <RichEditor v-if="aboutReady" v-model="about" :min-height="140" placeholder="Пара слов о себе или о персонаже: кто ты, во что любишь играть, когда удобно собираться…" />
+          <div v-else class="muted small">Загружаю…</div>
+          <div class="row end p-about-acts">
+            <span v-if="aboutDirty" class="muted small">есть несохранённое</span>
+            <button class="brass small" :disabled="busy || !aboutDirty" @click="saveAbout">Сохранить</button>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- карточки героев, привязанные к игроку -->
-      <section v-if="myHeroes.length" class="p-card">
-        <h3>Мои карточки <small>в разделе «Герои Анкарии»</small></h3>
-        <div v-for="h in myHeroes" :key="h.id" class="note-row">
-          <img v-if="heroCover(h)" :src="heroPortraitUrl(heroCover(h).thumb || heroCover(h).file)" alt="" class="pl-av" />
-          <span v-else class="pl-av ini" :style="{ background: store.me.color }">{{ h.name[0] }}</span>
-          <span class="grow"><b>{{ h.name }}</b> <span class="muted small">· ур. {{ h.level }}{{ h.canEdit ? ' · можешь править сам' : '' }}</span></span>
-          <router-link class="mini" :to="{ path: '/wiki', query: { hero: h.id } }">открыть</router-link>
-        </div>
-      </section>
-
-      <!-- персонаж мастера: мастер тоже может играть -->
-      <section v-if="isMaster" class="p-card">
-        <h3>Мой персонаж <small>{{ store.me.character ? 'можно играть: «♛ Мастер ⇄ ⚔ Персонаж» в меню' : 'если ты не только ведёшь, но и играешь' }}</small></h3>
-        <div class="char-row">
-          <label>Имя персонажа<input v-model="ch.character" maxlength="40" /></label>
-          <label>Раса<input v-model="ch.race" maxlength="40" placeholder="необязательно" /></label>
-          <button class="brass small" :disabled="!ch.character.trim()" @click="saveCharacter">{{ store.me.character ? 'Сохранить' : 'Создать персонажа' }}</button>
-        </div>
-        <p class="muted small">Персонаж появится в списке игроков: его можно брать в группы заказов, добавлять в отряд и открывать ему секреты. Аватарка — твоя мастерская, пока в режиме персонажа не поставишь другую.</p>
-      </section>
-      <section v-if="store.me.asMaster" class="p-card">
-        <h3>Режим персонажа</h3>
-        <p class="muted">Ты сейчас играешь «{{ store.me.name }}». Имя, расу и аватарку персонажа меняй выше; пароль — в режиме мастера.</p>
-      </section>
-
-      <!-- игроки (мастер) -->
-      <section v-if="isMaster" class="p-card">
-        <h3>Игроки <small>{{ activePlayers.length }} в игре · {{ pendingPlayers.length }} ждут</small></h3>
-        <div v-if="!store.data.players?.length" class="muted">Заявок пока не было. Игроки отправляют их с экрана входа.</div>
-        <div v-for="p in sortedPlayers" :key="p.id" class="pl" :class="'pl-' + p.status">
-          <img v-if="p.avatar" :src="avatarUrl(p.avatar)" alt="" class="pl-av" />
-          <span v-else class="pl-av ini" :style="{ background: p.color }">{{ p.character[0] }}</span>
-          <div class="pl-main">
-            <b>{{ p.character }}</b><span v-if="p.race" class="muted"> · {{ p.race }}</span>
-            <div class="muted small">{{ p.linked ? `персонаж ${p.tech ? 'техспециалиста' : 'мастера'} ${p.login}` : `логин ${p.login} · ${STATUS[p.status]}` }}</div>
+        <!-- персонаж мастера: мастер тоже может играть -->
+        <section v-if="isMaster" class="p-card">
+          <h3>Мой персонаж <small>{{ store.me.character ? 'можно играть: «♛ Мастер ⇄ ⚔ Персонаж» в меню' : 'если ты не только ведёшь, но и играешь' }}</small></h3>
+          <div class="char-row">
+            <label>Имя персонажа<input v-model="ch.character" maxlength="40" /></label>
+            <label>Раса<input v-model="ch.race" maxlength="40" placeholder="необязательно" /></label>
+            <button class="brass small" :disabled="!ch.character.trim()" @click="saveCharacter">{{ store.me.character ? 'Сохранить' : 'Создать персонажа' }}</button>
           </div>
-          <template v-if="p.status === 'pending'">
-            <button class="mini ok" @click="call(`/api/players/${p.id}/approve`, 'POST', 'Игрок одобрен')">Одобрить</button>
-            <button class="mini no" @click="call(`/api/players/${p.id}/reject`, 'POST', 'Отклонено')">Отказать</button>
-          </template>
-          <template v-else>
-            <select :value="p.rank" class="mini-sel" title="Ранг авантюриста" @change="call(`/api/players/${p.id}`, 'PATCH', 'Ранг изменён', { rank: $event.target.value })">
-              <option v-for="r in RANKS" :key="r.key" :value="r.key">{{ r.label }}</option>
-            </select>
-            <button v-if="p.status === 'rejected'" class="mini" @click="call(`/api/players/${p.id}`, 'PATCH', 'Восстановлен', { status: 'active' })">Восстановить</button>
-            <button v-if="!p.linked" class="mini" title="Игрок забыл пароль — выдать новый, старые входы сбросятся" @click="resetPlayer(p)">Новый пароль</button>
-            <button v-if="p.status === 'active' && !p.linked" class="mini" :class="{ ok: p.wiki }" :title="p.wiki ? 'Редактор вики — изменить права' : 'Сделать редактором вики: разделы или отдельные страницы'" @click="wikiFor = p">📖 {{ p.wiki ? 'Редактор' : 'Вики' }}</button>
-          </template>
-          <button v-if="store.me.owner && !p.linked" class="mini" :class="{ ok: ipFor?.id === p.id }" title="С каких IP заходил игрок" @click="showIps(p)">🌐 IP</button>
-          <button class="mini no" title="Удалить аккаунт" @click="removePlayer(p)">✕</button>
-          <div v-if="ipFor?.id === p.id" class="pl-ips">
-            <div v-if="!ipFor.list.length" class="muted small">Пока ни одного входа не записано — журнал ведётся с 27 октября 2026.</div>
-            <table v-else>
-              <tr><th>IP</th><th>Первый раз</th><th>Последний</th><th>Раз</th><th>Браузер</th></tr>
-              <tr v-for="x in ipFor.list" :key="x.ip"><td><b>{{ x.ip }}</b></td><td>{{ dt(x.first) }}</td><td>{{ dt(x.last) }}</td><td>{{ x.n }}</td><td class="ua" :title="x.ua">{{ uaShort(x.ua) }}</td></tr>
-            </table>
-            <button v-if="ipFor.list.length" class="mini" @click="copyIps">Скопировать</button>
+          <p class="muted small">Персонаж появится в списке игроков: его можно брать в группы заказов, добавлять в отряд и открывать ему секреты. Аватарка, обложка и «О себе» — твои мастерские, пока в режиме персонажа не поставишь другие.</p>
+        </section>
+        <section v-if="store.me.asMaster" class="p-card">
+          <h3>Режим персонажа</h3>
+          <p class="muted">Ты сейчас играешь «{{ store.me.name }}». Имя, расу, аватарку и обложку персонажа меняй здесь; пароль — в режиме мастера.</p>
+        </section>
+
+        <!-- карточки героев, привязанные к игроку -->
+        <section v-if="myHeroes.length" class="p-card">
+          <h3>Мои карточки <small>в разделе «Герои Анкарии»</small></h3>
+          <HeroTiles :heroes="myHeroes" mine />
+        </section>
+
+        <!-- заметки -->
+        <section class="p-card">
+          <h3>Мои заметки на карте <small>{{ myNotes.length }}</small></h3>
+          <div v-if="!myNotes.length" class="muted">Ставь заметки инструментом «Заметка» на карте — их видишь только ты (или твой отряд, если отметишь).</div>
+          <div v-for="n in myNotes" :key="n.id" class="note-row">
+            <i class="dot" :style="{ background: n.color }" />
+            <span class="grow">{{ n.text || 'Без текста' }}<em v-if="n.share === 'group'" class="muted"> · видит отряд</em></span>
+            <router-link class="mini" :to="{ path: '/', query: { focus: 'notes:' + n.id } }">на карте</router-link>
+            <button class="mini no" @click="call(`/api/notes/${n.id}`, 'DELETE', 'Заметка удалена')">✕</button>
           </div>
-        </div>
-        <WikiPermsDialog v-if="wikiFor" :player="store.data.players.find(x => x.id === wikiFor.id) || wikiFor" @close="wikiFor = null" />
-        <div v-if="issuedPlayer" class="ms-issued">
-          Передай игроку — логин <b>{{ issuedPlayer.login }}</b>, пароль <b>{{ issuedPlayer.password }}</b>
-          <button class="mini" @click="copyIssuedPlayer">Скопировать</button>
-          <button class="mini" title="Скрыть" @click="issuedPlayer = null">✕</button>
-        </div>
-      </section>
+        </section>
 
-      <!-- мастера: заводит и убирает только владелец сайта -->
-      <section v-if="isMaster && store.me.owner" class="p-card">
-        <h3>Мастера <small>{{ masters.length }} · входят тем же окном, что и игроки</small></h3>
-        <div v-for="m in masters" :key="m.login" class="pl">
-          <img v-if="m.avatar" :src="avatarUrl(m.avatar)" alt="" class="pl-av" />
-          <span v-else class="pl-av ini" style="background: #e7c56f">{{ (m.name || m.login)[0] }}</span>
-          <div class="pl-main">
-            <b>{{ m.name }}</b>
-            <div class="muted small">логин {{ m.login }}{{ m.owner ? ' · владелец сайта' : '' }}</div>
+        <PlayersStrip />
+      </template>
+
+      <ProfileSettings v-else-if="tab === 'settings'" />
+
+      <template v-else-if="tab === 'players'">
+        <!-- игроки (мастер) -->
+        <section class="p-card">
+          <h3>Игроки <small>{{ activePlayers.length }} в игре · {{ pendingPlayers.length }} ждут</small></h3>
+          <div v-if="!store.data.players?.length" class="muted">Заявок пока не было. Игроки отправляют их с экрана входа.</div>
+          <div v-for="p in sortedPlayers" :key="p.id" class="pl" :class="'pl-' + p.status">
+            <img v-if="p.avatar" :src="avatarUrl(p.avatar)" alt="" class="pl-av" />
+            <span v-else class="pl-av ini" :style="{ background: p.color }">{{ p.character[0] }}</span>
+            <div class="pl-main">
+              <router-link v-if="p.status === 'active'" class="p-name" :to="'/profile/' + p.id" title="Открыть профиль">{{ p.character }}</router-link><b v-else>{{ p.character }}</b><span v-if="p.race" class="muted"> · {{ p.race }}</span>
+              <div class="muted small">{{ p.linked ? `персонаж ${p.tech ? 'техспециалиста' : 'мастера'} ${p.login}` : `логин ${p.login} · ${STATUS[p.status]}` }}</div>
+            </div>
+            <template v-if="p.status === 'pending'">
+              <button class="mini ok" @click="call(`/api/players/${p.id}/approve`, 'POST', 'Игрок одобрен')">Одобрить</button>
+              <button class="mini no" @click="call(`/api/players/${p.id}/reject`, 'POST', 'Отклонено')">Отказать</button>
+            </template>
+            <template v-else>
+              <select :value="p.rank" class="mini-sel" title="Ранг авантюриста" @change="call(`/api/players/${p.id}`, 'PATCH', 'Ранг изменён', { rank: $event.target.value })">
+                <option v-for="r in RANKS" :key="r.key" :value="r.key">{{ r.label }}</option>
+              </select>
+              <button v-if="p.status === 'rejected'" class="mini" @click="call(`/api/players/${p.id}`, 'PATCH', 'Восстановлен', { status: 'active' })">Восстановить</button>
+              <button v-if="!p.linked" class="mini" title="Игрок забыл пароль — выдать новый, старые входы сбросятся" @click="resetPlayer(p)">Новый пароль</button>
+              <button v-if="p.status === 'active' && !p.linked" class="mini" :class="{ ok: p.wiki }" :title="p.wiki ? 'Редактор вики — изменить права' : 'Сделать редактором вики: разделы или отдельные страницы'" @click="wikiFor = p">📖 {{ p.wiki ? 'Редактор' : 'Вики' }}</button>
+            </template>
+            <button v-if="store.me.owner && !p.linked" class="mini" :class="{ ok: ipFor?.id === p.id }" title="С каких IP заходил игрок" @click="showIps(p)">🌐 IP</button>
+            <button class="mini no" title="Удалить аккаунт" @click="removePlayer(p)">✕</button>
+            <div v-if="ipFor?.id === p.id" class="pl-ips">
+              <div v-if="!ipFor.list.length" class="muted small">Пока ни одного входа не записано — журнал ведётся с 27 октября 2026.</div>
+              <table v-else>
+                <tr><th>IP</th><th>Первый раз</th><th>Последний</th><th>Раз</th><th>Браузер</th></tr>
+                <tr v-for="x in ipFor.list" :key="x.ip"><td><b>{{ x.ip }}</b></td><td>{{ dt(x.first) }}</td><td>{{ dt(x.last) }}</td><td>{{ x.n }}</td><td class="ua" :title="x.ua">{{ uaShort(x.ua) }}</td></tr>
+              </table>
+              <button v-if="ipFor.list.length" class="mini" @click="copyIps">Скопировать</button>
+            </div>
           </div>
-          <template v-if="!m.owner">
-            <button class="mini" title="Выдать новый пароль — старые входы этого мастера сбросятся" @click="resetMaster(m)">Новый пароль</button>
-            <button class="mini no" title="Убрать мастера" @click="dropMaster(m)">✕</button>
-          </template>
-        </div>
-        <form class="pw ms-add" @submit.prevent="addMaster">
-          <label>Логин нового мастера<input v-model.trim="nm.login" autocomplete="off" maxlength="32" placeholder="например, Fedya" /></label>
-          <label>Пароль<span class="ms-pass"><input v-model="nm.password" type="text" autocomplete="new-password" minlength="6" /><button type="button" class="mini" title="Придумать пароль" @click="nm.password = genPass()">🎲</button></span></label>
-          <button class="brass small" :disabled="nm.login.length < 3 || nm.password.length < 6">Добавить мастера</button>
-        </form>
-        <div v-if="issued" class="ms-issued">
-          Передай мастеру — логин <b>{{ issued.login }}</b>, пароль <b>{{ issued.password }}</b>
-          <button class="mini" @click="copyIssued">Копировать</button>
-          <button class="mini" title="Скрыть" @click="issued = null">✕</button>
-        </div>
-      </section>
+          <WikiPermsDialog v-if="wikiFor" :player="store.data.players.find(x => x.id === wikiFor.id) || wikiFor" @close="wikiFor = null" />
+          <div v-if="issuedPlayer" class="ms-issued">
+            Передай игроку — логин <b>{{ issuedPlayer.login }}</b>, пароль <b>{{ issuedPlayer.password }}</b>
+            <button class="mini" @click="copyIssuedPlayer">Скопировать</button>
+            <button class="mini" title="Скрыть" @click="issuedPlayer = null">✕</button>
+          </div>
+        </section>
 
-      <!-- заставки событий героев у всех на сайте: какие включены (только владелец сайта) -->
-      <section v-if="isMaster && store.me.owner" class="p-card">
-        <h3>События героев <small>заставка у всех на сайте</small></h3>
-        <label v-for="e in HERO_EVENTS" :key="e.k" class="chk"><input type="checkbox" :checked="!!store.data.settings.heroEvents?.[e.k]" @change="setHeroEvent(e.k, $event.target.checked)" /> {{ e.t }}</label>
-      </section>
-
-      <!-- заметки -->
-      <section class="p-card">
-        <h3>Мои заметки на карте <small>{{ myNotes.length }}</small></h3>
-        <div v-if="!myNotes.length" class="muted">Ставь заметки инструментом «Заметка» на карте — их видишь только ты (или твой отряд, если отметишь).</div>
-        <div v-for="n in myNotes" :key="n.id" class="note-row">
-          <i class="dot" :style="{ background: n.color }" />
-          <span class="grow">{{ n.text || 'Без текста' }}<em v-if="n.share === 'group'" class="muted"> · видит отряд</em></span>
-          <router-link class="mini" :to="{ path: '/', query: { focus: 'notes:' + n.id } }">на карте</router-link>
-          <button class="mini no" @click="call(`/api/notes/${n.id}`, 'DELETE', 'Заметка удалена')">✕</button>
-        </div>
-      </section>
-
-      <!-- безопасность и настройки -->
-      <section class="p-card">
-        <h3>Пароль и настройки</h3>
-        <form v-if="!store.me.asMaster" class="pw" @submit.prevent="changePassword">
-          <label>Старый пароль<input v-model="pw.old" type="password" autocomplete="current-password" /></label>
-          <label>Новый пароль<input v-model="pw.new1" type="password" autocomplete="new-password" minlength="6" /></label>
-          <label>Ещё раз<input v-model="pw.new2" type="password" autocomplete="new-password" minlength="6" /></label>
-          <button class="brass small" :disabled="!pw.old || !pw.new1 || pw.new1 !== pw.new2">Сменить пароль</button>
-        </form>
-        <div v-if="pw.new2 && pw.new1 !== pw.new2" class="err">Пароли не совпадают</div>
-        <label class="chk"><input type="checkbox" :checked="store.sound" @change="setSound($event.target.checked)" /> Звуки сайта: пинги, кубики, уведомления, стихии</label>
-        <label v-if="store.role === 'player'" class="chk"><input type="checkbox" :checked="store.me.notifyArts" @change="setNotifyArts($event.target.checked)" /> Уведомлять, когда мастер выкладывает новые арты</label>
-        <div class="row end"><button class="mini no" @click="out">Выйти из аккаунта</button></div>
-      </section>
+        <!-- мастера: заводит и убирает только владелец сайта -->
+        <section v-if="store.me.owner" class="p-card">
+          <h3>Мастера <small>{{ masters.length }} · входят тем же окном, что и игроки</small></h3>
+          <div v-for="m in masters" :key="m.login" class="pl">
+            <img v-if="m.avatar" :src="avatarUrl(m.avatar)" alt="" class="pl-av" />
+            <span v-else class="pl-av ini" style="background: #e7c56f">{{ (m.name || m.login)[0] }}</span>
+            <div class="pl-main">
+              <b>{{ m.name }}</b>
+              <div class="muted small">логин {{ m.login }}{{ m.owner ? ' · владелец сайта' : '' }}</div>
+            </div>
+            <template v-if="!m.owner">
+              <button class="mini" title="Выдать новый пароль — старые входы этого мастера сбросятся" @click="resetMaster(m)">Новый пароль</button>
+              <button class="mini no" title="Убрать мастера" @click="dropMaster(m)">✕</button>
+            </template>
+          </div>
+          <form class="pw ms-add" @submit.prevent="addMaster">
+            <label>Логин нового мастера<input v-model.trim="nm.login" autocomplete="off" maxlength="32" placeholder="например, Fedya" /></label>
+            <label>Пароль<span class="ms-pass"><input v-model="nm.password" type="text" autocomplete="new-password" minlength="6" /><button type="button" class="mini" title="Придумать пароль" @click="nm.password = genPass()">🎲</button></span></label>
+            <button class="brass small" :disabled="nm.login.length < 3 || nm.password.length < 6">Добавить мастера</button>
+          </form>
+          <div v-if="issued" class="ms-issued">
+            Передай мастеру — логин <b>{{ issued.login }}</b>, пароль <b>{{ issued.password }}</b>
+            <button class="mini" @click="copyIssued">Копировать</button>
+            <button class="mini" title="Скрыть" @click="issued = null">✕</button>
+          </div>
+        </section>
+      </template>
 
       <footer class="love">Позже добавится коннект с моим приложением.<br />С любовью, Энди ⚙🛠</footer>
     </main>
@@ -175,36 +170,58 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import UserMenu from './UserMenu.vue'
 import SteamLoader from './SteamLoader.vue'
 import WikiPermsDialog from './WikiPermsDialog.vue'
-import { store, init, api, act, toast, logout, updateProfile, imageToDataUrl, avatarUrl, setSound, heroPortraitUrl, heroCover } from '../map/store.js'
+import RichEditor from './RichEditor.vue'
+import ProfileHead from './profile/ProfileHead.vue'
+import ProfileSettings from './profile/ProfileSettings.vue'
+import PublicProfile from './profile/PublicProfile.vue'
+import HeroTiles from './profile/HeroTiles.vue'
+import PlayersStrip from './profile/PlayersStrip.vue'
+import { store, init, api, act, toast, updateProfile, avatarUrl } from '../map/store.js'
 import { RANKS } from '../shared/catalog.js'
 
+const route = useRoute()
 const router = useRouter()
 onMounted(init)
 
 const isMaster = computed(() => store.role === 'master')
 const wikiFor = ref(null) // игрок, которому мастер выдаёт права редактора вики
 const STATUS = { pending: 'ждёт одобрения', active: 'в игре', rejected: 'отклонён' }
-const rank = computed(() => RANKS.find(r => r.key === store.me?.rank) || RANKS[0])
 
-const f = reactive({ name: '', race: '', color: '#ffd166', avatar: undefined })
-watch(() => store.me?.id, () => {
-  if (!store.me) return
-  const me = store.data.roster?.find(p => p.id === store.me.id)
-  Object.assign(f, { name: store.me.name, race: me?.race || '', color: store.me.color || '#ffd166', avatar: undefined })
-}, { immediate: true })
-// undefined — не трогать, null — убрать, строка — новая картинка
-const avatarPreview = computed(() => (f.avatar === null ? '' : f.avatar || avatarUrl(store.me?.avatar)))
+// /profile/:id — чужой профиль; свой id в адресе — это просто свой профиль
+const viewId = computed(() => {
+  const id = route.params.id ? String(route.params.id) : ''
+  return id && id !== store.me?.id ? id : ''
+})
+watch(() => [route.params.id, store.me?.id], ([id, me]) => { if (id && id === me) router.replace({ path: '/profile', query: route.query }) })
 
-async function pickAvatar(e) {
-  const file = e.target.files[0]
-  e.target.value = ''
-  if (!file) return
-  try { f.avatar = await imageToDataUrl(file) } catch (x) { toast(x.message, 'error') }
-}
+/* ---------- вкладки ---------- */
+const tabs = computed(() => [
+  { k: 'profile', t: 'Профиль' },
+  { k: 'settings', t: 'Настройки' },
+  ...(isMaster.value ? [{ k: 'players', t: 'Игроки', n: pendingPlayers.value.length }] : [])
+])
+const tab = computed(() => (tabs.value.some(t => t.k === route.query.tab) ? route.query.tab : 'profile'))
+const setTab = k => router.replace({ query: { ...route.query, tab: k === 'profile' ? undefined : k } })
+
+/* ---------- шапка: обложка, аватар, имя ---------- */
+const own = ref(null) // свой профиль с сервера: «О себе», с какого дня в игре
+const myRoster = computed(() => store.data.roster?.find(p => p.id === store.me?.id))
+const head = computed(() => ({
+  name: store.me.name, avatar: store.me.avatar, color: store.me.color, banner: store.me.banner, rank: store.me.rank,
+  race: myRoster.value?.race || '', master: isMaster.value, linked: !!store.me.asMaster, since: own.value?.since || null
+}))
+// игрок (и персонаж мастера) может посмотреть, как его профиль видят другие; мастера в режиме мастера другие не видят
+const publicId = computed(() => (store.role === 'player' ? store.me.id : ''))
+
+/* ---------- анкета ---------- */
+const f = reactive({ name: '', race: '', color: '#ffd166' })
+const resetForm = () => Object.assign(f, { name: store.me?.name || '', race: myRoster.value?.race || '', color: store.me?.color || '#ffd166' })
+watch(() => [store.me?.id, store.me?.name, store.me?.color, myRoster.value?.race], resetForm, { immediate: true })
+const formDirty = computed(() => !!store.me && (f.name !== store.me.name || f.color !== store.me.color || (!isMaster.value && f.race !== (myRoster.value?.race || ''))))
 
 const busy = ref(false)
 async function saveProfile() {
@@ -212,9 +229,7 @@ async function saveProfile() {
   try {
     const patch = { name: f.name, color: f.color }
     if (!isMaster.value) patch.race = f.race
-    if (f.avatar !== undefined) patch.avatar = f.avatar
     await updateProfile(patch)
-    f.avatar = undefined
     toast('Профиль сохранён')
   } catch (e) {
     toast(e.message, 'error')
@@ -223,7 +238,31 @@ async function saveProfile() {
   }
 }
 
-// персонаж мастера
+/* ---------- о себе ---------- */
+const about = ref('')
+const aboutSaved = ref('')
+const aboutReady = ref(false)
+const aboutDirty = computed(() => aboutReady.value && about.value !== aboutSaved.value)
+async function loadOwn() {
+  if (!store.me || viewId.value) return
+  aboutReady.value = false
+  try {
+    own.value = await api('GET', '/api/profiles/me')
+    about.value = aboutSaved.value = own.value.about || ''
+  } catch (e) { toast(e.message, 'error') } finally { aboutReady.value = true }
+}
+// сменил режим «мастер ⇄ персонаж» — это уже другой профиль
+watch(() => [store.me?.id, viewId.value], loadOwn, { immediate: true })
+async function saveAbout() {
+  busy.value = true
+  try {
+    await updateProfile({ about: about.value })
+    aboutSaved.value = about.value
+    toast('«О себе» сохранено')
+  } catch (e) { toast(e.message, 'error') } finally { busy.value = false }
+}
+
+/* ---------- персонаж мастера ---------- */
 const ch = reactive({ character: '', race: '' })
 watch(() => [store.me?.character, store.data.roster?.length], () => {
   const mine = store.data.roster?.find(p => p.linked && p.character === store.me?.character)
@@ -236,17 +275,6 @@ async function saveCharacter() {
   } catch { /* тост */ }
 }
 
-const pw = reactive({ old: '', new1: '', new2: '' })
-async function changePassword() {
-  try {
-    await updateProfile({ oldPassword: pw.old, newPassword: pw.new1 })
-    Object.assign(pw, { old: '', new1: '', new2: '' })
-    toast('Пароль изменён — на других устройствах нужно войти заново')
-  } catch (e) {
-    toast(e.message, 'error')
-  }
-}
-
 const sortedPlayers = computed(() => {
   const order = { pending: 0, active: 1, rejected: 2 }
   return [...(store.data.players || [])].sort((a, b) => order[a.status] - order[b.status] || a.character.localeCompare(b.character, 'ru'))
@@ -254,26 +282,7 @@ const sortedPlayers = computed(() => {
 const activePlayers = computed(() => (store.data.players || []).filter(p => p.status === 'active'))
 const pendingPlayers = computed(() => (store.data.players || []).filter(p => p.status === 'pending'))
 const myHeroes = computed(() => (store.data.heroes || []).filter(h => h.ownerId && h.ownerId === store.me?.id))
-async function setNotifyArts(on) {
-  try {
-    await updateProfile({ notifyArts: on })
-    toast(on ? 'Будем звать на новые арты' : 'Об артах больше не напоминаем')
-  } catch (e) { toast(e.message, 'error') }
-}
 const myNotes = computed(() => (store.data.notes || []).filter(n => n.ownerId === store.me?.id))
-
-// заставки событий героев (HeroEventFx): по умолчанию выключены, включает владелец сайта
-const HERO_EVENTS = [
-  { k: 'level', t: 'Новый уровень — с конфетти' }, { k: 'train', t: 'Завершённая тренировка (и через журнал деятельностей)' },
-  { k: 'race', t: 'Взятый расовый навык' }, { k: 'death', t: 'Три проваленных спасброска — тёмно-красная, с тряской' },
-  { k: 'stable', t: 'Три успешных спасброска — «Стабилизирован»' }
-]
-async function setHeroEvent(k, on) {
-  try {
-    await api('PATCH', '/api/settings', { heroEvents: { ...store.data.settings.heroEvents, [k]: on } })
-    toast(on ? 'Заставка включена' : 'Заставка выключена')
-  } catch (e) { toast(e.message, 'error') }
-}
 
 // мастера (только у владельца сайта): список, новый мастер, новый пароль, убрать
 const masters = ref([])
@@ -350,10 +359,6 @@ async function copyIssuedPlayer() {
 function removePlayer(p) {
   if (confirm(`Удалить аккаунт «${p.character}» (${p.login})? Это нельзя отменить.`)) call(`/api/players/${p.id}`, 'DELETE', 'Аккаунт удалён')
 }
-function out() {
-  logout()
-  router.push('/')
-}
 </script>
 
 <style scoped>
@@ -369,15 +374,6 @@ function out() {
 .tl { top: 9px; left: 9px; } .tr { top: 9px; right: 9px; } .bl { bottom: 9px; left: 9px; } .br { bottom: 9px; right: 9px; }
 h2, h3 { margin: 0 0 12px; font: 700 24px 'Cormorant Garamond', Georgia, serif; color: #f3d99a; }
 h3 small { font: 600 13px 'Manrope', sans-serif; color: #a8936c; margin-left: 8px; }
-.hero { display: flex; gap: 22px; align-items: flex-start; }
-.avatar { position: relative; width: 128px; height: 128px; flex: none; border-radius: 50%; overflow: hidden; cursor: pointer; border: 4px solid #b8893f; box-shadow: 0 0 0 3px #3a2a16, 0 8px 18px rgba(0, 0, 0, .5); }
-.avatar img, .avatar span { width: 100%; height: 100%; object-fit: cover; display: grid; place-items: center; font: 700 52px 'Cormorant Garamond', Georgia, serif; color: #1b1408; }
-.avatar em { position: absolute; inset: auto 0 0; padding: 4px 0 8px; text-align: center; font-size: 11px; font-weight: 800; font-style: normal; color: #fff; background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity .2s; }
-.avatar:hover em { opacity: 1; }
-.hero-fields { flex: 1; display: grid; gap: 10px; }
-.role { font-size: 13px; color: #a8936c; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.role b { color: #efe3c8; }
-.rank { padding: 1px 10px; border-radius: 4px; font-weight: 800; font-size: 12px; }
 label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: #a8936c; }
 input { min-height: 38px; padding: 7px 11px; border-radius: 9px; border: 1px solid #6e4f22; background: #120e09; color: #efe3c8; font: 500 14px 'Manrope', sans-serif; }
 input:focus { outline: none; border-color: #e6c27a; }
@@ -385,8 +381,6 @@ input[type='color'] { width: 60px; padding: 3px; cursor: pointer; }
 .color { grid-template-columns: auto 60px; align-items: center; gap: 10px; }
 .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .row.end { justify-content: flex-end; }
-.chk { display: flex; align-items: center; gap: 8px; color: #efe3c8; font-size: 13px; margin: 12px 0; }
-.chk input { min-height: 0; width: 16px; height: 16px; accent-color: #e6c27a; }
 .brass { height: 38px; padding: 0 20px; border-radius: 10px; border: 1px solid #6e4f22; cursor: pointer; color: #1e150a; font: 800 14px 'Manrope', sans-serif; background: linear-gradient(180deg, #f2d58f, #c99a48 55%, #a87a33); box-shadow: inset 0 1px 0 rgba(255, 245, 210, .7), 0 3px 0 #5a3e1a; }
 .brass.small { height: 38px; align-self: end; }
 .brass:disabled { opacity: .5; cursor: not-allowed; }
@@ -397,7 +391,6 @@ input[type='color'] { width: 60px; padding: 3px; cursor: pointer; }
 .mini-sel { min-height: 30px; padding: 3px 8px; border-radius: 8px; border: 1px solid #6e4f22; background: #120e09; color: #efe3c8; font: 600 12px 'Manrope', sans-serif; }
 .muted { color: #a8936c; }
 .small { font-size: 12px; }
-.err { color: #ff8a7a; font-size: 13px; font-weight: 600; margin-top: 6px; }
 .pl { display: flex; align-items: center; gap: 10px; padding: 9px 4px; border-top: 1px solid rgba(201, 162, 79, .14); flex-wrap: wrap; }
 .pl-ips { flex-basis: 100%; display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(0, 0, 0, .25); border: 1px dashed rgba(201, 162, 79, .3); overflow-x: auto; }
 .pl-ips table { border-collapse: collapse; font: 600 12px 'Manrope', sans-serif; }
@@ -412,15 +405,28 @@ input[type='color'] { width: 60px; padding: 3px; cursor: pointer; }
 .pl-main { flex: 1; min-width: 0; }
 .note-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid rgba(201, 162, 79, .14); font-size: 13.5px; }
 .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
-.char-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
-.pw { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end; }
-.pw.ms-add { grid-template-columns: 1fr 1fr auto; margin-top: 12px; }
+.char-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; }
 .ms-pass { display: flex; gap: 6px; }
 .ms-pass input { flex: 1; min-width: 0; }
 .ms-issued { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(155, 224, 122, .08); border: 1px solid rgba(155, 224, 122, .35); color: #cfe9bf; font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .love { text-align: center; margin-top: 18px; font: italic 600 18px/1.5 'Cormorant Garamond', Georgia, serif; color: #a8936c; }
+.pw.ms-add { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px; align-items: end; margin-top: 12px; }
+/* вкладки профиля: латунная плашка у выбранной */
+.p-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 13px; background: rgba(0, 0, 0, .3); border: 1px solid rgba(201, 162, 79, .25); }
+.p-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 18px; border: 0; border-radius: 9px; background: none; color: #a8936c; font: 800 13.5px 'Manrope', sans-serif; cursor: pointer; }
+.p-tabs button:hover:not(.on) { color: #efe3c8; background: rgba(255, 255, 255, .04); }
+.p-tabs button.on { color: #1e150a; background: linear-gradient(180deg, #f2d58f, #c99a48 55%, #a87a33); box-shadow: inset 0 1px 0 rgba(255, 245, 210, .7); }
+.p-tabs button:focus-visible { outline: 2px solid #e6c27a; outline-offset: 2px; }
+.p-tab-n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: #e0281e; color: #fff; font-size: 11px; line-height: 18px; }
+.p-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto; gap: 10px; align-items: end; }
+.p-form .color { grid-template-columns: none; }
+.p-form input:not([type='color']) { min-width: 0; }
+.p-about-acts { margin-top: 10px; }
+.p-as { align-self: end; margin-bottom: 6px; }
+.p-name { color: #f3d99a; font-weight: 800; text-decoration: none; border-bottom: 1px dashed rgba(231, 197, 111, .5); }
+.p-name:hover { color: #fff3d6; border-bottom-style: solid; }
 @media (max-width: 640px) {
-  .hero { flex-direction: column; align-items: center; }
-  .pw, .pw.ms-add, .char-row { grid-template-columns: 1fr; }
+  .pw.ms-add, .char-row, .p-form { grid-template-columns: minmax(0, 1fr); }
+  .p-tabs button { flex: 1; padding: 8px 10px; }
 }
 </style>

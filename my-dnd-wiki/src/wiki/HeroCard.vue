@@ -50,7 +50,9 @@
           <div v-else class="rar">{{ rarity.label }}</div>
           <div v-if="hero.kind === 'sidekick' && hero.status" :key="hero.status" class="stamp">{{ hero.status }}</div>
           <div v-if="hero.hidden" class="shade-tag" title="Игроки её не видят">☾ в тени</div>
-          <img v-if="owner && !mine" class="owner-av" :src="avatarUrl(owner.avatar)" :title="`Персонаж игрока ${owner.character}`" alt="" />
+          <!-- аватарка игрока — вход в его профиль (гостям профили не открываются) -->
+          <router-link v-if="owner && !mine && store.me" class="owner-av" :to="'/profile/' + owner.id" :title="`Персонаж игрока ${owner.character} — открыть профиль`" @click.stop><img :src="avatarUrl(owner.avatar)" alt="" /></router-link>
+          <img v-else-if="owner && !mine" class="owner-av" :src="avatarUrl(owner.avatar)" :title="`Персонаж игрока ${owner.character}`" alt="" />
           <div class="name">
             {{ hero.name }}
             <span v-if="hero.kind === 'character' && mine" class="sub me">✦ твой персонаж{{ hero.canEdit ? ' · можно править' : '' }}</span>
@@ -400,6 +402,9 @@ function untilt() {
 .stamp { position: absolute; z-index: 5; right: 12px; top: 52px; transform: rotate(-12deg); border: 2px solid #9be07a; color: #9be07a; padding: 2px 8px; border-radius: 6px; background: rgba(20, 40, 20, .6); font: 800 12px 'Manrope', sans-serif; letter-spacing: 1px; text-transform: uppercase; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; animation: stamp .5s .9s cubic-bezier(.3, 1.6, .5, 1) both; }
 .shade-tag { position: absolute; z-index: 5; left: 62px; top: 14px; padding: 2px 8px; border-radius: 99px; background: rgba(40, 30, 70, .85); color: #cfc2ff; font: 800 11px 'Manrope', sans-serif; }
 .owner-av { position: absolute; z-index: 5; right: 10px; bottom: 12px; width: 30px; height: 30px; border-radius: 50%; object-fit: cover; border: 2px solid var(--gc); }
+a.owner-av { overflow: hidden; transition: transform .15s; }
+a.owner-av:hover, a.owner-av:focus-visible { transform: scale(1.15); outline: none; }
+a.owner-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .edit { position: absolute; z-index: 7; left: 12px; top: 68px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid #b8893f; background: rgba(16, 12, 8, .85); color: #f3d99a; font-size: 15px; cursor: pointer; opacity: 0; transition: opacity .2s, transform .2s; }
 .slot:hover .edit, .edit:focus-visible { opacity: 1; }
 .edit:hover { transform: rotate(-15deg) scale(1.1); }
