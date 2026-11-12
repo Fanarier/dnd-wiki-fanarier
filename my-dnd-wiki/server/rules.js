@@ -443,6 +443,7 @@ export function registerRulesRoutes(app, { express, requireMaster, requireUser, 
     if (!it) return null
     const before = copy(it)
     Object.assign(it, cleanItem(body, it))
+    if (JSON.stringify(before) === JSON.stringify(it)) return it // ничего не поменялось — пустой строки в журнале не нужно
     record(u, 'items', 'update', before, copy(it), note)
     changed()
     return it
