@@ -13,8 +13,8 @@ let acc = null
 function load() {
   if (acc) return acc
   acc = fs.existsSync(FILE) ? JSON.parse(fs.readFileSync(FILE, 'utf8')) : {}
-  acc.players ||= {} // id → { id, login, hash, v, status, character, race, avatar, color, rank, createdAt }
-  acc.profiles ||= {} // логин мастера → { displayName, avatar, color }
+  acc.players ||= {} // id → { id, login, hash, v, status, character, race, avatar, color, rank, createdAt, banner, about, prefs }
+  acc.profiles ||= {} // логин мастера → { displayName, avatar, color, banner, about, prefs }
   return acc
 }
 function save() {
@@ -127,7 +127,8 @@ export function setPlayerPassword(id, password) {
 export function removePlayer(id) {
   const p = getPlayer(id)
   if (!p) return false
-  if (p.avatar) try { fs.unlinkSync(path.join(AVATAR_DIR, p.avatar)) } catch { /* нет файла */ }
+  dropAvatarFile(p.avatar)
+  dropAvatarFile(p.banner)
   delete load().players[id]
   save()
   return true
@@ -154,11 +155,31 @@ export function saveAvatar(dataUrl, oldFile) {
   if (!m) throw new Error('Аватарка: нужна картинка')
   const buf = Buffer.from(m[1], 'base64')
   if (buf.length > 600 * 1024) throw new Error('Аватарка слишком большая')
+  return writeImage(buf, '', oldFile, 'Аватарка')
+}
+// обложка профиля: картинку уже обрезал браузер (3:1), приходит как есть — тип тоже по содержимому
+export function saveBanner(buf, oldFile) {
+  if (!Buffer.isBuffer(buf) || !buf.length) throw new Error('Обложка: нужна картинка')
+  if (buf.length > 1536 * 1024) throw new Error('Обложка слишком большая — до 1,5 МБ')
+  return writeImage(buf, 'b-', oldFile, 'Обложка')
+}
+function writeImage(buf, prefix, oldFile, what) {
   const ext = Object.keys(MAGIC).find(k => MAGIC[k](buf))
-  if (!ext) throw new Error('Аватарка: PNG, JPG, WebP или GIF')
+  if (!ext) throw new Error(`${what}: PNG, JPG, WebP или GIF`)
   fs.mkdirSync(AVATAR_DIR, { recursive: true })
-  const file = crypto.randomBytes(8).toString('hex') + '.' + ext
+  const file = prefix + crypto.randomBytes(8).toString('hex') + '.' + ext
   fs.writeFileSync(path.join(AVATAR_DIR, file), buf)
-  if (oldFile) try { fs.unlinkSync(path.join(AVATAR_DIR, oldFile)) } catch { /* нет файла */ }
+  dropAvatarFile(oldFile)
   return file
+}
+export function dropAvatarFile(file) {
+  if (file) try { fs.unlinkSync(path.join(AVATAR_DIR, path.basename(file))) } catch { /* нет файла */ }
+}
+
+/* ---------- личные настройки: только то, что знаем, и только допустимые значения ---------- */
+const PREFS = { sheetAdd: ['bottom', 'top'] } // куда «＋ в лист» кладёт новое: в конец (по умолчанию) или в начало
+export function cleanPrefs(cur, patch) {
+  const out = { ...(cur || {}) }
+  for (const [k, ok] of Object.entries(PREFS)) if (patch && ok.includes(patch[k])) out[k] = patch[k]
+  return out
 }

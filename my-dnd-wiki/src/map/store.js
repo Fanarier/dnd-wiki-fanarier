@@ -361,6 +361,30 @@ export async function updateProfile(patch) {
   return r
 }
 
+// обложка профиля: окно обрезки в полосу 3:1 (1500×500), потом на сервер; null — передумал
+export async function uploadBanner(file) {
+  const blob = await cropImage(file, { title: 'Обложка профиля', size: 1500, aspect: 3 })
+  if (!blob) return null
+  const r = await postBlob('/api/me/banner', blob)
+  applyState(await api('GET', '/api/state'))
+  return r
+}
+// аватарка: тоже через окно обрезки (квадрат 256px), на сервер — data URL, как раньше
+export async function cropAvatar(file) {
+  const blob = await cropImage(file, { title: 'Аватарка', size: 256 })
+  if (!blob) return null
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result)
+    r.onerror = () => reject(new Error('Не получилось прочитать картинку'))
+    r.readAsDataURL(blob)
+  })
+}
+// личные настройки (профиль → «Настройки»); «＋ в лист» — в начало или в конец списка (по умолчанию в конец)
+export const pref = key => store.me?.prefs?.[key]
+export const sheetAddTop = () => pref('sheetAdd') === 'top'
+export const setPrefs = prefs => updateProfile({ prefs })
+
 export function markRead(ids) {
   return api('POST', '/api/notifications/read', ids ? { ids } : {}).catch(() => {})
 }

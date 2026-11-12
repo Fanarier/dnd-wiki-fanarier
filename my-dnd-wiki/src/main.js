@@ -24,7 +24,8 @@ const router = createRouter({
     { path: '/settlement/:id?', name: 'settlement', component: () => import('./settlement/SettlementPage.vue'), meta: { title: 'Анкария — поселение' } },
     { path: '/sheets', name: 'sheets', component: () => import('./sheets/SheetsPage.vue'), meta: { title: 'Анкария — листы персонажей' } },
     { path: '/sheets/:id', name: 'sheet', component: () => import('./sheets/SheetBook.vue'), meta: { title: 'Анкария — лист персонажа' } },
-    { path: '/profile', name: 'profile', component: () => import('./components/ProfilePage.vue'), meta: { title: 'Анкария — профиль' } },
+    // свой профиль (вкладки: профиль, настройки, игроки у мастера) и профили других игроков — /profile/:id
+    { path: '/profile/:id?', name: 'profile', component: () => import('./components/ProfilePage.vue'), meta: { title: 'Анкария — профиль' } },
     { path: '/:pathMatch(.*)*', redirect: '/' }
   ]
 })

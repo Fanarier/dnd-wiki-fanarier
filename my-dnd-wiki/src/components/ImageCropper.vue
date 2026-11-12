@@ -1,5 +1,5 @@
 <template>
-  <!-- обрезка картинки перед загрузкой: квадратная рамка, двигать мышью/пальцем, приближать колесом или ползунком -->
+  <!-- обрезка картинки перед загрузкой: квадратная рамка (или полоса — для обложки), двигать мышью/пальцем, приближать колесом или ползунком -->
   <div v-if="crop.file" class="icrop-back" @pointerdown.self="cancel">
     <section class="icrop" role="dialog" aria-modal="true" :aria-label="crop.title">
       <header>
@@ -8,15 +8,15 @@
       </header>
 
       <div class="icrop-body">
-        <div ref="view" class="icrop-view" :style="{ width: V + 'px', height: V + 'px' }"
+        <div ref="view" class="icrop-view" :style="{ width: W + 'px', height: H + 'px' }"
              @pointerdown="down" @pointermove="move" @pointerup="up" @pointercancel="up" @wheel.prevent="wheel">
           <img v-if="url" :src="url" alt="" draggable="false" :style="imgStyle" @load="loaded" />
-          <i class="icrop-ring" />
+          <i class="icrop-ring" :class="{ rect: wide }" />
         </div>
 
         <aside class="icrop-side">
-          <small>Так будет выглядеть</small>
-          <div class="icrop-prev">
+          <small v-if="!wide">Так будет выглядеть</small>
+          <div v-if="!wide" class="icrop-prev">
             <span v-for="p in [64, 42, 28]" :key="p" :style="{ width: p + 'px', height: p + 'px' }">
               <img v-if="url" :src="url" alt="" :style="prevStyle(p)" />
             </span>
@@ -25,10 +25,11 @@
             <input type="range" :min="sMin" :max="sMax" step="any" :value="s" @input="zoomTo(+$event.target.value)" />
           </label>
           <div class="icrop-acts">
-            <button type="button" title="Обрезать прозрачные и однотонные поля вокруг рисунка" @click="trim">✂ Убрать пустые края</button>
+            <button v-if="!wide" type="button" title="Обрезать прозрачные и однотонные поля вокруг рисунка" @click="trim">✂ Убрать пустые края</button>
+            <button v-else type="button" title="Картинка закрывает всю полосу, без пустых краёв" @click="cover">▭ Заполнить рамку</button>
             <button type="button" @click="fit">⤢ Вписать целиком</button>
           </div>
-          <p class="icrop-hint">Тяни картинку мышью или пальцем, приближай колесом. Кружок — то, что видно в круглых значках.</p>
+          <p class="icrop-hint">{{ wide ? 'Тяни картинку мышью или пальцем, приближай колесом. В рамке — то, что увидят на обложке.' : 'Тяни картинку мышью или пальцем, приближай колесом. Кружок — то, что видно в круглых значках.' }}</p>
         </aside>
       </div>
 
@@ -44,14 +45,19 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { crop, finishCrop } from './cropState.js'
 
-const V = Math.min(320, Math.round((typeof innerWidth === 'number' ? innerWidth : 400) - 64)) // сторона рамки в CSS-пикселях
+const VW = typeof innerWidth === 'number' ? innerWidth : 400
+const V = Math.min(320, Math.round(VW - 64)) // сторона квадратной рамки в CSS-пикселях
+// рамка: квадрат V×V или полоса (обложка) — шире, высота по пропорции
+const wide = computed(() => crop.aspect > 1)
+const W = computed(() => (wide.value ? Math.min(560, Math.round(VW - 64)) : V))
+const H = computed(() => Math.round(W.value / (crop.aspect || 1)))
 const view = ref(null)
 const url = ref('')
 const img = ref(null) // { w, h } натуральный размер
 const s = ref(1) // CSS-пикселей рамки на пиксель картинки
 const x = ref(0), y = ref(0) // где левый верхний угол картинки внутри рамки
-const sMin = computed(() => (img.value ? (V / Math.max(img.value.w, img.value.h)) * 0.4 : 0.1))
-const sMax = computed(() => (img.value ? (V / Math.min(img.value.w, img.value.h)) * 8 : 10))
+const sMin = computed(() => (img.value ? Math.min(W.value / img.value.w, H.value / img.value.h) * 0.4 : 0.1))
+const sMax = computed(() => (img.value ? Math.max(W.value / img.value.w, H.value / img.value.h) * 8 : 10))
 const imgStyle = computed(() => (img.value ? { width: img.value.w * s.value + 'px', height: img.value.h * s.value + 'px', transform: `translate(${x.value}px, ${y.value}px)` } : null))
 const prevStyle = p => (img.value ? { width: img.value.w * s.value * (p / V) + 'px', height: img.value.h * s.value * (p / V) + 'px', transform: `translate(${x.value * (p / V)}px, ${y.value * (p / V)}px)` } : null)
 
@@ -65,15 +71,23 @@ onBeforeUnmount(() => url.value && URL.revokeObjectURL(url.value))
 // при открытии сразу подрезаем пустые поля — частая причина «иконка вышла крошечной»
 function loaded(e) {
   img.value = { w: e.target.naturalWidth, h: e.target.naturalHeight, el: e.target }
-  trim()
+  wide.value ? cover() : trim() // обложке пустые края ни к чему — сразу во всю полосу
 }
 function place(box) { // вписать прямоугольник картинки box в рамку с небольшим отступом
-  const pad = 0.06 * V
-  s.value = Math.min((V - pad * 2) / box.w, (V - pad * 2) / box.h)
-  x.value = V / 2 - (box.x + box.w / 2) * s.value
-  y.value = V / 2 - (box.y + box.h / 2) * s.value
+  const pad = 0.06 * Math.min(W.value, H.value)
+  s.value = Math.min((W.value - pad * 2) / box.w, (H.value - pad * 2) / box.h)
+  x.value = W.value / 2 - (box.x + box.w / 2) * s.value
+  y.value = H.value / 2 - (box.y + box.h / 2) * s.value
 }
 const fit = () => img.value && place({ x: 0, y: 0, w: img.value.w, h: img.value.h })
+// закрыть рамку целиком (лишнее по краям уходит), по центру
+function cover() {
+  const im = img.value
+  if (!im) return
+  s.value = Math.max(W.value / im.w, H.value / im.h)
+  x.value = (W.value - im.w * s.value) / 2
+  y.value = (H.value - im.h * s.value) / 2
+}
 
 // границы рисунка: непрозрачные пиксели, а если фон сплошной — отличающиеся от цвета углов
 function trim() {
@@ -104,7 +118,7 @@ function trim() {
 }
 
 // приближение вокруг точки (cx, cy) рамки — по умолчанию её центр
-function zoomTo(ns, cx = V / 2, cy = V / 2) {
+function zoomTo(ns, cx = W.value / 2, cy = H.value / 2) {
   ns = Math.min(sMax.value, Math.max(sMin.value, ns))
   x.value = cx - ((cx - x.value) * ns) / s.value
   y.value = cy - ((cy - y.value) * ns) / s.value
@@ -140,11 +154,12 @@ function move(e) {
 }
 function up(e) { pts.delete(e.pointerId); pinch = 0 }
 
-// итог: квадрат size×size, прозрачность сохраняется (WebP с альфой)
+// итог: квадрат size×size (полоса — size в ширину), прозрачность сохраняется (WebP с альфой)
 async function done() {
-  const im = img.value, O = crop.size, k = O / V
+  const im = img.value, O = crop.size, k = O / W.value
   const c = document.createElement('canvas')
-  c.width = c.height = O
+  c.width = O
+  c.height = Math.round(O / (crop.aspect || 1))
   const g = c.getContext('2d')
   g.imageSmoothingQuality = 'high'
   g.drawImage(im.el, x.value * k, y.value * k, im.w * s.value * k, im.h * s.value * k)
@@ -170,6 +185,7 @@ onBeforeUnmount(() => removeEventListener('keydown', onKey))
 .icrop-view:active { cursor: grabbing; }
 .icrop-view img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none; }
 .icrop-ring { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .35); border: 1.5px dashed rgba(255, 243, 214, .7); pointer-events: none; }
+.icrop-ring.rect { border-radius: 0; box-shadow: none; border-color: rgba(255, 243, 214, .45); }
 .icrop-side { display: grid; align-content: start; gap: 10px; min-width: 200px; flex: 1; }
 .icrop-side small { color: #a8936c; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
 .icrop-prev { display: flex; align-items: center; gap: 12px; }

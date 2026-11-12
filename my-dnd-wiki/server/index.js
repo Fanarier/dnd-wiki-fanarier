@@ -27,7 +27,7 @@ import { checkCredentials, issueToken, verifyToken, readToken, signToken, hasMas
 import {
   getPlayer, players as allPlayers, publicPlayer, register, checkPlayer, updatePlayer, setPlayerPassword, removePlayer,
   masterProfile, updateMasterProfile, saveAvatar, AVATAR_DIR, issueTicket, ticketStatus, linkedCharacter, upsertLinkedCharacter,
-  findByLogin, LOGIN_RE
+  findByLogin, LOGIN_RE, saveBanner, dropAvatarFile, cleanPrefs
 } from './accounts.js'
 import { WALL_TYPES, WALL_FEATURES, wallLength, wallDone, wallPrice, featurePrice } from '../src/shared/walls.js'
 import { TRAIN_DAYS, LINES, splitFallen, cargoOf } from '../src/shared/army.js'
@@ -360,18 +360,19 @@ function identify(token, viewAs) {
     if (viewAs === 'player' && ch) {
       return {
         role: 'player', id: ch.id, login: d.sub, name: ch.character, avatar: ch.avatar || pr.avatar,
-        color: ch.color || pr.color, rank: ch.rank, asMaster: true, notifyArts: ch.notifyArts !== false
+        color: ch.color || pr.color, rank: ch.rank, asMaster: true, notifyArts: ch.notifyArts !== false,
+        banner: ch.banner || '', prefs: { ...pr.prefs, ...ch.prefs }
       }
     }
     return {
       role: 'master', id: 'm:' + d.sub, login: d.sub, name: pr.displayName || d.sub, avatar: pr.avatar, color: pr.color,
-      playerId: ch?.id || null, character: ch?.character || null
+      playerId: ch?.id || null, character: ch?.character || null, banner: pr.banner || '', prefs: pr.prefs || {}
     }
   }
   if (d.role === 'player') {
     const p = getPlayer(d.sub)
     if (!p || p.status !== 'active' || p.v !== d.v) return null
-    return { role: 'player', id: p.id, login: p.login, name: p.character, avatar: p.avatar, color: p.color, rank: p.rank, notifyArts: p.notifyArts !== false, wiki: p.wiki || null }
+    return { role: 'player', id: p.id, login: p.login, name: p.character, avatar: p.avatar, color: p.color, rank: p.rank, notifyArts: p.notifyArts !== false, wiki: p.wiki || null, banner: p.banner || '', prefs: p.prefs || {} }
   }
   return null
 }
@@ -525,7 +526,8 @@ function viewFor(user, now = Date.now()) {
     // мастер с персонажем может переключаться «мастер ⇄ персонаж»
     canPlay: !!(user.playerId || user.asMaster), asMaster: !!user.asMaster, character: user.character || null,
     notifyArts: user.notifyArts !== false, owner: role === 'master' && isOwner(user.login),
-    wiki: user.wiki || null // права редактора вики (src/shared/wikiPerms.js)
+    wiki: user.wiki || null, // права редактора вики (src/shared/wikiPerms.js)
+    banner: user.banner || '', prefs: user.prefs || {} // обложка профиля и личные настройки (src/components/profile)
   } : null
   // заметки: свои + общие для отряда, в котором состоит игрок
   const mates = new Set(db.parties.filter(p => uid && p.members?.includes(uid)).flatMap(p => p.members))
@@ -895,23 +897,27 @@ app.patch('/api/me', requireUser, (req, res) => {
   }
   try {
     const color = b.color && /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : undefined
+    // общее у мастера и игрока: «О себе» (оформленный текст — чистим), обложку только убирают (ставят — POST /api/me/banner), настройки
+    const common = cur => {
+      const patch = {}
+      if (color) patch.color = color
+      if (b.avatar === null) { dropAvatarFile(cur.avatar); patch.avatar = '' } else if (b.avatar) patch.avatar = saveAvatar(b.avatar, cur.avatar)
+      if (b.about !== undefined) patch.about = cleanRich(b.about, 8000)
+      if (b.banner === null) { dropAvatarFile(cur.banner); patch.banner = '' }
+      if (b.prefs && typeof b.prefs === 'object') patch.prefs = cleanPrefs(cur.prefs, b.prefs)
+      return patch
+    }
     if (u.role === 'master') {
       const cur = masterProfile(u.login)
-      const patch = {}
+      const patch = common(cur)
       if (b.name !== undefined) patch.displayName = T.str(40)(b.name).trim() || u.login
-      if (color) patch.color = color
-      if (b.avatar === null) patch.avatar = ''
-      else if (b.avatar) patch.avatar = saveAvatar(b.avatar, cur.avatar)
       updateMasterProfile(u.login, patch)
     } else {
       const cur = getPlayer(u.id)
-      const patch = {}
+      const patch = common(cur)
       if (b.name !== undefined) patch.character = T.str(40)(b.name).trim() || cur.character
       if (b.race !== undefined) patch.race = T.str(40)(b.race).trim()
-      if (color) patch.color = color
       if (b.notifyArts !== undefined) patch.notifyArts = !!b.notifyArts
-      if (b.avatar === null) patch.avatar = ''
-      else if (b.avatar) patch.avatar = saveAvatar(b.avatar, cur.avatar)
       updatePlayer(u.id, patch)
     }
   } catch (e) {
@@ -924,6 +930,39 @@ app.patch('/api/me', requireUser, (req, res) => {
     return res.json({ ok: true, token })
   }
   res.json({ ok: true })
+})
+
+// обложка профиля: браузер уже обрезал её в полосу 3:1 (окно обрезки), тип и размер проверяем здесь
+app.post('/api/me/banner', requireUser, express.raw({ type: () => true, limit: '2mb' }), (req, res) => {
+  const u = req.user
+  try {
+    if (u.role === 'master') {
+      const banner = saveBanner(req.body, masterProfile(u.login).banner)
+      updateMasterProfile(u.login, { banner })
+    } else updatePlayer(u.id, { banner: saveBanner(req.body, getPlayer(u.id)?.banner) })
+  } catch (e) {
+    return res.status(400).json({ error: e.message })
+  }
+  broadcast()
+  res.json({ ok: true })
+})
+
+// Профиль игрока для других: только то, что и так публично (как в списке игроков) + обложка, «О себе», с какого дня в игре.
+// Логин, настройки, IP — никогда. Гостям — нет. Мастер без персонажа открывает только свой (id «me»).
+app.get('/api/profiles/:id', requireUser, (req, res) => {
+  const u = req.user
+  if (req.params.id === 'me' && u.role === 'master') {
+    const pr = masterProfile(u.login)
+    return res.json({ id: u.id, name: pr.displayName || u.login, avatar: pr.avatar, color: pr.color, banner: pr.banner || '', about: pr.about || '', master: true, isMe: true })
+  }
+  const p = getPlayer(req.params.id === 'me' ? u.id : req.params.id)
+  if (!p || p.status !== 'active') return res.status(404).json({ error: 'Такого игрока нет' })
+  // персонаж мастера: чего у него нет своего — другим показываем из профиля мастера (как с аватаркой); себе — только своё, чтобы править
+  const pr = p.linked && p.id !== u.id ? masterProfile(p.login) : {}
+  res.json({
+    ...publicPlayer(p), name: p.character, avatar: p.avatar || pr.avatar || '', linked: !!p.linked,
+    banner: p.banner || pr.banner || '', about: p.about || pr.about || '', since: p.createdAt || null, isMe: p.id === u.id
+  })
 })
 
 /* ---------- Мастера (заводит и убирает только владелец сайта) ---------- */

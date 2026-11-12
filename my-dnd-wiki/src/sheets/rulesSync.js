@@ -2,7 +2,7 @@
 // пустые описания уже вписанных навыков дописываются текстом вики. Что добавлялось — помним (WikiAdded),
 // поэтому удалённый вручную навык не вернётся. Выбор расового навыка — карточкой в разделах навыков.
 import { sheet, edit } from './sheetState.js'
-import { rulesState } from '../map/store.js'
+import { rulesState, sheetAddTop } from '../map/store.js'
 import { expectedSkills, findRace, normName, choicesAt, joinChoices, pickOf } from '../shared/rules.js'
 import { linkSkills } from '../shared/skillLink.js'
 
@@ -32,6 +32,7 @@ export function syncWikiSkills() {
 
   const added = { ...(d.WikiAdded || {}) }
   let n = 0, filled = 0
+  const fresh = { a: [], p: [] } // новые навыки — потом разом в начало или в конец списка (как выбрано в профиле)
   for (const e of expectedSkills(rulesState, { ...d, RaceChoices: choices })) {
     const cur = have.get(normName(e.name))
     if (cur) {
@@ -45,14 +46,15 @@ export function syncWikiSkills() {
       continue
     }
     if (added[e.key]) continue // удалили руками — не возвращаем
-    const list = e.active ? skills : passive
-    if (list.length >= 150) continue
+    const list = e.active ? fresh.a : fresh.p
+    if (list.length + (e.active ? skills : passive).length >= 150) continue
     const item = { SkillName: e.name, CategoryIndex: e.cat, Description: e.text, IsActiveSymbol: false }
     list.push(item)
     have.set(normName(e.name), item)
     added[e.key] = true
     n++
   }
+  if (sheetAddTop()) { skills.unshift(...fresh.a); passive.unshift(...fresh.p) } else { skills.push(...fresh.a); passive.push(...fresh.p) }
   // привязка к вики (src/shared/skillLink.js): привязанные — текст из вики, новые — по точному названию, прочие — уникальные
   const link = linkSkills({ ...d, Skills: skills, PassiveSkills: passive }, rulesState)
   const fin = { Skills: link.lists?.Skills || skills, PassiveSkills: link.lists?.PassiveSkills || passive }

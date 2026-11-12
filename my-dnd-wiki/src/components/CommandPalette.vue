@@ -32,7 +32,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import Fuse from 'fuse.js'
-import { store, npcState, rulesState, actState, beastState, loadNpcs, loadRules, loadActivities, loadBestiary, requestRoll, heroPortraitUrl, heroCover, api } from '../map/store.js'
+import { store, npcState, rulesState, actState, beastState, loadNpcs, loadRules, loadActivities, loadBestiary, requestRoll, heroPortraitUrl, heroCover, api, avatarUrl } from '../map/store.js'
 import { EFFECT_KINDS } from '../shared/rules.js'
 import { sfx } from '../sound/sound.js'
 
@@ -69,6 +69,9 @@ const items = computed(() => {
   add('Страницы', { title: 'Карта мира', icon: '🗺', to: '/' })
   if (store.me) add('Страницы', { title: 'Листы персонажей', icon: '📚', to: '/sheets' })
   if (store.me) add('Страницы', { title: 'Профиль', icon: '👤', to: '/profile' })
+  if (store.me) add('Страницы', { title: 'Настройки', sub: 'профиль → настройки', icon: '⚙', to: { path: '/profile', query: { tab: 'settings' } } })
+  // профили игроков — гостям не видны
+  if (store.me) for (const p of store.data.roster || []) if (p.character && p.id !== store.me.id) add('Игроки', { key: p.id, title: p.character, sub: p.race || 'профиль игрока', img: avatarUrl(p.avatar), icon: '👤', to: '/profile/' + p.id })
   // разделы «Активности» роутер сам откроет на своей вкладке (src/main.js)
   for (const [id, t, ic] of SECTIONS) add('Разделы', { key: id, title: t, icon: ic, to: { path: '/wiki', query: { section: id } } })
   for (const r of rulesState.races) add('Расы', { key: r.id, title: r.name, icon: '🧬', to: { path: '/wiki', query: { race: r.id } } })

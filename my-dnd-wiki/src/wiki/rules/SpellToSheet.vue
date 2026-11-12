@@ -19,7 +19,7 @@
 
 <script setup>
 import { nextTick, onBeforeUnmount, reactive, ref } from 'vue'
-import { api, toast } from '../../map/store.js'
+import { api, toast, sheetAddTop } from '../../map/store.js'
 import { htmlToText, normName } from '../../shared/rules.js'
 
 const props = defineProps({ spell: { type: Object, required: true }, school: { type: Object, required: true } })
@@ -108,8 +108,10 @@ async function add(s) {
       x.cd ? `Перезарядка: ${x.cd}.` : ''
     ].filter(Boolean).join(' ')
     const skill = { SkillName: x.name, CategoryIndex: 2, Description: head + '\n\n' + htmlToText(x.html), IsActiveSymbol: false }
-    await api('PATCH', `/api/sheets/${s.id}`, { ops: [{ p: 'Skills', v: [...data.Skills, skill] }] })
-    toast(`«${x.name}» — в навыках ${s.name}`)
+    // в начало или в конец — как выбрано в профиле («Настройки» → «Листы персонажей»)
+    const top = sheetAddTop()
+    await api('PATCH', `/api/sheets/${s.id}`, { ops: [{ p: 'Skills', v: top ? [skill, ...data.Skills] : [...data.Skills, skill] }] })
+    toast(`«${x.name}» — в навыках ${s.name}, ${top ? 'в начале' : 'в конце'} списка`)
   } catch (e) { toast(e.message, 'error') } finally { busy.value = false }
 }
 </script>
