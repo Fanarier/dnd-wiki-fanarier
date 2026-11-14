@@ -925,7 +925,8 @@ export function computeSettlement(s) {
     caps: Object.fromEntries(RESOURCES.map(r => [r.key, storeKind(r.key) ? storage[storeKind(r.key)] : null])),
     trade: { cap: trade, used: st.tradeUsed || 0 },
     war: { total: warRaces + (passive.war || 0), races: warRaces, assets: passive.war || 0 },
-    defense: { total: defRaces + defenseJ + defenseB + defenseW + (passive.defense || 0), races: defRaces, guards: defenseJ, buildings: defenseB, walls: defenseW, assets: passive.defense || 0 },
+    // защита — целыми числами (раса стражи даёт дробный множитель)
+    defense: { total: Math.round(defRaces + defenseJ + defenseB + defenseW + (passive.defense || 0)), races: Math.round(defRaces), guards: Math.round(defenseJ), buildings: Math.round(defenseB), walls: Math.round(defenseW), assets: Math.round(passive.defense || 0) },
     leisure: { total: leisure + (passive.leisure || 0), jobs: leisure, assets: passive.leisure || 0 },
     jobMorale: round(morale),
     // постоянные баффы построек ложатся поверх: угроза −2 от Двора старейшины и т. п.

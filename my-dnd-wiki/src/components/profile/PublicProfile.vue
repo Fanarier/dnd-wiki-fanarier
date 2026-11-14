@@ -56,7 +56,7 @@ async function load(quiet) {
   const my = ++seq
   if (!quiet) { loading.value = true; err.value = ''; p.value = null }
   try {
-    const r = await api('GET', `/api/profiles/${encodeURIComponent(props.id)}`)
+    const r = await api('GET', `/api/profiles/${encodeURIComponent(props.id)}${props.id === store.me?.id ? '?as=others' : ''}`)
     if (my === seq) { p.value = r; err.value = '' }
   } catch (e) {
     if (my === seq && !quiet) err.value = e.status === 404 ? 'Такого игрока нет — или его аккаунт ещё ждёт одобрения' : e.message

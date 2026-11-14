@@ -22,13 +22,16 @@
         </template>
       </component>
       <div class="pf-names">
-        <h1>{{ p.name }}</h1>
+        <!-- имя и ранг в одну строку; ниже — роль и раса; ещё ниже — с какого дня в игре -->
+        <div class="pf-title">
+          <h1>{{ p.name }}</h1>
+          <b v-if="rank" class="pf-rank" :style="{ background: rank.color, color: rank.text }">{{ rank.label }}</b>
+        </div>
         <div class="pf-meta">
           <span>{{ roleLabel }}</span>
-          <span v-if="p.race">· {{ p.race }}</span>
-          <b v-if="rank" class="pf-rank" :style="{ background: rank.color, color: rank.text }">{{ rank.label }}</b>
-          <span v-if="p.since" class="pf-since">· в Анкарии с {{ since }}</span>
+          <span v-if="p.race">{{ p.race }}</span>
         </div>
+        <div v-if="p.since" class="pf-since">в Анкарии с {{ since }}</div>
         <button v-if="editable && p.avatar" type="button" class="pf-link" :disabled="busy" @click="dropAvatar">убрать аватарку</button>
       </div>
       <slot />
@@ -88,8 +91,11 @@ const dropAvatar = () => run(() => updateProfile({ avatar: null }), 'Авата�
 .pf-av.edit:hover em, .pf-av.edit:focus-within em { opacity: 1; }
 .pf-names { flex: 1; min-width: 0; padding-bottom: 4px; display: grid; gap: 4px; justify-items: start; }
 .pf-names h1 { margin: 0; font: 700 32px/1.1 var(--a-serif); color: #f3d99a; overflow-wrap: anywhere; text-shadow: 0 2px 8px rgba(0, 0, 0, .6); }
-.pf-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font: 600 13px var(--a-sans); color: #a8936c; }
-.pf-rank { padding: 1px 10px; border-radius: 4px; font-weight: 800; font-size: 12px; }
+.pf-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.pf-meta { display: flex; align-items: center; flex-wrap: wrap; row-gap: 2px; font: 600 13.5px/1.35 var(--a-sans); color: #c8b285; }
+.pf-meta > span + span::before { content: '•'; margin: 0 8px; color: #6e5a38; }
+.pf-since { font: 600 12px/1.3 var(--a-sans); color: #8f7a55; }
+.pf-rank { flex: none; padding: 2px 10px; border-radius: 5px; font: 800 12px/1.4 var(--a-sans); letter-spacing: .02em; }
 .pf-link { background: none; border: 0; padding: 0; color: #a8936c; font: 600 12px var(--a-sans); cursor: pointer; text-decoration: underline; }
 @media (max-width: 640px) {
   /* телефон: аватар на краю обложки, имя и сведения — под ним во всю ширину */

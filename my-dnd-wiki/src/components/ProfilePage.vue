@@ -21,7 +21,7 @@
 
     <main v-else class="p-main">
       <ProfileHead :p="head" editable>
-        <router-link v-if="publicId" class="mini p-as" :to="'/profile/' + publicId" title="Твой профиль глазами других игроков">👁 Как видят другие</router-link>
+        <router-link v-if="publicId" class="mini p-as" :to="{ path: '/profile/' + publicId, query: { as: 'others' } }" title="Твой профиль глазами других игроков">👁 Как видят другие</router-link>
       </ProfileHead>
 
       <!-- вкладки: профиль, настройки, у мастера — игроки и мастера -->
@@ -192,11 +192,12 @@ const wikiFor = ref(null) // игрок, которому мастер выда�
 const STATUS = { pending: 'ждёт одобрения', active: 'в игре', rejected: 'отклонён' }
 
 // /profile/:id — чужой профиль; свой id в адресе — это просто свой профиль
+// «Как видят другие» — свой id с ?as=others: показываем свой профиль так, как его видят другие
 const viewId = computed(() => {
   const id = route.params.id ? String(route.params.id) : ''
-  return id && id !== store.me?.id ? id : ''
+  return id && (id !== store.me?.id || route.query.as === 'others') ? id : ''
 })
-watch(() => [route.params.id, store.me?.id], ([id, me]) => { if (id && id === me) router.replace({ path: '/profile', query: route.query }) })
+watch(() => [route.params.id, store.me?.id, route.query.as], ([id, me, as]) => { if (id && id === me && as !== 'others') router.replace({ path: '/profile', query: route.query }) })
 
 /* ---------- вкладки ---------- */
 const tabs = computed(() => [

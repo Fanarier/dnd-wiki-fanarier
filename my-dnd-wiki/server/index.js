@@ -958,7 +958,8 @@ app.get('/api/profiles/:id', requireUser, (req, res) => {
   const p = getPlayer(req.params.id === 'me' ? u.id : req.params.id)
   if (!p || p.status !== 'active') return res.status(404).json({ error: 'Такого игрока нет' })
   // персонаж мастера: чего у него нет своего — другим показываем из профиля мастера (как с аватаркой); себе — только своё, чтобы править
-  const pr = p.linked && p.id !== u.id ? masterProfile(p.login) : {}
+  // ?as=others — «как видят другие»: себе показываем ровно то же, что другим
+  const pr = p.linked && (p.id !== u.id || req.query.as === 'others') ? masterProfile(p.login) : {}
   res.json({
     ...publicPlayer(p), name: p.character, avatar: p.avatar || pr.avatar || '', linked: !!p.linked,
     banner: p.banner || pr.banner || '', about: p.about || pr.about || '', since: p.createdAt || null, isMe: p.id === u.id
