@@ -12,6 +12,7 @@ import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, ALL_SLOTS, hpMax, 
 import { cleanRich } from './richtext.js'
 import { htmlToText } from '../src/shared/rules.js'
 import { slotToInv } from '../src/shared/items.js'
+import { cleanLook } from '../src/shared/bookLook.js'
 
 // текст с оформлением в любом поле листа — через очистку сервера
 setRichCleaner(cleanRich)
@@ -282,11 +283,24 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     return p ? (p.linked ? `${p.character} — персонаж ${isOwner(p.login) ? 'техспециалиста' : 'мастера'} ${p.login}` : `${p.character} · ${p.login}`) : ''
   }
   const heroName = id => (id ? getDb().heroes?.find(h => h.id === id)?.name || '' : '')
+  const ownerShort = id => (id ? getPlayer(id)?.character || '' : '')
+  // стеллаж: чужая книга видна всем вошедшим корешком (имя, класс, уровень, портрет, вид), но не открывается.
+  // Лист без игрока стоит на полке, только если у него есть карточка героя; герой «в тени» свою книгу прячет
+  const onShelf = (sh, u) => {
+    if (sh.deletedAt) return false
+    const hero = sh.heroId ? getDb().heroes?.find(h => h.id === sh.heroId) : null
+    if (hero?.hidden && hero.ownerId !== u.id) return false
+    return !!sh.ownerId || !!hero
+  }
+  const stub = sh => ({
+    id: sh.id, locked: true, ownerId: sh.ownerId, ownerShort: ownerShort(sh.ownerId), name: sh.data.CharacterName, cls: sh.data.Class, sub: sh.data.Subclass,
+    race: sh.data.Race, level: sh.data.Level, photo: sh.data.PhotoFile, accent: sh.data.Accent, look: sh.look || null
+  })
   const summary = (sh, u) => {
     const d = sh.data
     return {
       canEdit: u ? canSee(u, sh) : true, share: { all: !!sh.share?.all, ids: sh.share?.ids || [] },
-      id: sh.id, ownerId: sh.ownerId, ownerName: ownerName(sh.ownerId), heroId: sh.heroId, heroName: heroName(sh.heroId),
+      id: sh.id, ownerId: sh.ownerId, ownerName: ownerName(sh.ownerId), ownerShort: ownerShort(sh.ownerId), heroId: sh.heroId, heroName: heroName(sh.heroId), look: sh.look || null,
       name: d.CharacterName, cls: d.Class, sub: d.Subclass, race: d.Race, level: d.Level, photo: d.PhotoFile, accent: d.Accent,
       hp: { cur: d.HpData.Current, max: hpMax(d), temp: d.HpData.Temp, hits: d.Hits },
       ds: ['S1', 'S2', 'S3', 'F1', 'F2', 'F3'].map(k => d.HpData['DS_' + k]),
@@ -308,8 +322,9 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
     for (const c of clients) {
       if (c.ws.readyState !== 1 || !c.user) continue
       const sees = canView(c.user, sh)
-      // владелец узнаёт и о том, что лист ушёл в корзину, — чтобы убрать его из списка
-      if (!sees && sh.ownerId !== c.user.id) continue
+      // владелец узнаёт и о том, что лист ушёл в корзину, — чтобы убрать его из списка;
+      // а перемены без правок полей (новый лист, владелец, доступ, корзина) меняют стеллаж у всех
+      if (!sees && sh.ownerId !== c.user.id && opsMsg) continue
       if (sees && opsMsg && c.sheetSub === sh.id && String(c.id) !== String(byClient)) c.ws.send(opsMsg)
       c.ws.send(listMsg)
     }
@@ -350,7 +365,19 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   app.get('/api/sheets', requireUser, (req, res) => {
     const list = store.sheets.filter(sh => canView(req.user, sh)).map(sh => summary(sh, req.user))
     const owners = req.user.role === 'master' ? players().filter(p => p.status === 'active').map(p => ({ id: p.id, name: p.character, login: p.login, linked: !!p.linked, tech: !!p.linked && isOwner(p.login) })) : []
-    res.json({ sheets: list, owners })
+    const shelf = store.sheets.filter(sh => !canView(req.user, sh) && onShelf(sh, req.user)).map(stub)
+    res.json({ sheets: list, owners, shelf })
+  })
+
+  // вид книги на стеллаже: переплёт, цвет, украшения, описание — меняют владелец и мастер; null — вернуть обычный
+  app.put('/api/sheets/:id/look', requireUser, (req, res) => {
+    const sh = get(req, res)
+    if (!sh) return
+    const look = req.body?.look == null ? null : cleanLook(req.body.look)
+    if (look) sh.look = look; else delete sh.look
+    save()
+    notify(sh) // корешок видят все — стеллаж обновляется у всех вошедших
+    res.json({ ok: true, look: sh.look || null })
   })
 
   // навыки из листов для общего поиска (Ctrl+K): только названия, из листов, которые человеку видны

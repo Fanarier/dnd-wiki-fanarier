@@ -6,7 +6,7 @@ import { store, api, toast, wsListen, wsSend, postBlob, shrink, requestRoll } fr
 import { cropImage } from '../components/cropState.js'
 import { getAt, setAt, cleanBy, schemaAt } from '../shared/sheet.js'
 
-export const sheets = reactive({ list: [], owners: [], loading: false, loaded: false })
+export const sheets = reactive({ list: [], owners: [], locked: [], loading: false, loaded: false }) // locked — чужие книги на стеллаже: видны, но не открываются
 export const sheet = reactive({ id: null, meta: null, data: null, rev: 0, status: 'idle', error: '' })
 export const rollMode = ref('') // преимущество / помеха для бросков из листа
 
@@ -26,6 +26,7 @@ export async function loadSheets() {
     const j = await api('GET', '/api/sheets')
     sheets.list = j.sheets
     sheets.owners = j.owners
+    sheets.locked = j.shelf || []
     sheets.loaded = true
   } catch (e) { toast(e.message, 'error') } finally {
     sheets.loading = false
@@ -183,6 +184,7 @@ export async function exportSheet(id, name) {
 }
 export const setMeta = (id, patch) => api('PATCH', `/api/sheets/${id}/meta`, patch)
 export const deleteSheet = id => api('DELETE', `/api/sheets/${id}`)
+export const saveLook = (id, look) => api('PUT', `/api/sheets/${id}/look`, { look })
 export const restoreSheet = id => api('POST', `/api/sheets/${id}/restore`)
 export const loadHistory = id => api('GET', `/api/sheets/${id}/history`)
 export const revertEntry = (id, entryId) => api('POST', `/api/sheets/${id}/revert`, { entryId })
