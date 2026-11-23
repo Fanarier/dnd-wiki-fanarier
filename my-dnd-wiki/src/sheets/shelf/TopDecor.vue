@@ -29,6 +29,7 @@
         <g class="td-owlhead">
           <path d="M18 18 L19.5 5 L27 13 Z M52 18 L50.5 5 L43 13 Z" fill="#5a3c22" /><path d="M20 15 L20.6 8 L24.4 12.5 M50 15 L49.4 8 L45.6 12.5" fill="none" stroke="#9a7148" stroke-width=".8" />
           <ellipse cx="35" cy="28" rx="18.5" ry="15.5" :fill="`url(#${uid}ob)`" />
+          <g class="td-face">
           <!-- лицевой диск -->
           <path d="M35 21 C31 16 18.5 16 18.5 28.5 C18.5 38 28 41 35 38 C42 41 51.5 38 51.5 28.5 C51.5 16 39 16 35 21 Z" :fill="`url(#${uid}of)`" stroke="#5a3c22" stroke-width="1" />
           <path d="M35 22 V33" stroke="#a8875a" stroke-width=".7" />
@@ -38,9 +39,10 @@
             <circle cx="27.5" cy="28.5" r="3" fill="#120a04" class="td-pupil" /><circle cx="42.5" cy="28.5" r="3" fill="#120a04" class="td-pupil" />
             <circle cx="26" cy="26.8" r="1.3" fill="#fff" /><circle cx="41" cy="26.8" r="1.3" fill="#fff" /><circle cx="29" cy="30.4" r=".6" fill="#fff" opacity=".7" /><circle cx="44" cy="30.4" r=".6" fill="#fff" opacity=".7" />
           </g>
-          <g class="td-lids" :fill="'#6e4b2c'"><rect x="21" y="22" width="13" height="13" rx="6.5" /><rect x="36" y="22" width="13" height="13" rx="6.5" /></g>
+          <g class="td-lids" fill="#7a5634"><circle cx="27.5" cy="28.5" r="6.5" /><circle cx="42.5" cy="28.5" r="6.5" /></g>
           <path d="M21 21.5 Q27 19 33 22.5 M49 21.5 Q43 19 37 22.5" fill="none" stroke="#3e2816" stroke-width="1.4" stroke-linecap="round" />
           <path d="M33.2 32 Q35 31 36.8 32 L35 37.4 Z" fill="#4a3a2a" /><path d="M35 33 V36.6" stroke="#8a7a62" stroke-width=".5" />
+          </g>
         </g>
       </svg>
 
@@ -178,12 +180,15 @@ function toggleCandles() { candles.value = !candles.value; if (!candles.value) s
 
 /* сова */
 .td-owlhead { transform-box: fill-box; transform-origin: 50% 90%; animation: td-tilt 9s ease-in-out infinite; }
-.owl.turn .td-owlhead { animation: td-owlhead 1.6s cubic-bezier(.4, 0, .2, 1); }
-.td-lids rect { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(0); animation: td-blink 6.2s ease-in-out infinite; }
+.owl.turn .td-owlhead { animation: td-owlhead 1.8s ease-in-out; }
+.td-face { transform-box: view-box; transform-origin: 35px 28px; }
+.owl.turn .td-face { animation: td-face 1.8s ease-in-out; }
+.td-lids circle { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(0); animation: td-blink 6.2s ease-in-out infinite; }
 .owl.turn .td-pupil { transform-box: fill-box; transform-origin: center; animation: td-wide 1.6s ease-out; }
 @keyframes td-tilt { 0%, 70%, 100% { transform: rotate(0); } 76%, 86% { transform: rotate(-14deg); } }
-@keyframes td-owlhead { 0% { transform: rotate(0) scaleX(1); } 30% { transform: rotate(18deg) scaleX(.2); } 50% { transform: rotate(0) scaleX(-1); } 70% { transform: rotate(-12deg) scaleX(-.2); } 100% { transform: rotate(0) scaleX(1); } }
-@keyframes td-blink { 0%, 90%, 100% { transform: scaleY(0); } 93%, 95% { transform: scaleY(1); } }
+@keyframes td-owlhead { 0%, 100% { transform: rotate(0); } 25%, 40% { transform: rotate(-9deg); } 60%, 75% { transform: rotate(8deg); } }
+@keyframes td-face { 0%, 100% { transform: translateX(0) scaleX(1); } 25%, 40% { transform: translateX(-5px) scaleX(.72); } 60%, 75% { transform: translateX(5px) scaleX(.72); } }
+@keyframes td-blink { 0%, 94%, 100% { transform: scaleY(0); } 96%, 97% { transform: scaleY(1); } }
 @keyframes td-wide { 0%, 100% { transform: scale(1); } 20%, 70% { transform: scale(1.5); } }
 
 /* плющ: лозы чуть колышутся */
@@ -217,7 +222,7 @@ function toggleCandles() { candles.value = !candles.value; if (!candles.value) s
 
 @media (max-width: 760px) { .scope, .maps, .ivy { display: none; } .td { padding: 0 14px; } }
 @media (prefers-reduced-motion: reduce) {
-  .td-owlhead, .td-lids rect, .td-pupil, .td-vine, .td-leaf, .td-glint, .td-light, .sd-fa, .sd-fb, .td-smoke { animation: none !important; }
+  .td-owlhead, .td-face, .td-lids circle, .td-pupil, .td-vine, .td-leaf, .td-glint, .td-light, .sd-fa, .sd-fb, .td-smoke { animation: none !important; }
   .td-tube, .td-draw, .td-flame { transition: none; }
 }
 </style>
