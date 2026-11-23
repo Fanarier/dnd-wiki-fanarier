@@ -1,19 +1,19 @@
 <template>
   <!-- склянки: щелчок — разбить. Осколки разлетаются, жидкость растекается лужицей; через несколько секунд склянка снова цела -->
   <svg class="bt" width="96" height="104" viewBox="0 0 96 104" aria-hidden="true">
-    <ellipse cx="48" cy="102.5" rx="46" ry="3.4" fill="url(#bk-shadow)" />
+    <ellipse cx="48" cy="99.6" rx="46" ry="3.4" fill="url(#bk-shadow)" />
     <g v-for="(b, i) in BOTTLES" :key="i">
       <!-- лужица и брызги -->
       <g v-if="state[i].broken" :key="'p' + state[i].n" class="bt-spill" :class="{ fade: state[i].mending }">
-        <ellipse :cx="b.cx" cy="101" :rx="b.puddle" ry="2.6" :fill="b.liquid" opacity=".75" class="bt-puddle" />
-        <ellipse :cx="b.cx - 2" cy="100.6" :rx="b.puddle * 0.5" ry="1" fill="#fff" opacity=".25" class="bt-puddle" />
+        <ellipse :cx="b.cx" cy="99.4" :rx="b.puddle" ry="2.2" :fill="b.liquid" opacity=".75" class="bt-puddle" />
+        <ellipse :cx="b.cx - 2" cy="99" :rx="b.puddle * 0.5" ry=".8" fill="#fff" opacity=".25" class="bt-puddle" />
         <circle v-for="(d, k) in b.drops" :key="k" :cx="b.cx" cy="96" :r="d.r" :fill="b.liquid" class="bt-drop" :style="{ '--dx': d.dx + 'px', '--dy': d.dy + 'px', animationDelay: d.t + 's' }" />
         <path v-for="(s, k) in b.shards" :key="'s' + k" :d="s.d" :fill="b.glass" fill-opacity=".55" stroke="#fff" stroke-opacity=".6" stroke-width=".5" class="bt-shard" :style="{ '--dx': s.dx + 'px', '--dy': s.dy + 'px', '--r': s.r + 'deg', transformOrigin: `${s.ox}px ${s.oy}px` }" />
       </g>
       <!-- сама склянка -->
       <g class="bt-hit" :class="{ gone: state[i].broken && !state[i].mending, back: state[i].mending }" role="button" tabindex="0" @mousedown.prevent :aria-label="'Разбить: ' + b.name" @click="smash(i)" @keydown.enter.prevent="smash(i)" @keydown.space.prevent="smash(i)">
         <title>{{ b.name }} — щёлкни, чтобы разбить</title>
-        <ellipse :cx="b.cx" cy="101" :rx="b.puddle * 0.7" ry="3" :fill="b.liquid" opacity=".22" filter="url(#bk-soft)" />
+        <ellipse :cx="b.cx" cy="99.6" :rx="b.puddle * 0.7" ry="3" :fill="b.liquid" opacity=".22" filter="url(#bk-soft)" />
         <template v-if="i === 0">
           <path d="M6 100 V54 Q6 46 13 44 V30 H21 V44 Q28 46 28 54 V100 Z" fill="#163a2e" fill-opacity=".45" />
           <path d="M6 100 V68 Q17 70.5 28 68 V100 Z" fill="#2fb383" fill-opacity=".72" class="bt-liq" />

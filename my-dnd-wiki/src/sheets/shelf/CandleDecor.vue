@@ -7,7 +7,7 @@
       <i v-for="(m, i) in motes" :key="i" :style="m" />
     </span>
     <svg :width="size.w" :height="size.h" :viewBox="`0 0 ${size.w} ${size.h}`" aria-hidden="true">
-      <ellipse :cx="size.w / 2" :cy="size.h - 1.5" :rx="size.w * 0.48" ry="3.4" fill="url(#bk-shadow)" />
+      <ellipse :cx="size.w / 2" :cy="size.h - FLOOR[kind] - 0.4" :rx="size.w * 0.48" ry="3.4" fill="url(#bk-shadow)" />
 
       <!-- свеча в латунном подсвечнике -->
       <g v-if="kind === 'candle'" class="cd-hit" role="button" tabindex="0" @mousedown.prevent :aria-label="lit ? 'Задуть свечу' : 'Зажечь свечу'" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
@@ -65,7 +65,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { DECOR, flicker } from './decor.js'
+import { DECOR, FLOOR, flicker } from './decor.js'
 
 const props = defineProps({ kind: { type: String, required: true }, seed: { type: Number, default: 1 } })
 const size = computed(() => DECOR[props.kind])

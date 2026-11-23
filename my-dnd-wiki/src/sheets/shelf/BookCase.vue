@@ -15,7 +15,7 @@
               <span v-else-if="it.t === 'tag'" class="bc-tag" :class="{ own: it.group.own }" :style="{ width: it.w + 'px' }" :title="it.group.hint">
                 <i class="bc-twine" /><b><span>{{ it.group.title }}</span></b>
               </span>
-              <span v-else-if="it.t === 'decor'" class="bc-decor" :class="it.kind" :style="{ width: it.w + 'px' }"><ShelfDecor :kind="it.kind" :w="it.w" :seed="it.seed" /></span>
+              <span v-else-if="it.t === 'decor'" class="bc-decor" :class="it.kind" :style="{ width: it.w + 'px', marginBottom: -(FLOOR[it.kind] || 0) + 'px' }"><ShelfDecor :kind="it.kind" :w="it.w" :seed="it.seed" /></span>
               <button v-else type="button" class="bc-book" :class="{ locked: it.book.s.locked, own: it.group.own, dim: it.book.dim, shake: shaking === it.book.id, on: card?.id === it.book.id }"
                 :style="{ width: it.w + 'px', '--i': it.book.n }" :aria-label="bookLabel(it.book.s)"
                 @click="onClick($event, it.book.s)" @pointerenter="onEnter($event, it.book.s)" @pointerleave="onLeave" @focus="show($event.currentTarget, it.book.s)" @blur="onLeave">
@@ -70,7 +70,7 @@ import BookSpine from './BookSpine.vue'
 import ShelfDecor from './ShelfDecor.vue'
 import TopDecor from './TopDecor.vue'
 import CobWeb from './CobWeb.vue'
-import { packShelves } from './decor.js'
+import { packShelves, FLOOR } from './decor.js'
 import { EMBLEM_PATHS, EMBLEM_FILL } from './emblems.js'
 import { lookOf, spineSize, mix, lum } from '../../shared/bookLook.js'
 import { sheetImg } from '../sheetState.js'

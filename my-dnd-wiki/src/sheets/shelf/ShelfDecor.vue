@@ -5,7 +5,7 @@
   <GlobeDecor v-else-if="kind === 'globe'" />
   <BottlesDecor v-else-if="kind === 'bottles'" />
   <svg v-else class="sd" :class="kind" :width="size.w" :height="size.h" :viewBox="`0 0 ${size.w} ${size.h}`" :style="flick" aria-hidden="true">
-    <ellipse v-if="kind !== 'tomes' && kind !== 'frame'" :cx="size.w / 2" :cy="size.h - 1.5" :rx="size.w * 0.48" ry="3.4" fill="url(#bk-shadow)" />
+    <ellipse v-if="kind !== 'tomes' && kind !== 'frame'" :cx="size.w / 2" :cy="size.h - (FLOOR[kind] || 0) - 0.4" :rx="size.w * 0.48" ry="3.4" fill="url(#bk-shadow)" />
 
     <!-- ряд безымянных старых томов -->
     <g v-if="kind === 'tomes'">
@@ -191,7 +191,7 @@ import HourGlass from './HourGlass.vue'
 import CandleDecor from './CandleDecor.vue'
 import GlobeDecor from './GlobeDecor.vue'
 import BottlesDecor from './BottlesDecor.vue'
-import { DECOR, flicker } from './decor.js'
+import { DECOR, FLOOR, flicker } from './decor.js'
 
 const props = defineProps({ kind: { type: String, required: true }, w: { type: Number, default: 0 }, seed: { type: Number, default: 1 } })
 const uid = 'sd' + Math.random().toString(36).slice(2, 8)

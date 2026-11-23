@@ -115,12 +115,11 @@
           <ellipse cx="36" cy="104" rx="14" ry="2.6" fill="#6a4a18" /><path d="M22 104 Q22 96 30 94 H42 Q50 96 50 104 Z" fill="url(#bk-brass)" />
           <ellipse cx="36" cy="94" rx="6.4" ry="1.8" fill="url(#bk-brass)" />
           <!-- стебель с утолщениями -->
-          <rect x="34.3" y="58" width="3.4" height="36" fill="url(#bk-brass-h)" />
+          <rect x="34.3" y="45" width="3.4" height="49" fill="url(#bk-brass-h)" />
           <ellipse cx="36" cy="88" rx="4" ry="2.6" fill="url(#bk-brass)" /><ellipse cx="36" cy="74" rx="3.4" ry="3.4" fill="url(#bk-brass)" /><ellipse cx="36" cy="61" rx="4.4" ry="2" fill="url(#bk-brass)" />
           <!-- рожки -->
           <path d="M36 62 C30 62 22 66 17 60 C14 57 15 53 15 52" fill="none" stroke="url(#bk-brass)" stroke-width="2.6" stroke-linecap="round" />
           <path d="M36 62 C42 62 50 66 55 60 C58 57 57 53 57 52" fill="none" stroke="url(#bk-brass)" stroke-width="2.6" stroke-linecap="round" />
-          <circle cx="13" cy="64" r="1.6" fill="url(#bk-brass)" /><circle cx="59" cy="64" r="1.6" fill="url(#bk-brass)" />
           <g v-for="(c, i) in CANDLES" :key="i">
             <path :d="`M${c.x - 6} ${c.y + 1} Q${c.x} ${c.y + 4} ${c.x + 6} ${c.y + 1} Z`" fill="url(#bk-brass)" /><ellipse :cx="c.x" :cy="c.y + 1" rx="6" ry="1.4" fill="#d9b25c" />
             <rect :x="c.x - 3.4" :y="c.y - c.h" width="6.8" :height="c.h + 1" fill="url(#bk-wax)" /><ellipse :cx="c.x" :cy="c.y - c.h" rx="3.4" ry="1.1" fill="#efe3c4" />

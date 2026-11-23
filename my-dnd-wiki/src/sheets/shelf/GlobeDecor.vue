@@ -6,7 +6,7 @@
       <!-- края шара темнее и материки там сжаты: так плоская карта читается как шар -->
       <radialGradient :id="id + 'r'" cx=".5" cy=".5" r=".5"><stop offset=".55" stop-color="#000" stop-opacity="0" /><stop offset="1" stop-color="#000" stop-opacity=".55" /></radialGradient>
     </defs>
-    <ellipse cx="43" cy="122.5" rx="34" ry="3.2" fill="url(#bk-shadow)" />
+    <ellipse cx="43" cy="121.6" rx="34" ry="3.2" fill="url(#bk-shadow)" />
     <path d="M24 122 H62 Q62 116 56 113 H30 Q24 116 24 122 Z" fill="url(#bk-wood-h)" /><path d="M24 122 H62 Q62 116 56 113 H30 Q24 116 24 122 Z" fill="url(#bk-woodgrain)" opacity=".5" />
     <ellipse cx="43" cy="113" rx="13" ry="2.4" fill="#8a5c34" />
     <path d="M40 113 V100 Q37 96 40 92 H46 Q49 96 46 100 V113 Z" fill="url(#bk-wood-h)" />

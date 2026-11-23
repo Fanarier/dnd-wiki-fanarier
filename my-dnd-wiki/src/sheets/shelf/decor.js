@@ -5,6 +5,8 @@ export const DECOR = {
   lantern: { w: 84, h: 140 }, candle: { w: 56, h: 96 }, globe: { w: 86, h: 124 }, hourglass: { w: 60, h: 112 }, bottles: { w: 96, h: 104 },
   frame: { w: 110, h: 130 }, chest: { w: 104, h: 76 }, ink: { w: 64, h: 110 }, scrolls: { w: 100, h: 58 }, crystal: { w: 80, h: 92 }, plate: { w: 96, h: 96 }, stack: { w: 120, h: 84 }, egg: { w: 60, h: 82 }, skull: { w: 60, h: 64 }
 }
+// пустота под рисунком вещи, px: вещь опускается на полку ровно на столько
+export const FLOOR = { candle: 2.5, lantern: 2, globe: 2, hourglass: 3, bottles: 4, chest: 2, ink: 2.5, scrolls: 1, crystal: 2, plate: 4, stack: 3, egg: 4, skull: 1 }
 const ORDER = ['lantern', 'stack', 'globe', 'bottles', 'candle', 'frame', 'hourglass', 'chest', 'ink', 'skull', 'lantern', 'scrolls', 'egg', 'crystal', 'plate', 'stack', 'candle']
 // у каждой свечи и фонаря свой ритм пламени: период и сдвиг — от номера вещи
 export function flicker(seed) {
