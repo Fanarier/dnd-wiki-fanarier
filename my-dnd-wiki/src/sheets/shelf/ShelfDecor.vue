@@ -124,6 +124,48 @@
       </g>
     </g>
 
+    <!-- драконье яйцо в гнезде: светятся прожилки; от щелчка качается, по трещинам пробегает свет -->
+    <g v-else-if="kind === 'egg'" class="sd-hit" :class="{ wob: wob }" role="button" tabindex="0" aria-label="Драконье яйцо" @click="nudge" @keydown.enter.prevent="nudge" @keydown.space.prevent="nudge" @animationend="e => e.animationName.includes('sd-wob') && (wob = 0)">
+      <title>Драконье яйцо — щёлкни</title>
+      <circle cx="30" cy="46" r="30" fill="url(#bk-candle)" class="sd-eggglow" />
+      <g class="sd-egg">
+        <ellipse cx="30" cy="46" rx="16" ry="22" fill="#2a4a46" />
+        <ellipse cx="30" cy="46" rx="16" ry="22" fill="url(#bk-scales)" />
+        <ellipse cx="30" cy="46" rx="16" ry="22" fill="url(#bk-mottle)" opacity=".6" />
+        <path d="M22 30 Q26 40 23 48 Q27 54 25 62 M36 28 Q33 38 37 46 Q34 54 38 63" fill="none" stroke="#ffb347" stroke-width=".9" class="sd-veins" />
+        <path :key="'k' + wob" d="M24 40 L28 44 L26 48 L31 51 L29 55" fill="none" stroke="#ffe08a" stroke-width="1.1" class="sd-crack" :class="{ on: wob }" />
+        <ellipse cx="30" cy="46" rx="16" ry="22" fill="url(#bk-ball)" />
+        <ellipse cx="24" cy="35" rx="4" ry="6" fill="#fff" opacity=".18" transform="rotate(-20 24 35)" />
+      </g>
+      <g stroke="#6b4a2c" stroke-width="2" stroke-linecap="round"><path d="M6 70 Q30 80 54 70 M8 74 Q30 66 52 75 M10 72 L48 78 M12 78 L50 70" /></g>
+      <g stroke="#9a7246" stroke-width="1.2" stroke-linecap="round"><path d="M4 72 Q30 82 56 72 M14 76 L44 68 M18 69 L52 77" /></g>
+    </g>
+
+    <!-- череп со свечой: от щелчка щёлкает челюстью, в глазницах вспыхивает зелёный огонь -->
+    <g v-else-if="kind === 'skull'" class="sd-hit" :class="{ chat: chat }" role="button" tabindex="0" aria-label="Череп" @click="chatter" @keydown.enter.prevent="chatter" @keydown.space.prevent="chatter">
+      <title>Череп — щёлкни</title>
+      <circle cx="30" cy="4" r="14" fill="url(#bk-candle)" class="sd-glow" />
+      <rect x="26" y="8" width="8" height="22" fill="url(#bk-wax)" /><ellipse cx="30" cy="8" rx="4" ry="1.2" fill="#efe3c4" />
+      <path d="M26 26 q-1 6 1 9 q1 -4 1 -9 Z M33 22 q2 8 0 12 q-1 -5 -1 -12 Z" fill="#f3ead3" />
+      <line x1="30" y1="8" x2="30" y2="4.6" stroke="#2a1d12" stroke-width=".9" />
+      <g transform="translate(30 4.6)"><g class="sd-fa"><g class="sd-fb">
+        <path d="M0 -12 C3 -7 3.8 -3 2.6 -.6 C1.7 1 -1.7 1 -2.6 -.6 C-3.8 -3 -3 -7 0 -12 Z" fill="url(#bk-flame)" />
+        <path d="M0 -6 C1.2 -3.4 1.4 -1.7 .9 -.6 C.5 .2 -.5 .2 -.9 -.6 C-1.4 -1.7 -1.2 -3.4 0 -6 Z" fill="#fffbe8" />
+      </g></g></g>
+      <path d="M12 46 C10 30 20 28 30 28 C40 28 50 30 48 46 C48 52 44 54 42 56 H18 C16 54 12 52 12 46 Z" fill="#e6dcc2" />
+      <path d="M12 46 C10 30 20 28 30 28 C40 28 50 30 48 46 C48 52 44 54 42 56 H18 C16 54 12 52 12 46 Z" fill="url(#bk-paper)" />
+      <path d="M12 46 C10 30 20 28 30 28 C40 28 50 30 48 46 C48 52 44 54 42 56 H18 C16 54 12 52 12 46 Z" fill="url(#bk-round)" />
+      <ellipse cx="22.5" cy="44" rx="5" ry="5.4" fill="#1a1410" /><ellipse cx="37.5" cy="44" rx="5" ry="5.4" fill="#1a1410" />
+      <g class="sd-eyes"><circle cx="22.5" cy="44.5" r="2.2" fill="#7dffb0" filter="url(#bk-soft)" /><circle cx="37.5" cy="44.5" r="2.2" fill="#7dffb0" filter="url(#bk-soft)" /></g>
+      <path d="M30 48 L27.6 52.4 H32.4 Z" fill="#1a1410" />
+      <path d="M22 34 q3 2 2 5 M41 33 l-2 3" fill="none" stroke="#8a7a5a" stroke-width=".6" />
+      <g class="sd-jaw">
+        <path d="M18 56 H42 C42 60 38 63 30 63 C22 63 18 60 18 56 Z" fill="#ddd2b6" /><path d="M18 56 H42 C42 60 38 63 30 63 C22 63 18 60 18 56 Z" fill="url(#bk-paper)" />
+        <path d="M21 56 V59 M24 56 V60 M27 56 V60.4 M30 56 V60.6 M33 56 V60.4 M36 56 V60 M39 56 V59" stroke="#6a5a40" stroke-width=".6" />
+      </g>
+      <path d="M21 56 V53.6 M24 56 V53 M27 56 V52.8 M30 56 V52.8 M33 56 V52.8 M36 56 V53 M39 56 V53.6" stroke="#6a5a40" stroke-width=".6" />
+    </g>
+
     <!-- расписная тарелка на подставке -->
     <g v-else-if="kind === 'plate'">
       <path d="M30 92 L48 60 L66 92" fill="none" stroke="url(#bk-wood-h)" stroke-width="3" />
@@ -151,7 +193,11 @@ const props = defineProps({ kind: { type: String, required: true }, w: { type: N
 const uid = 'sd' + Math.random().toString(36).slice(2, 8)
 const size = computed(() => (props.kind === 'tomes' ? { w: props.w, h: 200 } : DECOR[props.kind]))
 // у каждой свечи свой ритм: длительность и сдвиг — от номера вещи
-const flick = computed(() => (props.kind === 'crystal' ? flicker(props.seed) : null))
+const flick = computed(() => (props.kind === 'crystal' || props.kind === 'skull' ? flicker(props.seed) : null))
+// яйцо качается, череп щёлкает челюстью
+const wob = ref(0), chat = ref(false)
+const nudge = () => { wob.value = 0; setTimeout(() => { wob.value = Date.now() }, 20) }
+const chatter = () => { chat.value = false; setTimeout(() => { chat.value = true; setTimeout(() => { chat.value = false }, 1300) }, 20) }
 // кристаллы от щелчка вспыхивают и рассыпают искры
 const ring = ref(0)
 const chime = () => { ring.value++ }
@@ -226,11 +272,25 @@ const sparks = [{ x: 46, y: 18, d: 0.2 }, { x: 26, y: 34, d: 1.7 }, { x: 64, y: 
 .sd-hit:focus-visible { filter: drop-shadow(0 0 4px rgba(243, 220, 158, .8)); }
 .sd-flare { mix-blend-mode: screen; opacity: 0; transform-box: fill-box; transform-origin: center; animation: sd-flare 1.2s ease-out both; }
 @keyframes sd-flare { 0% { opacity: 0; transform: scale(.6); } 15% { opacity: 1; transform: scale(1.15); } 100% { opacity: 0; transform: scale(1.5); } }
+.sd-egg { transform-box: fill-box; transform-origin: 50% 100%; }
+.wob .sd-egg { animation: sd-wob 1.1s cubic-bezier(.3, .6, .4, 1); }
+@keyframes sd-wob { 0% { transform: rotate(0); } 15% { transform: rotate(-9deg); } 35% { transform: rotate(7deg); } 55% { transform: rotate(-4deg); } 75% { transform: rotate(2deg); } 100% { transform: rotate(0); } }
+.sd-veins { animation: sd-veins 4.5s ease-in-out infinite; }
+@keyframes sd-veins { 0%, 100% { opacity: .15; } 50% { opacity: .7; } }
+.sd-eggglow { mix-blend-mode: screen; opacity: .35; animation: sd-veins 4.5s ease-in-out infinite; }
+.sd-crack { opacity: 0; stroke-dasharray: 30; stroke-dashoffset: 30; }
+.sd-crack.on { animation: sd-crack 2.6s ease-out forwards; }
+@keyframes sd-crack { 0% { opacity: 1; stroke-dashoffset: 30; } 30% { opacity: 1; stroke-dashoffset: 0; } 100% { opacity: 0; stroke-dashoffset: 0; } }
+.sd-jaw { transform-box: fill-box; transform-origin: 50% 0; }
+.chat .sd-jaw { animation: sd-chat .2s ease-in-out 6; }
+@keyframes sd-chat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3.4px) rotate(2deg); } }
+.sd-eyes { opacity: 0; transition: opacity .3s; }
+.chat .sd-eyes { opacity: 1; }
 .sd-twinkle.burst { animation: sd-twinkle 1.4s ease-out 1 both; }
 .sd-twinkle { opacity: 0; transform-box: fill-box; transform-origin: center; animation: sd-twinkle 4.6s ease-in-out infinite; }
 @keyframes sd-sway { 0%, 100% { transform: rotate(0); } 22% { transform: rotate(-2.6deg); } 47% { transform: rotate(1.4deg); } 71% { transform: rotate(-1deg); } 88% { transform: rotate(2.2deg); } }
 @keyframes sd-flick { 0%, 100% { transform: scale(1, 1); } 13% { transform: scale(.96, 1.05); } 29% { transform: scale(1.03, .94); } 41% { transform: scale(.98, 1.07); } 63% { transform: scale(1.02, .97); } 82% { transform: scale(.97, 1.03); } }
 @keyframes sd-glow { 0%, 100% { opacity: .85; } 31% { opacity: 1; } 52% { opacity: .74; } 77% { opacity: .95; } }
 @keyframes sd-twinkle { 0%, 70%, 100% { opacity: 0; transform: scale(.3) rotate(0); } 80% { opacity: .95; transform: scale(1) rotate(20deg); } 90% { opacity: 0; transform: scale(.5) rotate(40deg); } }
-@media (prefers-reduced-motion: reduce) { .sd-fa, .sd-fb, .sd-glow, .sd-twinkle, .sd-flare { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .sd-fa, .sd-fb, .sd-glow, .sd-twinkle, .sd-flare, .sd-veins, .sd-eggglow, .wob .sd-egg, .chat .sd-jaw, .sd-crack.on { animation: none; } }
 </style>

@@ -2,10 +2,11 @@
   <!-- книжный стеллаж: книги-листы стоят плотно слева направо, перед книгами каждого игрока висит бирка, свободные места заняты вещами -->
   <div class="bc" :class="{ ready }">
     <ShelfDefs />
-    <div class="bc-cornice"><span class="bc-plate">{{ title }}</span></div>
+    <div class="bc-cornice"><TopDecor v-if="mode !== 'trash'" /><span class="bc-plate">{{ title }}</span></div>
     <div class="bc-body">
       <div class="bc-post" />
       <div ref="rowsEl" class="bc-rows">
+        <CobWeb side="left" /><CobWeb side="right" />
         <div v-for="(r, ri) in rows" :key="ri" class="bc-row">
           <div class="bc-items">
             <template v-for="(it, i) in r.items" :key="i">
@@ -67,6 +68,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ShelfDefs from './ShelfDefs.vue'
 import BookSpine from './BookSpine.vue'
 import ShelfDecor from './ShelfDecor.vue'
+import TopDecor from './TopDecor.vue'
+import CobWeb from './CobWeb.vue'
 import { packShelves } from './decor.js'
 import { EMBLEM_PATHS, EMBLEM_FILL } from './emblems.js'
 import { lookOf, spineSize, mix, lum } from '../../shared/bookLook.js'
@@ -177,7 +180,7 @@ function act(kind) {
 <style scoped>
 /* дерево стеллажа — орех; задник — тёмный сине-зелёный, чтобы тёплые корешки и свеча читались на холодном */
 .bc { --wood: #3b2415; --wood-hi: #6b4526; --wood-lo: #1c110a; --back: #10191c; --gilt: #c9a24f; --row-h: 238px;
-  position: relative; border-radius: 10px 10px 4px 4px; box-shadow: 0 30px 60px rgba(0, 0, 0, .65), 0 0 0 1px #0a0604; }
+  position: relative; margin-top: 104px; border-radius: 10px 10px 4px 4px; box-shadow: 0 30px 60px rgba(0, 0, 0, .65), 0 0 0 1px #0a0604; }
 .bc-cornice { position: relative; display: grid; place-items: center; height: 58px; border-radius: 10px 10px 0 0;
   background: linear-gradient(180deg, #7a5230 0, #5a3a20 12%, var(--wood) 46%, #2a180d 47%, #4a2e19 58%, var(--wood) 100%);
   box-shadow: inset 0 -3px 0 #140b06, inset 0 1px 0 rgba(255, 220, 170, .28); }
@@ -190,7 +193,7 @@ function act(kind) {
 .bc-post { flex: none; width: 30px; background:
   linear-gradient(90deg, rgba(0, 0, 0, .55), transparent 22%, rgba(255, 220, 170, .14) 46%, transparent 62%, rgba(0, 0, 0, .6)),
   repeating-linear-gradient(180deg, var(--wood) 0 90px, #33200f 90px 94px, #4a2e19 94px 98px, var(--wood) 98px 190px); }
-.bc-rows { flex: 1; min-width: 0; background: var(--back); }
+.bc-rows { position: relative; flex: 1; min-width: 0; background: var(--back); }
 .bc-row { position: relative; }
 .bc-items { position: relative; display: flex; align-items: flex-end; height: var(--row-h); padding-top: 14px; box-sizing: border-box; overflow: visible;
   background:

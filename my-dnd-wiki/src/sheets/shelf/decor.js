@@ -3,9 +3,9 @@
 // поэтому у всех, кто смотрит с одинаковым экраном, стеллаж одинаковый.
 export const DECOR = {
   lantern: { w: 84, h: 140 }, candle: { w: 56, h: 96 }, globe: { w: 86, h: 124 }, hourglass: { w: 60, h: 112 }, bottles: { w: 96, h: 104 },
-  frame: { w: 110, h: 130 }, chest: { w: 104, h: 76 }, ink: { w: 64, h: 110 }, scrolls: { w: 100, h: 58 }, crystal: { w: 80, h: 92 }, plate: { w: 96, h: 96 }, stack: { w: 120, h: 84 }
+  frame: { w: 110, h: 130 }, chest: { w: 104, h: 76 }, ink: { w: 64, h: 110 }, scrolls: { w: 100, h: 58 }, crystal: { w: 80, h: 92 }, plate: { w: 96, h: 96 }, stack: { w: 120, h: 84 }, egg: { w: 60, h: 82 }, skull: { w: 60, h: 64 }
 }
-const ORDER = ['lantern', 'stack', 'globe', 'bottles', 'candle', 'frame', 'hourglass', 'chest', 'ink', 'lantern', 'scrolls', 'crystal', 'plate', 'stack', 'candle']
+const ORDER = ['lantern', 'stack', 'globe', 'bottles', 'candle', 'frame', 'hourglass', 'chest', 'ink', 'skull', 'lantern', 'scrolls', 'egg', 'crystal', 'plate', 'stack', 'candle']
 // у каждой свечи и фонаря свой ритм пламени: период и сдвиг — от номера вещи
 export function flicker(seed) {
   const r = rng(seed * 2654435 + 977)
