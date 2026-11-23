@@ -11,7 +11,7 @@
         <path v-for="(s, k) in b.shards" :key="'s' + k" :d="s.d" :fill="b.glass" fill-opacity=".55" stroke="#fff" stroke-opacity=".6" stroke-width=".5" class="bt-shard" :style="{ '--dx': s.dx + 'px', '--dy': s.dy + 'px', '--r': s.r + 'deg', transformOrigin: `${s.ox}px ${s.oy}px` }" />
       </g>
       <!-- сама склянка -->
-      <g class="bt-hit" :class="{ gone: state[i].broken && !state[i].mending, back: state[i].mending }" role="button" tabindex="0" :aria-label="'Разбить: ' + b.name" @click="smash(i)" @keydown.enter.prevent="smash(i)" @keydown.space.prevent="smash(i)">
+      <g class="bt-hit" :class="{ gone: state[i].broken && !state[i].mending, back: state[i].mending }" role="button" tabindex="0" @mousedown.prevent :aria-label="'Разбить: ' + b.name" @click="smash(i)" @keydown.enter.prevent="smash(i)" @keydown.space.prevent="smash(i)">
         <title>{{ b.name }} — щёлкни, чтобы разбить</title>
         <ellipse :cx="b.cx" cy="101" :rx="b.puddle * 0.7" ry="3" :fill="b.liquid" opacity=".22" filter="url(#bk-soft)" />
         <template v-if="i === 0">
@@ -89,7 +89,7 @@ onBeforeUnmount(() => timers.forEach(clearTimeout))
 .bt { display: block; overflow: visible; }
 .bt-ov { mix-blend-mode: overlay; }
 .bt-hit { pointer-events: auto; cursor: pointer; outline: none; transition: opacity .9s ease-out; }
-.bt-hit:focus-visible { filter: drop-shadow(0 0 4px rgba(243, 220, 158, .8)); }
+.bt-hit:focus-visible { outline: 1px dashed rgba(243, 220, 158, .7); outline-offset: 2px; }
 .bt-hit.gone { opacity: 0; transition: opacity .05s; pointer-events: none; }
 .bt-hit.back { opacity: 1; }
 .bt-spill { transition: opacity .8s ease-out; }

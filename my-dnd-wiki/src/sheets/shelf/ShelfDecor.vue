@@ -75,10 +75,14 @@
 
     <!-- чернильница и перо -->
     <g v-else-if="kind === 'ink'">
-      <path d="M41 96 C34 64 40 32 56 6 C58 26 54 50 46 70 C44 80 43 88 42.5 96 Z" fill="#ece3cc" />
-      <path d="M41 96 C34 64 40 32 56 6 C58 26 54 50 46 70 C44 80 43 88 42.5 96 Z" fill="url(#bk-paper)" />
-      <path d="M42 96 C43 64 48 32 56 6" fill="none" stroke="#9a8a62" stroke-width=".9" />
-      <path d="M44 40 l6 -5 M43 50 l7 -4 M42.6 60 l6 -3 M45 32 l5 -6" stroke="#b8a878" stroke-width=".6" />
+      <linearGradient :id="uid + 'qv'" x1="0" x2="0" y1="1" y2="0"><stop offset="0" stop-color="#d8cfbc" /><stop offset=".5" stop-color="#f1ead9" /><stop offset=".85" stop-color="#e2d6bb" /><stop offset="1" stop-color="#8c7a5e" /></linearGradient>
+      <path :d="QUILL.left" :fill="`url(#${uid}qv)`" />
+      <path :d="QUILL.right" :fill="`url(#${uid}qv)`" opacity=".9" />
+      <path :d="QUILL.barbs" fill="none" stroke="#9a8a6a" stroke-width=".45" stroke-opacity=".7" />
+      <path :d="QUILL.notches" fill="none" stroke="#1c2733" stroke-width="1.1" stroke-linecap="round" />
+      <path :d="QUILL.fluff" fill="none" stroke="#efe7d4" stroke-width=".6" stroke-linecap="round" opacity=".85" />
+      <path :d="QUILL.rachis" fill="none" stroke="#f8f2e2" stroke-width="1.3" stroke-linecap="round" />
+      <path :d="QUILL.rachis" fill="none" stroke="#8a7a5a" stroke-width=".5" stroke-linecap="round" transform="translate(.5 .2)" />
       <ellipse cx="34" cy="107" rx="21" ry="3" fill="#000" opacity=".4" />
       <path d="M14 106 V92 Q14 84 22 82 V77 H46 V82 Q54 84 54 92 V106 Q34 109 14 106 Z" fill="#141c26" />
       <path d="M14 106 V92 Q14 84 22 82 V77 H46 V82 Q54 84 54 92 V106 Q34 109 14 106 Z" fill="url(#bk-glass)" />
@@ -101,7 +105,7 @@
     </g>
 
     <!-- друза кристаллов на камне -->
-    <g v-else-if="kind === 'crystal'" class="sd-hit" :class="{ ring: ring }" role="button" tabindex="0" aria-label="Коснуться кристаллов" @click="chime" @keydown.enter.prevent="chime" @keydown.space.prevent="chime">
+    <g v-else-if="kind === 'crystal'" class="sd-hit" :class="{ ring: ring }" role="button" tabindex="0" @mousedown.prevent aria-label="Коснуться кристаллов" @click="chime" @keydown.enter.prevent="chime" @keydown.space.prevent="chime">
       <title>Коснуться кристаллов</title>
       <circle cx="40" cy="58" r="40" fill="url(#bk-cold)" class="sd-glow slow" />
       <circle v-if="ring" :key="'r' + ring" cx="40" cy="52" r="36" fill="url(#bk-cold)" class="sd-flare" />
@@ -125,7 +129,7 @@
     </g>
 
     <!-- драконье яйцо в гнезде: светятся прожилки; от щелчка качается, по трещинам пробегает свет -->
-    <g v-else-if="kind === 'egg'" class="sd-hit" :class="{ wob: wob }" role="button" tabindex="0" aria-label="Драконье яйцо" @click="nudge" @keydown.enter.prevent="nudge" @keydown.space.prevent="nudge" @animationend="e => e.animationName.includes('sd-wob') && (wob = 0)">
+    <g v-else-if="kind === 'egg'" class="sd-hit" :class="{ wob: wob }" role="button" tabindex="0" @mousedown.prevent aria-label="Драконье яйцо" @click="nudge" @keydown.enter.prevent="nudge" @keydown.space.prevent="nudge" @animationend="e => e.animationName.includes('sd-wob') && (wob = 0)">
       <title>Драконье яйцо — щёлкни</title>
       <circle cx="30" cy="46" r="30" fill="url(#bk-candle)" class="sd-eggglow" />
       <g class="sd-egg">
@@ -142,7 +146,7 @@
     </g>
 
     <!-- череп со свечой: от щелчка щёлкает челюстью, в глазницах вспыхивает зелёный огонь -->
-    <g v-else-if="kind === 'skull'" class="sd-hit" :class="{ chat: chat }" role="button" tabindex="0" aria-label="Череп" @click="chatter" @keydown.enter.prevent="chatter" @keydown.space.prevent="chatter">
+    <g v-else-if="kind === 'skull'" class="sd-hit" :class="{ chat: chat }" role="button" tabindex="0" @mousedown.prevent aria-label="Череп" @click="chatter" @keydown.enter.prevent="chatter" @keydown.space.prevent="chatter">
       <title>Череп — щёлкни</title>
       <circle cx="30" cy="4" r="14" fill="url(#bk-candle)" class="sd-glow" />
       <rect x="26" y="8" width="8" height="22" fill="url(#bk-wax)" /><ellipse cx="30" cy="8" rx="4" ry="1.2" fill="#efe3c4" />
@@ -194,6 +198,34 @@ const uid = 'sd' + Math.random().toString(36).slice(2, 8)
 const size = computed(() => (props.kind === 'tomes' ? { w: props.w, h: 200 } : DECOR[props.kind]))
 // у каждой свечи свой ритм: длительность и сдвиг — от номера вещи
 const flick = computed(() => (props.kind === 'crystal' || props.kind === 'skull' ? flicker(props.seed) : null))
+// перо: стержень по кривой Безье, опахала разной ширины, бородки под углом к кончику
+const QUILL = (() => {
+  const P0 = [37, 84], P1 = [43, 44], P2 = [58, 5]
+  const at = t => [(1 - t) ** 2 * P0[0] + 2 * (1 - t) * t * P1[0] + t * t * P2[0], (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t * t * P2[1]]
+  const tan = t => { const x = 2 * (1 - t) * (P1[0] - P0[0]) + 2 * t * (P2[0] - P1[0]), y = 2 * (1 - t) * (P1[1] - P0[1]) + 2 * t * (P2[1] - P1[1]), l = Math.hypot(x, y); return [x / l, y / l] }
+  const wl = t => 8.5 * Math.pow(Math.sin(Math.PI * Math.min(1, (t - 0.2) / 0.82)), 0.7)
+  const wr = t => 4.2 * Math.pow(Math.sin(Math.PI * Math.min(1, (t - 0.2) / 0.82)), 0.8)
+  const f = n => n.toFixed(1)
+  const L = [], R = [], barbs = []
+  for (let t = 0.2; t <= 1.0001; t += 0.04) {
+    const [x, y] = at(t), [tx, ty] = tan(t), nx = ty, ny = -tx
+    L.push([x - nx * wl(t) + tx * 1.5, y - ny * wl(t) + ty * 1.5]); R.push([x + nx * wr(t) + tx * 1, y + ny * wr(t) + ty * 1])
+  }
+  for (let t = 0.24; t < 0.97; t += 0.035) {
+    const [x, y] = at(t), [tx, ty] = tan(t), nx = ty, ny = -tx
+    barbs.push(`M${f(x)} ${f(y)} l${f(-nx * wl(t) * 0.95 + tx * 2.2)} ${f(-ny * wl(t) * 0.95 + ty * 2.2)}`, `M${f(x)} ${f(y)} l${f(nx * wr(t) * 0.9 + tx * 1.6)} ${f(ny * wr(t) * 0.9 + ty * 1.6)}`)
+  }
+  const [bx, by] = at(0.2)
+  const poly = pts => `M${f(bx)} ${f(by)} ` + pts.map(p => `L${f(p[0])} ${f(p[1])}`).join(' ') + ` L${f(P2[0])} ${f(P2[1])} Z`
+  // зазубрины на опахале — перо старое
+  const [n1x, n1y] = at(0.55), [n2x, n2y] = at(0.72)
+  const fluff = [0.14, 0.17, 0.2, 0.23].map((t, i) => { const [x, y] = at(t); return `M${f(x)} ${f(y)} q${i % 2 ? 4 : -4} -2 ${i % 2 ? 6 : -6} -1` }).join(' ')
+  return {
+    left: poly(L), right: poly(R), barbs: barbs.join(' '), fluff,
+    rachis: `M${P0[0]} ${P0[1]} Q${P1[0]} ${P1[1]} ${P2[0]} ${P2[1]}`,
+    notches: `M${f(n1x - 7)} ${f(n1y - 1)} l3 1.4 M${f(n2x - 5.6)} ${f(n2y - 1)} l2.4 1.2`
+  }
+})()
 // яйцо качается, череп щёлкает челюстью
 const wob = ref(0), chat = ref(false)
 const nudge = () => { wob.value = 0; setTimeout(() => { wob.value = Date.now() }, 20) }
@@ -269,7 +301,7 @@ const sparks = [{ x: 46, y: 18, d: 0.2 }, { x: 26, y: 34, d: 1.7 }, { x: 64, y: 
 .sd-glow { mix-blend-mode: screen; animation: sd-glow calc(var(--ft, 1.6s) * 1.4) ease-in-out infinite; animation-delay: var(--fd, 0s); transform-box: fill-box; transform-origin: center; }
 .sd-glow.slow { animation-duration: 6s; }
 .sd-hit { pointer-events: auto; cursor: pointer; outline: none; }
-.sd-hit:focus-visible { filter: drop-shadow(0 0 4px rgba(243, 220, 158, .8)); }
+.sd-hit:focus-visible { outline: 1px dashed rgba(243, 220, 158, .7); outline-offset: 2px; }
 .sd-flare { mix-blend-mode: screen; opacity: 0; transform-box: fill-box; transform-origin: center; animation: sd-flare 1.2s ease-out both; }
 @keyframes sd-flare { 0% { opacity: 0; transform: scale(.6); } 15% { opacity: 1; transform: scale(1.15); } 100% { opacity: 0; transform: scale(1.5); } }
 .sd-egg { transform-box: fill-box; transform-origin: 50% 100%; }

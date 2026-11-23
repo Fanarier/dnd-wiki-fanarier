@@ -10,11 +10,15 @@
       <ellipse :cx="size.w / 2" :cy="size.h - 1.5" :rx="size.w * 0.48" ry="3.4" fill="url(#bk-shadow)" />
 
       <!-- свеча в латунном подсвечнике -->
-      <g v-if="kind === 'candle'" class="cd-hit" role="button" tabindex="0" :aria-label="lit ? 'Задуть свечу' : 'Зажечь свечу'" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
+      <g v-if="kind === 'candle'" class="cd-hit" role="button" tabindex="0" @mousedown.prevent :aria-label="lit ? 'Задуть свечу' : 'Зажечь свечу'" @click="toggle" @keydown.enter.prevent="toggle" @keydown.space.prevent="toggle">
         <title>{{ lit ? 'Задуть свечу' : 'Зажечь свечу' }}</title>
         <rect x="0" y="0" :width="size.w" :height="size.h" fill="transparent" />
         <circle cx="28.4" cy="30" r="16" fill="url(#bk-candle)" class="cd-halo" />
-        <path d="M46 84 a7 7 0 1 1 6 -9" fill="none" stroke="url(#bk-brass-h)" stroke-width="2.6" stroke-linecap="round" />
+        <path d="M45 87.4 C48 87.6 50.6 86.6 51.6 84.6" fill="none" stroke="#6a4a18" stroke-width="3" stroke-linecap="round" />
+        <path d="M45 87.4 C48 87.6 50.6 86.6 51.6 84.6" fill="none" stroke="url(#bk-brass)" stroke-width="2" stroke-linecap="round" />
+        <ellipse cx="51.6" cy="80.6" rx="4" ry="4.4" fill="none" stroke="#6a4a18" stroke-width="2.8" />
+        <ellipse cx="51.6" cy="80.6" rx="4" ry="4.4" fill="none" stroke="url(#bk-brass)" stroke-width="1.8" />
+        <path d="M48.6 76.4 Q51.6 74.4 54.6 76.4" fill="none" stroke="url(#bk-brass)" stroke-width="2.2" stroke-linecap="round" />
         <ellipse cx="28" cy="88" rx="25" ry="5.5" fill="url(#bk-brass)" /><ellipse cx="28" cy="86.4" rx="20" ry="3.6" fill="#8a6326" /><ellipse cx="28" cy="86" rx="18" ry="3" fill="url(#bk-brass)" opacity=".7" />
         <rect x="22" y="80" width="12" height="6" fill="url(#bk-brass-h)" /><ellipse cx="28" cy="80" rx="8.5" ry="2.4" fill="url(#bk-brass)" />
         <rect x="21" y="44" width="14" height="36" fill="url(#bk-wax)" />
@@ -35,7 +39,7 @@
       </g>
 
       <!-- фонарь: кованая рамка, свеча за стеклом -->
-      <g v-else class="cd-hit cd-swing" :class="{ go: swing }" role="button" tabindex="0" aria-label="Щёлкнуть по фонарю" @click="tap" @keydown.enter.prevent="tap" @keydown.space.prevent="tap" @animationend="onSwingEnd">
+      <g v-else class="cd-hit cd-swing" :class="{ go: swing }" role="button" tabindex="0" @mousedown.prevent aria-label="Щёлкнуть по фонарю" @click="tap" @keydown.enter.prevent="tap" @keydown.space.prevent="tap" @animationend="onSwingEnd">
         <title>Щёлкнуть по фонарю</title>
         <rect x="10" y="0" width="64" height="140" fill="transparent" />
         <circle cx="42" cy="66" r="20" fill="url(#bk-candle)" class="cd-halo" />
@@ -94,7 +98,7 @@ const onSwingEnd = e => { if (e.animationName.includes('cd-swing')) swing.value 
 .cd { position: relative; display: block; }
 .cd svg { display: block; overflow: visible; }
 .cd-hit { pointer-events: auto; cursor: pointer; outline: none; }
-.cd-hit:focus-visible { filter: drop-shadow(0 0 4px rgba(243, 220, 158, .8)); }
+.cd-hit:focus-visible { outline: 1px dashed rgba(243, 220, 158, .7); outline-offset: 2px; }
 /* свет свечи на задник и соседние книги */
 .cd-light { position: absolute; left: 50%; width: 300px; height: 230px; transform: translate(-50%, 50%); pointer-events: none; mix-blend-mode: screen; border-radius: 50%;
   background: radial-gradient(closest-side, rgba(255, 176, 84, .3), rgba(255, 150, 60, .1) 55%, transparent);

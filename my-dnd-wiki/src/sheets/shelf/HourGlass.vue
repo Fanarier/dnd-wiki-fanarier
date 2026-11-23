@@ -1,6 +1,6 @@
 <template>
   <!-- песочные часы: щелчок переворачивает их, и песок минуту сыплется вниз -->
-  <svg class="hg" :class="{ flip: flipping, instant }" width="60" height="112" viewBox="0 0 60 112" role="button" tabindex="0"
+  <svg class="hg" :class="{ flip: flipping, instant }" width="60" height="112" viewBox="0 0 60 112" role="button" tabindex="0" @mousedown.prevent
     :aria-label="running ? 'Песочные часы: песок сыплется. Перевернуть' : 'Песочные часы. Перевернуть'"
     @click="flip" @keydown.enter.prevent="flip" @keydown.space.prevent="flip">
     <title>{{ running ? 'Песок сыплется. Щёлкни, чтобы перевернуть' : 'Щёлкни, чтобы перевернуть' }}</title>
@@ -117,7 +117,7 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
 .hg { display: block; overflow: visible; pointer-events: auto; cursor: pointer; outline: none; }
 .hg-body { transform-box: view-box; transform-origin: 30px 56px; transition: transform .72s cubic-bezier(.645, .045, .355, 1); }
 .hg.instant .hg-body { transition: none; }
-.hg:focus-visible .hg-body { filter: drop-shadow(0 0 4px rgba(243, 220, 158, .8)); }
+.hg:focus-visible .hg-body { outline: 1px dashed rgba(243, 220, 158, .7); outline-offset: 2px; }
 .hg:hover .hg-body { filter: brightness(1.12); }
 .hg-ov { mix-blend-mode: overlay; }
 .hg-stream { animation: hg-fall .5s linear infinite; }

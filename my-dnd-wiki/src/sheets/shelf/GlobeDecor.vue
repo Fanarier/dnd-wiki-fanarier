@@ -14,7 +14,7 @@
       <path d="M43 18 A34 34 0 0 1 43 86" fill="none" stroke="#000" stroke-opacity=".4" stroke-width="5" transform="translate(1.5 1)" />
       <line x1="43" y1="16" x2="43" y2="88" stroke="url(#bk-brass-h)" stroke-width="2" />
     </g>
-    <g class="gl-hit" role="button" tabindex="0" aria-label="Раскрутить глобус" @pointerdown="down" @keydown.enter.prevent="kick(1)" @keydown.space.prevent="kick(1)">
+    <g class="gl-hit" role="button" tabindex="0" @mousedown.prevent aria-label="Раскрутить глобус" @pointerdown="down" @keydown.enter.prevent="kick(1)" @keydown.space.prevent="kick(1)">
       <title>Щёлкни или потяни, чтобы раскрутить</title>
       <circle cx="43" cy="52" r="28" fill="#2c5866" />
       <circle cx="43" cy="52" r="28" fill="url(#bk-mottle)" opacity=".6" />
@@ -97,5 +97,5 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
 .gl { display: block; overflow: visible; }
 .gl-hit { pointer-events: auto; cursor: grab; outline: none; touch-action: pan-y; }
 .gl-hit:active { cursor: grabbing; }
-.gl-hit:focus-visible { filter: drop-shadow(0 0 4px rgba(243, 220, 158, .8)); }
+.gl-hit:focus-visible { outline: 1px dashed rgba(243, 220, 158, .7); outline-offset: 2px; }
 </style>

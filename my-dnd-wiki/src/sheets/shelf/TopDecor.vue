@@ -3,31 +3,44 @@
   <div class="td" aria-hidden="false">
     <div class="td-side">
       <!-- сова на жёрдочке: моргает, от щелчка крутит головой -->
-      <svg class="td-it owl" :class="{ turn: owlTurn }" width="64" height="92" viewBox="0 0 64 92" role="button" tabindex="0" aria-label="Сова" @click="owl" @keydown.enter.prevent="owl" @keydown.space.prevent="owl" @animationend="e => e.animationName.includes('td-owlhead') && (owlTurn = false)">
+      <svg class="td-it owl" :class="{ turn: owlTurn }" width="70" height="100" viewBox="0 0 70 100" role="button" tabindex="0" aria-label="Сова" @mousedown.prevent @click="owl" @keydown.enter.prevent="owl" @keydown.space.prevent="owl" @animationend="e => e.animationName.includes('td-owlhead') && (owlTurn = false)">
         <title>Сова — щёлкни</title>
-        <ellipse cx="32" cy="90" rx="22" ry="2.6" fill="url(#bk-shadow)" />
-        <ellipse cx="32" cy="88.5" rx="16" ry="3" fill="url(#bk-wood)" /><rect x="29.5" y="77" width="5" height="11" fill="url(#bk-wood-h)" />
-        <rect x="10" y="73" width="44" height="5" rx="2.4" fill="url(#bk-wood)" /><rect x="10" y="73" width="44" height="5" rx="2.4" fill="url(#bk-woodgrain)" opacity=".6" />
+        <defs>
+          <radialGradient :id="uid + 'ob'" cx=".45" cy=".35" r=".75"><stop offset="0" stop-color="#9a7148" /><stop offset=".6" stop-color="#6e4b2c" /><stop offset="1" stop-color="#3e2816" /></radialGradient>
+          <radialGradient :id="uid + 'oe'" cx=".42" cy=".38" r=".7"><stop offset="0" stop-color="#ffe07a" /><stop offset=".55" stop-color="#f5a623" /><stop offset="1" stop-color="#b86a0a" /></radialGradient>
+          <radialGradient :id="uid + 'of'" cx=".5" cy=".45" r=".6"><stop offset="0" stop-color="#ead8b2" /><stop offset="1" stop-color="#c9a878" /></radialGradient>
+        </defs>
+        <ellipse cx="35" cy="98" rx="24" ry="2.6" fill="url(#bk-shadow)" />
+        <ellipse cx="35" cy="96.5" rx="17" ry="3" fill="url(#bk-wood)" /><rect x="32.5" y="85" width="5" height="11" fill="#5e3b1f" /><rect x="32.5" y="85" width="1.6" height="11" fill="#8a5c34" />
+        <rect x="11" y="81" width="48" height="5.4" rx="2.7" fill="#6b4526" /><rect x="11" y="81" width="48" height="5.4" rx="2.7" fill="url(#bk-woodgrain)" opacity=".6" /><rect x="12" y="81.4" width="46" height="1.2" rx=".6" fill="#a8774a" opacity=".6" />
         <!-- тело -->
-        <path d="M32 31 C46 31 50 48 48.5 61 C47 71 41 76 32 76 C23 76 17 71 15.5 61 C14 48 18 31 32 31 Z" fill="#6b4a30" />
-        <path d="M32 31 C46 31 50 48 48.5 61 C47 71 41 76 32 76 C23 76 17 71 15.5 61 C14 48 18 31 32 31 Z" fill="url(#bk-leather)" class="td-ov" opacity=".5" />
-        <ellipse cx="32" cy="58" rx="10.5" ry="15" fill="#d9c49a" /><ellipse cx="32" cy="58" rx="10.5" ry="15" fill="url(#bk-paper)" />
-        <path d="M27 50 l2 2 l2 -2 M33 50 l2 2 l2 -2 M25 56 l2 2 l2 -2 M31 56 l2 2 l2 -2 M37 56 l1.6 1.6 M28 62 l2 2 l2 -2 M34 62 l2 2 l2 -2 M30 68 l2 2 l2 -2" fill="none" stroke="#5a3e24" stroke-width=".9" stroke-linecap="round" />
-        <path d="M16 50 C14 60 17 70 24 75 C21 66 20 57 22 47 Z" fill="#4e3420" /><path d="M48 50 C50 60 47 70 40 75 C43 66 44 57 42 47 Z" fill="#4e3420" />
-        <path d="M18 56 q3 3 3 8 M19 63 q2 2 2 6 M46 56 q-3 3 -3 8 M45 63 q-2 2 -2 6" fill="none" stroke="#2e1e12" stroke-width=".7" />
-        <path d="M24 76 q1 -3 2 0 q1 -3 2 0 M36 76 q1 -3 2 0 q1 -3 2 0" fill="none" stroke="#3a2a18" stroke-width="1.2" stroke-linecap="round" />
+        <path d="M35 36 C51 36 55 55 53 69 C51.5 78 44.5 84 35 84 C25.5 84 18.5 78 17 69 C15 55 19 36 35 36 Z" :fill="`url(#${uid}ob)`" />
+        <path d="M35 52 C43 52 45.5 62 44.5 70 C43.6 77 39.6 81 35 81 C30.4 81 26.4 77 25.5 70 C24.5 62 27 52 35 52 Z" fill="#e8d6ae" />
+        <g fill="#6a4628"><path v-for="(sp, i) in BELLY" :key="i" :d="`M${sp[0]} ${sp[1]} q1.3 2.2 0 3.2 q-1.3 -1 0 -3.2 Z`" /></g>
+        <!-- крылья: перья лесенкой -->
+        <path d="M19 52 C14 62 15 75 24 83 C22 74 22 64 25 55 Z" fill="#4e3420" /><path d="M51 52 C56 62 55 75 46 83 C48 74 48 64 45 55 Z" fill="#4e3420" />
+        <g fill="none" stroke="#c9a878" stroke-opacity=".55" stroke-width=".8" stroke-linecap="round">
+          <path d="M19 60 q3 1.5 4.6 -.4 M18.4 66 q3 1.5 4.6 -.4 M19 72 q3 1.5 4.6 -.4 M20.6 78 q2.6 1.3 4 -.4" />
+          <path d="M51 60 q-3 1.5 -4.6 -.4 M51.6 66 q-3 1.5 -4.6 -.4 M51 72 q-3 1.5 -4.6 -.4 M49.4 78 q-2.6 1.3 -4 -.4" />
+        </g>
+        <!-- лапы -->
+        <g fill="#c7922e"><path d="M28 82 l-2.4 3.4 h1.6 l1.4 -1.6 l.6 2 h1.4 l.2 -2 l1.4 1.6 h1.4 L30 82 Z" /><path d="M38 82 l-2 3.4 h1.4 l1.4 -1.6 l.4 2 h1.4 l.4 -2 l1.4 1.6 h1.6 L41 82 Z" /></g>
         <!-- голова -->
         <g class="td-owlhead">
-          <path d="M18 16 L21 6 L26 13 Z M46 16 L43 6 L38 13 Z" fill="#5a3e26" />
-          <ellipse cx="32" cy="25" rx="16.5" ry="14" fill="#6b4a30" /><ellipse cx="32" cy="25" rx="16.5" ry="14" fill="url(#bk-leather)" class="td-ov" opacity=".5" />
-          <circle cx="25.5" cy="26" r="8" fill="#c9ae7e" /><circle cx="38.5" cy="26" r="8" fill="#c9ae7e" />
+          <path d="M18 18 L19.5 5 L27 13 Z M52 18 L50.5 5 L43 13 Z" fill="#5a3c22" /><path d="M20 15 L20.6 8 L24.4 12.5 M50 15 L49.4 8 L45.6 12.5" fill="none" stroke="#9a7148" stroke-width=".8" />
+          <ellipse cx="35" cy="28" rx="18.5" ry="15.5" :fill="`url(#${uid}ob)`" />
+          <!-- лицевой диск -->
+          <path d="M35 21 C31 16 18.5 16 18.5 28.5 C18.5 38 28 41 35 38 C42 41 51.5 38 51.5 28.5 C51.5 16 39 16 35 21 Z" :fill="`url(#${uid}of)`" stroke="#5a3c22" stroke-width="1" />
+          <path d="M35 22 V33" stroke="#a8875a" stroke-width=".7" />
           <g class="td-eyes">
-            <circle cx="25.5" cy="26" r="5.2" fill="#f0a020" /><circle cx="38.5" cy="26" r="5.2" fill="#f0a020" />
-            <circle cx="25.5" cy="26" r="2.8" fill="#120a04" class="td-pupil" /><circle cx="38.5" cy="26" r="2.8" fill="#120a04" class="td-pupil" />
-            <circle cx="24.4" cy="24.6" r="1" fill="#fff" /><circle cx="37.4" cy="24.6" r="1" fill="#fff" />
+            <circle cx="27.5" cy="28.5" r="6.4" fill="#2a1a0c" /><circle cx="42.5" cy="28.5" r="6.4" fill="#2a1a0c" />
+            <circle cx="27.5" cy="28.5" r="5.4" :fill="`url(#${uid}oe)`" /><circle cx="42.5" cy="28.5" r="5.4" :fill="`url(#${uid}oe)`" />
+            <circle cx="27.5" cy="28.5" r="3" fill="#120a04" class="td-pupil" /><circle cx="42.5" cy="28.5" r="3" fill="#120a04" class="td-pupil" />
+            <circle cx="26" cy="26.8" r="1.3" fill="#fff" /><circle cx="41" cy="26.8" r="1.3" fill="#fff" /><circle cx="29" cy="30.4" r=".6" fill="#fff" opacity=".7" /><circle cx="44" cy="30.4" r=".6" fill="#fff" opacity=".7" />
           </g>
-          <g class="td-lids" fill="#5e4129"><rect x="19.8" y="20.6" width="11.4" height="11" rx="5.5" /><rect x="32.8" y="20.6" width="11.4" height="11" rx="5.5" /></g>
-          <path d="M30.2 30 L32 35 L33.8 30 Z" fill="#3a2a18" />
+          <g class="td-lids" :fill="'#6e4b2c'"><rect x="21" y="22" width="13" height="13" rx="6.5" /><rect x="36" y="22" width="13" height="13" rx="6.5" /></g>
+          <path d="M21 21.5 Q27 19 33 22.5 M49 21.5 Q43 19 37 22.5" fill="none" stroke="#3e2816" stroke-width="1.4" stroke-linecap="round" />
+          <path d="M33.2 32 Q35 31 36.8 32 L35 37.4 Z" fill="#4a3a2a" /><path d="M35 33 V36.6" stroke="#8a7a62" stroke-width=".5" />
         </g>
       </svg>
 
@@ -47,19 +60,32 @@
     </div>
 
     <div class="td-side right">
-      <!-- телескоп на треноге: от щелчка выдвигается и ищет звёзды -->
-      <svg class="td-it scope" :class="{ out: scopeOut }" width="96" height="96" viewBox="0 0 96 96" role="button" tabindex="0" :aria-label="scopeOut ? 'Сложить телескоп' : 'Раздвинуть телескоп'" @click="scopeOut = !scopeOut" @keydown.enter.prevent="scopeOut = !scopeOut" @keydown.space.prevent="scopeOut = !scopeOut">
+      <!-- телескоп на треноге: от щелчка выдвигается и смотрит выше -->
+      <svg class="td-it scope" :class="{ out: scopeOut }" width="100" height="100" viewBox="0 0 100 100" role="button" tabindex="0" :aria-label="scopeOut ? 'Сложить телескоп' : 'Раздвинуть телескоп'" @mousedown.prevent @click="scopeOut = !scopeOut" @keydown.enter.prevent="scopeOut = !scopeOut" @keydown.space.prevent="scopeOut = !scopeOut">
         <title>Телескоп — щёлкни</title>
-        <ellipse cx="48" cy="94" rx="30" ry="2.6" fill="url(#bk-shadow)" />
-        <path d="M48 60 L28 94 M48 60 L68 94 M48 60 L49 93" stroke="url(#bk-wood-h)" stroke-width="3" stroke-linecap="round" />
-        <circle cx="48" cy="60" r="3.4" fill="url(#bk-brass)" />
+        <ellipse cx="50" cy="98" rx="32" ry="2.6" fill="url(#bk-shadow)" />
+        <!-- тренога -->
+        <g stroke-linecap="round">
+          <path d="M50 60 L52 96" stroke="#3a2312" stroke-width="3.4" /><path d="M50 60 L51.4 96" stroke="#7a5030" stroke-width="1.2" />
+          <path d="M50 60 L26 96" stroke="#5e3b1f" stroke-width="3.6" /><path d="M50 60 L25.4 95" stroke="#9a6a3c" stroke-width="1.2" />
+          <path d="M50 60 L74 96" stroke="#5e3b1f" stroke-width="3.6" /><path d="M50 60 L73.4 95.4" stroke="#9a6a3c" stroke-width="1.2" />
+          <path d="M38 78 L62 78" stroke="#c99a45" stroke-width="1" opacity=".8" />
+        </g>
+        <circle cx="26" cy="96" r="1.8" fill="url(#bk-brass)" /><circle cx="74" cy="96" r="1.8" fill="url(#bk-brass)" /><circle cx="52" cy="96" r="1.8" fill="url(#bk-brass)" />
+        <path d="M44 62 H56 L54 56 H46 Z" fill="url(#bk-brass)" />
+        <!-- труба: поворачивается вокруг крепления -->
         <g class="td-tube">
-          <g class="td-draw"><rect x="2" y="-3" width="24" height="6" rx="1" fill="url(#bk-brass)" /><rect x="-2" y="-2.4" width="5" height="4.8" rx="1" fill="#2a1d12" /></g>
-          <rect x="20" y="-4.4" width="40" height="8.8" rx="1.4" fill="url(#bk-brass)" />
-          <rect x="20" y="-4.4" width="40" height="8.8" rx="1.4" fill="url(#bk-leather)" class="td-ov" opacity=".25" />
-          <rect x="34" y="-4.4" width="4" height="8.8" fill="#8a6326" />
-          <path d="M58 -5.6 H78 L80 -6.4 V6.4 L78 5.6 H58 Z" fill="url(#bk-brass)" />
-          <ellipse cx="80" cy="0" rx="1.4" ry="6.4" fill="#123038" /><ellipse class="td-glint" cx="80.2" cy="-2" rx=".7" ry="2" fill="#fff" opacity=".7" />
+          <g class="td-draw">
+            <rect x="-46" y="-2.8" width="34" height="5.6" rx="1" fill="url(#bk-brass)" />
+            <rect x="-50" y="-3.4" width="5" height="6.8" rx="1.2" fill="#2a1d12" /><rect x="-46" y="-2.8" width="2" height="5.6" fill="#8a6326" />
+          </g>
+          <rect x="-26" y="-4.4" width="48" height="8.8" rx="1.4" fill="url(#bk-brass)" />
+          <rect x="-26" y="-4.4" width="48" height="8.8" rx="1.4" fill="#000" opacity=".08" />
+          <rect x="-27" y="-5" width="3" height="10" rx=".8" fill="#8a6326" /><rect x="-4" y="-5" width="3" height="10" rx=".8" fill="#8a6326" />
+          <rect x="-14" y="-9" width="14" height="3.4" rx="1.2" fill="url(#bk-brass)" /><rect x="-12" y="-6" width="2" height="2" fill="#8a6326" /><rect x="-4" y="-6" width="2" height="2" fill="#8a6326" />
+          <path d="M20 -5.6 H38 L40 -6.6 V6.6 L38 5.6 H20 Z" fill="url(#bk-brass)" /><rect x="20" y="-5.8" width="2.4" height="11.6" fill="#8a6326" />
+          <ellipse cx="40" cy="0" rx="1.4" ry="6.6" fill="#123038" /><ellipse class="td-glint" cx="40.2" cy="-2.2" rx=".7" ry="2" fill="#fff" opacity=".7" />
+          <circle cx="0" cy="0" r="2.2" fill="#3a2610" />
         </g>
       </svg>
 
@@ -80,14 +106,23 @@
       <!-- канделябр на три свечи: щелчок — задуть или зажечь -->
       <span class="td-cand" :class="{ off: !candles }">
         <span class="td-light" />
-        <svg class="td-it" width="62" height="96" viewBox="0 0 62 96" role="button" tabindex="0" :aria-label="candles ? 'Задуть свечи' : 'Зажечь свечи'" @click="toggleCandles" @keydown.enter.prevent="toggleCandles" @keydown.space.prevent="toggleCandles">
+        <svg class="td-it" width="72" height="108" viewBox="0 0 72 108" role="button" tabindex="0" :aria-label="candles ? 'Задуть свечи' : 'Зажечь свечи'" @mousedown.prevent @click="toggleCandles" @keydown.enter.prevent="toggleCandles" @keydown.space.prevent="toggleCandles">
           <title>{{ candles ? 'Задуть свечи' : 'Зажечь свечи' }}</title>
-          <ellipse cx="31" cy="94" rx="20" ry="2.4" fill="url(#bk-shadow)" />
-          <path d="M20 93 Q31 84 42 93 Z" fill="url(#bk-brass)" /><rect x="29.4" y="50" width="3.2" height="36" fill="url(#bk-brass-h)" /><circle cx="31" cy="70" r="3" fill="url(#bk-brass)" />
-          <path d="M12 52 Q12 62 31 62 Q50 62 50 52" fill="none" stroke="url(#bk-brass)" stroke-width="2.6" />
+          <ellipse cx="36" cy="106" rx="22" ry="2.4" fill="url(#bk-shadow)" />
+          <!-- основание: купол с ободком -->
+          <ellipse cx="36" cy="104" rx="14" ry="2.6" fill="#6a4a18" /><path d="M22 104 Q22 96 30 94 H42 Q50 96 50 104 Z" fill="url(#bk-brass)" />
+          <ellipse cx="36" cy="94" rx="6.4" ry="1.8" fill="url(#bk-brass)" />
+          <!-- стебель с утолщениями -->
+          <rect x="34.3" y="58" width="3.4" height="36" fill="url(#bk-brass-h)" />
+          <ellipse cx="36" cy="88" rx="4" ry="2.6" fill="url(#bk-brass)" /><ellipse cx="36" cy="74" rx="3.4" ry="3.4" fill="url(#bk-brass)" /><ellipse cx="36" cy="61" rx="4.4" ry="2" fill="url(#bk-brass)" />
+          <!-- рожки -->
+          <path d="M36 62 C30 62 22 66 17 60 C14 57 15 53 15 52" fill="none" stroke="url(#bk-brass)" stroke-width="2.6" stroke-linecap="round" />
+          <path d="M36 62 C42 62 50 66 55 60 C58 57 57 53 57 52" fill="none" stroke="url(#bk-brass)" stroke-width="2.6" stroke-linecap="round" />
+          <circle cx="13" cy="64" r="1.6" fill="url(#bk-brass)" /><circle cx="59" cy="64" r="1.6" fill="url(#bk-brass)" />
           <g v-for="(c, i) in CANDLES" :key="i">
-            <ellipse :cx="c.x" :cy="c.y + 2" rx="5.4" ry="1.6" fill="url(#bk-brass)" />
-            <rect :x="c.x - 3.2" :y="c.y - c.h" width="6.4" :height="c.h" fill="url(#bk-wax)" /><ellipse :cx="c.x" :cy="c.y - c.h" rx="3.2" ry="1" fill="#efe3c4" />
+            <path :d="`M${c.x - 6} ${c.y + 1} Q${c.x} ${c.y + 4} ${c.x + 6} ${c.y + 1} Z`" fill="url(#bk-brass)" /><ellipse :cx="c.x" :cy="c.y + 1" rx="6" ry="1.4" fill="#d9b25c" />
+            <rect :x="c.x - 3.4" :y="c.y - c.h" width="6.8" :height="c.h + 1" fill="url(#bk-wax)" /><ellipse :cx="c.x" :cy="c.y - c.h" rx="3.4" ry="1.1" fill="#efe3c4" />
+            <path :d="`M${c.x - 3.4} ${c.y - c.h + 1} q-.6 4 .3 7 q.8 -3 .6 -7 Z`" fill="#f3ead3" />
             <line :x1="c.x" :y1="c.y - c.h" :x2="c.x" :y2="c.y - c.h - 3" stroke="#2a1d12" stroke-width=".9" />
             <g :transform="`translate(${c.x} ${c.y - c.h - 3})`"><g class="td-flame"><g class="sd-fa" :style="{ '--ft': c.t, '--fd': c.d }"><g class="sd-fb" :style="{ '--ft': c.t, '--fd': c.d }">
               <path d="M0 -12 C3 -7 3.8 -3 2.6 -.6 C1.7 1 -1.7 1 -2.6 -.6 C-3.8 -3 -3 -7 0 -12 Z" fill="url(#bk-flame)" />
@@ -122,7 +157,10 @@ const vines = [
 })
 const crown = Array.from({ length: 16 }, (_, i) => ({ x: 20 + r() * 34, y: 22 + r() * 20, r: (r() - 0.5) * 120, s: 1 + r() * 0.7, c: GREENS[i % 4] }))
 const MAPS = [{ x: 20, y: 18, r: -12, c: '#e6d8b0' }, { x: 30, y: 10, r: 3, c: '#d9c79a' }, { x: 38, y: 22, r: 14, c: '#efe4c4' }]
-const CANDLES = [{ x: 12, y: 50, h: 15, t: '1.4s', d: '-1.1s' }, { x: 31, y: 44, h: 19, t: '1.8s', d: '-2.6s' }, { x: 50, y: 50, h: 13, t: '1.55s', d: '-.4s' }]
+const CANDLES = [{ x: 15, y: 51, h: 16, t: '1.4s', d: '-1.1s' }, { x: 36, y: 44, h: 20, t: '1.8s', d: '-2.6s' }, { x: 57, y: 51, h: 14, t: '1.55s', d: '-.4s' }]
+// пятнышки на светлой груди совы
+const BELLY = [[30, 57], [35, 56], [40, 57], [28, 63], [33, 62.5], [38, 62.5], [42, 63.5], [30, 69], [35, 68.5], [40, 69], [32, 75], [38, 75]]
+const uid = 'td' + Math.random().toString(36).slice(2, 8)
 
 const owlTurn = ref(false), scopeOut = ref(false), candles = ref(true), smoke = ref(0)
 function owl() { owlTurn.value = false; setTimeout(() => { owlTurn.value = true }, 20) }
@@ -134,12 +172,12 @@ function toggleCandles() { candles.value = !candles.value; if (!candles.value) s
 .td-side { display: flex; align-items: flex-end; gap: 10px; }
 .td-it { display: block; overflow: visible; }
 .td-it[role='button'] { pointer-events: auto; cursor: pointer; outline: none; }
-.td-it[role='button']:focus-visible { filter: drop-shadow(0 0 4px rgba(243, 220, 158, .8)); }
+.td-it[role='button']:focus-visible { outline: 1px dashed rgba(243, 220, 158, .7); outline-offset: 2px; }
 .td-ov { mix-blend-mode: overlay; }
 .ivy { margin-bottom: 0; }
 
 /* сова */
-.td-owlhead { transform-box: fill-box; transform-origin: 50% 85%; animation: td-tilt 9s ease-in-out infinite; }
+.td-owlhead { transform-box: fill-box; transform-origin: 50% 90%; animation: td-tilt 9s ease-in-out infinite; }
 .owl.turn .td-owlhead { animation: td-owlhead 1.6s cubic-bezier(.4, 0, .2, 1); }
 .td-lids rect { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(0); animation: td-blink 6.2s ease-in-out infinite; }
 .owl.turn .td-pupil { transform-box: fill-box; transform-origin: center; animation: td-wide 1.6s ease-out; }
@@ -155,10 +193,10 @@ function toggleCandles() { candles.value = !candles.value; if (!candles.value) s
 @keyframes td-leaf { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
 
 /* телескоп: наклонён в небо, выдвигается */
-.td-tube { transform: translate(48px, 60px) rotate(-26deg) translate(-40px, 0); transition: transform .9s cubic-bezier(.65, 0, .35, 1); }
-.scope.out .td-tube { transform: translate(48px, 60px) rotate(-40deg) translate(-40px, 0); }
+.td-tube { transform: translate(50px, 54px) rotate(-24deg); transition: transform .9s cubic-bezier(.65, 0, .35, 1); }
+.scope.out .td-tube { transform: translate(50px, 54px) rotate(-36deg); }
 .td-draw { transition: transform .9s cubic-bezier(.65, 0, .35, 1); }
-.scope.out .td-draw { transform: translateX(-14px); }
+.scope.out .td-draw { transform: translateX(-12px); }
 .td-glint { animation: td-glint 4s ease-in-out infinite; }
 @keyframes td-glint { 0%, 80%, 100% { opacity: .2; } 88% { opacity: .9; } }
 

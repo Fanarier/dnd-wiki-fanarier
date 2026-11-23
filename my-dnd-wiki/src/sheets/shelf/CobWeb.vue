@@ -7,7 +7,7 @@
       <path d="M30 0 Q34 20 26 34" stroke-width=".4" stroke-opacity=".18" />
     </g>
     <clipPath :id="cid"><rect x="0" y="0" width="86" height="160" /></clipPath>
-    <g v-if="side === 'right'" :clip-path="`url(#${cid})`" class="cw-spider" role="button" tabindex="0" aria-label="Паучок" @click="scare" @keydown.enter.prevent="scare" @keydown.space.prevent="scare">
+    <g v-if="side === 'right'" :clip-path="`url(#${cid})`" class="cw-spider" role="button" tabindex="0" @mousedown.prevent aria-label="Паучок" @click="scare" @keydown.enter.prevent="scare" @keydown.space.prevent="scare">
       <title>Паучок</title>
       <g class="cw-drop">
         <line x1="62" y1="-200" x2="62" y2="70" stroke="#e8e2d4" stroke-opacity=".45" stroke-width=".6" />
