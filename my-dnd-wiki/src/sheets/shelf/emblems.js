@@ -8,6 +8,16 @@ function gear() {
   }
   return `M${pts.join(' L')} Z M12 8.6 a3.4 3.4 0 1 0 0.01 0 Z`
 }
+// снежинка: шесть лучей с веточками
+function snow() {
+  let d = ''
+  for (let i = 0; i < 6; i++) {
+    const a = (i * Math.PI) / 3
+    const P = (r, da = 0) => `${(12 + Math.cos(a + da) * r).toFixed(2)} ${(12 + Math.sin(a + da) * r).toFixed(2)}`
+    d += `M12 12 L${P(10.5)} M${P(5.2)} L${P(8, 0.42)} M${P(5.2)} L${P(8, -0.42)} `
+  }
+  return d.trim()
+}
 export const EMBLEM_PATHS = {
   gear: gear(),
   sword: 'M12 1.5 L14 5 V15 H10 V5 Z M6.5 15 H17.5 V17 H6.5 Z M11 17 H13 V21 H11 Z M12 21 a1.4 1.4 0 1 0 0.01 0 Z',
@@ -24,7 +34,8 @@ export const EMBLEM_PATHS = {
   sun: 'M12 7 a5 5 0 1 0 0.01 0 Z M12 1 V4 M12 20 V23 M1 12 H4 M20 12 H23 M4.2 4.2 L6.3 6.3 M17.7 17.7 L19.8 19.8 M4.2 19.8 L6.3 17.7 M17.7 6.3 L19.8 4.2',
   flame: 'M12 2 Q18 9 16 13 Q19 12 18.5 9.5 Q22 16 17 20.5 A7 7 0 0 1 6 19 Q3 14 8 9 Q8 12 10 12.5 Q9 7 12 2 Z',
   leaf: 'M4 20 Q3 8 20 3 Q21 17 8 19 Z M5 21 L14 10',
-  cross: 'M9 3 H15 V9 H21 V15 H15 V21 H9 V15 H3 V9 H9 Z'
+  cross: 'M9 3 H15 V9 H21 V15 H15 V21 H9 V15 H3 V9 H9 Z',
+  snow: snow()
 }
 // какие знаки заливаются, а какие — только контуром
 export const EMBLEM_FILL = { gear: 1, sword: 1, star: 1, eye: 1, wing: 1, crown: 1, drop: 1, moon: 1, sun: 1, flame: 1, cross: 1 }

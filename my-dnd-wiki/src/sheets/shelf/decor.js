@@ -2,10 +2,15 @@
 // свободное место на полке занимают старые тома и вещи. Раскладка зависит только от ширины и числа книг,
 // поэтому у всех, кто смотрит с одинаковым экраном, стеллаж одинаковый.
 export const DECOR = {
-  lantern: { w: 84, h: 140 }, candle: { w: 54, h: 82 }, globe: { w: 84, h: 118 }, hourglass: { w: 50, h: 86 }, bottles: { w: 92, h: 96 },
-  frame: { w: 110, h: 130 }, chest: { w: 100, h: 68 }, ink: { w: 64, h: 108 }, scrolls: { w: 62, h: 108 }, crystal: { w: 72, h: 84 }, plate: { w: 96, h: 96 }, stack: { w: 120, h: 84 }
+  lantern: { w: 84, h: 140 }, candle: { w: 56, h: 96 }, globe: { w: 86, h: 124 }, hourglass: { w: 60, h: 112 }, bottles: { w: 96, h: 104 },
+  frame: { w: 110, h: 130 }, chest: { w: 104, h: 76 }, ink: { w: 64, h: 110 }, scrolls: { w: 100, h: 58 }, crystal: { w: 80, h: 92 }, plate: { w: 96, h: 96 }, stack: { w: 120, h: 84 }
 }
-const ORDER = ['lantern', 'stack', 'globe', 'bottles', 'candle', 'frame', 'hourglass', 'chest', 'ink', 'lantern', 'scrolls', 'crystal', 'plate', 'stack']
+const ORDER = ['lantern', 'stack', 'globe', 'bottles', 'candle', 'frame', 'hourglass', 'chest', 'ink', 'lantern', 'scrolls', 'crystal', 'plate', 'stack', 'candle']
+// у каждой свечи и фонаря свой ритм пламени: период и сдвиг — от номера вещи
+export function flicker(seed) {
+  const r = rng(seed * 2654435 + 977)
+  return { '--ft': (1.25 + r() * 1.1).toFixed(2) + 's', '--fd': (-r() * 6).toFixed(2) + 's' }
+}
 export const TAG_W = 34, BOOK_GAP = 1, GROUP_GAP = 12
 
 function rng(s) { return () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9 | 0) >>> 0) / 4294967296 }

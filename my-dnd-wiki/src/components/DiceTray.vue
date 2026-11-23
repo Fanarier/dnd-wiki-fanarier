@@ -28,7 +28,7 @@
           <span class="dt-die">d{{ d }}</span><em v-if="pick[d]">×{{ pick[d] }}</em>
         </button>
       </div>
-      <!-- преимущество / помеха: d20 бросается дважды, засчитывается больший / меньший -->
+      <!-- преимущество / помеха: один кубик (d20 или единственный в формуле) бросается дважды, засчитывается больший / меньший -->
       <div class="dt-mode" role="group" aria-label="Преимущество или помеха">
         <button v-for="m in ADV_BTNS" :key="m.v" type="button" :class="[MODE_CLS[m.v], { on: mode === m.v }]" :title="m.hint" @click="setMode(m.v)">{{ m.t }}</button>
       </div>
@@ -85,22 +85,32 @@ const label = ref('')
 const secret = ref(false)
 const busy = ref(false)
 const rolling3d = ref(false)
-// преимущество / помеха: держится, пока не сбросят; работает, когда в формуле один d20
+// преимущество / помеха: держится, пока не сбросят; работает на один кубик —
+// на d20, если он в формуле один, иначе на единственный кубик формулы (1d10 с преимуществом и т. п.)
 const mode = ref('')
 const ADV_SIGN = { adv: '▲', dis: '▼' }
 // классы без «adv»: блокировщики рекламы прячут всё с классом .adv
 const MODE_CLS = { '': 'm-plain', adv: 'm-hi', dis: 'm-lo' }
 const ADV_BTNS = [
   { v: '', t: 'Обычный', hint: 'Обычный бросок' },
-  { v: 'adv', t: '▲ Преимущество', hint: 'd20 бросается дважды, засчитывается больший' },
-  { v: 'dis', t: '▼ Помеха', hint: 'd20 бросается дважды, засчитывается меньший' }
+  { v: 'adv', t: '▲ Преимущество', hint: 'Кубик бросается дважды, засчитывается больший (d20 или единственный кубик формулы)' },
+  { v: 'dis', t: '▼ Помеха', hint: 'Кубик бросается дважды, засчитывается меньший (d20 или единственный кубик формулы)' }
 ]
+// какой кубик бросать дважды: один d20, а без него — единственный кубик формулы; иначе — некуда
+function advDieOf(counts) {
+  if (counts[20] === 1) return 20
+  const kinds = SIDES.filter(d => counts[d])
+  return kinds.length === 1 && counts[kinds[0]] === 1 ? kinds[0] : 0
+}
+const ADV_ERR = 'Преимущество и помеха — для одного кубика: одного d20 или единственного кубика в формуле'
+const hasDice = () => SIDES.some(d => pick[d])
 function setMode(v) {
   mode.value = v
-  if (v && !pick[20]) pick[20] = 1 // нечего было усиливать — добавляем d20
+  if (v && !hasDice()) pick[20] = 1 // кубиков нет совсем — добавляем d20
 }
-const advOn = computed(() => (mode.value && pick[20] ? mode.value : ''))
-const advError = computed(() => (advOn.value && pick[20] > 1 ? 'Преимущество и помеха — только для одного d20' : ''))
+const advDie = computed(() => advDieOf(pick))
+const advOn = computed(() => (mode.value && advDie.value ? mode.value : ''))
+const advError = computed(() => (mode.value && hasDice() && !advDie.value ? ADV_ERR : ''))
 const formula = computed(() => {
   const parts = SIDES.filter(d => pick[d]).map(d => `${pick[d]}d${d}`)
   if (!parts.length) return ''
@@ -139,7 +149,7 @@ function parseFormula(raw) {
     pos = re.lastIndex
   }
   if (Math.abs(m) > 99) return { error: 'Модификатор — от −99 до 99' }
-  if (adv && counts[20] !== 1) return { error: 'Преимущество и помеха — только для одного d20' }
+  if (adv && !advDieOf(counts)) return { error: ADV_ERR }
   return { counts, mod: m, adv }
 }
 function applyText(v) {
@@ -195,9 +205,9 @@ watch(() => dice.pops.length, (n, o) => {
   else if (isFail(p)) sfx('fail')
   else if (!p.mine) sfx('roll', 0.4)
 })
-// значения по видам кубиков; при преимуществе/помехе незасчитанный d20 — зачёркнут
+// значения по видам кубиков; при преимуществе/помехе незасчитанный кубик — зачёркнут
 const detailParts = r => (r.groups || []).flatMap((g, gi) => {
-  const k = keptIndex(g, r.adv)
+  const k = keptIndex(g, r.adv, r.advDie)
   return [...(gi ? [{ t: ' | ' }] : []), ...g.values.flatMap((v, i) => [...(i ? [{ t: ', ' }] : []), { t: String(v), drop: k !== -1 && i !== k }])]
 })
 
@@ -214,8 +224,8 @@ function getBox() {
   return boxReady
 }
 // без 3D (старый браузер, «меньше анимаций») — честный случайный бросок
-// сколько кубиков катить: при преимуществе/помехе d20 — два
-const howMany = d => (d === 20 && advOn.value ? 2 : pick[d])
+// сколько кубиков катить: при преимуществе/помехе выбранный кубик — два
+const howMany = d => (advOn.value && d === advDie.value ? 2 : pick[d])
 const randomRoll = () => SIDES.filter(d => pick[d]).map(d => ({ sides: d, values: Array.from({ length: howMany(d) }, () => 1 + Math.floor(Math.random() * d)) }))
 
 async function roll() {
@@ -223,7 +233,7 @@ async function roll() {
   busy.value = true
   sfx('diceShake')
   const m = Number(mod.value) || 0
-  const meta = { mod: m, adv: advOn.value, label: label.value, secret: secret.value && store.role === 'master' }
+  const meta = { mod: m, adv: advOn.value, ...(advOn.value ? { advDie: advDie.value } : {}), label: label.value, secret: secret.value && store.role === 'master' }
   const notation = SIDES.filter(d => pick[d]).map(d => `${howMany(d)}d${d}`)
   try {
     let groups

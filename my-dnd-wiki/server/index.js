@@ -2911,11 +2911,12 @@ function cleanRoll(m) {
   })
   if (!groups.length || groups.some(g => !g)) return null
   const mod = Math.max(-99, Math.min(99, Math.round(Number(m.mod) || 0)))
-  // преимущество / помеха — только когда d20 один вид и брошен ровно дважды
+  // преимущество / помеха — один кубик (advDie, по умолчанию d20) брошен ровно дважды
   const adv = ADV_MODES.includes(m.adv) ? m.adv : ''
-  if (adv && groups.filter(g => keptIndex(g, adv) !== -1).length !== 1) return null
-  const { total, notation } = rollSummary({ groups, mod, adv })
-  return { groups, mod, adv, total, notation, label: String(m.label || '').slice(0, 60).trim() }
+  const advDie = adv && DIE_SIDES.includes(Number(m.advDie)) ? Number(m.advDie) : 20
+  if (adv && groups.filter(g => keptIndex(g, adv, advDie) !== -1).length !== 1) return null
+  const { total, notation } = rollSummary({ groups, mod, adv, advDie })
+  return { groups, mod, adv, ...(adv ? { advDie } : {}), total, notation, label: String(m.label || '').slice(0, 60).trim() }
 }
 const rollsFor = role => recentRolls.filter(r => !r.secret || role === 'master')
 // бросок для журнала деятельностей: этот же человек только что (2 минуты) бросил его общими кубиками сайта;
@@ -2923,8 +2924,8 @@ const rollsFor = role => recentRolls.filter(r => !r.secret || role === 'master')
 function findRoll(user, m) {
   const r = cleanRoll(m)
   if (!r) return null
-  const key = JSON.stringify([r.groups, r.mod, r.adv])
-  const e = recentRolls.findLast(x => x.uid === user.id && !x.usedIn && Date.now() - x.at < 120000 && JSON.stringify([x.groups, x.mod, x.adv]) === key)
+  const key = JSON.stringify([r.groups, r.mod, r.adv, r.advDie])
+  const e = recentRolls.findLast(x => x.uid === user.id && !x.usedIn && Date.now() - x.at < 120000 && JSON.stringify([x.groups, x.mod, x.adv, x.advDie]) === key)
   if (e) e.usedIn = true
   return e || null
 }

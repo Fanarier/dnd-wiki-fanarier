@@ -14,7 +14,7 @@
               <span v-else-if="it.t === 'tag'" class="bc-tag" :class="{ own: it.group.own }" :style="{ width: it.w + 'px' }" :title="it.group.hint">
                 <i class="bc-twine" /><b><span>{{ it.group.title }}</span></b>
               </span>
-              <span v-else-if="it.t === 'decor'" class="bc-decor" :class="it.kind" :style="{ width: it.w + 'px' }"><ShelfDecor :kind="it.kind" :w="it.w" :seed="it.seed" /></span>
+              <span v-else-if="it.t === 'decor'" class="bc-decor" :class="it.kind" :style="{ width: it.w + 'px', ...(it.kind === 'candle' || it.kind === 'lantern' ? flicker(it.seed) : {}) }"><ShelfDecor :kind="it.kind" :w="it.w" :seed="it.seed" /></span>
               <button v-else type="button" class="bc-book" :class="{ locked: it.book.s.locked, own: it.group.own, dim: it.book.dim, shake: shaking === it.book.id, on: card?.id === it.book.id }"
                 :style="{ width: it.w + 'px', '--i': it.book.n }" :aria-label="bookLabel(it.book.s)"
                 @click="onClick($event, it.book.s)" @pointerenter="onEnter($event, it.book.s)" @pointerleave="onLeave" @focus="show($event.currentTarget, it.book.s)" @blur="onLeave">
@@ -32,7 +32,7 @@
     <!-- карточка книги: обложка, чья, описание и что с ней можно сделать -->
     <Teleport to="body">
       <div v-if="card" ref="cardEl" class="bc-card" :class="{ sheet: narrow }" :style="cardPos" role="dialog" :aria-label="`Книга: ${card.name}`" @pointerenter="keep" @pointerleave="onLeave">
-        <div class="bc-cover" :class="cardLook.m" :style="{ '--c': cardLook.c, '--f': coverInk }">
+        <div class="bc-cover" :class="[cardLook.m, { frost: cardLook.deco.includes('frost') }]" :style="{ '--c': cardLook.c, '--f': coverInk }">
           <span class="bc-medal"><img v-if="card.photo" :src="sheetImg(card.photo)" alt="" /><span v-else>{{ (card.name || '?')[0] }}</span></span>
           <b>{{ card.name }}</b>
           <svg v-if="cardLook.em" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path :d="EMBLEM_PATHS[cardLook.em]" fill-rule="evenodd" :fill="EMBLEM_FILL[cardLook.em] ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -68,7 +68,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ShelfDefs from './ShelfDefs.vue'
 import BookSpine from './BookSpine.vue'
 import ShelfDecor from './ShelfDecor.vue'
-import { packShelves } from './decor.js'
+import { packShelves, flicker } from './decor.js'
 import { EMBLEM_PATHS, EMBLEM_FILL } from './emblems.js'
 import { lookOf, spineSize, mix, lum } from '../../shared/bookLook.js'
 import { sheetImg } from '../sheetState.js'
@@ -203,12 +203,13 @@ function act(kind) {
 .bc-gap { flex: none; }
 
 /* вещи */
-.bc-decor { position: relative; flex: none; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; filter: drop-shadow(3px 4px 4px rgba(0, 0, 0, .55)); }
-.bc-decor.tomes { filter: brightness(.82) drop-shadow(2px 3px 3px rgba(0, 0, 0, .5)); }
+.bc-decor { position: relative; flex: none; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; filter: drop-shadow(2px 3px 3px rgba(0, 0, 0, .45)); }
+.bc-decor.tomes { filter: brightness(.8) saturate(.85) drop-shadow(2px 3px 3px rgba(0, 0, 0, .5)); }
 .bc-decor.lantern::after, .bc-decor.candle::after { content: ''; position: absolute; left: 50%; bottom: 20%; width: 460px; height: 320px; transform: translate(-50%, 30%); pointer-events: none; mix-blend-mode: screen;
-  background: radial-gradient(closest-side, rgba(255, 176, 84, .3), rgba(255, 150, 60, .1) 55%, transparent); animation: bc-light 3.2s ease-in-out infinite; }
+  background: radial-gradient(closest-side, rgba(255, 176, 84, .3), rgba(255, 150, 60, .1) 55%, transparent);
+  animation: bc-light calc(var(--ft, 1.6s) * 1.4) ease-in-out infinite; animation-delay: var(--fd, 0s); }
 .bc-decor.candle::after { width: 300px; height: 220px; }
-@keyframes bc-light { 0%, 100% { opacity: .85; } 40% { opacity: 1; } 70% { opacity: .72; } }
+@keyframes bc-light { 0%, 100% { opacity: .85; } 31% { opacity: 1; } 52% { opacity: .72; } 77% { opacity: .93; } }
 
 /* бирка игрока висит на бечёвке перед его книгами */
 .bc-tag { position: relative; flex: none; align-self: stretch; display: flex; justify-content: center; z-index: 2; }
@@ -248,7 +249,11 @@ function act(kind) {
 .bc-cover { position: relative; align-self: start; display: grid; justify-items: center; align-content: start; gap: 8px; aspect-ratio: 3 / 4.2; padding: 14px 8px 8px 14px; box-sizing: border-box; overflow: hidden; border-radius: 3px 8px 8px 3px; color: var(--f); text-align: center;
   background: linear-gradient(90deg, rgba(0, 0, 0, .5), rgba(255, 255, 255, .08) 9%, transparent 14%), radial-gradient(ellipse at 45% 25%, color-mix(in srgb, var(--c) 82%, #fff), var(--c) 60%, color-mix(in srgb, var(--c) 60%, #000));
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .5), inset 0 0 26px rgba(0, 0, 0, .45), 4px 6px 12px rgba(0, 0, 0, .5); }
-.bc-cover::after { content: ''; position: absolute; inset: 6px 6px 6px 13px; border: 1px solid var(--f); border-radius: 5px; opacity: .55; pointer-events: none; }
+.bc-cover::before { content: ''; position: absolute; inset: 0; pointer-events: none; mix-blend-mode: overlay; opacity: .55;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='f' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.62' numOctaves='3' seed='7' stitchTiles='stitch'/%3E%3CfeDiffuseLighting surfaceScale='1.6' lighting-color='%23fff'%3E%3CfeDistantLight azimuth='235' elevation='52'/%3E%3C/feDiffuseLighting%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='2.2' intercept='-1.25'/%3E%3CfeFuncG type='linear' slope='2.2' intercept='-1.25'/%3E%3CfeFuncB type='linear' slope='2.2' intercept='-1.25'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23f)'/%3E%3C/svg%3E"); }
+.bc-cover::after { content: ''; position: absolute; inset: 6px 6px 6px 13px; border: 3px double var(--f); border-radius: 2px; opacity: .6; pointer-events: none; }
+.bc-cover.metal::before, .bc-cover.cloth::before { opacity: .35; }
+.bc-cover.frost { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .5), inset 0 0 22px rgba(214, 242, 255, .55), inset 0 0 4px rgba(255, 255, 255, .8), 4px 6px 12px rgba(0, 0, 0, .5); }
 .bc-cover.metal { background: linear-gradient(90deg, rgba(0, 0, 0, .5), rgba(255, 255, 255, .1) 9%, transparent 14%), repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 3px), var(--c); }
 .bc-cover.cloth { background: linear-gradient(90deg, rgba(0, 0, 0, .5), rgba(255, 255, 255, .08) 9%, transparent 14%), repeating-linear-gradient(0deg, rgba(0, 0, 0, .12) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 3px), var(--c); }
 .bc-medal { position: relative; display: grid; place-items: center; width: 78%; aspect-ratio: 1; border-radius: 50%; overflow: hidden; border: 2px solid var(--f); background: #120d08; font: 700 34px 'Cormorant Garamond', serif; box-shadow: inset 0 0 10px rgba(0, 0, 0, .6); }
