@@ -84,6 +84,10 @@ const PRESETS = {
   'kr1st1an': P('metal', '#3a3f45', '#c8ccd4', 0.65, 0.8, 1, 0, 'foil', 'shield', ['rivets', 'clasp'], '#8e1a14', '',
     'Не книга, а бронеплита с петлями: воронёная сталь на заклёпках, имя выбито на корешке зубилом. Застёжка одна, но такая, что её открывают двумя руками.\nВнутри тонкие металлические листы, процарапанные ровным машинным почерком. Книга весит как щит и однажды им послужила.')
 }
+// у каждого героя — своя живая деталь на корешке (см. HeroFx.vue)
+const FX = { 'энди': 'andy', 'хироши мунэакира': 'hiroshi', 'касуми аои': 'kasumi', 'долор': 'dolor', 'цуруя варабихимэ': 'tsuruya', 'элиас виан': 'elias',
+  'löwe rotesherz': 'lowe', 'белатор светозаров': 'belator', 'джилл': 'jill', 'орвилл солес': 'orvill', 'азиэль астарот': 'aziel', 'kr1st1an': 'kristian' }
+for (const [k, v] of Object.entries(FX)) PRESETS[k].fx = v
 PRESETS['лева рутенхерц'] = PRESETS['löwe rotesherz']
 PRESETS['энди уокер'] = PRESETS['энди']
 PRESETS['долор бахамут'] = PRESETS['долор']
@@ -111,12 +115,10 @@ export function defaultLook(s) {
     deco: acc ? ['ribbon'] : [], rib: acc || '#8e1a14', glow: '', desc: ''
   }
 }
-// вид книги: свой → заготовка по имени → по умолчанию
+// вид книги: у героев Анкарии — нарисованный вручную (со своей живой деталью), у остальных — по классу и id
 export function lookOf(s) {
-  const own = cleanLook(s.look)
-  if (own) return own
   const p = PRESETS[String(s.name || '').trim().toLowerCase()]
-  return p ? cleanLook(p) : cleanLook(defaultLook(s))
+  return p ? { ...cleanLook(p), fx: p.fx || '' } : cleanLook(defaultLook(s))
 }
 // размеры корешка на полке, px
 export const SPINE = { minH: 150, maxH: 222, minW: 34, maxW: 80 }

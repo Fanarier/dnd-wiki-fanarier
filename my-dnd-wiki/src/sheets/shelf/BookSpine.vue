@@ -136,7 +136,7 @@
       </g>
 
       <!-- знак -->
-      <g v-if="look.em" :transform="`translate(${g.W / 2 - g.es / 2} ${g.emY - g.es / 2}) scale(${g.es / 24})`">
+      <g v-if="look.em && !look.fx" :transform="`translate(${g.W / 2 - g.es / 2} ${g.emY - g.es / 2}) scale(${g.es / 24})`">
         <g :filter="emFilter" :style="glowing ? { color: look.glow } : null">
           <path :d="EMBLEM_PATHS[look.em]" :fill="EMBLEM_FILL[look.em] ? markPaint : 'none'" :stroke="markPaint" :stroke-width="EMBLEM_FILL[look.em] ? 0.6 : 1.8" stroke-linejoin="round" stroke-linecap="round" fill-rule="evenodd" />
         </g>
@@ -166,7 +166,7 @@
         <text v-for="(ln, i) in g.lines" :key="'ln' + i" x="0" :y="ln.dy" text-anchor="middle" dominant-baseline="central" :font-size="g.fs" :textLength="ln.len || null" lengthAdjust="spacingAndGlyphs"
           :class="['bs-title', titleKind]" :fill="titlePaint">{{ ln.t }}</text>
       </g>
-      <g v-if="has('runes')" fill="none" :stroke="look.glow || foil" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" :filter="look.glow ? 'url(#bk-glow)' : 'url(#bk-tool)'" :style="{ color: look.glow || foil }" opacity=".85">
+      <g v-if="has('runes')" class="bs-runes" fill="none" :stroke="look.glow || foil" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" :filter="look.glow ? 'url(#bk-glow)' : 'url(#bk-tool)'" :style="{ color: look.glow || foil }" opacity=".85">
         <path v-for="(rn, i) in g.runes" :key="'ru' + i" :d="rn.d" :transform="`translate(${rn.x} ${rn.y})`" />
       </g>
 
@@ -232,9 +232,13 @@
         </g>
       </g>
 
+      <!-- живые детали книги героя -->
+      <HeroFx v-if="look.fx" :fx="look.fx" layer="in" :g="g" :id="id" :paint="markPaint" :look="look" />
+
       <!-- выпуклость корешка -->
       <rect :width="g.W" :height="g.H" fill="url(#bk-round)" />
     </g>
+    <HeroFx v-if="look.fx" :fx="look.fx" layer="out" :g="g" :id="id" :paint="markPaint" :look="look" />
 
     <!-- чужая книга заперта -->
     <g v-if="locked" :transform="`translate(${g.W / 2 - 7} -7)`">
@@ -249,6 +253,7 @@
 import { computed } from 'vue'
 import { spineSize, mix, lum } from '../../shared/bookLook.js'
 import { EMBLEM_PATHS, EMBLEM_FILL, RUNES } from './emblems.js'
+import HeroFx from './HeroFx.vue'
 
 const props = defineProps({
   look: { type: Object, required: true },
@@ -278,12 +283,18 @@ const foil = computed(() => {
   if (Math.abs(lum(L.f) - lum(bg)) >= 0.3) return L.f
   return lum(bg) > 0.5 ? mix(L.f, '#2a1606', 0.62) : mix(L.f, '#ffffff', 0.55)
 })
-const inkOnCover = computed(() => (props.look.title === 'ink' ? props.look.f : (lum(props.look.c) > 0.5 ? '#2a1d12' : '#e4d6b0')))
+// надпись от руки: чернила почти в цвет кожи не прочесть — светлее или темнее
+const inkOnCover = computed(() => {
+  const L = props.look
+  if (L.title !== 'ink') return lum(L.c) > 0.5 ? '#2a1d12' : '#e4d6b0'
+  if (Math.abs(lum(L.f) - lum(L.c)) >= 0.35) return L.f
+  return lum(L.c) > 0.5 ? '#2a1606' : '#e9dcc0'
+})
 const titleKind = computed(() => (isMetal.value && props.look.title === 'foil' ? 'engraved' : props.look.title))
 const titlePaint = computed(() => {
   const t = titleKind.value
   if (t === 'label') return '#2a1d12'
-  if (t === 'ink') return props.look.f
+  if (t === 'ink') return inkOnCover.value
   if (t === 'engraved') return mix(props.look.c, '#000000', 0.5)
   return `url(#${id}f)`
 })
@@ -327,7 +338,7 @@ const g = computed(() => {
   const gemY = top + 8
   if (has('gem')) top += 19
   const blind = L.title === 'blind'
-  const es = L.em ? Math.min(W - 14, blind ? 22 : 17) : 0
+  const es = L.em ? Math.min(W - 14, blind || L.fx ? 22 : 17) : 0
   const emY = top + es / 2 + 1
   const bottom = botBands.length ? Math.min(...botBands) - 11 : H - cap
   const roman_ = props.level ? roman(props.level) : ''
@@ -415,7 +426,8 @@ const g = computed(() => {
       const len = 2.5 + r() * (y < H / 2 ? 7 : 4), w = 1 + r() * 1.2
       icicles.push({
         d: `M${(x - w).toFixed(1)} ${y} Q${(x - w * 0.3).toFixed(1)} ${(y + len * 0.5).toFixed(1)} ${x.toFixed(1)} ${(y + len).toFixed(1)} Q${(x + w * 0.3).toFixed(1)} ${(y + len * 0.4).toFixed(1)} ${(x + w).toFixed(1)} ${y} Z`,
-        e: `M${(x - w * 0.5).toFixed(1)} ${y + 0.6} L${(x - 0.2).toFixed(1)} ${(y + len * 0.8).toFixed(1)}`
+        e: `M${(x - w * 0.5).toFixed(1)} ${y + 0.6} L${(x - 0.2).toFixed(1)} ${(y + len * 0.8).toFixed(1)}`,
+        tx: x, ty: y + len, y0: y
       })
     }
   }

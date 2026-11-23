@@ -50,13 +50,12 @@
           <p v-else-if="sheets.loaded && hasFilter && !found" class="sp-note">Ничего не нашлось — подходящих книг на стеллаже нет.</p>
 
           <BookCase v-if="sheets.loaded && (view === 'shelf' || groups.length)" :groups="groups" :title="caseTitle" :match="hasFilter ? matches : null" :mode="view" :is-master="isMaster"
-            @open="openBook" @look="lookFor = $event" @export="s => exportSheet(s.id, s.name).catch(e => toast(e.message, 'error'))" @meta="metaFor = $event" @trash="trashIt" @restore="restore" @purge="purge" />
+            @open="openBook" @export="s => exportSheet(s.id, s.name).catch(e => toast(e.message, 'error'))" @meta="metaFor = $event" @trash="trashIt" @restore="restore" @purge="purge" />
         </template>
       </template>
     </main>
 
     <SheetMeta v-if="metaFor" :sheet-id="metaFor.id" :summary="metaFor" @close="metaFor = null" />
-    <BookLookEditor v-if="lookFor" :sheet="lookFor" @close="lookFor = null" />
   </div>
 </template>
 
@@ -67,7 +66,6 @@ import UserMenu from '../components/UserMenu.vue'
 import PartyBoard from './PartyBoard.vue'
 import SheetMeta from './SheetMeta.vue'
 import BookCase from './shelf/BookCase.vue'
-import BookLookEditor from './shelf/BookLookEditor.vue'
 import { store, init, toast } from '../map/store.js'
 import { sheets, loadSheets, createSheet, importSheet, exportSheet, deleteSheet, restoreSheet } from './sheetState.js'
 
@@ -75,7 +73,7 @@ const router = useRouter()
 const isMaster = computed(() => store.role === 'master')
 const VIEWS = [{ k: 'shelf', t: 'Полка' }, { k: 'party', t: 'Отряд' }, { k: 'trash', t: 'Корзина' }]
 const view = ref('shelf')
-const q = ref(''), ownerFilter = ref(''), busy = ref(false), metaFor = ref(null), lookFor = ref(null), dropHint = ref(false)
+const q = ref(''), ownerFilter = ref(''), busy = ref(false), metaFor = ref(null), dropHint = ref(false)
 
 // сменили вход (мастер ↔ игра персонажем, другой аккаунт) — список листов другой
 watch(() => `${store.me?.id}|${store.role}`, (n, o) => {

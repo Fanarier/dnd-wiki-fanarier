@@ -12,7 +12,6 @@ import { SCHEMA, cleanBy, blankSheet, schemaAt, getAt, setAt, ALL_SLOTS, hpMax, 
 import { cleanRich } from './richtext.js'
 import { htmlToText } from '../src/shared/rules.js'
 import { slotToInv } from '../src/shared/items.js'
-import { cleanLook } from '../src/shared/bookLook.js'
 
 // текст с оформлением в любом поле листа — через очистку сервера
 setRichCleaner(cleanRich)
@@ -294,13 +293,13 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   }
   const stub = sh => ({
     id: sh.id, locked: true, ownerId: sh.ownerId, ownerShort: ownerShort(sh.ownerId), name: sh.data.CharacterName, cls: sh.data.Class, sub: sh.data.Subclass,
-    race: sh.data.Race, level: sh.data.Level, photo: sh.data.PhotoFile, accent: sh.data.Accent, look: sh.look || null
+    race: sh.data.Race, level: sh.data.Level, photo: sh.data.PhotoFile, accent: sh.data.Accent
   })
   const summary = (sh, u) => {
     const d = sh.data
     return {
       canEdit: u ? canSee(u, sh) : true, share: { all: !!sh.share?.all, ids: sh.share?.ids || [] },
-      id: sh.id, ownerId: sh.ownerId, ownerName: ownerName(sh.ownerId), ownerShort: ownerShort(sh.ownerId), heroId: sh.heroId, heroName: heroName(sh.heroId), look: sh.look || null,
+      id: sh.id, ownerId: sh.ownerId, ownerName: ownerName(sh.ownerId), ownerShort: ownerShort(sh.ownerId), heroId: sh.heroId, heroName: heroName(sh.heroId),
       name: d.CharacterName, cls: d.Class, sub: d.Subclass, race: d.Race, level: d.Level, photo: d.PhotoFile, accent: d.Accent,
       hp: { cur: d.HpData.Current, max: hpMax(d), temp: d.HpData.Temp, hits: d.Hits },
       ds: ['S1', 'S2', 'S3', 'F1', 'F2', 'F3'].map(k => d.HpData['DS_' + k]),
@@ -370,16 +369,6 @@ export function registerSheetRoutes(app, { express, requireUser, requireMaster, 
   })
 
   // вид книги на стеллаже: переплёт, цвет, украшения, описание — меняют владелец и мастер; null — вернуть обычный
-  app.put('/api/sheets/:id/look', requireUser, (req, res) => {
-    const sh = get(req, res)
-    if (!sh) return
-    const look = req.body?.look == null ? null : cleanLook(req.body.look)
-    if (look) sh.look = look; else delete sh.look
-    save()
-    notify(sh) // корешок видят все — стеллаж обновляется у всех вошедших
-    res.json({ ok: true, look: sh.look || null })
-  })
-
   // навыки из листов для общего поиска (Ctrl+K): только названия, из листов, которые человеку видны
   app.get('/api/sheets-skills', requireUser, (req, res) => {
     const out = []

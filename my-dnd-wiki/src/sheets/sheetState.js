@@ -184,7 +184,6 @@ export async function exportSheet(id, name) {
 }
 export const setMeta = (id, patch) => api('PATCH', `/api/sheets/${id}/meta`, patch)
 export const deleteSheet = id => api('DELETE', `/api/sheets/${id}`)
-export const saveLook = (id, look) => api('PUT', `/api/sheets/${id}/look`, { look })
 export const restoreSheet = id => api('POST', `/api/sheets/${id}/restore`)
 export const loadHistory = id => api('GET', `/api/sheets/${id}/history`)
 export const revertEntry = (id, entryId) => api('POST', `/api/sheets/${id}/revert`, { entryId })

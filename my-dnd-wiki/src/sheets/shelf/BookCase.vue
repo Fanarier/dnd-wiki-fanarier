@@ -14,7 +14,7 @@
               <span v-else-if="it.t === 'tag'" class="bc-tag" :class="{ own: it.group.own }" :style="{ width: it.w + 'px' }" :title="it.group.hint">
                 <i class="bc-twine" /><b><span>{{ it.group.title }}</span></b>
               </span>
-              <span v-else-if="it.t === 'decor'" class="bc-decor" :class="it.kind" :style="{ width: it.w + 'px', ...(it.kind === 'candle' || it.kind === 'lantern' ? flicker(it.seed) : {}) }"><ShelfDecor :kind="it.kind" :w="it.w" :seed="it.seed" /></span>
+              <span v-else-if="it.t === 'decor'" class="bc-decor" :class="it.kind" :style="{ width: it.w + 'px' }"><ShelfDecor :kind="it.kind" :w="it.w" :seed="it.seed" /></span>
               <button v-else type="button" class="bc-book" :class="{ locked: it.book.s.locked, own: it.group.own, dim: it.book.dim, shake: shaking === it.book.id, on: card?.id === it.book.id }"
                 :style="{ width: it.w + 'px', '--i': it.book.n }" :aria-label="bookLabel(it.book.s)"
                 @click="onClick($event, it.book.s)" @pointerenter="onEnter($event, it.book.s)" @pointerleave="onLeave" @focus="show($event.currentTarget, it.book.s)" @blur="onLeave">
@@ -51,7 +51,6 @@
             </template>
             <template v-else>
               <button type="button" class="main" @click="act('open')">Открыть</button>
-              <button v-if="card.canEdit !== false" type="button" @click="act('look')">Вид книги</button>
               <button type="button" @click="act('export')">Выгрузить .json</button>
               <button v-if="isMaster" type="button" @click="act('meta')">Владелец</button>
               <button v-if="card.canEdit !== false" type="button" class="danger" @click="act('trash')">В корзину</button>
@@ -68,7 +67,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ShelfDefs from './ShelfDefs.vue'
 import BookSpine from './BookSpine.vue'
 import ShelfDecor from './ShelfDecor.vue'
-import { packShelves, flicker } from './decor.js'
+import { packShelves } from './decor.js'
 import { EMBLEM_PATHS, EMBLEM_FILL } from './emblems.js'
 import { lookOf, spineSize, mix, lum } from '../../shared/bookLook.js'
 import { sheetImg } from '../sheetState.js'
@@ -82,7 +81,7 @@ const props = defineProps({
   mode: { type: String, default: 'shelf' },
   isMaster: Boolean
 })
-const emit = defineEmits(['open', 'look', 'export', 'meta', 'trash', 'restore', 'purge'])
+const emit = defineEmits(['open', 'export', 'meta', 'trash', 'restore', 'purge'])
 
 const rowsEl = ref(null), width = ref(0), ready = ref(false)
 const rows = computed(() => {
@@ -103,11 +102,11 @@ onMounted(() => {
   ro = new ResizeObserver(measure)
   ro.observe(rowsEl.value)
   addEventListener('resize', measure)
-  addEventListener('scroll', hide, true)
+  addEventListener('scroll', onScroll, true)
   addEventListener('keydown', onKey)
   setTimeout(() => { ready.value = true }, 900)
 })
-onBeforeUnmount(() => { ro?.disconnect(); removeEventListener('resize', measure); removeEventListener('scroll', hide, true); removeEventListener('keydown', onKey); clearTimeout(timer) })
+onBeforeUnmount(() => { ro?.disconnect(); removeEventListener('resize', measure); removeEventListener('scroll', onScroll, true); removeEventListener('keydown', onKey); clearTimeout(timer) })
 
 const bookLabel = s => `${s.name}${s.cls ? ', ' + s.cls : ''}${s.locked ? ' — книга заперта' : ''}`
 const whose = s => (s.ownerShort ? (s.mine ? 'Твоя книга' : `Книга игрока ${s.ownerShort}`) : 'Книга мастера')
@@ -141,6 +140,8 @@ function show(el, s) {
 }
 const keep = () => clearTimeout(timer)
 function hide() { clearTimeout(timer); card.value = null; anchor = null }
+// страница прокрутилась — карточка оторвалась от книги; прокрутка внутри самой карточки её не прячет
+const onScroll = e => { if (!(e.target instanceof Node && cardEl.value?.contains(e.target))) hide() }
 function onEnter(e, s) { if (e.pointerType === 'mouse') show(e.currentTarget, s) }
 function onLeave() { clearTimeout(timer); timer = setTimeout(hide, 220) }
 function onKey(e) { if (e.key === 'Escape' && card.value) hide() }
@@ -205,11 +206,8 @@ function act(kind) {
 /* вещи */
 .bc-decor { position: relative; flex: none; display: flex; align-items: flex-end; justify-content: center; pointer-events: none; filter: drop-shadow(2px 3px 3px rgba(0, 0, 0, .45)); }
 .bc-decor.tomes { filter: brightness(.8) saturate(.85) drop-shadow(2px 3px 3px rgba(0, 0, 0, .5)); }
-.bc-decor.lantern::after, .bc-decor.candle::after { content: ''; position: absolute; left: 50%; bottom: 20%; width: 460px; height: 320px; transform: translate(-50%, 30%); pointer-events: none; mix-blend-mode: screen;
-  background: radial-gradient(closest-side, rgba(255, 176, 84, .3), rgba(255, 150, 60, .1) 55%, transparent);
-  animation: bc-light calc(var(--ft, 1.6s) * 1.4) ease-in-out infinite; animation-delay: var(--fd, 0s); }
-.bc-decor.candle::after { width: 300px; height: 220px; }
-@keyframes bc-light { 0%, 100% { opacity: .85; } 31% { opacity: 1; } 52% { opacity: .72; } 77% { opacity: .93; } }
+/* свеча и фонарь светят на соседей — тень-фильтр обрезал бы свет по ширине вещи */
+.bc-decor.candle, .bc-decor.lantern, .bc-decor.globe, .bc-decor.bottles { filter: none; }
 
 /* бирка игрока висит на бечёвке перед его книгами */
 .bc-tag { position: relative; flex: none; align-self: stretch; display: flex; justify-content: center; z-index: 2; }
@@ -237,7 +235,7 @@ function act(kind) {
 @keyframes bc-shake { 20% { transform: translateY(-6px) rotate(-2.2deg); } 45% { transform: translateY(-6px) rotate(2deg); } 70% { transform: translateY(-4px) rotate(-1.2deg); } }
 
 @media (max-width: 600px) { .bc-post { width: 12px; } .bc-cornice { height: 46px; } .bc-plate { font-size: 17px; padding: 4px 14px 5px; } .bc-cornice::before, .bc-cornice::after { display: none; } }
-@media (prefers-reduced-motion: reduce) { .bc-book, .bc-tag b, .bc-decor::after { animation: none !important; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .bc-book, .bc-tag b { animation: none !important; transition: none; } }
 </style>
 
 <style>

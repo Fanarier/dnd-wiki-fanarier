@@ -17,12 +17,12 @@
       <rect x="28.4" y="12" width="3.2" height="88" fill="#3a2312" opacity=".55" />
       <!-- песок -->
       <g :clip-path="`url(#${id}t)`">
-        <path :d="topSand" :fill="`url(#${id}s)`" />
+        <path :key="'t' + drops" :d="topSand" :fill="`url(#${id}s)`" :class="{ 'hg-drop': settling }" :style="{ '--drop': dropTop.toFixed(1) }" />
       </g>
       <g :clip-path="`url(#${id}b)`">
-        <path :d="botSand" :fill="`url(#${id}s)`" />
+        <path :key="'b' + drops" :d="botSand" :fill="`url(#${id}s)`" :class="{ 'hg-drop': settling }" :style="{ '--drop': dropBot.toFixed(1) }" />
       </g>
-      <line v-if="running && !flipping" class="hg-stream" x1="30" y1="55" x2="30" :y2="streamEnd" stroke="#e2bd74" stroke-width="1" stroke-dasharray="1.6 1.2" />
+      <line v-if="running && !flipping && !settling" class="hg-stream" x1="30" y1="55" x2="30" :y2="streamEnd" stroke="#e2bd74" stroke-width="1" stroke-dasharray="1.6 1.2" />
       <!-- стекло -->
       <path d="M14.6 13 C14.6 30 26 44 28.7 56 C26 68 14.6 82 14.6 99 H45.4 C45.4 82 34 68 31.3 56 C34 44 45.4 30 45.4 13 Z" fill="#cfe6ee" fill-opacity=".1" stroke="#e4f2f6" stroke-opacity=".55" stroke-width=".9" />
       <path d="M17.5 16 C17.5 28 23 38 26.5 47 M17.5 96 C17.5 86 22 77 25.5 68" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.6" stroke-linecap="round" />
@@ -54,21 +54,26 @@ const top = ref(0), rot = ref(0), flipping = ref(false), instant = ref(false)
 const running = computed(() => top.value > 0.001)
 const reduce = () => matchMedia('(prefers-reduced-motion: reduce)').matches
 
-// верхняя колба: песок ровной поверхностью с ямкой воронки посередине
+// верхняя колба: ровная поверхность, посередине воронка — туда уходит песок
+const topLevel = f => 56 - 41 * Math.pow(f, 0.62)
 const topSand = computed(() => {
   const f = top.value
   if (f <= 0.002) return ''
-  const y = 56 - 41 * Math.pow(f, 0.62), dip = Math.min(3.5, 1 + f * 3)
-  return `M10 ${y.toFixed(2)} L25 ${y.toFixed(2)} Q30 ${(y + dip * 2).toFixed(2)} 35 ${y.toFixed(2)} L50 ${y.toFixed(2)} V60 H10 Z`
+  const y = topLevel(f), d = running.value ? Math.min(7, 2.5 + (1 - f) * 6) : 0
+  return `M10 ${y.toFixed(2)} L21 ${y.toFixed(2)} L30 ${(y + d).toFixed(2)} L39 ${y.toFixed(2)} L50 ${y.toFixed(2)} V60 H10 Z`
 })
-// нижняя колба: горка растёт
+// нижняя колба: ровный слой и конус сверху — как настоящая горка песка
+const pile = b => ({ hb: 26 * Math.pow(b, 0.85), hc: b <= 0.002 ? 0 : 3 + 7 * Math.min(1, b * 3) })
 const botSand = computed(() => {
-  const f = 1 - top.value
-  if (f <= 0.002) return ''
-  const h = 34 * Math.pow(f, 0.72), side = 99 - h * 0.42
-  return `M10 99 V${side.toFixed(2)} Q30 ${(99 - h * 1.18).toFixed(2)} 50 ${side.toFixed(2)} V99 Z`
+  const b = 1 - top.value
+  if (b <= 0.002) return ''
+  const { hb, hc } = pile(b), base = 99 - hb
+  return `M10 99 V${base.toFixed(2)} L16 ${base.toFixed(2)} L30 ${(base - hc).toFixed(2)} L44 ${base.toFixed(2)} L50 ${base.toFixed(2)} V99 Z`
 })
-const streamEnd = computed(() => (99 - 34 * Math.pow(1 - top.value, 0.72) * 0.98).toFixed(1))
+const streamEnd = computed(() => { const { hb, hc } = pile(1 - top.value); return (99 - hb - hc).toFixed(1) })
+
+// после переворота песок падает: сверху — от крышки к горлышку, снизу — от горлышка на дно
+const settling = ref(false), drops = ref(0), dropTop = ref(0), dropBot = ref(0)
 
 // песок сыплется только пока часы стоят
 let raf = 0, last = 0
@@ -76,7 +81,7 @@ function tick(t) {
   if (!last) last = t
   const dt = Math.min(200, t - last)
   last = t
-  if (!flipping.value) top.value = Math.max(0, top.value - dt / DURATION)
+  if (!flipping.value && !settling.value) top.value = Math.max(0, top.value - dt / DURATION)
   raf = top.value > 0 ? requestAnimationFrame(tick) : 0
   if (!raf) last = 0
 }
@@ -94,9 +99,16 @@ function landed(e) {
   if (e.propertyName !== 'transform' || !flipping.value) return
   instant.value = true
   rot.value = 0
-  top.value = 1 - top.value
+  const f = 1 - top.value
+  top.value = f
+  // насколько песок «висел» над своим местом, когда часы встали
+  dropTop.value = f > 0.002 ? Math.max(0, topLevel(f) - 13) : 0
+  const { hb, hc } = pile(1 - f)
+  dropBot.value = 1 - f > 0.002 ? Math.max(0, 99 - hb - hc - 56) : 0
+  drops.value++
+  settling.value = true
   flipping.value = false
-  run()
+  setTimeout(() => { settling.value = false; run() }, 380)
 }
 onBeforeUnmount(() => cancelAnimationFrame(raf))
 </script>
@@ -109,6 +121,8 @@ onBeforeUnmount(() => cancelAnimationFrame(raf))
 .hg:hover .hg-body { filter: brightness(1.12); }
 .hg-ov { mix-blend-mode: overlay; }
 .hg-stream { animation: hg-fall .5s linear infinite; }
+.hg-drop { animation: hg-drop .36s cubic-bezier(.55, 0, 1, .45) both; }
+@keyframes hg-drop { from { transform: translateY(calc(var(--drop) * -1px)); } }
 @keyframes hg-fall { to { stroke-dashoffset: -2.8; } }
-@media (prefers-reduced-motion: reduce) { .hg-body { transition: none; } .hg-stream { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .hg-body { transition: none; } .hg-stream, .hg-drop { animation: none; } }
 </style>
