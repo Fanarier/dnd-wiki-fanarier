@@ -1980,19 +1980,19 @@ app.post('/api/settlements/:id/orders', requireUser, (req, res) => {
   if (!ORDER_KINDS.includes(b.kind)) return res.status(400).json({ error: 'Неизвестный приказ' })
   const o = { id: newId('o'), kind: b.kind, text: T.str(1000)(b.text).trim(), by: req.user.id, byName: req.user.name, status: 'pending', createdAt: Date.now() }
   if (b.kind === 'build') {
-    if (!BUILDINGS[b.type] || BUILDINGS[b.type].personal) return res.status(400).json({ error: 'Такую постройку не построить' })
+    if (!Object.hasOwn(BUILDINGS, b.type) || BUILDINGS[b.type].personal) return res.status(400).json({ error: 'Такую постройку не построить' })
     o.build = { type: b.type, x: Math.round(coord(b.x)), y: Math.round(coord(b.y)) }
     if (BUILDINGS[b.type].size !== 'settlement') {
       const p = placementProblems(s, { id: 'new', ...o.build })
       if (p.length) return res.status(400).json({ error: 'Сюда не поставить: ' + p.join(', ') })
     }
   } else if (b.kind === 'workers') {
-    if (!JOBS[b.job]) return res.status(400).json({ error: 'Неизвестная работа' })
+    if (!Object.hasOwn(JOBS, b.job)) return res.status(400).json({ error: 'Неизвестная работа' })
     o.workers = { job: b.job, count: Math.round(T.num(0, 999)(b.count)) }
   } else if (b.kind === 'explore') {
     o.explore = { x: Math.round(coord(b.x)), y: Math.round(coord(b.y)), r: 300 }
   } else if (b.kind === 'train') {
-    if (!RACES[b.race] || !(s.races || []).some(r => r.race === b.race)) return res.status(400).json({ error: 'Такой расы в поселении нет' })
+    if (!Object.hasOwn(RACES, b.race) || !(s.races || []).some(r => r.race === b.race)) return res.status(400).json({ error: 'Такой расы в поселении нет' })
     o.train = { race: b.race, count: Math.max(1, Math.round(T.num(1, 100)(b.count))) }
   } else if (b.kind === 'repair') {
     const bd = (s.buildings || []).find(x => x.id === b.building)
@@ -2397,7 +2397,7 @@ app.post('/api/settlements/:id/walls/:wid/features', requireMaster, (req, res) =
   const w = s?.walls?.find(x => x.id === req.params.wid)
   if (!w) return res.status(404).json({ error: 'Стена не найдена' })
   const b = req.body || {}
-  const def = WALL_FEATURES[b.kind]
+  const def = Object.hasOwn(WALL_FEATURES, b.kind) ? WALL_FEATURES[b.kind] : null
   if (!def) return res.status(400).json({ error: 'Нет такого фрагмента' })
   const len = wallLength(w.points)
   const at = Math.round(Math.max(def.len / 2, Math.min(len - def.len / 2, T.num(0, 1e6)(b.s))) * 10) / 10
@@ -2728,7 +2728,7 @@ app.post('/api/settlements/:id/hospital', requireMaster, (req, res) => {
   const s = findSettlement(req.params.id)
   if (!s) return res.status(404).json({ error: 'Поселение не найдено' })
   const b = req.body || {}
-  const who = b.who?.race && RACES[b.who.race] ? { race: b.who.race } : b.who?.asset ? { asset: T.str(40)(b.who.asset) } : b.who?.hero ? { hero: T.str(40)(b.who.hero) } : { name: T.str(80)(b.who?.name) || 'Житель' }
+  const who = b.who?.race && Object.hasOwn(RACES, b.who.race) ? { race: b.who.race } : b.who?.asset ? { asset: T.str(40)(b.who.asset) } : b.who?.hero ? { hero: T.str(40)(b.who.hero) } : { name: T.str(80)(b.who?.name) || 'Житель' }
   const count = who.race ? Math.max(1, Math.round(T.num(1, 500)(b.count || 1))) : 1
   const p = { id: newId('p'), who, count, disease: T.str(300)(b.disease), treatment: '', progress: 50, day: s.day || 0 }
   ;(s.hospital ||= []).push(p)
@@ -2813,7 +2813,7 @@ app.get('/api/export', requireMaster, (req, res) => {
 })
 
 app.post('/api/:col', requireMaster, (req, res) => {
-  const schema = SCHEMAS[req.params.col]
+  const schema = Object.hasOwn(SCHEMAS, req.params.col) ? SCHEMAS[req.params.col] : null
   if (!schema || schema.noCreate) return res.status(404).json({ error: 'Неизвестный тип объекта' })
   const data = sanitize(schema.fields, req.body || {}, false)
   for (const r of schema.required || []) if (!(r in data)) return res.status(400).json({ error: `Не заполнено поле «${r}»` })
@@ -2830,7 +2830,7 @@ app.post('/api/:col', requireMaster, (req, res) => {
 })
 
 app.patch('/api/:col/:id', requireMaster, (req, res) => {
-  const schema = SCHEMAS[req.params.col]
+  const schema = Object.hasOwn(SCHEMAS, req.params.col) ? SCHEMAS[req.params.col] : null
   if (!schema) return res.status(404).json({ error: 'Неизвестный тип объекта' })
   const item = getDb()[req.params.col].find(x => x.id === req.params.id)
   if (!item) return res.status(404).json({ error: 'Объект не найден' })
@@ -2850,7 +2850,7 @@ app.patch('/api/:col/:id', requireMaster, (req, res) => {
 })
 
 app.delete('/api/:col/:id', requireMaster, (req, res) => {
-  const schema = SCHEMAS[req.params.col]
+  const schema = Object.hasOwn(SCHEMAS, req.params.col) ? SCHEMAS[req.params.col] : null
   if (!schema || schema.noCreate) return res.status(404).json({ error: 'Неизвестный тип объекта' })
   const list = getDb()[req.params.col]
   const idx = list.findIndex(x => x.id === req.params.id)

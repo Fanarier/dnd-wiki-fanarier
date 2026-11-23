@@ -201,6 +201,7 @@ export function cleanBy(s, v) {
       if (typeof v !== 'object' || Array.isArray(v)) return {}
       const out = {}
       for (const [k, x] of Object.entries(v).slice(0, s.max)) {
+        if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue
         const c = cleanBy(s.val, x)
         if (c !== '' && c !== false) out[String(k).slice(0, 80)] = c
       }
@@ -244,13 +245,14 @@ export const TRAIN_TEMPLATES = [
 ]
 
 // путь «Stats.StrBase» / «Skills.3.Description» → схема этого места (или null, если такого нет)
+const BAD_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
 export function schemaAt(path) {
   let s = SCHEMA
   for (const part of String(path).split('.')) {
     if (!s) return null
-    if (s.t === 'o') s = s.f[part]
+    if (s.t === 'o') s = Object.hasOwn(s.f, part) ? s.f[part] : null
     else if (s.t === 'a') s = /^\d+$/.test(part) && Number(part) < s.max ? s.item : null
-    else if (s.t === 'm') s = part ? s.val : null
+    else if (s.t === 'm') s = part && !BAD_KEYS.has(part) ? s.val : null
     else return null
   }
   return s || null
