@@ -1,7 +1,7 @@
 <template>
   <!-- корешок книги-листа в духе старинного переплёта: кожа с рельефом, рубцы с золотыми полосками,
        название тиснением на тёмной вставке, маленький тиснёный знак, номер тома (уровень) римскими цифрами -->
-  <svg class="bs" :width="g.W" :height="g.H" :viewBox="`0 0 ${g.W} ${g.H}`" aria-hidden="true">
+  <svg class="bs" :class="look.fx ? 'fx-' + look.fx : null" :width="g.W" :height="g.H" :viewBox="`0 0 ${g.W} ${g.H}`" aria-hidden="true">
     <defs>
       <clipPath :id="id + 'c'"><rect :width="g.W" :height="g.H" rx="2.5" /></clipPath>
       <!-- золото (или серебро) тиснения: блик сверху, глубина снизу -->
@@ -194,7 +194,7 @@
           <path d="M-6 0 H5" stroke="url(#bk-brass-h)" stroke-width="1.6" stroke-linecap="round" />
         </g>
       </g>
-      <g v-if="has('chain')">
+      <g v-if="has('chain')" class="bs-chain">
         <g v-for="(y, ci) in g.chainY" :key="'ch' + ci">
           <rect x="0" :y="y + 2.6" :width="g.W" height="2.4" fill="#000" opacity=".35" />
           <template v-for="(lk, i) in g.links" :key="'lk' + i">
@@ -226,7 +226,7 @@
       <!-- иней: кристаллы ползут от краёв, с рубцов свисают сосульки -->
       <g v-if="has('frost')">
         <g :mask="`url(#${id}m)`"><rect :width="g.W" :height="g.H" fill="#e6f6ff" opacity=".42" /><rect :width="g.W" :height="g.H" fill="url(#bk-frost)" /></g>
-        <path :d="g.ferns" fill="none" stroke="#eef9ff" stroke-width=".55" stroke-linecap="round" opacity=".75" />
+        <path :d="g.ferns" class="bs-ferns" fill="none" stroke="#eef9ff" stroke-width=".55" stroke-linecap="round" opacity=".75" />
         <g v-for="(ic, i) in g.icicles" :key="'ic' + i">
           <path :d="ic.d" fill="#bfe6fa" opacity=".55" /><path :d="ic.e" fill="none" stroke="#fff" stroke-width=".55" opacity=".85" stroke-linecap="round" />
         </g>

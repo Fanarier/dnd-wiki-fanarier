@@ -2,6 +2,10 @@
   <!-- свеча и фонарь. Свечу щелчком задувают (дымок) и зажигают снова; по фонарю можно щёлкнуть пальцем — он качается, огонёк вздрагивает -->
   <span class="cd" :class="[kind, { off: !lit, jolt }]" :style="flick">
     <span class="cd-light" :style="{ bottom: kind === 'lantern' ? '50%' : '62%' }" />
+    <!-- пылинки в свете -->
+    <span class="cd-dust" :style="{ bottom: kind === 'lantern' ? '50%' : '62%' }" aria-hidden="true">
+      <i v-for="(m, i) in motes" :key="i" :style="m" />
+    </span>
     <svg :width="size.w" :height="size.h" :viewBox="`0 0 ${size.w} ${size.h}`" aria-hidden="true">
       <ellipse :cx="size.w / 2" :cy="size.h - 1.5" :rx="size.w * 0.48" ry="3.4" fill="url(#bk-shadow)" />
 
@@ -63,6 +67,16 @@ const props = defineProps({ kind: { type: String, required: true }, seed: { type
 const size = computed(() => DECOR[props.kind])
 const flick = computed(() => flicker(props.seed))
 const lit = ref(true), smoke = ref(0), swing = ref(false), jolt = ref(false)
+// пылинки: у каждой своё место, путь и ритм
+const motes = computed(() => {
+  let s = props.seed * 7349 + 11
+  const r = () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9 | 0) >>> 0) / 4294967296
+  return Array.from({ length: 9 }, () => ({
+    left: (r() * 160 - 80).toFixed(0) + 'px', top: (r() * 120 - 70).toFixed(0) + 'px',
+    width: (1 + r() * 1.6).toFixed(1) + 'px', '--mx': (r() * 30 - 15).toFixed(0) + 'px', '--my': (-14 - r() * 26).toFixed(0) + 'px',
+    animationDuration: (7 + r() * 8).toFixed(1) + 's', animationDelay: (-r() * 12).toFixed(1) + 's'
+  }))
+})
 function toggle() {
   lit.value = !lit.value
   if (!lit.value) smoke.value++
@@ -86,6 +100,10 @@ const onSwingEnd = e => { if (e.animationName.includes('cd-swing')) swing.value 
   background: radial-gradient(closest-side, rgba(255, 176, 84, .3), rgba(255, 150, 60, .1) 55%, transparent);
   animation: cd-light calc(var(--ft, 1.6s) * 1.4) ease-in-out infinite; animation-delay: var(--fd, 0s); transition: opacity .45s ease-out; }
 .cd.lantern .cd-light { width: 440px; height: 320px; }
+.cd-dust { position: absolute; left: 50%; width: 0; height: 0; pointer-events: none; transition: opacity .6s; }
+.cd-dust i { position: absolute; aspect-ratio: 1; border-radius: 50%; background: #ffe2a8; box-shadow: 0 0 3px rgba(255, 210, 140, .8); opacity: 0; animation: cd-mote ease-in-out infinite; }
+.cd.off .cd-dust { opacity: 0; }
+@keyframes cd-mote { 0% { opacity: 0; transform: translate(0, 0); } 25% { opacity: .75; } 70% { opacity: .5; } 100% { opacity: 0; transform: translate(var(--mx), var(--my)); } }
 .cd.off .cd-light, .cd.off .cd-halo { opacity: 0; animation: none; }
 .cd.jolt .cd-light { animation: cd-jolt-light .7s ease-out; }
 .cd-halo { mix-blend-mode: screen; transition: opacity .3s; }
@@ -114,6 +132,7 @@ const onSwingEnd = e => { if (e.animationName.includes('cd-swing')) swing.value 
 @keyframes sd-sway { 0%, 100% { transform: rotate(0); } 22% { transform: rotate(-2.6deg); } 47% { transform: rotate(1.4deg); } 71% { transform: rotate(-1deg); } 88% { transform: rotate(2.2deg); } }
 @keyframes sd-flick { 0%, 100% { transform: scale(1, 1); } 13% { transform: scale(.96, 1.05); } 29% { transform: scale(1.03, .94); } 41% { transform: scale(.98, 1.07); } 63% { transform: scale(1.02, .97); } 82% { transform: scale(.97, 1.03); } }
 @media (prefers-reduced-motion: reduce) {
+  .cd-dust { display: none; }
   .cd-light, .sd-fa, .sd-fb, .cd-swing.go, .cd.jolt .cd-flame, .cd.jolt .cd-light, .cd-smoke { animation: none; }
   .cd-flame, .cd-light { transition: none; }
   .cd-smoke { opacity: 0; }
